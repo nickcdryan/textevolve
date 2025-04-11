@@ -147,12 +147,25 @@ class AgentSystem:
         # Extract relevant information for LLM
         performance_history = []
         for iteration in iterations[-5:]:  # Last 5 iterations
+            if iteration is None:  # Skip None entries
+                continue
+
+            perf = iteration.get("performance", {})
+            accuracy = perf.get("accuracy", 0) if perf else 0
+
             performance_history.append({
                 "iteration": iteration.get("iteration"),
                 "batch_size": iteration.get("batch_size", 5),
-                "accuracy": iteration.get("performance", {}).get("accuracy", 0),
+                "accuracy": accuracy,
                 "error_patterns": iteration.get("performance", {}).get("error_analysis", {}).get("error_patterns", [])
             })
+
+        # Default response if no LLM available
+        default_response = (self.current_batch_size, "Maintaining current batch size due to insufficient performance data")
+
+        # If no performance history, just keep current batch size
+        if not performance_history:
+            return default_response
 
         prompt = f"""
         As an AI optimization system, you need to determine the appropriate batch size for testing.
@@ -202,7 +215,7 @@ class AgentSystem:
             return new_batch_size, result.get("rationale", "No rationale provided")
         except Exception as e:
             print(f"Error adjusting batch size: {e}")
-            return self.current_batch_size, f"Error: {str(e)}"
+            return default_response
 
     def adjust_explore_exploit_with_llm(self) -> Tuple[int, int]:
         """
@@ -300,7 +313,8 @@ class AgentSystem:
         """
         # Get previous iterations and samples
         iterations = self.get_all_iterations()
-        samples = self.get_samples(5)
+        samples_data = self.get_samples()
+        samples = samples_data["samples"]
 
         # Extract example problems for context
         example_problems = []
@@ -496,6 +510,118 @@ except Exception as e:
                 "output": traceback.format_exc()
             }
 
+    def evaluate_with_llm(self, samples: List[Dict], results: List[Dict]) -> Dict:
+        """
+        Use the LLM to evaluate results and perform error analysis.
+        """
+        evaluations = []
+
+        # First, perform semantic evaluation with LLM
+        correct_count = 0
+        for i, (sample, result) in enumerate(zip(samples, results)):
+            if not result.get("success"):
+                evaluations.append({
+                    "sample_id": i,
+                    "success": False,
+                    "error": result.get("error", "Unknown error"),
+                    "match": False
+                })
+                continue
+
+            # Compare with golden answer using LLM
+            if not result.get("evaluation"):
+                golden_answer = sample.get("golden_plan", "").strip()
+                system_answer = result.get("answer", "").strip()
+                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                result["evaluation"] = evaluation
+                result["match"] = evaluation.get("match", False)
+
+            if result.get("match", False):
+                correct_count += 1
+
+            evaluations.append({
+                "sample_id": i,
+                "success": True,
+                "system_answer": result.get("answer", "").strip(),
+                "golden_answer": sample.get("golden_plan", "").strip(),
+                "match": result.get("match", False),
+                "evaluation": result.get("evaluation", {})
+            })
+
+        # Calculate accuracy
+        accuracy = correct_count / len(samples) if samples else 0
+
+        # For deeper analysis, use LLM to analyze error patterns
+        error_samples = []
+        for i, eval_data in enumerate(evaluations):
+            if not eval_data.get("match"):
+                sample = samples[i]
+                error_samples.append({
+                    "sample_id": i,
+                    "question": sample.get("prompt_0shot", ""),
+                    "system_answer": eval_data.get("system_answer", ""),
+                    "golden_answer": eval_data.get("golden_answer", ""),
+                    "error_message": eval_data.get("error", "")
+                })
+
+        error_analysis = {}
+        if error_samples:
+            # Create prompt for LLM to analyze errors
+            prompt = f"""
+            Analyze the errors in this system. You're given questions, the system's answers, and the correct answers.
+
+            Here are the error cases:
+            {json.dumps(error_samples, indent=2)}
+
+            Identify patterns in these errors and categorize them. Consider issues like:
+            1. Parsing problems (failing to extract relevant information)
+            2. Logic errors in processing the input
+            3. Output formatting issues
+            4. Edge case handling
+
+            For each error pattern you identify, suggest specific improvements to fix it.
+
+            Return your analysis as a JSON object with these fields:
+            1. "error_patterns": [List of identified error patterns]
+            2. "primary_issue": The most critical issue to fix
+            3. "recommendations": Specific technical recommendations to improve the system
+            4. "root_causes": Underlying causes of the errors
+
+            Format your response as a valid JSON object that can be parsed.
+            """
+
+            # Call LLM for error analysis
+            try:
+                response = self.call_llm(prompt)
+
+                # Extract JSON from response
+                response = response.strip()
+                if response.startswith("```json"):
+                    response = response.split("```json")[1]
+                elif response.startswith("```"):
+                    response = response.split("```")[1]
+
+                if response.endswith("```"):
+                    response = response.split("```")[0]
+
+                error_analysis = json.loads(response)
+            except Exception as e:
+                print(f"Error in LLM error analysis: {e}")
+                error_analysis = {
+                    "error_patterns": ["Analysis failed"],
+                    "primary_issue": "Unable to analyze errors with LLM",
+                    "recommendations": ["Retry analysis in next iteration"],
+                    "root_causes": ["LLM error analysis failed: " + str(e)]
+                }
+
+        return {
+            "accuracy": accuracy,
+            "correct_count": correct_count,
+            "total_count": len(samples),
+            "evaluations": evaluations,
+            "error_analysis": error_analysis
+        }
+
     def evaluate_answer_with_llm(self, system_answer: str, golden_answer: str) -> Dict:
         """Use LLM to determine if answers are semantically equivalent"""
         prompt = f"""
@@ -539,47 +665,6 @@ except Exception as e:
                 "confidence": 1.0 if exact_match else 0.0,
                 "explanation": f"Fallback to exact match comparison due to error: {str(e)}"
             }
-
-    def evaluate_with_llm(self, samples: List[Dict], results: List[Dict]) -> Dict:
-        """
-        Use the LLM to evaluate results and perform error analysis.
-        """
-        evaluations = []
-
-        # First, perform semantic evaluation with LLM
-        correct_count = 0
-        for i, (sample, result) in enumerate(zip(samples, results)):
-            if not result.get("success"):
-                evaluations.append({
-                    "sample_id": i,
-                    "success": False,
-                    "error": result.get("error", "Unknown error"),
-                    "match": False
-                })
-                continue
-
-            # Compare with golden answer using LLM
-            if not result.get("evaluation"):
-                golden_answer = sample.get("golden_plan", "").strip()
-                system_answer = result.get("answer", "").strip()
-                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
-                result["evaluation"] = evaluation
-                result["match"] = evaluation.get("match", False)
-
-            if result.get("match", False):
-                correct_count += 1
-
-            evaluations.append({
-                "sample_id": i,
-                "success": True,
-                "system_answer": result.get("answer", "").strip(),
-                "golden_answer": sample.get("golden_plan", "").strip(),
-                "match": result.get("match", False),
-                "evaluation": result.get("evaluation", {})
-            })
-
-        # Calculate accuracy
-        accuracy = correct_count / len(samples) if samples else 0
 
         # For deeper analysis, use LLM to analyze error patterns
         error_samples = []
@@ -664,33 +749,53 @@ except Exception as e:
         # Prepare data for LLM evaluation
         iteration_data = []
         for it in iterations:
+            if it is None:
+                continue  # Skip None entries
+
+            # Safely access nested data
+            progressive_accuracy = None
+            if "progressive_testing" in it and it["progressive_testing"]:
+                progressive_accuracy = it["progressive_testing"].get("accuracy", None)
+
             iteration_data.append({
                 "iteration": it.get("iteration"),
                 "accuracy": it.get("performance", {}).get("accuracy", 0),
                 "batch_size": it.get("batch_size", 5),
-                "progressive_accuracy": it.get("progressive_testing", {}).get("accuracy", None),
+                "progressive_accuracy": progressive_accuracy,
                 "approach": it.get("approach_summary", "Unknown approach"),
                 "strategy": it.get("strategy", "Unknown")
             })
 
-        # Use LLM to determine best script
-        prompt = f"""
-        As an AI system, determine which iteration produced the best script.
+        if not iteration_data:
+            # Fallback if no valid iteration data
+            return {
+                "iteration": 0,
+                "accuracy": 0,
+                "batch_size": 5,
+                "path": "No valid scripts available",
+                "approach": "No approaches tried yet",
+                "rationale": "No valid iterations completed"
+            }
 
-        Here is data about all iterations:
-        {json.dumps(iteration_data, indent=2)}
-
-        Consider both accuracy and testing coverage:
-        - A script tested on more examples may be more robust
-        - Recent iterations may reflect learned improvements
-        - Higher accuracy is generally better
-        - Scripts with good performance on progressive testing (across many examples) are particularly valuable
-
-        Return only a JSON object with:
-        {{"best_iteration": <integer>, "rationale": "<brief explanation>"}}
-        """
-
+        # Handle API rate limit issues - don't try to use LLM if we've hit limits
         try:
+            # Use LLM to determine best script
+            prompt = f"""
+            As an AI system, determine which iteration produced the best script.
+
+            Here is data about all iterations:
+            {json.dumps(iteration_data, indent=2)}
+
+            Consider both accuracy and testing coverage:
+            - A script tested on more examples may be more robust
+            - Recent iterations may reflect learned improvements
+            - Higher accuracy is generally better
+            - Scripts with good performance on progressive testing (across many examples) are particularly valuable
+
+            Return only a JSON object with:
+            {{"best_iteration": <integer>, "rationale": "<brief explanation>"}}
+            """
+
             response = self.call_llm(prompt)
 
             # Extract JSON from response
@@ -722,18 +827,44 @@ except Exception as e:
                 "rationale": result.get("rationale", "Highest overall accuracy")
             }
         except Exception as e:
-            print(f"Error identifying best script: {e}")
-            # Fallback: just return the highest accuracy iteration
-            best_iteration = max(iterations, 
-                            key=lambda x: x.get("performance", {}).get("accuracy", 0))
-            return {
-                "iteration": best_iteration.get("iteration"),
-                "accuracy": best_iteration.get("performance", {}).get("accuracy", 0),
-                "batch_size": best_iteration.get("batch_size", 5),
-                "path": f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
-                "approach": best_iteration.get("approach_summary", ""),
-                "rationale": "Fallback selection based on highest accuracy"
-            }
+            # Fallback method - don't use LLM, just pick highest accuracy
+            print(f"Error determining best script with LLM: {e}")
+            print("Using fallback method to determine best script")
+
+            try:
+                # Find the best iteration by accuracy
+                best_iteration = max(iterations, 
+                                key=lambda x: x.get("performance", {}).get("accuracy", 0) if x else 0)
+
+                return {
+                    "iteration": best_iteration.get("iteration"),
+                    "accuracy": best_iteration.get("performance", {}).get("accuracy", 0),
+                    "batch_size": best_iteration.get("batch_size", 5),
+                    "path": f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
+                    "approach": best_iteration.get("approach_summary", ""),
+                    "rationale": "Fallback selection based on highest accuracy"
+                }
+            except Exception as e2:
+                print(f"Error with fallback method: {e2}")
+                # Ultra fallback - just return the first iteration
+                if iterations and iterations[0]:
+                    return {
+                        "iteration": iterations[0].get("iteration", 0),
+                        "accuracy": iterations[0].get("performance", {}).get("accuracy", 0),
+                        "batch_size": iterations[0].get("batch_size", 5),
+                        "path": f"scripts/script_iteration_{iterations[0].get('iteration', 0)}.py",
+                        "approach": iterations[0].get("approach_summary", ""),
+                        "rationale": "Ultra fallback - first available iteration"
+                    }
+                else:
+                    return {
+                        "iteration": 0,
+                        "accuracy": 0,
+                        "batch_size": 5,
+                        "path": "No valid scripts available",
+                        "approach": "No approaches tried yet",
+                        "rationale": "No valid iterations completed"
+                    }
 
     def generate_approach_summary(self, script: str) -> str:
         """
@@ -917,7 +1048,13 @@ except Exception as e:
         script = self.generate_script_with_llm(is_exploration)
 
         # Generate a summary of the approach
-        approach_summary = self.generate_approach_summary(script)
+        try:
+            approach_summary = self.generate_approach_summary(script)
+            if approach_summary.startswith("API_RATE_LIMIT_EXCEEDED"):
+                approach_summary = "Approach summary not available due to API rate limit"
+        except Exception as e:
+            approach_summary = f"Error generating approach summary: {str(e)}"
+
         print(f"Approach summary: {approach_summary}")
 
         # Execute script on samples
@@ -934,15 +1071,27 @@ except Exception as e:
                 # Evaluate with LLM
                 golden_answer = sample.get("golden_plan", "")
                 system_answer = result.get("answer", "")
-                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
 
-                result["evaluation"] = evaluation
-                result["match"] = evaluation.get("match", False)
+                try:
+                    evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                    result["evaluation"] = evaluation
+                    result["match"] = evaluation.get("match", False)
 
-                if result["match"]:
-                    print(f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})")
-                else:
-                    print(f"    ❌ No match: {evaluation.get('explanation', '')}")
+                    if result["match"]:
+                        print(f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})")
+                    else:
+                        print(f"    ❌ No match: {evaluation.get('explanation', '')}")
+                except Exception as e:
+                    print(f"    ⚠️ Error evaluating answer: {str(e)}")
+                    # Fallback to exact match
+                    exact_match = system_answer.strip() == golden_answer.strip()
+                    result["match"] = exact_match
+                    result["evaluation"] = {
+                        "match": exact_match,
+                        "confidence": 1.0 if exact_match else 0.0,
+                        "explanation": f"Error evaluating: {str(e)}"
+                    }
+                    print(f"    {'✅' if exact_match else '❌'} Fallback to exact match: {exact_match}")
             else:
                 print(f"    Error: {result.get('error')}")
                 result["match"] = False
@@ -966,46 +1115,79 @@ except Exception as e:
               f"({matches}/{len(samples)} correct)")
 
         # Use LLM for deeper error analysis
-        print("Performing error analysis with LLM...")
-        evaluation = self.evaluate_with_llm(samples, results)
+        try:
+            print("Performing error analysis with LLM...")
+            evaluation = self.evaluate_with_llm(samples, results)
 
-        if evaluation.get('error_analysis'):
-            print("Primary issue identified:", evaluation.get('error_analysis', {}).get('primary_issue', 'None'))
+            if evaluation.get('error_analysis'):
+                primary_issue = evaluation.get('error_analysis', {}).get('primary_issue', 'None')
+                print(f"Primary issue identified: {primary_issue}")
+            else:
+                print("No specific issues identified")
+        except Exception as e:
+            print(f"Error in error analysis: {str(e)}")
+            evaluation = basic_evaluation
+            evaluation["error_analysis"] = {
+                "primary_issue": "Analysis error",
+                "error_patterns": ["Error during analysis"],
+                "recommendations": ["Fix error handling"],
+                "root_causes": [str(e)]
+            }
 
         # Run progressive testing on all seen examples for promising scripts
         progressive_testing_results = None
         if accuracy >= 0.7:  # Only run progressive testing if current batch performance is good
-            print("Script looks promising! Running progressive testing on all seen examples...")
-            progressive_testing_results = self.run_progressive_testing(script)
+            try:
+                print("Script looks promising! Running progressive testing on all seen examples...")
+                progressive_testing_results = self.run_progressive_testing(script)
 
-            if progressive_testing_results:
-                prog_accuracy = progressive_testing_results.get("accuracy", 0)
-                prog_matches = progressive_testing_results.get("matches", 0)
-                prog_total = progressive_testing_results.get("total_examples", 0)
+                if progressive_testing_results:
+                    prog_accuracy = progressive_testing_results.get("accuracy", 0)
+                    prog_matches = progressive_testing_results.get("matches", 0)
+                    prog_total = progressive_testing_results.get("total_examples", 0)
 
-                print(f"Progressive testing results: {prog_accuracy:.2f} accuracy " +
-                      f"({prog_matches}/{prog_total} correct)")
+                    print(f"Progressive testing results: {prog_accuracy:.2f} accuracy " +
+                          f"({prog_matches}/{prog_total} correct)")
+            except Exception as e:
+                print(f"Error in progressive testing: {str(e)}")
+                progressive_testing_results = None
 
         # Adjust explore/exploit balance for next iteration
-        print("Adjusting explore/exploit balance...")
-        new_explore, new_exploit = self.adjust_explore_exploit_with_llm()
+        try:
+            print("Adjusting explore/exploit balance...")
+            new_explore, new_exploit = self.adjust_explore_exploit_with_llm()
+            print(f"New explore/exploit balance: {new_explore}/{new_exploit}")
+        except Exception as e:
+            print(f"Error adjusting explore/exploit balance: {str(e)}")
+            # Maintain current values if error occurs
+            new_explore, new_exploit = self.explore_rate, self.exploit_rate
+            print(f"Maintaining current explore/exploit balance: {new_explore}/{new_exploit}")
 
         # Adjust batch size for next iteration
-        print("Adjusting batch size...")
-        new_batch_size, batch_adjustment_rationale = self.adjust_batch_size_with_llm(basic_evaluation)
-
-        print(f"New explore/exploit balance: {new_explore}/{new_exploit}")
-        print(f"New batch size: {new_batch_size} ({batch_adjustment_rationale})")
+        try:
+            print("Adjusting batch size...")
+            new_batch_size, batch_adjustment_rationale = self.adjust_batch_size_with_llm(basic_evaluation)
+            print(f"New batch size: {new_batch_size} ({batch_adjustment_rationale})")
+        except Exception as e:
+            print(f"Error adjusting batch size: {str(e)}")
+            # Maintain current batch size if error occurs
+            new_batch_size = self.current_batch_size
+            batch_adjustment_rationale = f"Error: {str(e)}"
+            print(f"Maintaining current batch size: {new_batch_size}")
 
         # Identify current best script
-        best_script_info = self.get_best_script_info()
-        if best_script_info:
-            print("\n=== Current Best Script ===")
-            print(f"Iteration: {best_script_info.get('iteration')}")
-            print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
-            print(f"Path: {best_script_info.get('path')}")
-            print(f"Approach: {best_script_info.get('approach')}")
-            print(f"Rationale: {best_script_info.get('rationale')}")
+        try:
+            best_script_info = self.get_best_script_info()
+            if best_script_info:
+                print("\n=== Current Best Script ===")
+                print(f"Iteration: {best_script_info.get('iteration')}")
+                print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
+                print(f"Path: {best_script_info.get('path')}")
+                print(f"Approach: {best_script_info.get('approach')}")
+                print(f"Rationale: {best_script_info.get('rationale')}")
+        except Exception as e:
+            print(f"Error identifying best script: {str(e)}")
+            best_script_info = None
 
         # Prepare iteration data
         iteration_data = {
@@ -1046,8 +1228,11 @@ except Exception as e:
         }
 
         # Save to archive
-        self.save_to_archive(iteration_data, f"iteration_{self.current_iteration}.json")
-        self.update_summaries(summary)
+        try:
+            self.save_to_archive(iteration_data, f"iteration_{self.current_iteration}.json")
+            self.update_summaries(summary)
+        except Exception as e:
+            print(f"Error saving iteration data: {str(e)}")
 
         # Update explore/exploit rates for next iteration
         self.explore_rate = new_explore

@@ -120,17 +120,21 @@ def run_agent(iterations: int, dataset_path: str = "calendar_scheduling.json",
 
             print(f"{iteration:<10} {strategy:<12} {accuracy_str:<15} {batch_size:<5} {explore}/{exploit:<15} {issue}")
 
-    # Get best script info
-    best_script_info = agent.get_best_script_info()
-    if best_script_info:
-        print("\n=== Current Best Script ===")
-        print(f"Iteration: {best_script_info.get('iteration')}")
-        print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
-        print(f"Path: {best_script_info.get('path')}")
-        print(f"Approach: {best_script_info.get('approach')}")
-        print(f"Rationale: {best_script_info.get('rationale')}")
-        print("\nTo validate this script on a specific range of examples, run:")
-        print(f"python validate_script.py --script {best_script_info.get('path')} --start 900 --end 999")
+    # Get best script info - with error handling
+    try:
+        best_script_info = agent.get_best_script_info()
+        if best_script_info:
+            print("\n=== Current Best Script ===")
+            print(f"Iteration: {best_script_info.get('iteration')}")
+            print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
+            print(f"Path: {best_script_info.get('path')}")
+            print(f"Approach: {best_script_info.get('approach')}")
+            print(f"Rationale: {best_script_info.get('rationale')}")
+            print("\nTo validate this script on a specific range of examples, run:")
+            print(f"python validate_script.py --script {best_script_info.get('path')} --start 900 --end 999")
+    except Exception as e:
+        print(f"Error getting best script info: {e}")
+        print("Could not determine best script due to an error.")
 
     # Final explore/exploit balance and batch size
     print(f"\nFinal explore/exploit balance: {agent.explore_rate}/{agent.exploit_rate}")
