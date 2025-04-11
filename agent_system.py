@@ -20,7 +20,6 @@ class AgentSystem:
         # Initialize configuration
         self.explore_rate = 70
         self.exploit_rate = 30
-        self.current_iteration = 0
         self.dataset_path = dataset_path
         self.example_prefix = example_prefix
 
@@ -43,6 +42,57 @@ class AgentSystem:
             print(f"Error initializing Gemini API client: {e}")
             print("Make sure to set the GEMINI_API_KEY environment variable")
             raise
+
+        # Load previous iterations if available
+        self._load_previous_state()
+
+    def _load_previous_state(self):
+        """Load previous state from archive if available"""
+        summaries = self.get_summaries()
+        iterations = self.get_all_iterations()
+
+        # Determine the next iteration number
+        if summaries:
+            # Sort by iteration number to find the highest
+            sorted_summaries = sorted(
+                summaries, 
+                key=lambda x: x.get("iteration", 0), 
+                reverse=True
+            )
+            last_iteration = sorted_summaries[0].get("iteration", 0)
+            self.current_iteration = last_iteration + 1
+
+            # Use the explore/exploit balance from the last iteration
+            self.explore_rate = sorted_summaries[0].get("new_explore_rate", self.explore_rate)
+            self.exploit_rate = sorted_summaries[0].get("new_exploit_rate", self.exploit_rate)
+
+            # Use the batch size from the last iteration
+            self.current_batch_size = sorted_summaries[0].get("new_batch_size", self.current_batch_size)
+
+            print(f"Loaded previous state: iteration {self.current_iteration}, " +
+                  f"explore/exploit: {self.explore_rate}/{self.exploit_rate}, " +
+                  f"batch size: {self.current_batch_size}")
+
+            # Reconstruct set of seen examples
+            for iteration in iterations:
+                if iteration and "sample_count" in iteration:
+                    # Each iteration represents sample_count examples starting from some index
+                    iter_num = iteration.get("iteration", 0)
+                    sample_count = iteration.get("sample_count", 0)
+
+                    # Calculate the approximate range of examples this iteration would have seen
+                    for i in range(iter_num * sample_count, (iter_num + 1) * sample_count):
+                        self.seen_examples.add(f"{self.example_prefix}{i}")
+
+            # Set next example index to after the last seen example
+            # This is approximate but better than starting from 0 again
+            last_seen_index = max([int(ex.replace(self.example_prefix, "")) 
+                                for ex in self.seen_examples if ex.startswith(self.example_prefix)] or [0])
+            self.next_example_index = last_seen_index + 1
+
+            print(f"Loaded {len(self.seen_examples)} seen examples, next example index: {self.next_example_index}")
+        else:
+            self.current_iteration = 0
 
     def call_llm(self, prompt: str) -> str:
         """Call the Gemini LLM with a prompt and return the response"""
