@@ -24,6 +24,11 @@ class AgentSystem:
         self.dataset_path = dataset_path
         self.example_prefix = example_prefix
 
+        # Initialize batch size and tracking for seen examples
+        self.current_batch_size = 5  # Start with a small batch
+        self.seen_examples = set()
+        self.next_example_index = 0
+
         # Ensure directories exist
         self.archive_dir = Path("archive")
         self.archive_dir.mkdir(exist_ok=True)
@@ -60,19 +65,39 @@ class AgentSystem:
             print(f"Error loading dataset: {str(e)}")
             return {}
 
-    def get_samples(self, n: int = 5) -> List[Dict]:
-        """Get n samples from the dataset"""
+    def get_samples(self) -> Dict:
+        """Get samples from the dataset, rotating through examples sequentially"""
         dataset = self.load_dataset()
         if not dataset:
-            return []
+            return {"samples": [], "new_examples_added": 0, "total_seen_examples": 0}
 
         samples = []
-        for i in range(n):
-            example_key = f"{self.example_prefix}{i}"
+        new_examples_added = 0
+
+        # Get current_batch_size samples
+        for i in range(self.current_batch_size):
+            example_key = f"{self.example_prefix}{self.next_example_index}"
+
+            # Wrap around if we reach the end
+            if example_key not in dataset:
+                self.next_example_index = 0
+                example_key = f"{self.example_prefix}{self.next_example_index}"
+
             if example_key in dataset:
                 samples.append(dataset[example_key])
 
-        return samples
+                # Track that we've seen this example
+                if example_key not in self.seen_examples:
+                    self.seen_examples.add(example_key)
+                    new_examples_added += 1
+
+                self.next_example_index += 1
+
+        return {
+            "samples": samples,
+            "new_examples_added": new_examples_added,
+            "total_seen_examples": len(self.seen_examples)
+        }
 
     def save_to_archive(self, data: Dict, filename: str) -> None:
         """Save data to the archive directory"""
@@ -114,6 +139,71 @@ class AgentSystem:
         with open(self.archive_dir / "summaries.json", 'w', encoding='utf-8') as file:
             json.dump(summaries, file, indent=2)
 
+    def adjust_batch_size_with_llm(self, performance: Dict) -> Tuple[int, str]:
+        """Use LLM to determine appropriate batch size based on performance"""
+        # Get performance history
+        iterations = self.get_all_iterations()
+
+        # Extract relevant information for LLM
+        performance_history = []
+        for iteration in iterations[-5:]:  # Last 5 iterations
+            performance_history.append({
+                "iteration": iteration.get("iteration"),
+                "batch_size": iteration.get("batch_size", 5),
+                "accuracy": iteration.get("performance", {}).get("accuracy", 0),
+                "error_patterns": iteration.get("performance", {}).get("error_analysis", {}).get("error_patterns", [])
+            })
+
+        prompt = f"""
+        As an AI optimization system, you need to determine the appropriate batch size for testing.
+
+        Current batch size: {self.current_batch_size}
+        Current accuracy: {performance.get("accuracy", 0):.2f}
+        Total examples seen so far: {len(self.seen_examples)}
+
+        Recent performance history:
+        {json.dumps(performance_history, indent=2)}
+
+        Based on this information, determine if the batch size should be adjusted.
+        Consider:
+
+        1. Recent performance trend
+        2. Stability of results
+        3. Need for more diverse examples
+
+        Rules:
+        - Batch size should be between 5 and 25
+        - Increase batch size when performance is stable and good
+        - Decrease batch size when performance suddenly drops
+        - Keep batch size stable when exploring new approaches
+
+        Return only a JSON object with:
+        {{"new_batch_size": <integer>, "rationale": "<brief explanation>"}}
+        """
+
+        try:
+            response = self.call_llm(prompt)
+
+            # Extract JSON from response
+            response = response.strip()
+            if response.startswith("```json"):
+                response = response.split("```json")[1]
+            if response.endswith("```"):
+                response = response.split("```")[0]
+
+            result = json.loads(response)
+
+            # Validate and extract new batch size
+            new_batch_size = int(result.get("new_batch_size", self.current_batch_size))
+
+            # Ensure batch size is within reasonable limits
+            new_batch_size = max(5, min(25, new_batch_size))
+
+            return new_batch_size, result.get("rationale", "No rationale provided")
+        except Exception as e:
+            print(f"Error adjusting batch size: {e}")
+            return self.current_batch_size, f"Error: {str(e)}"
+
     def adjust_explore_exploit_with_llm(self) -> Tuple[int, int]:
         """
         Use LLM reasoning to adjust the explore/exploit balance based on 
@@ -132,6 +222,7 @@ class AgentSystem:
             performance_history.append({
                 "iteration": summary.get("iteration"),
                 "accuracy": summary.get("performance", {}).get("accuracy", 0),
+                "batch_size": summary.get("batch_size", 5),
                 "explore_rate": summary.get("explore_rate"),
                 "exploit_rate": summary.get("exploit_rate")
             })
@@ -143,6 +234,8 @@ class AgentSystem:
 
         Current explore rate: {self.explore_rate}%
         Current exploit rate: {self.exploit_rate}%
+        Current batch size: {self.current_batch_size}
+        Total examples seen: {len(self.seen_examples)}
 
         Here is the performance history:
         {json.dumps(performance_history, indent=2)}
@@ -153,6 +246,7 @@ class AgentSystem:
         1. Performance trend (improving, stagnating, or declining)
         2. Size of performance changes between iterations
         3. Current balance of exploration vs exploitation
+        4. Number of examples tested in each iteration
 
         Rules:
         - Explore + exploit must always sum to 100
@@ -402,13 +496,57 @@ except Exception as e:
                 "output": traceback.format_exc()
             }
 
+    def evaluate_answer_with_llm(self, system_answer: str, golden_answer: str) -> Dict:
+        """Use LLM to determine if answers are semantically equivalent"""
+        prompt = f"""
+        You're evaluating two answers to determine if they convey the same information.
+
+        System answer: {system_answer}
+        Golden answer: {golden_answer}
+
+        Do these answers effectively communicate the same information, even if worded differently?
+        Return only a JSON object with: {{"match": true/false, "confidence": 0-1, "explanation": "reason"}}
+        """
+
+        try:
+            response = self.call_llm(prompt)
+
+            # Extract JSON from response
+            response = response.strip()
+            if response.startswith("```json"):
+                response = response.split("```json")[1]
+            if response.endswith("```"):
+                response = response.split("```")[0]
+
+            result = json.loads(response)
+
+            # Extract match information
+            match = result.get("match", False)
+            confidence = result.get("confidence", 0.0)
+            explanation = result.get("explanation", "No explanation provided")
+
+            return {
+                "match": match,
+                "confidence": confidence,
+                "explanation": explanation
+            }
+        except Exception as e:
+            print(f"Error evaluating answer: {e}")
+            # Fallback to exact match
+            exact_match = system_answer.strip() == golden_answer.strip()
+            return {
+                "match": exact_match,
+                "confidence": 1.0 if exact_match else 0.0,
+                "explanation": f"Fallback to exact match comparison due to error: {str(e)}"
+            }
+
     def evaluate_with_llm(self, samples: List[Dict], results: List[Dict]) -> Dict:
         """
         Use the LLM to evaluate results and perform error analysis.
         """
         evaluations = []
 
-        # First, perform basic exact match evaluation
+        # First, perform semantic evaluation with LLM
         correct_count = 0
         for i, (sample, result) in enumerate(zip(samples, results)):
             if not result.get("success"):
@@ -416,24 +554,28 @@ except Exception as e:
                     "sample_id": i,
                     "success": False,
                     "error": result.get("error", "Unknown error"),
-                    "exact_match": False
+                    "match": False
                 })
                 continue
 
-            # Compare with golden answer
-            golden_answer = sample.get("golden_plan", "").strip()
-            system_answer = result.get("answer", "").strip()
-            exact_match = golden_answer == system_answer
+            # Compare with golden answer using LLM
+            if not result.get("evaluation"):
+                golden_answer = sample.get("golden_plan", "").strip()
+                system_answer = result.get("answer", "").strip()
+                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                result["evaluation"] = evaluation
+                result["match"] = evaluation.get("match", False)
 
-            if exact_match:
+            if result.get("match", False):
                 correct_count += 1
 
             evaluations.append({
                 "sample_id": i,
                 "success": True,
-                "system_answer": system_answer,
-                "golden_answer": golden_answer,
-                "exact_match": exact_match
+                "system_answer": result.get("answer", "").strip(),
+                "golden_answer": sample.get("golden_plan", "").strip(),
+                "match": result.get("match", False),
+                "evaluation": result.get("evaluation", {})
             })
 
         # Calculate accuracy
@@ -510,6 +652,89 @@ except Exception as e:
             "error_analysis": error_analysis
         }
 
+    def get_best_script_info(self) -> Dict:
+        """
+        Get information about the best performing script, considering both 
+        accuracy and testing coverage
+        """
+        iterations = self.get_all_iterations()
+        if not iterations:
+            return None
+
+        # Prepare data for LLM evaluation
+        iteration_data = []
+        for it in iterations:
+            iteration_data.append({
+                "iteration": it.get("iteration"),
+                "accuracy": it.get("performance", {}).get("accuracy", 0),
+                "batch_size": it.get("batch_size", 5),
+                "progressive_accuracy": it.get("progressive_testing", {}).get("accuracy", None),
+                "approach": it.get("approach_summary", "Unknown approach"),
+                "strategy": it.get("strategy", "Unknown")
+            })
+
+        # Use LLM to determine best script
+        prompt = f"""
+        As an AI system, determine which iteration produced the best script.
+
+        Here is data about all iterations:
+        {json.dumps(iteration_data, indent=2)}
+
+        Consider both accuracy and testing coverage:
+        - A script tested on more examples may be more robust
+        - Recent iterations may reflect learned improvements
+        - Higher accuracy is generally better
+        - Scripts with good performance on progressive testing (across many examples) are particularly valuable
+
+        Return only a JSON object with:
+        {{"best_iteration": <integer>, "rationale": "<brief explanation>"}}
+        """
+
+        try:
+            response = self.call_llm(prompt)
+
+            # Extract JSON from response
+            response = response.strip()
+            if response.startswith("```json"):
+                response = response.split("```json")[1]
+            if response.endswith("```"):
+                response = response.split("```")[0]
+
+            result = json.loads(response)
+
+            # Get detailed info about the best iteration
+            best_iteration_number = int(result.get("best_iteration", -1))
+
+            best_iteration = next((it for it in iterations 
+                               if it.get("iteration") == best_iteration_number), None)
+
+            if not best_iteration:
+                # Fallback: just get the highest accuracy
+                best_iteration = max(iterations, 
+                                key=lambda x: x.get("performance", {}).get("accuracy", 0))
+
+            return {
+                "iteration": best_iteration.get("iteration"),
+                "accuracy": best_iteration.get("performance", {}).get("accuracy", 0),
+                "batch_size": best_iteration.get("batch_size", 5),
+                "path": f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
+                "approach": best_iteration.get("approach_summary", ""),
+                "rationale": result.get("rationale", "Highest overall accuracy")
+            }
+        except Exception as e:
+            print(f"Error identifying best script: {e}")
+            # Fallback: just return the highest accuracy iteration
+            best_iteration = max(iterations, 
+                            key=lambda x: x.get("performance", {}).get("accuracy", 0))
+            return {
+                "iteration": best_iteration.get("iteration"),
+                "accuracy": best_iteration.get("performance", {}).get("accuracy", 0),
+                "batch_size": best_iteration.get("batch_size", 5),
+                "path": f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
+                "approach": best_iteration.get("approach_summary", ""),
+                "rationale": "Fallback selection based on highest accuracy"
+            }
+
     def generate_approach_summary(self, script: str) -> str:
         """
         Use the LLM to generate a brief summary of the approach used in the script.
@@ -534,18 +759,153 @@ except Exception as e:
         except Exception as e:
             return f"Error generating summary: {e}"
 
+    def run_progressive_testing(self, script: str) -> Dict:
+        """Run progressive testing on all seen examples"""
+        # Load the dataset
+        dataset = self.load_dataset()
+
+        # Get all seen examples
+        samples = []
+        for example_key in self.seen_examples:
+            if example_key in dataset:
+                samples.append(dataset[example_key])
+
+        if not samples:
+            return {
+                "success": False, 
+                "error": "No examples seen yet"
+            }
+
+        print(f"Running progressive testing on {len(samples)} seen examples...")
+
+        # Execute script on all samples
+        results = []
+        for i, sample in enumerate(samples):
+            if i % 5 == 0:  # Status update every 5 samples
+                print(f"  Processing sample {i+1}/{len(samples)}...")
+
+            question = sample.get("prompt_0shot", "")
+            result = self.execute_script(script, question)
+
+            # Evaluate the result if successful
+            if result.get("success"):
+                golden_answer = sample.get("golden_plan", "")
+                system_answer = result.get("answer", "")
+
+                # Use LLM-based evaluation
+                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+
+                result["evaluation"] = evaluation
+                result["match"] = evaluation.get("match", False)
+            else:
+                result["match"] = False
+
+            results.append(result)
+
+        # Calculate overall statistics
+        successful_runs = sum(1 for r in results if r.get("success", False))
+        matches = sum(1 for r in results if r.get("match", False))
+
+        return {
+            "total_examples": len(samples),
+            "successful_runs": successful_runs,
+            "matches": matches,
+            "accuracy": matches / len(samples) if samples else 0,
+            "results": results
+        }
+
+    def validate_script(self, script_path: str = None, start_index: int = 0, end_index: int = 999) -> Dict:
+        """Test a script on a specified range of examples"""
+        # If no script path provided, use the best script
+        if not script_path:
+            best_info = self.get_best_script_info()
+            if not best_info:
+                return {"success": False, "error": "No scripts available"}
+            script_path = best_info.get("path")
+
+        # Load the script
+        try:
+            with open(script_path, 'r') as f:
+                script = f.read()
+        except Exception as e:
+            return {"success": False, "error": f"Error loading script: {str(e)}"}
+
+        # Load the dataset
+        dataset = self.load_dataset()
+
+        # Get examples in the specified range
+        samples = []
+        for i in range(start_index, end_index + 1):
+            example_key = f"{self.example_prefix}{i}"
+            if example_key in dataset:
+                samples.append({
+                    "key": example_key,
+                    "data": dataset[example_key]
+                })
+
+        if not samples:
+            return {"success": False, "error": f"No examples found in range {start_index}-{end_index}"}
+
+        print(f"Validating script on {len(samples)} examples from range {start_index}-{end_index}...")
+
+        # Execute script on all samples
+        results = []
+        for i, sample in enumerate(samples):
+            if i % 10 == 0:  # Status update every 10 samples
+                print(f"  Processing sample {i+1}/{len(samples)}...")
+
+            question = sample["data"].get("prompt_0shot", "")
+            result = self.execute_script(script, question)
+
+            # Evaluate the result if successful
+            if result.get("success"):
+                golden_answer = sample["data"].get("golden_plan", "")
+                system_answer = result.get("answer", "")
+
+                # Use LLM-based evaluation
+                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+
+                result["evaluation"] = evaluation
+                result["match"] = evaluation.get("match", False)
+            else:
+                result["match"] = False
+
+            results.append({
+                "key": sample["key"],
+                "result": result
+            })
+
+        # Calculate overall statistics
+        successful_runs = sum(1 for r in results if r["result"].get("success", False))
+        matches = sum(1 for r in results if r["result"].get("match", False))
+
+        return {
+            "script_path": script_path,
+            "total_examples": len(samples),
+            "successful_runs": successful_runs,
+            "matches": matches,
+            "accuracy": matches / len(samples) if samples else 0,
+            "results": results
+        }
+
     def run_iteration(self) -> Dict:
         """Run a single iteration of the agent system"""
         print(f"\n=== Starting Iteration {self.current_iteration} ===")
         print(f"Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}")
+        print(f"Current batch size: {self.current_batch_size}")
+        print(f"Total seen examples: {len(self.seen_examples)}")
 
         iteration_start_time = time.time()
 
         # Get samples from dataset
-        samples = self.get_samples(5)
+        samples_data = self.get_samples()
+        samples = samples_data["samples"]
+
         if not samples:
             print("No samples available in dataset. Exiting iteration.")
             return {"success": False, "error": "No samples available"}
+
+        print(f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)")
 
         # Decide whether to explore or exploit
         is_exploration = (self.explore_rate > self.exploit_rate) or (random.random() * 100 <= self.explore_rate)
@@ -570,26 +930,82 @@ except Exception as e:
 
             if result.get("success"):
                 print(f"    Result: {result.get('answer')}")
+
+                # Evaluate with LLM
+                golden_answer = sample.get("golden_plan", "")
+                system_answer = result.get("answer", "")
+                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+
+                result["evaluation"] = evaluation
+                result["match"] = evaluation.get("match", False)
+
+                if result["match"]:
+                    print(f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})")
+                else:
+                    print(f"    ❌ No match: {evaluation.get('explanation', '')}")
             else:
                 print(f"    Error: {result.get('error')}")
+                result["match"] = False
 
             results.append(result)
 
-        # Evaluate results with LLM
-        print("Evaluating results with LLM...")
-        evaluation = self.evaluate_with_llm(samples, results)
+        # Calculate basic performance metrics
+        successful_runs = sum(1 for r in results if r.get("success", False))
+        matches = sum(1 for r in results if r.get("match", False))
+        accuracy = matches / len(samples) if samples else 0
 
-        print(f"Performance: {evaluation.get('accuracy', 0):.2f} accuracy " +
-              f"({evaluation.get('correct_count', 0)}/{evaluation.get('total_count', 0)} correct)")
+        # Basic evaluation summary
+        basic_evaluation = {
+            "accuracy": accuracy,
+            "correct_count": matches,
+            "total_count": len(samples),
+            "evaluations": results
+        }
+
+        print(f"Performance: {accuracy:.2f} accuracy " +
+              f"({matches}/{len(samples)} correct)")
+
+        # Use LLM for deeper error analysis
+        print("Performing error analysis with LLM...")
+        evaluation = self.evaluate_with_llm(samples, results)
 
         if evaluation.get('error_analysis'):
             print("Primary issue identified:", evaluation.get('error_analysis', {}).get('primary_issue', 'None'))
+
+        # Run progressive testing on all seen examples for promising scripts
+        progressive_testing_results = None
+        if accuracy >= 0.7:  # Only run progressive testing if current batch performance is good
+            print("Script looks promising! Running progressive testing on all seen examples...")
+            progressive_testing_results = self.run_progressive_testing(script)
+
+            if progressive_testing_results:
+                prog_accuracy = progressive_testing_results.get("accuracy", 0)
+                prog_matches = progressive_testing_results.get("matches", 0)
+                prog_total = progressive_testing_results.get("total_examples", 0)
+
+                print(f"Progressive testing results: {prog_accuracy:.2f} accuracy " +
+                      f"({prog_matches}/{prog_total} correct)")
 
         # Adjust explore/exploit balance for next iteration
         print("Adjusting explore/exploit balance...")
         new_explore, new_exploit = self.adjust_explore_exploit_with_llm()
 
+        # Adjust batch size for next iteration
+        print("Adjusting batch size...")
+        new_batch_size, batch_adjustment_rationale = self.adjust_batch_size_with_llm(basic_evaluation)
+
         print(f"New explore/exploit balance: {new_explore}/{new_exploit}")
+        print(f"New batch size: {new_batch_size} ({batch_adjustment_rationale})")
+
+        # Identify current best script
+        best_script_info = self.get_best_script_info()
+        if best_script_info:
+            print("\n=== Current Best Script ===")
+            print(f"Iteration: {best_script_info.get('iteration')}")
+            print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
+            print(f"Path: {best_script_info.get('path')}")
+            print(f"Approach: {best_script_info.get('approach')}")
+            print(f"Rationale: {best_script_info.get('rationale')}")
 
         # Prepare iteration data
         iteration_data = {
@@ -598,11 +1014,13 @@ except Exception as e:
             "strategy": strategy,
             "explore_rate": self.explore_rate,
             "exploit_rate": self.exploit_rate,
+            "batch_size": self.current_batch_size,
             "script": script,
             "approach_summary": approach_summary,
             "sample_count": len(samples),
             "results": results,
             "performance": evaluation,
+            "progressive_testing": progressive_testing_results,
             "execution_time": time.time() - iteration_start_time
         }
 
@@ -613,15 +1031,18 @@ except Exception as e:
             "strategy": strategy,
             "explore_rate": self.explore_rate,
             "exploit_rate": self.exploit_rate,
+            "batch_size": self.current_batch_size,
             "approach_summary": approach_summary,
             "performance": {
-                "accuracy": evaluation.get("accuracy", 0),
-                "correct_count": evaluation.get("correct_count", 0),
-                "total_count": evaluation.get("total_count", 0)
+                "accuracy": accuracy,
+                "correct_count": matches,
+                "total_count": len(samples)
             },
+            "progressive_accuracy": progressive_testing_results.get("accuracy", None) if progressive_testing_results else None,
             "primary_issue": evaluation.get("error_analysis", {}).get("primary_issue", "None identified"),
             "new_explore_rate": new_explore,
-            "new_exploit_rate": new_exploit
+            "new_exploit_rate": new_exploit,
+            "new_batch_size": new_batch_size
         }
 
         # Save to archive
@@ -631,6 +1052,9 @@ except Exception as e:
         # Update explore/exploit rates for next iteration
         self.explore_rate = new_explore
         self.exploit_rate = new_exploit
+
+        # Update batch size for next iteration
+        self.current_batch_size = new_batch_size
 
         # Increment iteration counter
         self.current_iteration += 1

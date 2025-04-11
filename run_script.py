@@ -35,7 +35,9 @@ def verify_dataset(dataset_path: str, example_prefix: str) -> bool:
             print("Error: Dataset examples should contain 'prompt_0shot' and 'golden_plan' fields.")
             return False
 
-        print(f"Dataset verification successful. Found example keys with required fields.")
+        # Count examples
+        example_count = sum(1 for key in data if key.startswith(example_prefix))
+        print(f"Dataset verification successful. Found {example_count} examples with required fields.")
         return True
     except Exception as e:
         print(f"Error verifying dataset: {e}")
@@ -62,6 +64,7 @@ def run_agent(iterations: int, dataset_path: str = "calendar_scheduling.json",
     print("Agentic Learning System")
     print("=" * 80)
     print(f"Starting with explore/exploit balance: {agent.explore_rate}/{agent.exploit_rate}")
+    print(f"Starting batch size: {agent.current_batch_size}")
     print("-" * 80)
 
     # Run iterations
@@ -93,25 +96,46 @@ def run_agent(iterations: int, dataset_path: str = "calendar_scheduling.json",
 
         # Print performance trend
         print("\nPerformance Trend:")
-        print(f"{'Iteration':<10} {'Strategy':<12} {'Accuracy':<10} {'Explore/Exploit':<15} {'Primary Issue'}")
+        print(f"{'Iteration':<10} {'Strategy':<12} {'Accuracy':<10} {'Batch':<5} {'Explore/Exploit':<15} {'Primary Issue'}")
         print("-" * 80)
 
         for summary in summaries:
             iteration = summary.get("iteration", "?")
             strategy = summary.get("strategy", "Unknown")
             accuracy = summary.get("performance", {}).get("accuracy", 0) * 100
+            batch_size = summary.get("batch_size", 5)
             explore = summary.get("explore_rate", 0)
             exploit = summary.get("exploit_rate", 0)
+            prog_accuracy = summary.get("progressive_accuracy", None)
             issue = summary.get("primary_issue", "None identified")
 
             # Truncate issue if too long
             if len(issue) > 30:
                 issue = issue[:27] + "..."
 
-            print(f"{iteration:<10} {strategy:<12} {accuracy:<10.2f}% {explore}/{exploit:<15} {issue}")
+            # Add indicator for progressive testing results
+            accuracy_str = f"{accuracy:<10.2f}%"
+            if prog_accuracy is not None:
+                accuracy_str = f"{accuracy:<4.2f}% ({prog_accuracy:.2f}%)"
 
-    # Final explore/exploit balance
+            print(f"{iteration:<10} {strategy:<12} {accuracy_str:<15} {batch_size:<5} {explore}/{exploit:<15} {issue}")
+
+    # Get best script info
+    best_script_info = agent.get_best_script_info()
+    if best_script_info:
+        print("\n=== Current Best Script ===")
+        print(f"Iteration: {best_script_info.get('iteration')}")
+        print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
+        print(f"Path: {best_script_info.get('path')}")
+        print(f"Approach: {best_script_info.get('approach')}")
+        print(f"Rationale: {best_script_info.get('rationale')}")
+        print("\nTo validate this script on a specific range of examples, run:")
+        print(f"python validate_script.py --script {best_script_info.get('path')} --start 900 --end 999")
+
+    # Final explore/exploit balance and batch size
     print(f"\nFinal explore/exploit balance: {agent.explore_rate}/{agent.exploit_rate}")
+    print(f"Final batch size: {agent.current_batch_size}")
+    print(f"Total examples seen: {len(agent.seen_examples)}")
     print("=" * 80)
 
 def parse_arguments():
