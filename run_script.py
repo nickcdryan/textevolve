@@ -1,0 +1,141 @@
+#!/usr/bin/env python
+"""
+run.py - Main entry point for the Agentic Learning System
+"""
+
+import os
+import sys
+import json
+import argparse
+from pathlib import Path
+from typing import Dict, List, Any
+
+from agent_system import AgentSystem
+
+def verify_dataset(dataset_path: str, example_prefix: str) -> bool:
+    """
+    Verify that the dataset exists and has the expected format.
+    """
+    if not os.path.exists(dataset_path):
+        print(f"Error: Dataset file {dataset_path} does not exist.")
+        return False
+
+    try:
+        with open(dataset_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        # Check for expected fields in at least one example
+        example_key = f"{example_prefix}0"
+        if example_key not in data:
+            print(f"Error: Expected to find key '{example_key}' in dataset, but it's missing.")
+            return False
+
+        sample = data[example_key]
+        if "prompt_0shot" not in sample or "golden_plan" not in sample:
+            print("Error: Dataset examples should contain 'prompt_0shot' and 'golden_plan' fields.")
+            return False
+
+        print(f"Dataset verification successful. Found example keys with required fields.")
+        return True
+    except Exception as e:
+        print(f"Error verifying dataset: {e}")
+        return False
+
+def run_agent(iterations: int, dataset_path: str = "calendar_scheduling.json", 
+              example_prefix: str = "calendar_scheduling_example_") -> None:
+    """
+    Run the agent system for the specified number of iterations.
+    """
+    # Verify the dataset format
+    if not verify_dataset(dataset_path, example_prefix):
+        print("Dataset verification failed. Please check the format and try again.")
+        sys.exit(1)
+
+    # Initialize the agent system
+    try:
+        agent = AgentSystem(dataset_path=dataset_path, example_prefix=example_prefix)
+    except Exception as e:
+        print(f"Error initializing agent system: {e}")
+        sys.exit(1)
+
+    print("=" * 80)
+    print("Agentic Learning System")
+    print("=" * 80)
+    print(f"Starting with explore/exploit balance: {agent.explore_rate}/{agent.exploit_rate}")
+    print("-" * 80)
+
+    # Run iterations
+    for i in range(iterations):
+        try:
+            result = agent.run_iteration()
+            if not result.get("success", True):
+                print(f"Iteration {i} failed: {result.get('error', 'Unknown error')}")
+                break
+        except KeyboardInterrupt:
+            print("\nProcess interrupted by user. Saving current state...")
+            break
+        except Exception as e:
+            print(f"\nError in iteration {i}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+
+    # Print final summary
+    print("\n" + "=" * 80)
+    print("Final Results Summary")
+    print("=" * 80)
+
+    summaries = agent.get_summaries()
+
+    if summaries:
+        # Sort by iteration number
+        summaries.sort(key=lambda x: x.get("iteration", 0))
+
+        # Print performance trend
+        print("\nPerformance Trend:")
+        print(f"{'Iteration':<10} {'Strategy':<12} {'Accuracy':<10} {'Explore/Exploit':<15} {'Primary Issue'}")
+        print("-" * 80)
+
+        for summary in summaries:
+            iteration = summary.get("iteration", "?")
+            strategy = summary.get("strategy", "Unknown")
+            accuracy = summary.get("performance", {}).get("accuracy", 0) * 100
+            explore = summary.get("explore_rate", 0)
+            exploit = summary.get("exploit_rate", 0)
+            issue = summary.get("primary_issue", "None identified")
+
+            # Truncate issue if too long
+            if len(issue) > 30:
+                issue = issue[:27] + "..."
+
+            print(f"{iteration:<10} {strategy:<12} {accuracy:<10.2f}% {explore}/{exploit:<15} {issue}")
+
+    # Final explore/exploit balance
+    print(f"\nFinal explore/exploit balance: {agent.explore_rate}/{agent.exploit_rate}")
+    print("=" * 80)
+
+def parse_arguments():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Run the Agentic Learning System")
+    parser.add_argument("--iterations", "-i", type=int, default=5,
+                       help="Number of iterations to run (default: 5)")
+    parser.add_argument("--dataset", "-d", type=str, default="calendar_scheduling.json",
+                       help="Path to the dataset file (default: calendar_scheduling.json)")
+    parser.add_argument("--prefix", "-p", type=str, default="calendar_scheduling_example_",
+                      help="Prefix for example keys in the dataset (default: calendar_scheduling_example_)")
+
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Parse command-line arguments
+    args = parse_arguments()
+
+    # Check environment variables
+    if not os.environ.get("GEMINI_API_KEY"):
+        print("Error: GEMINI_API_KEY environment variable is not set.")
+        print("Please set this variable to your Gemini API key before running the script.")
+        print("Example: export GEMINI_API_KEY=your_api_key_here")
+        sys.exit(1)
+
+    # Run the agent
+    run_agent(args.iterations, args.dataset, args.prefix)
