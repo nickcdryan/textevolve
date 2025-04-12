@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-reset_system.py - Reset the agentic learning system by wiping archives and scripts
+reset_system.py - Reset the agentic learning system by wiping archives, scripts, and learnings
 """
 
 import os
@@ -10,21 +10,24 @@ from pathlib import Path
 
 
 def reset_system(confirm=False):
-    """Reset the system by deleting archives and scripts"""
-    # Directories to reset
+    """Reset the system by deleting archives, scripts, and learnings file"""
+    # Directories and files to reset
     archive_dir = Path("archive")
     scripts_dir = Path("scripts")
+    learnings_file = Path("learnings.txt")
 
-    # Check if directories exist
-    if not archive_dir.exists() and not scripts_dir.exists():
+    # Check if directories or learnings file exist
+    if not archive_dir.exists() and not scripts_dir.exists(
+    ) and not learnings_file.exists():
         print(
-            "Nothing to reset - archive and scripts directories don't exist.")
+            "Nothing to reset - archive and scripts directories and learnings.txt don't exist."
+        )
         return
 
     # Ask for confirmation if not already provided
     if not confirm:
         response = input(
-            "Are you sure you want to reset the system? This will delete all archives and scripts. (y/n): "
+            "Are you sure you want to reset the system? This will delete all archives, scripts, and the learnings file. (y/n): "
         )
         if response.lower() != 'y':
             print("Reset cancelled.")
@@ -45,6 +48,14 @@ def reset_system(confirm=False):
             print(f"Deleted scripts directory: {scripts_dir}")
         except Exception as e:
             print(f"Error deleting scripts directory: {e}")
+
+    # Delete learnings file
+    if learnings_file.exists():
+        try:
+            os.remove(learnings_file)
+            print(f"Deleted learnings file: {learnings_file}")
+        except Exception as e:
+            print(f"Error deleting learnings file: {e}")
 
     # Recreate empty directories
     try:
