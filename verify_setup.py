@@ -128,7 +128,7 @@ def main():
     if api_ok and deps_ok and dirs_ok and files_ok and dataset_ok:
         print("✅ All checks passed! The system is ready to run.")
         print("\nTo start the system, run:")
-        print("  python run_script.py --iterations 5")
+        print("  python run_script.py -i 5")
         return 0
     else:
         print("❌ Some checks failed. Please fix the issues above before running the system.")
