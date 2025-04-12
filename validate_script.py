@@ -2,13 +2,11 @@
 """
 validate_script.py - Validate a script on a specific range of examples
 """
-
 import os
 import sys
 import json
 import argparse
 from pathlib import Path
-
 from agent_system import AgentSystem
 
 def main():
@@ -21,7 +19,6 @@ def main():
                       help="Path to dataset file (default: calendar_scheduling.json)")
     parser.add_argument("--prefix", "-p", type=str, default="calendar_scheduling_example_",
                       help="Prefix for example keys (default: calendar_scheduling_example_)")
-
     args = parser.parse_args()
 
     # Check environment variables
@@ -79,13 +76,10 @@ def main():
             result_data = item.get("result", {})
             success = result_data.get("success", False)
             match = result_data.get("match", False)
-
             status = "✅" if match else "❌"
             if not success:
                 status = "⚠️"
-
             print(f"{status} {item.get('key')}: {'Success' if success else 'Error'}, {'Match' if match else 'No match'}")
-
             if not success:
                 print(f"   Error: {result_data.get('error', 'Unknown error')}")
             elif not match and "evaluation" in result_data:

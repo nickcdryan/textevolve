@@ -1,9 +1,13 @@
 
 import sys
 import traceback
+import os
 
 # Add the scripts directory to the path
 sys.path.append("scripts")
+
+# Ensure the Gemini API key is available to the script
+os.environ["GEMINI_API_KEY"] = "AIzaSyD_DWppm-TR9CN7xTTVmrW5ngTax7xsLDA"
 
 try:
     # Import the script as a module

@@ -1,69 +1,65 @@
-import re
-import json
-from datetime import datetime, timedelta
+import os
+
+def call_llm(prompt, system_instruction=None):
+    """Call the Gemini LLM with a prompt and return the response"""
+    try:
+        from google import genai
+        from google.genai import types
+
+        # Initialize the Gemini client
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+        # Call the API with system instruction if provided
+        if system_instruction:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
+            )
+        else:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+
+        return response.text
+    except Exception as e:
+        print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
+
+def extract_info_agent(problem):
+    """Extract participants, duration, and work hours using LLM."""
+    system_instruction = "You are an information extraction expert."
+    prompt = f"Extract participants, meeting duration, and work hours from: {problem}"
+    return call_llm(prompt, system_instruction)
+
+def schedule_solution_agent(info):
+    """Propose a solution based on extracted info using LLM."""
+    system_instruction = "You are a scheduling expert."
+    prompt = f"Based on the following information, propose a meeting time: {info}"
+    return call_llm(prompt, system_instruction)
+
+def critique_solution_agent(problem, proposed_solution):
+    """Critique the proposed solution against the problem constraints using LLM."""
+    system_instruction = "You are a solution critique expert."
+    prompt = f"Critique this proposed solution: {proposed_solution} given the problem: {problem}"
+    return call_llm(prompt, system_instruction)
 
 def main(question):
-    """
-    Schedules a meeting by leveraging an LLM-simulated, multi-agent system.
-    This approach uses a chain-of-thought prompting strategy to guide the scheduling process.
-    It extracts relevant information, reasons about constraints, and generates a suitable meeting time.
-    """
+    """Main function to schedule a meeting."""
+    try:
+        # Extract information
+        info = extract_info_agent(question)
 
-    def call_llm(prompt, system_prompt=None):
-        """Simulates a call to a Large Language Model."""
-        # In a real implementation, this function would interact with an LLM API.
-        # For this example, we use a simplified simulation.
-        # The simulation focuses on demonstrating the reasoning chain.
+        # Propose a solution
+        proposed_solution = schedule_solution_agent(info)
 
-        if system_prompt:
-            prompt = f"{system_prompt}\n\n{prompt}"
+        # Critique the solution
+        critique = critique_solution_agent(question, proposed_solution)
 
-        # Simple example responses based on keywords in the prompt.
-        # This is NOT intended to be a real LLM but provides a framework.
-        if "extract participants" in prompt.lower():
-            participants = re.findall(r"for (.*?) for", question)
-            if participants:
-                participants = [p.strip() for p in participants[0].split(',')]
-                return json.dumps({"participants": participants})
-            else:
-                return json.dumps({"participants": []})
-
-        if "extract meeting duration" in prompt.lower():
-            duration = re.search(r"for (.*?) between", question)
-            if duration:
-                duration_str = duration.group(1).strip()
-                if "hour" in duration_str:
-                    if "half" in duration_str:
-                         return json.dumps({"duration": 30})
-                    else:
-                        return json.dumps({"duration": 60})
-                else:
-                    return json.dumps({"duration": 30}) # default half hour
-            else:
-                return json.dumps({"duration": 30})
-
-        if "extract existing schedules" in prompt.lower():
-            schedules = {}
-            lines = question.split("\n")
-            for line in lines:
-                if "is busy" in line or "has meetings" in line or "blocked their calendar" in line:
-                    participant = line.split(" ")[0]
-                    times = re.findall(r"(\d{1,2}:\d{2} to \d{1,2}:\d{2})", line)
-                    schedules[participant] = times
-                elif "'s calendar is wide open" in line:
-                  participant = line.split(" ")[0]
-                  schedules[participant] = []
-            return json.dumps({"schedules": schedules})
-
-        if "extract time preferences" in prompt.lower():
-            preferences = []
-            if "not want to meet" in question:
-                preferences.append("avoid certain times")
-            if "can not meet" in question:
-                preferences.append("avoid certain times")
-            if "would like to avoid" in question:
-                preferences.append("avoid certain times")
-            return json.dumps({"preferences": preferences})
-
-        if "find available time slots" in prompt.lower():
-            data = json.loads(re.search(r"
+        # Return the solution (can refine based on critique in future iterations)
+        return proposed_solution
+    except Exception as e:
+        return f"Error: {str(e)}"
