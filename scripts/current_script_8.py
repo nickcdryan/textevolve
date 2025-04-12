@@ -6,11 +6,13 @@ def call_llm(prompt, system_instruction=None):
         from google import genai
         from google.genai import types
 
+        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
+        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -27,36 +29,36 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_info_llm(problem):
-    """Extract key information using LLM"""
-    system_instruction = "You are an expert at extracting relevant scheduling information."
-    prompt = f"Extract the participants, duration, working hours, and existing schedules from: {problem}"
+def extract_info_llm(question):
+    """LLM to extract participants, duration, day, and work hours."""
+    system_instruction = "Extract meeting details. Specify participants, duration, day, and work hours."
+    prompt = f"Extract all relevant information from: {question}"
     return call_llm(prompt, system_instruction)
 
-def suggest_time_llm(info):
-    """Suggest a meeting time based on extracted info using LLM"""
-    system_instruction = "You are an expert meeting scheduler."
-    prompt = f"Based on this information, suggest a possible meeting time: {info}"
+def generate_candidate_times_llm(info):
+    """LLM to generate candidate meeting times."""
+    system_instruction = "Generate a list of 5 possible meeting times based on the extracted info. Provide the times as a list."
+    prompt = f"Generate meeting times based on this info: {info}"
     return call_llm(prompt, system_instruction)
 
-def verify_time_llm(problem, suggested_time):
-    """Verify if the suggested time is valid using LLM"""
-    system_instruction = "You are a meticulous meeting time verifier."
-    prompt = f"Given the problem: {problem} and suggested time: {suggested_time}, is the suggested time valid? Explain why or why not."
+def validate_and_select_time_llm(question, candidate_times):
+    """LLM to validate candidate times and select the best one."""
+    system_instruction = "You are a meeting scheduler. Review the candidate times and select the BEST time that satisfies all the constraints in the question. Return ONLY the selected time in the format 'Day, Start Time - End Time'."
+    prompt = f"Question: {question}\nCandidate Times: {candidate_times}\nSelect the best meeting time."
     return call_llm(prompt, system_instruction)
 
 def main(question):
-    """Main function to schedule a meeting"""
+    """Main function to schedule a meeting."""
     try:
+        # 1. Extract information
         extracted_info = extract_info_llm(question)
-        suggested_time = suggest_time_llm(extracted_info)
-        verification_result = verify_time_llm(question, suggested_time)
 
-        if "valid" in verification_result.lower():
-            return f"Here is the proposed time: {suggested_time}"
-        else:
-            return "Could not find a valid time."
+        # 2. Generate candidate times
+        candidate_times = generate_candidate_times_llm(extracted_info)
 
+        # 3. Validate and select the best time
+        best_time = validate_and_select_time_llm(question, candidate_times)
+
+        return f"Here is the proposed time: {best_time}"
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return "Error processing the request."
+        return f"Error: {str(e)}"

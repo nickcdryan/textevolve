@@ -1,5 +1,4 @@
 import os
-import json
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -13,7 +12,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -30,37 +29,36 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def problem_decomposer_llm(problem):
-    system_instruction = "You are an expert at breaking down scheduling problems into manageable parts. Identify participants, constraints, and objectives."
-    prompt = f"Decompose this problem: {problem}"
+def extract_info_llm(question):
+    """LLM to extract participants, duration, day, and work hours."""
+    system_instruction = "Extract meeting details. Specify participants, duration, day, and work hours."
+    prompt = f"Extract all relevant information from: {question}"
     return call_llm(prompt, system_instruction)
 
-def constraint_extractor_llm(problem_decomposition):
-    system_instruction = "You are an information extraction specialist focusing on scheduling conflicts. Extract all time conflicts for each participant."
-    prompt = f"Based on this problem decomposition, extract all time conflicts: {problem_decomposition}"
+def generate_candidate_times_llm(info):
+    """LLM to generate candidate meeting times."""
+    system_instruction = "Generate a list of 5 possible meeting times based on the extracted info. Provide the times as a list."
+    prompt = f"Generate meeting times based on this info: {info}"
     return call_llm(prompt, system_instruction)
 
-def solution_generator_llm(constraints, problem):
-    system_instruction = "You are a scheduling assistant that can propose solutions based on extracted constraints. Suggest a meeting time that satisfies all conditions."
-    prompt = f"Considering these constraints: {constraints}, generate a suitable meeting time for the problem: {problem}"
-    return call_llm(prompt, system_instruction)
-
-def solution_verifier_llm(solution, constraints, problem):
-    system_instruction = "You are a meticulous verifier. Check if a given meeting time satisfies ALL scheduling constraints, and identify any violations."
-    prompt = f"Verify if this solution: {solution} is valid given these constraints: {constraints} for problem: {problem}. Indicate any violations."
+def validate_and_select_time_llm(question, candidate_times):
+    """LLM to validate candidate times and select the best one."""
+    system_instruction = "You are a meeting scheduler. Review the candidate times and select the BEST time that satisfies all the constraints in the question. Return ONLY the selected time in the format 'Day, Start Time - End Time'."
+    prompt = f"Question: {question}\nCandidate Times: {candidate_times}\nSelect the best meeting time."
     return call_llm(prompt, system_instruction)
 
 def main(question):
+    """Main function to schedule a meeting."""
     try:
-        decomposition = problem_decomposer_llm(question)
-        constraints = constraint_extractor_llm(decomposition)
-        proposed_solution = solution_generator_llm(constraints, question)
-        verification_result = solution_verifier_llm(proposed_solution, constraints, question)
+        # 1. Extract information
+        extracted_info = extract_info_llm(question)
 
-        if "no violations" in verification_result.lower():
-            return f"Here is the proposed time: {proposed_solution}"
-        else:
-            return f"Error: Initial solution invalid. Verification result: {verification_result}"
+        # 2. Generate candidate times
+        candidate_times = generate_candidate_times_llm(extracted_info)
 
+        # 3. Validate and select the best time
+        best_time = validate_and_select_time_llm(question, candidate_times)
+
+        return f"Here is the proposed time: {best_time}"
     except Exception as e:
-        return f"An error occurred: {str(e)}"
+        return f"Error: {str(e)}"

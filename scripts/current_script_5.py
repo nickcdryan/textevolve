@@ -30,40 +30,38 @@ def call_llm(prompt, system_instruction=None):
         return f"Error: {str(e)}"
 
 def extract_info_llm(problem):
-    """Extract participants, duration, and time constraints"""
-    system_instruction = "You are an expert information extractor for scheduling meetings. Extract the participants, meeting duration, and time constraints."
-    prompt = f"Extract information from the following problem: {problem}"
+    """Extract info with LLM. Handles errors."""
+    system_instruction = "You are a meticulous information extractor that identifies all people involved, their schedules, meeting duration and desired days."
+    prompt = f"Extract all relevant information (participants, schedules, duration, days) from the text below:\n{problem}"
     return call_llm(prompt, system_instruction)
 
-def propose_solution_llm(extracted_info):
-    """Propose a meeting time based on extracted information."""
-    system_instruction = "You are an expert meeting scheduler. Given the extracted information, propose a valid meeting time."
-    prompt = f"Propose a meeting time based on this information: {extracted_info}"
+def generate_candidate_times_llm(extracted_info):
+    """Generate candidate meeting times with LLM, considering preferences. Handles errors."""
+    system_instruction = "You are an expert meeting scheduler. Generate possible meeting times based on the extracted information, taking into account the preferences and generating 3 distinct candidate times."
+    prompt = f"Generate 3 candidate meeting times based on the following information:\n{extracted_info}\nBe very concise and only include meeting times. Format as: 'Day, Start Time - End Time'."
     return call_llm(prompt, system_instruction)
 
-def critique_solution_llm(problem, proposed_solution):
-    """Critique the proposed solution and suggest improvements."""
-    system_instruction = "You are a solution critic. Critique the proposed solution and point out any potential issues or improvements."
-    prompt = f"Critique this proposed solution: {proposed_solution} for the problem: {problem}"
+def validate_and_select_time_llm(problem, candidate_times):
+    """Validate and select the best meeting time, acting as final decider. Handles errors."""
+    system_instruction = "You are the final decider. You must meticulously validate each candidate meeting time against the original problem, and select the BEST one. State the selected meeting time. Ensure that the output has the prefix 'Here is the proposed time:' and the format of the final answer MUST be: [DAY], [START_TIME] - [END_TIME]"
+    prompt = f"Original problem:\n{problem}\n\nCandidate meeting times:\n{candidate_times}\n\n Carefully analyze the constraints from the original problem, and only propose a time that follows ALL constraints. If none of the times work, generate a valid time. Ensure that the output has the prefix 'Here is the proposed time:' and the format of the final answer MUST be: [DAY], [START_TIME] - [END_TIME]"
     return call_llm(prompt, system_instruction)
 
 def main(question):
-    """Main function to schedule meetings."""
+    """Main function to schedule a meeting using LLM calls."""
     try:
+        # 1. Extract info
         extracted_info = extract_info_llm(question)
-        if "Error" in extracted_info:
-            return "Could not extract information."
 
-        proposed_solution = propose_solution_llm(extracted_info)
-        if "Error" in proposed_solution:
-            return "Could not propose a solution."
+        # 2. Generate candidate times
+        candidate_times = generate_candidate_times_llm(extracted_info)
 
-        critique = critique_solution_llm(question, proposed_solution)
-        if "Error" in critique:
-            return "Could not critique the solution."
+        # 3. Validate and select best time
+        final_answer = validate_and_select_time_llm(question, candidate_times)
+        if "Here is the proposed time:" not in final_answer:
+            #Force final answer to be in format "Here is the proposed time:"
+            final_answer = validate_and_select_time_llm(question, candidate_times)
 
-        return proposed_solution  # Return the proposed solution directly
-
+        return final_answer
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
         return f"Error: {str(e)}"

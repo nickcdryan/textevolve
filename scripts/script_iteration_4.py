@@ -29,41 +29,45 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def problem_clarifier_with_llm(problem):
-    """Clarify ambiguous parts of the problem for better understanding"""
-    system_instruction = "You are an expert problem clarifier. Identify any ambiguities in the problem statement."
-    prompt = f"Identify ambiguities and ask clarifying questions about this scheduling problem: {problem}"
+def extract_data_with_llm(problem):
+    """Extract structured data (JSON) representing participants' schedules."""
+    system_instruction = "You are a JSON data extractor. Your task is to extract information about peoples' schedules in a JSON format. You must find the participants, the days they're being scheduled for, the start and end work hours, and their availability."
+    prompt = f"Extract the schedule and constraints in JSON format: {problem}"
     return call_llm(prompt, system_instruction)
 
-def constraint_extractor_with_llm(problem):
-    """Extract scheduling constraints from the problem statement using LLM."""
-    system_instruction = "You are an information extractor specialized in identifying scheduling constraints."
-    prompt = f"Extract all scheduling constraints from this text: {problem}"
+def generate_candidate_times_with_llm(schedule_json, duration):
+    """Generate candidate meeting times given a schedule."""
+    system_instruction = "You are an expert in generating candidate meeting times based on availability. You should adhere to the constraints and give all possible times."
+    prompt = f"Based on this schedule data: {schedule_json}, and duration {duration}, generate a list of potential meeting times."
     return call_llm(prompt, system_instruction)
 
-def solution_generator_with_llm(problem, constraints):
-    """Generate a potential solution based on problem and constraints."""
-    system_instruction = "You are a scheduling expert who generates solutions based on constraints."
-    prompt = f"Generate a possible meeting time that satisfies these constraints: {constraints} for this problem: {problem}"
-    return call_llm(prompt, system_instruction)
-
-def solution_verifier_with_llm(problem, proposed_solution):
-    """Verify if the proposed solution meets all constraints using LLM."""
-    system_instruction = "You are a critical evaluator who verifies if solutions satisfy all given constraints."
-    prompt = f"Verify if this proposed solution satisfies all constraints: {proposed_solution} for problem: {problem}"
+def verify_solution_with_llm(schedule_json, proposed_solution):
+    """Verify that the proposed solution is valid given a schedule."""
+    system_instruction = "You are a meticulous solution verifier. Your task is to check if a proposed meeting time violates any constraints in the schedule. Return VALID or INVALID with a detailed explanation."
+    prompt = f"Given the schedule: {schedule_json}, is the proposed solution: {proposed_solution} VALID or INVALID? Explain."
     return call_llm(prompt, system_instruction)
 
 def main(question):
-    """Main function to solve the scheduling problem."""
+    """Main function to schedule a meeting."""
     try:
-        clarified_problem = problem_clarifier_with_llm(question)
-        constraints = constraint_extractor_with_llm(clarified_problem)
-        solution = solution_generator_with_llm(clarified_problem, constraints)
-        verification = solution_verifier_with_llm(clarified_problem, solution)
+        # 1. Extract structured data using LLM
+        schedule_json = extract_data_with_llm(question)
 
-        if "satisfies" in verification.lower():
-            return f"Here is the proposed time: {solution}"
-        else:
-            return "No valid solution found."
+        # 2. Determine meeting duration - simplified for this example
+        duration = "half an hour"
+
+        # 3. Generate candidate meeting times using LLM
+        candidate_times = generate_candidate_times_with_llm(schedule_json, duration)
+
+        # 4. Verify each candidate time using LLM
+        candidate_times_list = candidate_times.split("\n") # Assuming list formatting
+
+        for time in candidate_times_list:
+            verification_result = verify_solution_with_llm(schedule_json, time)
+            if "VALID" in verification_result:
+                return f"Here is the proposed time: {time}"
+
+        return "No valid meeting time found."
+
     except Exception as e:
-        return f"An error occurred: {str(e)}"
+        return f"Error: {str(e)}"

@@ -16,13 +16,16 @@ from pathlib import Path
 from google import genai
 from google.genai import types  # Added import for GenerateContentConfig
 
+
 class AgentSystem:
     """
     Agentic Learning System that uses LLM reasoning to continuously improve its approach
     to solving dataset problems through iterative exploration and exploitation.
     """
 
-    def __init__(self, dataset_path: str = "calendar_scheduling.json", example_prefix: str = "calendar_scheduling_example_"):
+    def __init__(self,
+                 dataset_path: str = "calendar_scheduling.json",
+                 example_prefix: str = "calendar_scheduling_example_"):
         """Initialize the agent system"""
         # Initialize configuration
         self.explore_rate = 70
@@ -47,7 +50,8 @@ class AgentSystem:
 
         # Initialize Gemini API client
         try:
-            self.client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+            self.client = genai.Client(
+                api_key=os.environ.get("GEMINI_API_KEY"))
             print("Gemini API client initialized successfully")
         except Exception as e:
             print(f"Error initializing Gemini API client: {e}")
@@ -61,7 +65,9 @@ class AgentSystem:
         """Load the system prompt from the system_prompt.md file"""
         system_prompt_path = Path("system_prompt.md")
         if not system_prompt_path.exists():
-            print("Warning: system_prompt.md file not found. Using empty system prompt.")
+            print(
+                "Warning: system_prompt.md file not found. Using empty system prompt."
+            )
             return ""
 
         try:
@@ -79,24 +85,27 @@ class AgentSystem:
         # Determine the next iteration number
         if summaries:
             # Sort by iteration number to find the highest
-            sorted_summaries = sorted(
-                summaries, 
-                key=lambda x: x.get("iteration", 0), 
-                reverse=True
-            )
+            sorted_summaries = sorted(summaries,
+                                      key=lambda x: x.get("iteration", 0),
+                                      reverse=True)
             last_iteration = sorted_summaries[0].get("iteration", 0)
             self.current_iteration = last_iteration + 1
 
             # Use the explore/exploit balance from the last iteration
-            self.explore_rate = sorted_summaries[0].get("new_explore_rate", self.explore_rate)
-            self.exploit_rate = sorted_summaries[0].get("new_exploit_rate", self.exploit_rate)
+            self.explore_rate = sorted_summaries[0].get(
+                "new_explore_rate", self.explore_rate)
+            self.exploit_rate = sorted_summaries[0].get(
+                "new_exploit_rate", self.exploit_rate)
 
             # Use the batch size from the last iteration
-            self.current_batch_size = sorted_summaries[0].get("new_batch_size", self.current_batch_size)
+            self.current_batch_size = sorted_summaries[0].get(
+                "new_batch_size", self.current_batch_size)
 
-            print(f"Loaded previous state: iteration {self.current_iteration}, " +
-                  f"explore/exploit: {self.explore_rate}/{self.exploit_rate}, " +
-                  f"batch size: {self.current_batch_size}")
+            print(
+                f"Loaded previous state: iteration {self.current_iteration}, "
+                +
+                f"explore/exploit: {self.explore_rate}/{self.exploit_rate}, " +
+                f"batch size: {self.current_batch_size}")
 
             # Reconstruct set of seen examples
             for iteration in iterations:
@@ -106,16 +115,22 @@ class AgentSystem:
                     sample_count = iteration.get("sample_count", 0)
 
                     # Calculate the approximate range of examples this iteration would have seen
-                    for i in range(iter_num * sample_count, (iter_num + 1) * sample_count):
+                    for i in range(iter_num * sample_count,
+                                   (iter_num + 1) * sample_count):
                         self.seen_examples.add(f"{self.example_prefix}{i}")
 
             # Set next example index to after the last seen example
             # This is approximate but better than starting from 0 again
-            last_seen_index = max([int(ex.replace(self.example_prefix, "")) 
-                                for ex in self.seen_examples if ex.startswith(self.example_prefix)] or [0])
+            last_seen_index = max([
+                int(ex.replace(self.example_prefix, ""))
+                for ex in self.seen_examples
+                if ex.startswith(self.example_prefix)
+            ] or [0])
             self.next_example_index = last_seen_index + 1
 
-            print(f"Loaded {len(self.seen_examples)} seen examples, next example index: {self.next_example_index}")
+            print(
+                f"Loaded {len(self.seen_examples)} seen examples, next example index: {self.next_example_index}"
+            )
         else:
             self.current_iteration = 0
 
@@ -126,12 +141,10 @@ class AgentSystem:
             sys_instruction = system_instruction if system_instruction is not None else self.system_prompt
 
             response = self.client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
-                    system_instruction=sys_instruction
-                ),
-                contents=prompt
-            )
+                    system_instruction=sys_instruction),
+                contents=prompt)
             return response.text
         except Exception as e:
             print(f"Error calling Gemini API: {e}")
@@ -150,7 +163,11 @@ class AgentSystem:
         """Get samples from the dataset, rotating through examples sequentially"""
         dataset = self.load_dataset()
         if not dataset:
-            return {"samples": [], "new_examples_added": 0, "total_seen_examples": 0}
+            return {
+                "samples": [],
+                "new_examples_added": 0,
+                "total_seen_examples": 0
+            }
 
         samples = []
         new_examples_added = 0
@@ -217,7 +234,8 @@ class AgentSystem:
         summaries = self.get_summaries()
         summaries.append(new_summary)
 
-        with open(self.archive_dir / "summaries.json", 'w', encoding='utf-8') as file:
+        with open(self.archive_dir / "summaries.json", 'w',
+                  encoding='utf-8') as file:
             json.dump(summaries, file, indent=2)
 
     def adjust_batch_size_with_llm(self, performance: Dict) -> Tuple[int, str]:
@@ -235,14 +253,23 @@ class AgentSystem:
             accuracy = perf.get("accuracy", 0) if perf else 0
 
             performance_history.append({
-                "iteration": iteration.get("iteration"),
-                "batch_size": iteration.get("batch_size", 5),
-                "accuracy": accuracy,
-                "error_patterns": iteration.get("performance", {}).get("error_analysis", {}).get("error_patterns", [])
+                "iteration":
+                iteration.get("iteration"),
+                "batch_size":
+                iteration.get("batch_size", 5),
+                "accuracy":
+                accuracy,
+                "error_patterns":
+                iteration.get("performance",
+                              {}).get("error_analysis",
+                                      {}).get("error_patterns", [])
             })
 
         # Default response if no LLM available
-        default_response = (self.current_batch_size, "Maintaining current batch size due to insufficient performance data")
+        default_response = (
+            self.current_batch_size,
+            "Maintaining current batch size due to insufficient performance data"
+        )
 
         # If no performance history, just keep current batch size
         if not performance_history:
@@ -279,7 +306,8 @@ class AgentSystem:
         """
 
         try:
-            response = self.call_llm(prompt, system_instruction=batch_optimizer_system_instruction)
+            response = self.call_llm(
+                prompt, system_instruction=batch_optimizer_system_instruction)
 
             # Extract JSON from response
             response = response.strip()
@@ -291,12 +319,14 @@ class AgentSystem:
             result = json.loads(response)
 
             # Validate and extract new batch size
-            new_batch_size = int(result.get("new_batch_size", self.current_batch_size))
+            new_batch_size = int(
+                result.get("new_batch_size", self.current_batch_size))
 
             # Ensure batch size is within reasonable limits
             new_batch_size = max(5, min(25, new_batch_size))
 
-            return new_batch_size, result.get("rationale", "No rationale provided")
+            return new_batch_size, result.get("rationale",
+                                              "No rationale provided")
         except Exception as e:
             print(f"Error adjusting batch size: {e}")
             return default_response
@@ -304,64 +334,106 @@ class AgentSystem:
     def adjust_explore_exploit_with_llm(self) -> Tuple[int, int]:
         """
         Use LLM reasoning to adjust the explore/exploit balance based on 
-        performance history and current strategy.
+        performance history and current strategy. Adapts balance based on 
+        performance patterns rather than fixed thresholds.
         """
         iterations = self.get_all_iterations()
         summaries = self.get_summaries()
 
-        # If there aren't enough iterations yet, make minimal adjustments
+        # If there aren't enough iterations yet, continue with current balance
         if len(iterations) < 2:
             return self.explore_rate, self.exploit_rate
 
-        # Prepare performance history for LLM reasoning
+        # Get the full performance history
         performance_history = []
         for summary in summaries:
             performance_history.append({
-                "iteration": summary.get("iteration"),
-                "accuracy": summary.get("performance", {}).get("accuracy", 0),
-                "batch_size": summary.get("batch_size", 5),
-                "explore_rate": summary.get("explore_rate"),
-                "exploit_rate": summary.get("exploit_rate")
+                "iteration":
+                summary.get("iteration"),
+                "accuracy":
+                summary.get("performance", {}).get("accuracy", 0),
+                "batch_size":
+                summary.get("batch_size", 5),
+                "explore_rate":
+                summary.get("explore_rate"),
+                "exploit_rate":
+                summary.get("exploit_rate"),
+                "strategy":
+                summary.get("strategy"),
+                "primary_issue":
+                summary.get("primary_issue", "None identified")
             })
+
+        # Try to get information about the best script so far
+        best_script_info = None
+        try:
+            best_script_info = self.get_best_script_info()
+        except Exception as e:
+            print(f"Error getting best script info: {e}")
+
+        # Prepare additional context for the LLM
+        context = {
+            "iterations_completed":
+            len(summaries),
+            "best_accuracy":
+            best_script_info.get("accuracy", 0) if best_script_info else 0,
+            "best_iteration":
+            best_script_info.get("iteration", -1) if best_script_info else -1,
+            "current_balance":
+            f"{self.explore_rate}/{self.exploit_rate}",
+            "total_examples_seen":
+            len(self.seen_examples)
+        }
 
         # Role-specific system instruction for strategy optimizer
         strategy_optimizer_system_instruction = f"{self.system_prompt}\n\nYou are a Strategy Optimizer. Your role is to analyze performance patterns and determine the optimal balance between exploration (trying new approaches) and exploitation (refining successful approaches)."
 
         # Create prompt for LLM to reason about explore/exploit adjustment
         prompt = f"""
-        As an AI optimization system, you need to adjust the explore/exploit balance for 
-        an iterative learning system. The system is currently solving problems with:
+        You're optimizing the explore/exploit balance for an iterative learning system.
 
-        Current explore rate: {self.explore_rate}%
-        Current exploit rate: {self.exploit_rate}%
-        Current batch size: {self.current_batch_size}
-        Total examples seen: {len(self.seen_examples)}
+        Current system status:
+        - Explore rate: {self.explore_rate}%
+        - Exploit rate: {self.exploit_rate}%
+        - Iterations completed: {context["iterations_completed"]}
+        - Best accuracy so far: {context["best_accuracy"]:.2f} (from iteration {context["best_iteration"]})
+        - Total examples seen: {context["total_examples_seen"]}
 
-        Here is the performance history:
-        {json.dumps(performance_history, indent=2)}
+        Performance history (from newest to oldest):
+        {json.dumps(performance_history[-5:] if len(performance_history) > 5 else performance_history, indent=2)}
 
-        Based on this performance history, determine if and how the explore/exploit balance 
-        should be adjusted. Consider:
+        IMPORTANT GUIDELINES:
+        1. ADAPTIVITY: Don't rely on fixed accuracy thresholds. Assess what constitutes "good" performance in the context of this specific task.
 
-        1. Performance trend (improving, stagnating, or declining)
-        2. Size of performance changes between iterations
-        3. Current balance of exploration vs exploitation
-        4. Number of examples tested in each iteration
+        2. EXPLOITATION TRIGGERS:
+           - When a script performs significantly better than previous iterations
+           - When a promising approach emerges that could benefit from refinement
+           - When several iterations of the same approach show consistent improvement
+           - When a good solution emerges after several exploration attempts
 
-        Rules:
-        - Explore + exploit must always sum to 100
-        - If performance is significantly improving, favor exploitation
-        - If performance is stagnating or declining, favor exploration
-        - Make larger adjustments when the system is struggling
-        - Make smaller adjustments when the system is performing well
+        3. EXPLORATION TRIGGERS:
+           - When performance has plateaued despite exploitation attempts
+           - When there's little difference between approaches tried so far
+           - When the system seems stuck in a local optimum
+           - When there have been several consecutive exploitation iterations with minimal improvement
 
-        Return only a JSON object with two fields:
-        {{"explore_rate": <new_explore_rate_as_integer>, "exploit_rate": <new_exploit_rate_as_integer>}}
+        4. BALANCE CONSIDERATIONS:
+           - More aggressive shifts (±20-30%) when clear patterns emerge
+           - Moderate shifts (±10-20%) when trends are present but less definitive
+           - Small adjustments (±5-10%) when optimizing a working approach
+           - The explore/exploit rates must sum to 100
+
+        Determine the optimal explore/exploit balance based on these patterns rather than fixed thresholds.
+
+        Provide a JSON object with:
+        {{"explore_rate": <new_explore_rate_as_integer>, "exploit_rate": <new_exploit_rate_as_integer>, "rationale": "<explanation>"}}
         """
 
         # Call LLM to reason about adjustment
         try:
-            response = self.call_llm(prompt, system_instruction=strategy_optimizer_system_instruction)
+            response = self.call_llm(
+                prompt,
+                system_instruction=strategy_optimizer_system_instruction)
             # Extract JSON from response
             response = response.strip()
             if response.startswith("```json"):
@@ -371,9 +443,10 @@ class AgentSystem:
 
             result = json.loads(response)
 
-            # Validate the result
+            # Extract values and rationale
             new_explore = int(result.get("explore_rate", self.explore_rate))
             new_exploit = int(result.get("exploit_rate", self.exploit_rate))
+            rationale = result.get("rationale", "No rationale provided")
 
             # Ensure values are reasonable
             new_explore = max(10, min(90, new_explore))
@@ -385,12 +458,56 @@ class AgentSystem:
                 new_explore = int(round(new_explore * 100 / total))
                 new_exploit = 100 - new_explore
 
+            # Determine if this is a significant change in strategy
+            strategy_shift = abs(new_explore - self.explore_rate)
+            if strategy_shift >= 20:
+                print(
+                    f"Major strategy shift: {self.explore_rate}/{self.exploit_rate} → {new_explore}/{new_exploit}"
+                )
+            elif strategy_shift >= 10:
+                print(
+                    f"Moderate strategy shift: {self.explore_rate}/{self.exploit_rate} → {new_explore}/{new_exploit}"
+                )
+            else:
+                print(
+                    f"Minor strategy adjustment: {self.explore_rate}/{self.exploit_rate} → {new_explore}/{new_exploit}"
+                )
+
+            print(f"Rationale: {rationale}")
+
             return new_explore, new_exploit
+
         except Exception as e:
             print(f"Error adjusting explore/exploit: {e}")
-            # If there's an error, make a small adjustment favoring exploitation over time
-            if self.explore_rate > 20:
-                return self.explore_rate - 5, self.exploit_rate + 5
+
+            # In case of error, use a simple heuristic based on iteration count and recent performance
+            if len(summaries) >= 3:
+                # Get the last 3 summaries to check for trends
+                recent_summaries = sorted(summaries,
+                                          key=lambda x: x.get("iteration", 0),
+                                          reverse=True)[:3]
+                accuracies = [
+                    s.get("performance", {}).get("accuracy", 0)
+                    for s in recent_summaries
+                ]
+
+                # If recent performance is improving, slightly favor exploitation
+                if accuracies[0] > accuracies[1]:
+                    print(
+                        "Fallback: Recent improvement detected, slightly favoring exploitation."
+                    )
+                    return max(self.explore_rate - 10,
+                               40), min(self.exploit_rate + 10, 60)
+                # If recent performance is declining, slightly favor exploration
+                elif accuracies[0] < accuracies[1]:
+                    print(
+                        "Fallback: Recent decline detected, slightly favoring exploration."
+                    )
+                    return min(self.explore_rate + 10,
+                               60), max(self.exploit_rate - 10, 40)
+
+            # Default fallback: maintain current balance
+            print("Fallback: Maintaining current explore/exploit balance.")
             return self.explore_rate, self.exploit_rate
 
     def generate_script_with_llm(self, is_exploration: bool) -> str:
@@ -398,120 +515,201 @@ class AgentSystem:
         Use the LLM to generate a script to solve the dataset problems,
         either exploring new approaches or exploiting/refining successful ones.
         The script should implement agentic LLM-driven approaches with chain-of-thought reasoning.
+        This version thoroughly reviews past iterations before generating new scripts.
         """
         # Get previous iterations and samples
         iterations = self.get_all_iterations()
+        summaries = self.get_summaries()
         samples_data = self.get_samples()
         samples = samples_data["samples"]
 
-        # Extract example problems for context
+        # Extract example problems for context (limit to 2-3 for space)
         example_problems = []
-        for i, sample in enumerate(samples):
+        for i, sample in enumerate(samples[:3]):
             example_problems.append({
                 "id": i,
                 "question": sample.get("prompt_0shot", ""),
                 "answer": sample.get("golden_plan", "")
             })
 
-        # Prepare performance history context
-        performance_context = ""
-        if iterations:
-            performance_context = "Previous iterations performance:\n"
-            for iteration in iterations[-3:]:  # Just show the most recent 3
-                performance_context += f"Iteration {iteration.get('iteration')}: Accuracy {iteration.get('performance', {}).get('accuracy', 0):.2f}, Approach: {iteration.get('approach_summary', 'No summary available')}\n"
+        # ==== COMPREHENSIVE HISTORICAL ANALYSIS ====
 
-        # Get successful scripts from past iterations
-        successful_scripts = []
+        # 1. Identify best performing scripts and their approaches
+        best_scripts = []
         if iterations:
-            for iteration in sorted(iterations, key=lambda x: x.get('performance', {}).get('accuracy', 0), reverse=True)[:2]:
-                if iteration.get('script') and iteration.get('performance', {}).get('accuracy', 0) > 0.5:
-                    successful_scripts.append({
+            for iteration in sorted(iterations, key=lambda x: x.get('performance', {}).get('accuracy', 0), reverse=True)[:3]:
+                if iteration.get('script') and iteration.get('performance', {}).get('accuracy', 0) > 0:
+                    best_scripts.append({
                         "iteration": iteration.get('iteration'),
                         "accuracy": iteration.get('performance', {}).get('accuracy', 0),
-                        "script": iteration.get('script'),
-                        "analysis": iteration.get('error_analysis', {})
+                        "approach_summary": iteration.get('approach_summary', 'No summary available'),
+                        "performance": iteration.get('performance', {})
                     })
+
+        # 2. Collect approach history (what techniques have been tried)
+        approach_history = []
+        for summary in summaries:
+            approach_history.append({
+                "iteration": summary.get("iteration"),
+                "strategy": summary.get("strategy"),
+                "accuracy": summary.get("performance", {}).get("accuracy", 0),
+                "approach": summary.get("approach_summary", "No summary available")
+            })
+
+        # 3. Aggregate error analyses across iterations to find persistent issues
+        error_patterns = []
+        primary_issues = []
+        targeted_improvements = []
+
+        for iteration in iterations:
+            if not iteration:
+                continue
+
+            # Extract error analysis information
+            error_analysis = iteration.get("performance", {}).get("error_analysis", {})
+
+            if error_analysis.get("error_patterns"):
+                error_patterns.extend(error_analysis.get("error_patterns", []))
+
+            if error_analysis.get("primary_issue"):
+                primary_issues.append({
+                    "iteration": iteration.get("iteration"),
+                    "issue": error_analysis.get("primary_issue")
+                })
+
+            # Extract targeted improvements if available
+            if error_analysis.get("targeted_improvements"):
+                targeted_improvements.extend(error_analysis.get("targeted_improvements", []))
+            elif error_analysis.get("recommendations"):  # Fall back to recommendations if targeted_improvements not available
+                targeted_improvements.extend(error_analysis.get("recommendations", []))
+
+        # 4. Identify what has and hasn't been tried yet
+        tried_approaches = [approach.get("approach", "") for approach in approach_history]
+
+        # ==== DETERMINE GENERATION STRATEGY ====
 
         # Determine if this is exploration or exploitation
         approach_type = "exploration" if is_exploration else "exploitation"
 
+        # For exploitation, identify best script to build upon
+        best_script_to_exploit = None
+        if not is_exploration and best_scripts:
+            best_script_to_exploit = best_scripts[0]
+
+            # Try to get the full script for the best performing iteration
+            for iteration in iterations:
+                if iteration.get("iteration") == best_script_to_exploit.get("iteration"):
+                    best_script_to_exploit["script"] = iteration.get("script", "")
+                    break
+
+        # ==== PREPARE GENERATION CONTEXT ====
+
         # Create a basic API usage example for Gemini - simplified for clarity
         gemini_api_example = '''
-def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response"""
-    try:
-        from google import genai
-        from google.genai import types
+    def call_llm(prompt, system_instruction=None):
+        """Call the Gemini LLM with a prompt and return the response"""
+        try:
+            from google import genai
+            from google.genai import types
 
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+            # Initialize the Gemini client
+            client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
+            # Call the API with system instruction if provided
+            if system_instruction:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash", 
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction
+                    ),
+                    contents=prompt
+                )
+            else:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt
+                )
 
-        return response.text
-    except Exception as e:
-        print(f"Error calling Gemini API: {str(e)}")
-        return f"Error: {str(e)}"
-'''
+            return response.text
+        except Exception as e:
+            print(f"Error calling Gemini API: {str(e)}")
+            return f"Error: {str(e)}"
+    '''
 
         # Create example LLM-driven agent functions - simplified for clarity
         llm_reasoning_examples = '''
-def decompose_problem_with_llm(problem):
-    """Break down a problem into key components using LLM reasoning"""
-    system_instruction = "You are a problem analyzer that excels at breaking down complex problems into their key components."
+    def decompose_problem_with_llm(problem):
+        """Break down a problem into key components using LLM reasoning"""
+        system_instruction = "You are a problem analyzer that excels at breaking down complex problems into their key components."
 
-    prompt = f"Analyze this scheduling problem step by step: {problem}"
+        prompt = f"Analyze this scheduling problem step by step: {problem}"
 
-    return call_llm(prompt, system_instruction)
+        return call_llm(prompt, system_instruction)
 
-def extract_constraints_with_llm(problem):
-    """Extract scheduling constraints from the problem statement"""
-    system_instruction = "You are an information extractor specialized in identifying scheduling constraints."
+    def extract_constraints_with_llm(problem):
+        """Extract scheduling constraints from the problem statement"""
+        system_instruction = "You are an information extractor specialized in identifying scheduling constraints."
 
-    prompt = f"Extract all scheduling constraints from this text: {problem}"
+        prompt = f"Extract all scheduling constraints from this text: {problem}"
 
-    response = call_llm(prompt, system_instruction)
+        response = call_llm(prompt, system_instruction)
 
-    # Process and return the response
-    return response
+        # Process and return the response
+        return response
 
-def verify_solution_with_llm(problem, proposed_solution):
-    """Verify if the proposed solution meets all constraints"""
-    system_instruction = "You are a critical evaluator who verifies if solutions satisfy all given constraints."
+    def verify_solution_with_llm(problem, proposed_solution):
+        """Verify if the proposed solution meets all constraints"""
+        system_instruction = "You are a critical evaluator who verifies if solutions satisfy all given constraints."
 
-    prompt = f"Verify if this proposed solution satisfies all constraints: {proposed_solution} for problem: {problem}"
+        prompt = f"Verify if this proposed solution satisfies all constraints: {proposed_solution} for problem: {problem}"
 
-    return call_llm(prompt, system_instruction)
-'''
+        return call_llm(prompt, system_instruction)
+    '''
+
+        # ==== CREATE APPROPRIATE PROMPT ====
+
+        # Create a variable with the conditional expression before using it in the f-string
+        best_accuracy_str = f"{best_scripts[0].get('accuracy', 0):.2f} (iteration {best_scripts[0].get('iteration')})" if best_scripts else "None"
+
+        # Generate detailed historical context summary
+        historical_context = f"""
+        ITERATION HISTORY SUMMARY:
+        - Total iterations completed: {len(summaries)}
+        - Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}
+        - Best accuracy achieved: {best_accuracy_str}
+
+    APPROACH HISTORY (last {min(5, len(approach_history))} iterations):
+    {json.dumps(approach_history[-5:] if len(approach_history) > 5 else approach_history, indent=2)}
+
+    COMMON ERROR PATTERNS:
+    {json.dumps(list(set(error_patterns[-10:] if len(error_patterns) > 10 else error_patterns)), indent=2)}
+
+    PRIMARY ISSUES (last {min(3, len(primary_issues))} iterations):
+    {json.dumps(primary_issues[-3:] if len(primary_issues) > 3 else primary_issues, indent=2)}
+
+    TARGETED IMPROVEMENTS:
+    {json.dumps(list(set(targeted_improvements[-10:] if len(targeted_improvements) > 10 else targeted_improvements)), indent=2)}
+    """
 
         # Set specific system instruction for script generation
         script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {approach_type} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning to solve the problem examples provided."
 
-        if is_exploration or not successful_scripts:
-            # Exploration prompt: generate a novel approach
+        if is_exploration:
+            # Exploration prompt: generate a novel approach informed by past learnings
             prompt = f"""
             You are developing a Python script to solve dataset problems using LLM reasoning capabilities.
+            You must generate a NEW approach that's different from previous approaches but informed by their successes and failures.
 
             Here are example problems from the dataset:
             {json.dumps(example_problems, indent=2)}
 
-            {performance_context}
+            {historical_context}
 
-            For each problem, implement multiple LLM calls to understand the problem, extract information, 
-            reason step-by-step, and verify solutions.
+            EXPLORATION GUIDANCE:
+            1. Review the historical approaches and error patterns carefully
+            2. Design a new approach that specifically addresses common error patterns
+            3. Take inspiration from successful aspects of previous approaches but create something distinct
+            4. Implement at least 3 different LLM agent roles with different specializations
 
             Here's how to call the Gemini API:
             {gemini_api_example}
@@ -519,12 +717,16 @@ def verify_solution_with_llm(problem, proposed_solution):
             Here are examples of LLM agent functions:
             {llm_reasoning_examples}
 
-            Since this is an {approach_type} phase, create a novel approach with different agentic techniques.
+            Since this is an EXPLORATION phase:
+            - Try a fundamentally different approach to reasoning about the problem
+            - Implement chain-of-thought reasoning in a new way
+            - Consider what has NOT been tried yet
+            - Pay special attention to addressing the primary issues from previous iterations
 
             CRITICAL REQUIREMENTS:
             1. The script MUST properly handle all string literals - be extremely careful with quotes and triple quotes
             2. The script MUST NOT exceed 150 lines of code to prevent truncation
-            3. Each function should be concise and focused 
+            3. Include detailed comments explaining your reasoning approach
             4. Make multiple LLM calls with different roles (e.g., decomposer, extractor, verifier, critic)
             5. Make proper use of error handling
 
@@ -539,18 +741,31 @@ def verify_solution_with_llm(problem, proposed_solution):
             """
         else:
             # Exploitation prompt: refine the best existing approach
-            best_script = successful_scripts[0]
-
             prompt = f"""
-            You are improving a Python script that solves problems from a dataset. Your goal is to refine the best approach to make it more accurate.
+            You are improving a Python script that solves problems from a dataset.
+            Your goal is to REFINE and ENHANCE the current best approach based on detailed error analysis.
 
             Here are example problems from the dataset:
-            {json.dumps(example_problems[0:1], indent=2)}
+            {json.dumps(example_problems, indent=2)}
 
-            Error analysis from the current best script:
-            {json.dumps(best_script.get('analysis', {}).get('primary_issue', 'No specific issue identified'), indent=2)}
+            {historical_context}
 
-            {performance_context}
+            BEST PERFORMING APPROACH TO REFINE:
+            Iteration: {best_script_to_exploit.get('iteration') if best_script_to_exploit else 'None'}
+            Accuracy: {best_script_to_exploit.get('accuracy', 0):.2f if best_script_to_exploit else 'N/A'}
+            Approach Summary: {best_script_to_exploit.get('approach_summary') if best_script_to_exploit else 'No approach to refine'}
+
+            {'FULL SCRIPT TO REFINE:' if best_script_to_exploit and 'script' in best_script_to_exploit else ''}
+            {'```python' if best_script_to_exploit and 'script' in best_script_to_exploit else ''}
+            {best_script_to_exploit.get('script', '') if best_script_to_exploit and 'script' in best_script_to_exploit else 'No script available to refine.'}
+            {'```' if best_script_to_exploit and 'script' in best_script_to_exploit else ''}
+
+            EXPLOITATION GUIDANCE:
+            1. Review the error patterns and targeted improvements carefully
+            2. Maintain the core successful elements of the best approach
+            3. Focus on fixing specific issues identified in previous error analyses
+            4. Enhance chain-of-thought reasoning and verification steps
+            5. Consider adding specialized agents to handle difficult cases
 
             Here's how to call the Gemini API:
             {gemini_api_example}
@@ -558,26 +773,30 @@ def verify_solution_with_llm(problem, proposed_solution):
             Here are examples of LLM agent functions:
             {llm_reasoning_examples}
 
-            Since this is an {approach_type} phase, your goal is to refine the existing approach:
-            1. Fix any identified issues
-            2. Improve the chain-of-thought reasoning process
-            3. Enhance verification of answers
+            Since this is an EXPLOITATION phase:
+            - Build upon what's working well in the best approach
+            - Make TARGETED improvements to address specific error patterns
+            - Add more robust verification and validation steps
+            - Refine the prompts used in LLM calls to be more effective
 
             CRITICAL REQUIREMENTS:
             1. The script MUST properly handle all string literals - be extremely careful with quotes and triple quotes
             2. The script MUST NOT exceed 150 lines of code to prevent truncation
-            3. Each function should be concise and focused
-            4. Make proper use of error handling
+            3. Include detailed comments explaining your improvements
+            4. Make multiple LLM calls with different roles (e.g., decomposer, extractor, verifier, critic)
+            5. Make proper use of error handling
 
             Return a COMPLETE, RUNNABLE Python script that:
             1. Has a main function that takes a question string as input and returns the answer string
             2. Makes multiple LLM calls for different reasoning steps
-            3. Has proper error handling
+            3. Has proper error handling for API calls
             4. Is COMPLETE - no missing code, no "..." placeholders
             5. Closes all string literals properly
 
             BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
             """
+
+        # ==== GENERATE SCRIPT WITH VALIDATION ====
 
         max_attempts = 3
         attempts = 0
@@ -599,6 +818,7 @@ def verify_solution_with_llm(problem, proposed_solution):
             # Validate script syntax
             try:
                 # Test if the script can be parsed
+                import ast
                 ast.parse(script)
 
                 # Script is syntactically valid
@@ -618,64 +838,64 @@ def verify_solution_with_llm(problem, proposed_solution):
                     print("Maximum attempts reached. Returning a simple fallback script.")
                     # Create a simple fallback script that will at least run
                     fallback_script = """
-import os
-import json
-from google import genai
-from google.genai import types
+    import os
+    import json
+    from google import genai
+    from google.genai import types
 
-def call_llm(prompt, system_instruction=None):
-    \"\"\"Call the Gemini LLM with a prompt and return the response\"\"\"
-    try:
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    def call_llm(prompt, system_instruction=None):
+        \"\"\"Call the Gemini LLM with a prompt and return the response\"\"\"
+        try:
+            # Initialize the Gemini client
+            client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
+            # Call the API with system instruction if provided
+            if system_instruction:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash", 
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction
+                    ),
+                    contents=prompt
+                )
+            else:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt
+                )
 
-        return response.text
-    except Exception as e:
-        print(f"Error calling Gemini API: {str(e)}")
-        return f"Error: {str(e)}"
+            return response.text
+        except Exception as e:
+            print(f"Error calling Gemini API: {str(e)}")
+            return f"Error: {str(e)}"
 
-def analyze_problem(question):
-    \"\"\"Analyze the scheduling problem\"\"\"
-    system_instruction = "You are a scheduling assistant."
-    prompt = f"Analyze this scheduling problem: {question}"
-    return call_llm(prompt, system_instruction)
+    def analyze_problem(question):
+        \"\"\"Analyze the scheduling problem\"\"\"
+        system_instruction = "You are a scheduling assistant."
+        prompt = f"Analyze this scheduling problem: {question}"
+        return call_llm(prompt, system_instruction)
 
-def generate_solution(question):
-    \"\"\"Generate a solution to the scheduling problem\"\"\"
-    system_instruction = "You are a scheduling assistant."
-    prompt = f"Generate a scheduling solution for this problem: {question}"
-    return call_llm(prompt, system_instruction)
+    def generate_solution(question):
+        \"\"\"Generate a solution to the scheduling problem\"\"\"
+        system_instruction = "You are a scheduling assistant."
+        prompt = f"Generate a scheduling solution for this problem: {question}"
+        return call_llm(prompt, system_instruction)
 
-def main(question):
-    \"\"\"Main function to solve scheduling problems\"\"\"
-    try:
-        # Step 1: Analyze the problem
-        analysis = analyze_problem(question)
+    def main(question):
+        \"\"\"Main function to solve scheduling problems\"\"\"
+        try:
+            # Step 1: Analyze the problem
+            analysis = analyze_problem(question)
 
-        # Step 2: Generate a solution
-        solution = generate_solution(question)
+            # Step 2: Generate a solution
+            solution = generate_solution(question)
 
-        # Return the solution
-        return solution
-    except Exception as e:
-        print(f"Error in main: {str(e)}")
-        return "I couldn't generate a scheduling plan due to an error."
-"""
+            # Return the solution
+            return solution
+        except Exception as e:
+            print(f"Error in main: {str(e)}")
+            return "I couldn't generate a scheduling plan due to an error."
+    """
                     script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
                     with open(script_path, 'w', encoding='utf-8') as f:
                         f.write(fallback_script)
@@ -700,7 +920,7 @@ def main(question):
 
                 BE EXTREMELY CAREFUL WITH STRING LITERALS AND QUOTES!
                 """
-
+    
     def execute_script(self, script: str, question: str) -> Dict:
         """
         Execute the generated script on a question and return the result.
@@ -765,14 +985,16 @@ except Exception as e:
                 output = result.stdout + result.stderr
 
                 if "ANSWER_START" in output and "ANSWER_END" in output:
-                    answer = output.split("ANSWER_START")[1].split("ANSWER_END")[0].strip()
+                    answer = output.split("ANSWER_START")[1].split(
+                        "ANSWER_END")[0].strip()
                     return {
                         "success": True,
                         "answer": answer,
                         "output": output
                     }
                 elif "ERROR_START" in output and "ERROR_END" in output:
-                    error = output.split("ERROR_START")[1].split("ERROR_END")[0].strip()
+                    error = output.split("ERROR_START")[1].split(
+                        "ERROR_END")[0].strip()
 
                     # If we've reached max debug attempts or this isn't a "missing main" error, return the error
                     if debug_attempts >= max_debug_attempts or "cannot import name 'main'" not in error:
@@ -784,7 +1006,9 @@ except Exception as e:
 
                     # Try to debug the script
                     debug_attempts += 1
-                    print(f"  Debugging attempt {debug_attempts}/{max_debug_attempts}...")
+                    print(
+                        f"  Debugging attempt {debug_attempts}/{max_debug_attempts}..."
+                    )
 
                     # Apply debugging fixes
                     self._debug_script(script_path)
@@ -837,22 +1061,26 @@ except Exception as e:
             # Check if the script has a 'main' function
             has_main_function = "def main(" in script_content
             if not has_main_function:
-                print("  Issue detected: Script does not have a 'main' function")
+                print(
+                    "  Issue detected: Script does not have a 'main' function")
 
                 # Look for possible main function alternatives
                 possible_main_functions = []
                 for line in script_content.split('\n'):
                     if line.strip().startswith("def ") and "(" in line:
-                        function_name = line.strip().split("def ")[1].split("(")[0].strip()
-                        if function_name != "main" and ("solve" in function_name or 
-                                                      "process" in function_name or 
-                                                      "schedule" in function_name or
-                                                      function_name.lower() == "process_question"):
+                        function_name = line.strip().split("def ")[1].split(
+                            "(")[0].strip()
+                        if function_name != "main" and (
+                                "solve" in function_name
+                                or "process" in function_name
+                                or "schedule" in function_name or
+                                function_name.lower() == "process_question"):
                             possible_main_functions.append(function_name)
 
                 if possible_main_functions:
                     primary_function = possible_main_functions[0]
-                    print(f"  Found potential main function: {primary_function}")
+                    print(
+                        f"  Found potential main function: {primary_function}")
 
                     # Add a main function that calls the primary function
                     new_content = script_content + f"\n\ndef main(question):\n    return {primary_function}(question)\n"
@@ -861,7 +1089,9 @@ except Exception as e:
                     with open(script_path, 'w', encoding='utf-8') as f:
                         f.write(new_content)
 
-                    print(f"  Added 'main' function wrapper for {primary_function}")
+                    print(
+                        f"  Added 'main' function wrapper for {primary_function}"
+                    )
                     return True
                 else:
                     # If no suitable function found, try to identify the primary function
@@ -869,14 +1099,17 @@ except Exception as e:
                     function_names = []
                     for line in script_content.split('\n'):
                         if line.strip().startswith("def ") and "(" in line:
-                            function_name = line.strip().split("def ")[1].split("(")[0].strip()
+                            function_name = line.strip().split(
+                                "def ")[1].split("(")[0].strip()
                             if function_name != "main":
                                 function_names.append(function_name)
 
                     if function_names:
                         # Choose the first defined function as the main function
                         primary_function = function_names[0]
-                        print(f"  Using first defined function as main: {primary_function}")
+                        print(
+                            f"  Using first defined function as main: {primary_function}"
+                        )
 
                         # Add a main function that calls this function
                         new_content = script_content + f"\n\ndef main(question):\n    return {primary_function}(question)\n"
@@ -885,7 +1118,9 @@ except Exception as e:
                         with open(script_path, 'w', encoding='utf-8') as f:
                             f.write(new_content)
 
-                        print(f"  Added 'main' function wrapper for {primary_function}")
+                        print(
+                            f"  Added 'main' function wrapper for {primary_function}"
+                        )
                         return True
                     else:
                         print("  No functions found to use as main")
@@ -898,9 +1133,10 @@ except Exception as e:
             print(f"  Error debugging script: {e}")
             return False
 
-    def evaluate_with_llm(self, samples: List[Dict], results: List[Dict]) -> Dict:
+    def evaluate_with_llm(self, samples: List[Dict],
+                          results: List[Dict]) -> Dict:
         """
-        Use the LLM to evaluate results and perform error analysis.
+        Use the LLM to evaluate results and perform detailed error analysis.
         """
         evaluations = []
 
@@ -909,10 +1145,14 @@ except Exception as e:
         for i, (sample, result) in enumerate(zip(samples, results)):
             if not result.get("success"):
                 evaluations.append({
-                    "sample_id": i,
-                    "success": False,
-                    "error": result.get("error", "Unknown error"),
-                    "match": False
+                    "sample_id":
+                    i,
+                    "success":
+                    False,
+                    "error":
+                    result.get("error", "Unknown error"),
+                    "match":
+                    False
                 })
                 continue
 
@@ -920,7 +1160,8 @@ except Exception as e:
             if not result.get("evaluation"):
                 golden_answer = sample.get("golden_plan", "").strip()
                 system_answer = result.get("answer", "").strip()
-                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                evaluation = self.evaluate_answer_with_llm(
+                    system_answer, golden_answer)
                 result["evaluation"] = evaluation
                 result["match"] = evaluation.get("match", False)
 
@@ -928,12 +1169,18 @@ except Exception as e:
                 correct_count += 1
 
             evaluations.append({
-                "sample_id": i,
-                "success": True,
-                "system_answer": result.get("answer", "").strip(),
-                "golden_answer": sample.get("golden_plan", "").strip(),
-                "match": result.get("match", False),
-                "evaluation": result.get("evaluation", {})
+                "sample_id":
+                i,
+                "success":
+                True,
+                "system_answer":
+                result.get("answer", "").strip(),
+                "golden_answer":
+                sample.get("golden_plan", "").strip(),
+                "match":
+                result.get("match", False),
+                "evaluation":
+                result.get("evaluation", {})
             })
 
         # Calculate accuracy
@@ -945,46 +1192,75 @@ except Exception as e:
             if not eval_data.get("match"):
                 sample = samples[i]
                 error_samples.append({
-                    "sample_id": i,
-                    "question": sample.get("prompt_0shot", ""),
-                    "system_answer": eval_data.get("system_answer", ""),
-                    "golden_answer": eval_data.get("golden_answer", ""),
-                    "error_message": eval_data.get("error", "")
+                    "sample_id":
+                    i,
+                    "question":
+                    sample.get("prompt_0shot", ""),
+                    "system_answer":
+                    eval_data.get("system_answer", ""),
+                    "golden_answer":
+                    eval_data.get("golden_answer", ""),
+                    "error_message":
+                    eval_data.get("error", ""),
+                    # Including any explanation from the evaluator
+                    "explanation":
+                    eval_data.get("evaluation", {}).get("explanation", "")
                 })
 
         error_analysis = {}
         if error_samples:
-            # Role-specific system instruction for error analyzer
-            error_analyzer_system_instruction = f"{self.system_prompt}\n\nYou are now acting as an Error Analyzer. Your task is to identify patterns in errors and suggest specific improvements."
+            # Role-specific system instruction for error analyzer that emphasizes detailed reasoning
+            error_analyzer_system_instruction = f"{self.system_prompt}\n\nYou are a Forensic Error Analyzer specializing in debugging complex reasoning systems. Your task is to perform deep, deliberate analysis of errors to identify specific failure points and propose targeted improvements."
 
-            # Create prompt for LLM to analyze errors
+            # Create prompt for LLM to perform detailed error analysis
             prompt = f"""
-            Analyze the errors in this system. You're given questions, the system's answers, and the correct answers.
+            Perform a thorough forensic analysis of these error cases in our AI problem-solving system.
 
-            Here are the error cases:
+            For each error case, think step-by-step through what happened:
+
+            ERROR CASES:
             {json.dumps(error_samples, indent=2)}
 
-            Identify patterns in these errors and categorize them. Consider issues like:
-            1. Parsing problems (failing to extract relevant information)
-            2. Logic errors in processing the input
-            3. Output formatting issues
-            4. Edge case handling
-            5. Issues with LLM calls and their effectiveness
+            ANALYSIS INSTRUCTIONS:
+            1. TRACE THE REASONING PATH: For each error case, reconstruct the likely reasoning path the system took. Where precisely did the reasoning go wrong?
 
-            For each error pattern you identify, suggest specific improvements to fix it.
+            2. IDENTIFY SPECIFIC FAILURE POINTS: What exact component, reasoning step, or assumption failed? This might be:
+               - Misunderstanding a specific aspect of the problem
+               - Missing a key constraint or requirement
+               - Applying the wrong reasoning technique
+               - Failing to extract critical information
+               - Making incorrect logical inferences
 
-            Return your analysis as a JSON object with these fields:
-            1. "error_patterns": [List of identified error patterns]
-            2. "primary_issue": The most critical issue to fix
-            3. "recommendations": Specific technical recommendations to improve the system
-            4. "root_causes": Underlying causes of the errors
+            3. COMPARE WITH CORRECT SOLUTION: Analyze how the golden answer's reasoning differs from the system's approach
 
-            Format your response as a valid JSON object that can be parsed.
+            4. FIND PATTERNS ACROSS ERRORS: Are there common failure modes or recurring issues? Look for:
+               - Types of problems the system struggles with
+               - Specific reasoning patterns that consistently fail
+               - Blind spots in the system's analysis approach
+               - LLM call issues (prompting, role instructions, etc.)
+
+            5. PROPOSE TARGETED IMPROVEMENTS: Suggest specific, practical changes to fix these issues:
+               - Explicit changes to reasoning steps
+               - New verification procedures to catch specific errors
+               - Different prompting strategies for the LLM
+               - Additional agent roles or specialized agents for difficult aspects
+
+            FORMAT YOUR RESPONSE AS A JSON OBJECT WITH THESE FIELDS:
+            1. "detailed_analysis": [List of detailed per-case analyses explaining exactly what went wrong in each case]
+            2. "failure_points": [Specific components or reasoning steps that are failing]
+            3. "error_patterns": [Recurring patterns across multiple errors]
+            4. "primary_issue": The single most critical problem to fix (be very specific)
+            5. "targeted_improvements": [Specific, actionable changes to fix the identified issues]
+            6. "root_causes": [Underlying causes behind the errors]
+
+            BE EXTREMELY SPECIFIC IN YOUR ANALYSIS. Avoid generic recommendations like "improve parsing" - instead identify exactly what type of parsing is failing and how to fix that specific issue.
             """
 
-            # Call LLM for error analysis with the specific system instruction
+            # Call LLM for detailed error analysis
             try:
-                response = self.call_llm(prompt, system_instruction=error_analyzer_system_instruction)
+                response = self.call_llm(
+                    prompt,
+                    system_instruction=error_analyzer_system_instruction)
 
                 # Extract JSON from response
                 response = response.strip()
@@ -997,6 +1273,29 @@ except Exception as e:
                     response = response.split("```")[0]
 
                 error_analysis = json.loads(response)
+
+                # Print out some of the detailed analysis for visibility
+                if "detailed_analysis" in error_analysis and error_analysis[
+                        "detailed_analysis"]:
+                    print("\nDetailed Error Analysis Highlights:")
+                    for i, analysis in enumerate(
+                            error_analysis["detailed_analysis"]
+                        [:2]):  # Show first 2 analyses
+                        print(f"  Error {i+1}: {analysis[:150]}..."
+                              if len(analysis) > 150 else analysis)
+
+                if "primary_issue" in error_analysis:
+                    print(
+                        f"\nPrimary Issue: {error_analysis['primary_issue']}")
+
+                if "targeted_improvements" in error_analysis and error_analysis[
+                        "targeted_improvements"]:
+                    print("\nKey Targeted Improvements:")
+                    for i, improvement in enumerate(
+                            error_analysis["targeted_improvements"]
+                        [:3]):  # Show first 3 improvements
+                        print(f"  {i+1}. {improvement}")
+
             except Exception as e:
                 print(f"Error in LLM error analysis: {e}")
                 error_analysis = {
@@ -1014,7 +1313,8 @@ except Exception as e:
             "error_analysis": error_analysis
         }
 
-    def evaluate_answer_with_llm(self, system_answer: str, golden_answer: str) -> Dict:
+    def evaluate_answer_with_llm(self, system_answer: str,
+                                 golden_answer: str) -> Dict:
         """Use LLM to determine if answers are semantically equivalent"""
 
         # Role-specific system instruction for the evaluator
@@ -1031,7 +1331,8 @@ except Exception as e:
         """
 
         try:
-            response = self.call_llm(prompt, system_instruction=evaluator_system_instruction)
+            response = self.call_llm(
+                prompt, system_instruction=evaluator_system_instruction)
 
             # Extract JSON from response
             response = response.strip()
@@ -1057,9 +1358,12 @@ except Exception as e:
             # Fallback to exact match
             exact_match = system_answer.strip() == golden_answer.strip()
             return {
-                "match": exact_match,
-                "confidence": 1.0 if exact_match else 0.0,
-                "explanation": f"Fallback to exact match comparison due to error: {str(e)}"
+                "match":
+                exact_match,
+                "confidence":
+                1.0 if exact_match else 0.0,
+                "explanation":
+                f"Fallback to exact match comparison due to error: {str(e)}"
             }
 
     def generate_approach_summary(self, script: str) -> str:
@@ -1088,7 +1392,8 @@ except Exception as e:
         """
 
         try:
-            summary = self.call_llm(prompt, system_instruction=summarizer_system_instruction)
+            summary = self.call_llm(
+                prompt, system_instruction=summarizer_system_instruction)
             return summary.strip()
         except Exception as e:
             return f"Error generating summary: {e}"
@@ -1111,15 +1416,22 @@ except Exception as e:
             # Safely access nested data
             progressive_accuracy = None
             if "progressive_testing" in it and it["progressive_testing"]:
-                progressive_accuracy = it["progressive_testing"].get("accuracy", None)
+                progressive_accuracy = it["progressive_testing"].get(
+                    "accuracy", None)
 
             iteration_data.append({
-                "iteration": it.get("iteration"),
-                "accuracy": it.get("performance", {}).get("accuracy", 0),
-                "batch_size": it.get("batch_size", 5),
-                "progressive_accuracy": progressive_accuracy,
-                "approach": it.get("approach_summary", "Unknown approach"),
-                "strategy": it.get("strategy", "Unknown")
+                "iteration":
+                it.get("iteration"),
+                "accuracy":
+                it.get("performance", {}).get("accuracy", 0),
+                "batch_size":
+                it.get("batch_size", 5),
+                "progressive_accuracy":
+                progressive_accuracy,
+                "approach":
+                it.get("approach_summary", "Unknown approach"),
+                "strategy":
+                it.get("strategy", "Unknown")
             })
 
         if not iteration_data:
@@ -1155,7 +1467,8 @@ except Exception as e:
             {{"best_iteration": <integer>, "rationale": "<brief explanation>"}}
             """
 
-            response = self.call_llm(prompt, system_instruction=script_evaluator_system_instruction)
+            response = self.call_llm(
+                prompt, system_instruction=script_evaluator_system_instruction)
 
             # Extract JSON from response
             response = response.strip()
@@ -1169,21 +1482,29 @@ except Exception as e:
             # Get detailed info about the best iteration
             best_iteration_number = int(result.get("best_iteration", -1))
 
-            best_iteration = next((it for it in iterations 
-                               if it.get("iteration") == best_iteration_number), None)
+            best_iteration = next(
+                (it for it in iterations
+                 if it.get("iteration") == best_iteration_number), None)
 
             if not best_iteration:
                 # Fallback: just get the highest accuracy
-                best_iteration = max(iterations, 
-                                key=lambda x: x.get("performance", {}).get("accuracy", 0))
+                best_iteration = max(
+                    iterations,
+                    key=lambda x: x.get("performance", {}).get("accuracy", 0))
 
             return {
-                "iteration": best_iteration.get("iteration"),
-                "accuracy": best_iteration.get("performance", {}).get("accuracy", 0),
-                "batch_size": best_iteration.get("batch_size", 5),
-                "path": f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
-                "approach": best_iteration.get("approach_summary", ""),
-                "rationale": result.get("rationale", "Highest overall accuracy")
+                "iteration":
+                best_iteration.get("iteration"),
+                "accuracy":
+                best_iteration.get("performance", {}).get("accuracy", 0),
+                "batch_size":
+                best_iteration.get("batch_size", 5),
+                "path":
+                f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
+                "approach":
+                best_iteration.get("approach_summary", ""),
+                "rationale":
+                result.get("rationale", "Highest overall accuracy")
             }
         except Exception as e:
             # Fallback method - don't use LLM, just pick highest accuracy
@@ -1192,28 +1513,43 @@ except Exception as e:
 
             try:
                 # Find the best iteration by accuracy
-                best_iteration = max(iterations, 
-                                key=lambda x: x.get("performance", {}).get("accuracy", 0) if x else 0)
+                best_iteration = max(
+                    iterations,
+                    key=lambda x: x.get("performance", {}).get("accuracy", 0)
+                    if x else 0)
 
                 return {
-                    "iteration": best_iteration.get("iteration"),
-                    "accuracy": best_iteration.get("performance", {}).get("accuracy", 0),
-                    "batch_size": best_iteration.get("batch_size", 5),
-                    "path": f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
-                    "approach": best_iteration.get("approach_summary", ""),
-                    "rationale": "Fallback selection based on highest accuracy"
+                    "iteration":
+                    best_iteration.get("iteration"),
+                    "accuracy":
+                    best_iteration.get("performance", {}).get("accuracy", 0),
+                    "batch_size":
+                    best_iteration.get("batch_size", 5),
+                    "path":
+                    f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
+                    "approach":
+                    best_iteration.get("approach_summary", ""),
+                    "rationale":
+                    "Fallback selection based on highest accuracy"
                 }
             except Exception as e2:
                 print(f"Error with fallback method: {e2}")
                 # Ultra fallback - just return the first iteration
                 if iterations and iterations[0]:
                     return {
-                        "iteration": iterations[0].get("iteration", 0),
-                        "accuracy": iterations[0].get("performance", {}).get("accuracy", 0),
-                        "batch_size": iterations[0].get("batch_size", 5),
-                        "path": f"scripts/script_iteration_{iterations[0].get('iteration', 0)}.py",
-                        "approach": iterations[0].get("approach_summary", ""),
-                        "rationale": "Ultra fallback - first available iteration"
+                        "iteration":
+                        iterations[0].get("iteration", 0),
+                        "accuracy":
+                        iterations[0].get("performance",
+                                          {}).get("accuracy", 0),
+                        "batch_size":
+                        iterations[0].get("batch_size", 5),
+                        "path":
+                        f"scripts/script_iteration_{iterations[0].get('iteration', 0)}.py",
+                        "approach":
+                        iterations[0].get("approach_summary", ""),
+                        "rationale":
+                        "Ultra fallback - first available iteration"
                     }
                 else:
                     return {
@@ -1237,12 +1573,10 @@ except Exception as e:
                 samples.append(dataset[example_key])
 
         if not samples:
-            return {
-                "success": False, 
-                "error": "No examples seen yet"
-            }
+            return {"success": False, "error": "No examples seen yet"}
 
-        print(f"Running progressive testing on {len(samples)} seen examples...")
+        print(
+            f"Running progressive testing on {len(samples)} seen examples...")
 
         # Execute script on all samples
         results = []
@@ -1259,7 +1593,8 @@ except Exception as e:
                 system_answer = result.get("answer", "")
 
                 # Use LLM-based evaluation
-                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                evaluation = self.evaluate_answer_with_llm(
+                    system_answer, golden_answer)
 
                 result["evaluation"] = evaluation
                 result["match"] = evaluation.get("match", False)
@@ -1280,7 +1615,10 @@ except Exception as e:
             "results": results
         }
 
-    def validate_script(self, script_path: str = None, start_index: int = 0, end_index: int = 999) -> Dict:
+    def validate_script(self,
+                        script_path: str = None,
+                        start_index: int = 0,
+                        end_index: int = 999) -> Dict:
         """Test a script on a specified range of examples"""
         # If no script path provided, use the best script
         if not script_path:
@@ -1294,7 +1632,10 @@ except Exception as e:
             with open(script_path, 'r') as f:
                 script = f.read()
         except Exception as e:
-            return {"success": False, "error": f"Error loading script: {str(e)}"}
+            return {
+                "success": False,
+                "error": f"Error loading script: {str(e)}"
+            }
 
         # Load the dataset
         dataset = self.load_dataset()
@@ -1310,9 +1651,15 @@ except Exception as e:
                 })
 
         if not samples:
-            return {"success": False, "error": f"No examples found in range {start_index}-{end_index}"}
+            return {
+                "success": False,
+                "error":
+                f"No examples found in range {start_index}-{end_index}"
+            }
 
-        print(f"Validating script on {len(samples)} examples from range {start_index}-{end_index}...")
+        print(
+            f"Validating script on {len(samples)} examples from range {start_index}-{end_index}..."
+        )
 
         # Execute script on all samples
         results = []
@@ -1329,20 +1676,19 @@ except Exception as e:
                 system_answer = result.get("answer", "")
 
                 # Use LLM-based evaluation
-                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                evaluation = self.evaluate_answer_with_llm(
+                    system_answer, golden_answer)
 
                 result["evaluation"] = evaluation
                 result["match"] = evaluation.get("match", False)
             else:
                 result["match"] = False
 
-            results.append({
-                "key": sample["key"],
-                "result": result
-            })
+            results.append({"key": sample["key"], "result": result})
 
         # Calculate overall statistics
-        successful_runs = sum(1 for r in results if r["result"].get("success", False))
+        successful_runs = sum(1 for r in results
+                              if r["result"].get("success", False))
         matches = sum(1 for r in results if r["result"].get("match", False))
 
         return {
@@ -1357,7 +1703,9 @@ except Exception as e:
     def run_iteration(self) -> Dict:
         """Run a single iteration of the agent system"""
         print(f"\n=== Starting Iteration {self.current_iteration} ===")
-        print(f"Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}")
+        print(
+            f"Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}"
+        )
         print(f"Current batch size: {self.current_batch_size}")
         print(f"Total seen examples: {len(self.seen_examples)}")
 
@@ -1371,10 +1719,14 @@ except Exception as e:
             print("No samples available in dataset. Exiting iteration.")
             return {"success": False, "error": "No samples available"}
 
-        print(f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)")
+        print(
+            f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)"
+        )
 
         # Decide whether to explore or exploit
-        is_exploration = (self.explore_rate > self.exploit_rate) or (random.random() * 100 <= self.explore_rate)
+        is_exploration = (self.explore_rate
+                          > self.exploit_rate) or (random.random() * 100
+                                                   <= self.explore_rate)
         strategy = "Exploration" if is_exploration else "Exploitation"
         print(f"Strategy for this iteration: {strategy}")
 
@@ -1408,25 +1760,33 @@ except Exception as e:
                 system_answer = result.get("answer", "")
 
                 try:
-                    evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                    evaluation = self.evaluate_answer_with_llm(
+                        system_answer, golden_answer)
                     result["evaluation"] = evaluation
                     result["match"] = evaluation.get("match", False)
 
                     if result["match"]:
-                        print(f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})")
+                        print(
+                            f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})"
+                        )
                     else:
-                        print(f"    ❌ No match: {evaluation.get('explanation', '')}")
+                        print(
+                            f"    ❌ No match: {evaluation.get('explanation', '')}"
+                        )
                 except Exception as e:
                     print(f"    ⚠️ Error evaluating answer: {str(e)}")
                     # Fallback to exact match
-                    exact_match = system_answer.strip() == golden_answer.strip()
+                    exact_match = system_answer.strip() == golden_answer.strip(
+                    )
                     result["match"] = exact_match
                     result["evaluation"] = {
                         "match": exact_match,
                         "confidence": 1.0 if exact_match else 0.0,
                         "explanation": f"Error evaluating: {str(e)}"
                     }
-                    print(f"    {'✅' if exact_match else '❌'} Fallback to exact match: {exact_match}")
+                    print(
+                        f"    {'✅' if exact_match else '❌'} Fallback to exact match: {exact_match}"
+                    )
             else:
                 print(f"    Error: {result.get('error')}")
                 result["match"] = False
@@ -1455,7 +1815,8 @@ except Exception as e:
             evaluation = self.evaluate_with_llm(samples, results)
 
             if evaluation.get('error_analysis'):
-                primary_issue = evaluation.get('error_analysis', {}).get('primary_issue', 'None')
+                primary_issue = evaluation.get('error_analysis',
+                                               {}).get('primary_issue', 'None')
                 print(f"Primary issue identified: {primary_issue}")
             else:
                 print("No specific issues identified")
@@ -1473,16 +1834,23 @@ except Exception as e:
         progressive_testing_results = None
         if accuracy >= 0.7:  # Only run progressive testing if current batch performance is good
             try:
-                print("Script looks promising! Running progressive testing on all seen examples...")
-                progressive_testing_results = self.run_progressive_testing(script)
+                print(
+                    "Script looks promising! Running progressive testing on all seen examples..."
+                )
+                progressive_testing_results = self.run_progressive_testing(
+                    script)
 
                 if progressive_testing_results:
-                    prog_accuracy = progressive_testing_results.get("accuracy", 0)
-                    prog_matches = progressive_testing_results.get("matches", 0)
-                    prog_total = progressive_testing_results.get("total_examples", 0)
+                    prog_accuracy = progressive_testing_results.get(
+                        "accuracy", 0)
+                    prog_matches = progressive_testing_results.get(
+                        "matches", 0)
+                    prog_total = progressive_testing_results.get(
+                        "total_examples", 0)
 
-                    print(f"Progressive testing results: {prog_accuracy:.2f} accuracy " +
-                          f"({prog_matches}/{prog_total} correct)")
+                    print(
+                        f"Progressive testing results: {prog_accuracy:.2f} accuracy "
+                        + f"({prog_matches}/{prog_total} correct)")
             except Exception as e:
                 print(f"Error in progressive testing: {str(e)}")
                 progressive_testing_results = None
@@ -1496,13 +1864,18 @@ except Exception as e:
             print(f"Error adjusting explore/exploit balance: {str(e)}")
             # Maintain current values if error occurs
             new_explore, new_exploit = self.explore_rate, self.exploit_rate
-            print(f"Maintaining current explore/exploit balance: {new_explore}/{new_exploit}")
+            print(
+                f"Maintaining current explore/exploit balance: {new_explore}/{new_exploit}"
+            )
 
         # Adjust batch size for next iteration
         try:
             print("Adjusting batch size...")
-            new_batch_size, batch_adjustment_rationale = self.adjust_batch_size_with_llm(basic_evaluation)
-            print(f"New batch size: {new_batch_size} ({batch_adjustment_rationale})")
+            new_batch_size, batch_adjustment_rationale = self.adjust_batch_size_with_llm(
+                basic_evaluation)
+            print(
+                f"New batch size: {new_batch_size} ({batch_adjustment_rationale})"
+            )
         except Exception as e:
             print(f"Error adjusting batch size: {str(e)}")
             # Maintain current batch size if error occurs
@@ -1516,7 +1889,9 @@ except Exception as e:
             if best_script_info:
                 print("\n=== Current Best Script ===")
                 print(f"Iteration: {best_script_info.get('iteration')}")
-                print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
+                print(
+                    f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)"
+                )
                 print(f"Path: {best_script_info.get('path')}")
                 print(f"Approach: {best_script_info.get('approach')}")
                 print(f"Rationale: {best_script_info.get('rationale')}")
@@ -1543,28 +1918,43 @@ except Exception as e:
 
         # Create summary
         summary = {
-            "iteration": self.current_iteration,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "strategy": strategy,
-            "explore_rate": self.explore_rate,
-            "exploit_rate": self.exploit_rate,
-            "batch_size": self.current_batch_size,
-            "approach_summary": approach_summary,
+            "iteration":
+            self.current_iteration,
+            "timestamp":
+            datetime.datetime.now().isoformat(),
+            "strategy":
+            strategy,
+            "explore_rate":
+            self.explore_rate,
+            "exploit_rate":
+            self.exploit_rate,
+            "batch_size":
+            self.current_batch_size,
+            "approach_summary":
+            approach_summary,
             "performance": {
                 "accuracy": accuracy,
                 "correct_count": matches,
                 "total_count": len(samples)
             },
-            "progressive_accuracy": progressive_testing_results.get("accuracy", None) if progressive_testing_results else None,
-            "primary_issue": evaluation.get("error_analysis", {}).get("primary_issue", "None identified"),
-            "new_explore_rate": new_explore,
-            "new_exploit_rate": new_exploit,
-            "new_batch_size": new_batch_size
+            "progressive_accuracy":
+            progressive_testing_results.get("accuracy", None)
+            if progressive_testing_results else None,
+            "primary_issue":
+            evaluation.get("error_analysis", {}).get("primary_issue",
+                                                     "None identified"),
+            "new_explore_rate":
+            new_explore,
+            "new_exploit_rate":
+            new_exploit,
+            "new_batch_size":
+            new_batch_size
         }
 
         # Save to archive
         try:
-            self.save_to_archive(iteration_data, f"iteration_{self.current_iteration}.json")
+            self.save_to_archive(iteration_data,
+                                 f"iteration_{self.current_iteration}.json")
             self.update_summaries(summary)
         except Exception as e:
             print(f"Error saving iteration data: {str(e)}")
@@ -1582,6 +1972,7 @@ except Exception as e:
         print(f"=== Completed Iteration {self.current_iteration - 1} ===")
 
         return iteration_data
+
 
 if __name__ == "__main__":
     pass
