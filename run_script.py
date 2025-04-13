@@ -8,13 +8,10 @@ import sys
 import json
 import random
 import argparse
-import traceback
 from pathlib import Path
 from typing import Dict, List, Any
 
 from agent_system import AgentSystem
-from capability_debug import initialize_debug_agent
-from debug_capability import patch_agent_system, DebuggingCapabilityTracker
 
 # Fixed random seed for reproducible dataset shuffling
 RANDOM_SEED = 42
@@ -121,25 +118,10 @@ def run_agent(iterations: int,
 
     # Initialize the agent system with the shuffled dataset
     try:
-        # Apply enhanced capability debugging
-        print("Applying enhanced capability debugging...")
-        patch_agent_system()
-        
-        # Use the debug-enabled agent
-        print("Initializing debug-enabled agent system...")
-        agent = initialize_debug_agent(dataset_path=shuffled_dataset_path,
-                                      example_prefix=example_prefix)
-        
-        # Verify the capability tracker type
-        tracker_type = type(agent.capability_tracker).__name__
-        print(f"Capability tracker type: {tracker_type}")
-        if not isinstance(agent.capability_tracker, DebuggingCapabilityTracker):
-            print("Warning: DebuggingCapabilityTracker not properly installed.")
-            print("Manually applying debugging capability tracker...")
-            agent.capability_tracker = DebuggingCapabilityTracker()
+        agent = AgentSystem(dataset_path=shuffled_dataset_path,
+                            example_prefix=example_prefix)
     except Exception as e:
         print(f"Error initializing agent system: {e}")
-        traceback.print_exc()
         sys.exit(1)
 
     print("=" * 80)
