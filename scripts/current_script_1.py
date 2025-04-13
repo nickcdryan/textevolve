@@ -1,5 +1,6 @@
 import os
 import json
+import re
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -89,10 +90,11 @@ def extract_information_with_examples(problem):
     return call_llm(prompt, system_instruction)
 
 def find_available_time_with_examples(extracted_info):
-    """Find an available time slot based on the extracted information."""
-    system_instruction = "You are an expert meeting scheduler."
+    """Find an available meeting time using extracted information with examples."""
+    system_instruction = "You are an expert meeting scheduler, finding valid meeting times based on participant availabilities and constraints."
+    
     prompt = f"""
-    Given the extracted information, find a suitable meeting time that satisfies all constraints.
+    Given the extracted information about participants' availability and meeting constraints, find a valid meeting time.
     
     Example usage:
     
@@ -116,17 +118,18 @@ def find_available_time_with_examples(extracted_info):
     }}
     
     Reasoning:
-    Let's analyze each day.
-    - Monday: Jennifer is available at 11:00-11:30, 13:00-13:30, 14:30-15:00. John prefers not to meet after 14:30. 11:00 - 11:30, 13:00 - 13:30 would work
-    - Tuesday: Jennifer is only available at 11:30-12:00. This might work too
-    - Wednesday: Jennifer is available at 11:30-12:00, 12:30-13:00, 14:00-14:30, 16:00-16:30. 11:30-12:00 could work
-    Let's pick the first possible time slot on Monday.
+    Let's think step by step.
+    - Consider Monday first. Valid hours are 9:00-17:00.
+    - John is available all the time.
+    - Jennifer is available 11:00-11:30, 13:00-13:30, 14:30-15:00.
+    - A meeting from 11:00-11:30 works. It is 30 minutes and within work hours.
     
     Proposed Time: Monday, 11:00 - 11:30
     
-    Now, using the following extracted info, find a suitable meeting time:
+    Now, using this approach, find a valid meeting time for the following extracted information:
     {extracted_info}
     """
+    
     return call_llm(prompt, system_instruction)
 
 def verify_solution_with_examples(problem, proposed_solution):
@@ -177,14 +180,14 @@ def main(question):
     try:
         # 1. Extract information
         extracted_info = extract_information_with_examples(question)
-
+        
         # 2. Find available time
-        available_time = find_available_time_with_examples(extracted_info)
-
+        proposed_solution = find_available_time_with_examples(extracted_info)
+        
         # 3. Verify solution
-        verification_result = verify_solution_with_examples(question, available_time)
-
-        return f"{available_time}. {verification_result}"
+        verification_result = verify_solution_with_examples(question, proposed_solution)
+        
+        return proposed_solution if "INVALID" not in verification_result else "No valid time found."
 
     except Exception as e:
         return f"Error during processing: {str(e)}"

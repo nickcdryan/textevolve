@@ -388,6 +388,7 @@ class AgentSystem:
             samples[i].get("prompt_0shot", "N/A")
             for i in range(min(3, len(examples)))
         ]
+        print(sample_questions)
         approach_details = iteration_data.get(
             "script", "")[:500]  # Get first 500 chars of script for context
 
@@ -821,8 +822,11 @@ class AgentSystem:
             capability_report = self.capability_tracker.generate_report()
             improvement_focus = capability_report.get("improvement_focus")
             if capability_report:
-                capability_guidance = self._generate_capability_guidance(capability_report)
-                print(f"Focusing script improvement on: {improvement_focus.upper().replace('_', ' ') if improvement_focus else 'No specific focus'}")
+                capability_guidance = self._generate_capability_guidance(
+                    capability_report)
+                print(
+                    f"Focusing script improvement on: {improvement_focus.upper().replace('_', ' ') if improvement_focus else 'No specific focus'}"
+                )
 
         # ==== DETERMINE STRATEGY ====
         approach_type = "exploration" if is_exploration else "exploitation"
@@ -1178,7 +1182,7 @@ class AgentSystem:
 
                 BE EXTREMELY CAREFUL WITH STRING LITERALS AND QUOTES!
                 """
-    
+
     def execute_script(self, script: str, question: str) -> Dict:
         """
         Execute the generated script on a question and return the result.
@@ -1391,7 +1395,8 @@ except Exception as e:
             print(f"  Error debugging script: {e}")
             return False
 
-    def evaluate_with_llm(self, samples: List[Dict], results: List[Dict]) -> Dict:
+    def evaluate_with_llm(self, samples: List[Dict],
+                          results: List[Dict]) -> Dict:
         """
         Use the LLM to evaluate results and perform detailed error analysis.
         Generates natural language analysis of strengths, weaknesses, and improvements.
@@ -1403,11 +1408,16 @@ except Exception as e:
         for i, (sample, result) in enumerate(zip(samples, results)):
             if not result.get("success"):
                 evaluations.append({
-                    "sample_id": i,
-                    "success": False,
-                    "error": result.get("error", "Unknown error"),
-                    "match": False,
-                    "capability_failures": ["execution"]  # Track execution failures
+                    "sample_id":
+                    i,
+                    "success":
+                    False,
+                    "error":
+                    result.get("error", "Unknown error"),
+                    "match":
+                    False,
+                    "capability_failures":
+                    ["execution"]  # Track execution failures
                 })
                 continue
 
@@ -1415,7 +1425,8 @@ except Exception as e:
             if not result.get("evaluation"):
                 golden_answer = sample.get("golden_plan", "").strip()
                 system_answer = result.get("answer", "").strip()
-                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                evaluation = self.evaluate_answer_with_llm(
+                    system_answer, golden_answer)
                 result["evaluation"] = evaluation
                 result["match"] = evaluation.get("match", False)
 
@@ -1423,23 +1434,36 @@ except Exception as e:
                 correct_count += 1
                 # For successful cases, we consider all capabilities successful
                 evaluations.append({
-                    "sample_id": i,
-                    "success": True,
-                    "system_answer": result.get("answer", "").strip(),
-                    "golden_answer": sample.get("golden_plan", "").strip(),
-                    "match": True,
-                    "evaluation": result.get("evaluation", {})
+                    "sample_id":
+                    i,
+                    "success":
+                    True,
+                    "system_answer":
+                    result.get("answer", "").strip(),
+                    "golden_answer":
+                    sample.get("golden_plan", "").strip(),
+                    "match":
+                    True,
+                    "evaluation":
+                    result.get("evaluation", {})
                 })
             else:
                 # For failed cases, we'll determine which capabilities failed later
                 evaluations.append({
-                    "sample_id": i,
-                    "success": True,
-                    "system_answer": result.get("answer", "").strip(),
-                    "golden_answer": sample.get("golden_plan", "").strip(),
-                    "match": False,
-                    "evaluation": result.get("evaluation", {}),
-                    "capability_failures": []  # Placeholder, will be populated after error analysis
+                    "sample_id":
+                    i,
+                    "success":
+                    True,
+                    "system_answer":
+                    result.get("answer", "").strip(),
+                    "golden_answer":
+                    sample.get("golden_plan", "").strip(),
+                    "match":
+                    False,
+                    "evaluation":
+                    result.get("evaluation", {}),
+                    "capability_failures":
+                    []  # Placeholder, will be populated after error analysis
                 })
 
         # Calculate accuracy
@@ -1451,12 +1475,18 @@ except Exception as e:
             if not eval_data.get("match"):
                 sample = samples[i]
                 error_samples.append({
-                    "sample_id": i,
-                    "question": sample.get("prompt_0shot", ""),
-                    "system_answer": eval_data.get("system_answer", ""),
-                    "golden_answer": eval_data.get("golden_answer", ""),
-                    "error_message": eval_data.get("error", ""),
-                    "explanation": eval_data.get("evaluation", {}).get("explanation", "")
+                    "sample_id":
+                    i,
+                    "question":
+                    sample.get("prompt_0shot", ""),
+                    "system_answer":
+                    eval_data.get("system_answer", ""),
+                    "golden_answer":
+                    eval_data.get("golden_answer", ""),
+                    "error_message":
+                    eval_data.get("error", ""),
+                    "explanation":
+                    eval_data.get("evaluation", {}).get("explanation", "")
                 })
 
         error_analysis = {}
@@ -1547,7 +1577,9 @@ except Exception as e:
                 print("Parsing JSON from response...")
                 try:
                     error_analysis = json.loads(response)
-                    print(f"Successfully parsed JSON with {len(error_analysis)} keys")
+                    print(
+                        f"Successfully parsed JSON with {len(error_analysis)} keys"
+                    )
                     print(f"Found keys: {list(error_analysis.keys())}")
                 except json.JSONDecodeError as jde:
                     print(f"JSON parse error: {jde}")
@@ -1556,48 +1588,70 @@ except Exception as e:
 
                 # Update each evaluation with capability failures
                 if "capability_mapping" in error_analysis:
-                    print(f"Processing capability mapping with {len(error_analysis['capability_mapping'])} entries")
-                    for sample_id_str, failed_capabilities in error_analysis["capability_mapping"].items():
+                    print(
+                        f"Processing capability mapping with {len(error_analysis['capability_mapping'])} entries"
+                    )
+                    for sample_id_str, failed_capabilities in error_analysis[
+                            "capability_mapping"].items():
                         try:
                             # Convert sample_id from string to int (remove "sample_" prefix)
-                            sample_index = int(sample_id_str.replace("sample_", ""))
+                            sample_index = int(
+                                sample_id_str.replace("sample_", ""))
                             # Find the matching evaluation
                             for eval_data in evaluations:
-                                if eval_data["sample_id"] == sample_index and not eval_data.get("match", False):
-                                    eval_data["capability_failures"] = failed_capabilities
-                                    print(f"Assigned capabilities {failed_capabilities} to sample {sample_index}")
+                                if eval_data[
+                                        "sample_id"] == sample_index and not eval_data.get(
+                                            "match", False):
+                                    eval_data[
+                                        "capability_failures"] = failed_capabilities
+                                    print(
+                                        f"Assigned capabilities {failed_capabilities} to sample {sample_index}"
+                                    )
                         except (ValueError, KeyError) as e:
-                            print(f"Error processing capability mapping for {sample_id_str}: {e}")
+                            print(
+                                f"Error processing capability mapping for {sample_id_str}: {e}"
+                            )
                 else:
                     print("No capability_mapping found in error analysis")
 
                 # Verify critical fields exist
-                for field in ["strengths", "weaknesses", "bottlenecks", "primary_issue", "improvement_suggestions"]:
+                for field in [
+                        "strengths", "weaknesses", "bottlenecks",
+                        "primary_issue", "improvement_suggestions"
+                ]:
                     if field not in error_analysis or not error_analysis[field]:
-                        print(f"Warning: Field '{field}' missing or empty in error analysis")
+                        print(
+                            f"Warning: Field '{field}' missing or empty in error analysis"
+                        )
 
                 # Print out some of the analysis for visibility
-                if "strengths" in error_analysis and error_analysis["strengths"]:
+                if "strengths" in error_analysis and error_analysis[
+                        "strengths"]:
                     print("\nStrengths:")
                     for strength in error_analysis["strengths"]:
                         print(f"  - {strength}")
 
-                if "weaknesses" in error_analysis and error_analysis["weaknesses"]:
+                if "weaknesses" in error_analysis and error_analysis[
+                        "weaknesses"]:
                     print("\nWeaknesses:")
                     for weakness in error_analysis["weaknesses"]:
                         print(f"  - {weakness}")
 
-                if "bottlenecks" in error_analysis and error_analysis["bottlenecks"]:
+                if "bottlenecks" in error_analysis and error_analysis[
+                        "bottlenecks"]:
                     print("\nBottlenecks:")
                     for bottleneck in error_analysis["bottlenecks"]:
                         print(f"  - {bottleneck}")
 
                 if "primary_issue" in error_analysis:
-                    print(f"\nPrimary Issue: {error_analysis['primary_issue']}")
+                    print(
+                        f"\nPrimary Issue: {error_analysis['primary_issue']}")
 
-                if "improvement_suggestions" in error_analysis and error_analysis["improvement_suggestions"]:
+                if "improvement_suggestions" in error_analysis and error_analysis[
+                        "improvement_suggestions"]:
                     print("\nImprovement Suggestions:")
-                    for improvement in error_analysis["improvement_suggestions"]:
+                    for improvement in error_analysis[
+                            "improvement_suggestions"]:
                         print(f"  - {improvement}")
 
                 print("=== LLM error analysis complete ===\n")
@@ -1612,7 +1666,8 @@ except Exception as e:
                     "error_patterns": ["Analysis failed"],
                     "primary_issue": "Unable to analyze errors with LLM",
                     "improvement_areas": ["error_analysis"],
-                    "improvement_suggestions": ["Retry analysis in next iteration"],
+                    "improvement_suggestions":
+                    ["Retry analysis in next iteration"],
                     "root_causes": ["LLM error analysis failed: " + str(e)]
                 }
 
@@ -1654,7 +1709,8 @@ except Exception as e:
         strengths = capability_report.get("strengths", [])
         weaknesses = capability_report.get("weaknesses", [])
         bottlenecks = capability_report.get("bottlenecks", [])
-        improvement_suggestions = capability_report.get("improvement_suggestions", [])
+        improvement_suggestions = capability_report.get(
+            "improvement_suggestions", [])
         improvement_focus = capability_report.get("improvement_focus", "")
 
         # Build guidance
@@ -1690,8 +1746,14 @@ except Exception as e:
         # Add trend analysis if available
         trends = capability_report.get("trend", "insufficient_data")
         if trends != "insufficient_data" and isinstance(trends, dict):
-            improving = [cap.replace("_", " ") for cap, trend in trends.items() if trend == "improving"]
-            declining = [cap.replace("_", " ") for cap, trend in trends.items() if trend == "declining"]
+            improving = [
+                cap.replace("_", " ") for cap, trend in trends.items()
+                if trend == "improving"
+            ]
+            declining = [
+                cap.replace("_", " ") for cap, trend in trends.items()
+                if trend == "declining"
+            ]
 
             if improving:
                 guidance += "IMPROVING CAPABILITIES (CONTINUE THIS DIRECTION):\n"
@@ -1706,7 +1768,7 @@ except Exception as e:
                 guidance += "\n"
 
         return guidance
-    
+
     def evaluate_answer_with_llm(self, system_answer: str,
                                  golden_answer: str) -> Dict:
         """Use LLM to determine if answers are semantically equivalent"""
@@ -2104,7 +2166,9 @@ except Exception as e:
     def run_iteration(self) -> Dict:
         """Run a single iteration of the agent system with capability tracking"""
         print(f"\n=== Starting Iteration {self.current_iteration} ===")
-        print(f"Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}")
+        print(
+            f"Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}"
+        )
         print(f"Current batch size: {self.current_batch_size}")
         print(f"Total seen examples: {len(self.seen_examples)}")
 
@@ -2118,7 +2182,9 @@ except Exception as e:
             print("No samples available in dataset. Exiting iteration.")
             return {"success": False, "error": "No samples available"}
 
-        print(f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)")
+        print(
+            f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)"
+        )
 
         # Get capability report if available
         capability_report = None
@@ -2128,52 +2194,68 @@ except Exception as e:
                 print("\n=== Current Capability Status ===")
 
                 # Display improvement focus
-                improvement_focus = capability_report.get("improvement_focus", "")
+                improvement_focus = capability_report.get(
+                    "improvement_focus", "")
                 if improvement_focus:
-                    print(f"  Focus area: {improvement_focus.upper().replace('_', ' ')}")
+                    print(
+                        f"  Focus area: {improvement_focus.upper().replace('_', ' ')}"
+                    )
 
                 # Display strengths
                 if capability_report.get("strengths"):
                     print("\n  Strengths:")
-                    for strength in capability_report.get("strengths", [])[:2]:  # Show top 2
+                    for strength in capability_report.get(
+                            "strengths", [])[:2]:  # Show top 2
                         print(f"    - {strength}")
 
                 # Display weaknesses
                 if capability_report.get("weaknesses"):
                     print("\n  Weaknesses:")
-                    for weakness in capability_report.get("weaknesses", [])[:2]:  # Show top 2
+                    for weakness in capability_report.get(
+                            "weaknesses", [])[:2]:  # Show top 2
                         print(f"    - {weakness}")
 
                 # Display improvement suggestions if available
                 if capability_report.get("improvement_suggestions"):
                     print("\n  Suggested Improvements:")
-                    for suggestion in capability_report.get("improvement_suggestions", [])[:2]:
+                    for suggestion in capability_report.get(
+                            "improvement_suggestions", [])[:2]:
                         print(f"    - {suggestion}")
 
                 print("=" * 40)
 
         # Decide whether to explore or exploit
-        is_exploration = (self.explore_rate > self.exploit_rate) or (random.random() * 100 <= self.explore_rate)
+        is_exploration = (self.explore_rate
+                          > self.exploit_rate) or (random.random() * 100
+                                                   <= self.explore_rate)
 
         # If we have capability data with clear trends, potentially override the strategy
-        if capability_report and capability_report.get("trend") != "insufficient_data":
+        if capability_report and capability_report.get(
+                "trend") != "insufficient_data":
             weakest_capability = capability_report.get("improvement_focus", "")
 
             # Check trend for the weakest capability
             trends = capability_report.get("trend", {})
-            weakest_trend = trends.get(weakest_capability) if isinstance(trends, dict) else None
+            weakest_trend = trends.get(weakest_capability) if isinstance(
+                trends, dict) else None
 
             # If our weakest capability is declining, force exploration
             if weakest_trend == "declining":
                 if not is_exploration:
-                    print(f"Strategy override: Forcing exploration to address declining capability: {weakest_capability}")
+                    print(
+                        f"Strategy override: Forcing exploration to address declining capability: {weakest_capability}"
+                    )
                     is_exploration = True
 
             # If all capabilities are improving, consider more exploitation
             if isinstance(trends, dict):
-                improving_count = sum(1 for trend in trends.values() if trend == "improving")
-                if improving_count == len(trends) and is_exploration and improving_count > 0:
-                    print(f"Strategy override: Forcing exploitation to capitalize on improving capabilities")
+                improving_count = sum(1 for trend in trends.values()
+                                      if trend == "improving")
+                if improving_count == len(
+                        trends) and is_exploration and improving_count > 0:
+                    print(
+                        f"Strategy override: Forcing exploitation to capitalize on improving capabilities"
+                    )
                     is_exploration = False
 
         strategy = "Exploration" if is_exploration else "Exploitation"
@@ -2190,8 +2272,11 @@ except Exception as e:
             capability_report = self.capability_tracker.generate_report()
             improvement_focus = capability_report.get("improvement_focus", "")
             if capability_report:
-                capability_guidance = self._generate_capability_guidance(capability_report)
-                print(f"Focusing script improvement on: {improvement_focus.upper().replace('_', ' ')}")
+                capability_guidance = self._generate_capability_guidance(
+                    capability_report)
+                print(
+                    f"Focusing script improvement on: {improvement_focus.upper().replace('_', ' ')}"
+                )
 
         script = self.generate_script_with_llm(is_exploration)
 
@@ -2211,6 +2296,7 @@ except Exception as e:
         for i, sample in enumerate(samples):
             print(f"  Processing sample {i+1}/{len(samples)}...")
             question = sample.get("prompt_0shot", "")
+            print ("QUESTION", question)
             result = self.execute_script(script, question)
 
             if result.get("success"):
@@ -2221,25 +2307,33 @@ except Exception as e:
                 system_answer = result.get("answer", "")
 
                 try:
-                    evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                    evaluation = self.evaluate_answer_with_llm(
+                        system_answer, golden_answer)
                     result["evaluation"] = evaluation
                     result["match"] = evaluation.get("match", False)
 
                     if result["match"]:
-                        print(f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})")
+                        print(
+                            f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})"
+                        )
                     else:
-                        print(f"    ❌ No match: {evaluation.get('explanation', '')}")
+                        print(
+                            f"    ❌ No match: {evaluation.get('explanation', '')}"
+                        )
                 except Exception as e:
                     print(f"    ⚠️ Error evaluating answer: {str(e)}")
                     # Fallback to exact match
-                    exact_match = system_answer.strip() == golden_answer.strip()
+                    exact_match = system_answer.strip() == golden_answer.strip(
+                    )
                     result["match"] = exact_match
                     result["evaluation"] = {
                         "match": exact_match,
                         "confidence": 1.0 if exact_match else 0.0,
                         "explanation": f"Error evaluating: {str(e)}"
                     }
-                    print(f"    {'✅' if exact_match else '❌'} Fallback to exact match: {exact_match}")
+                    print(
+                        f"    {'✅' if exact_match else '❌'} Fallback to exact match: {exact_match}"
+                    )
             else:
                 print(f"    Error: {result.get('error')}")
                 result["match"] = False
@@ -2259,7 +2353,8 @@ except Exception as e:
             "evaluations": results
         }
 
-        print(f"Performance: {accuracy:.2f} accuracy " + f"({matches}/{len(samples)} correct)")
+        print(f"Performance: {accuracy:.2f} accuracy " +
+              f"({matches}/{len(samples)} correct)")
 
         # Use LLM for deeper error analysis
         try:
@@ -2267,31 +2362,38 @@ except Exception as e:
             evaluation = self.evaluate_with_llm(samples, results)
 
             if evaluation.get('error_analysis'):
-                primary_issue = evaluation.get('error_analysis', {}).get('primary_issue', 'None')
+                primary_issue = evaluation.get('error_analysis',
+                                               {}).get('primary_issue', 'None')
                 print(f"Primary issue identified: {primary_issue}")
 
                 # Display strengths, weaknesses, and improvement suggestions
-                if "error_analysis" in evaluation and evaluation["error_analysis"]:
+                if "error_analysis" in evaluation and evaluation[
+                        "error_analysis"]:
                     error_analysis = evaluation["error_analysis"]
 
-                    if "strengths" in error_analysis and error_analysis["strengths"]:
+                    if "strengths" in error_analysis and error_analysis[
+                            "strengths"]:
                         print("\n=== Strengths Identified ===")
                         for strength in error_analysis["strengths"]:
                             print(f"  - {strength}")
 
-                    if "weaknesses" in error_analysis and error_analysis["weaknesses"]:
+                    if "weaknesses" in error_analysis and error_analysis[
+                            "weaknesses"]:
                         print("\n=== Weaknesses Identified ===")
                         for weakness in error_analysis["weaknesses"]:
                             print(f"  - {weakness}")
 
-                    if "bottlenecks" in error_analysis and error_analysis["bottlenecks"]:
+                    if "bottlenecks" in error_analysis and error_analysis[
+                            "bottlenecks"]:
                         print("\n=== Critical Bottlenecks ===")
                         for bottleneck in error_analysis["bottlenecks"]:
                             print(f"  - {bottleneck}")
 
-                    if "improvement_suggestions" in error_analysis and error_analysis["improvement_suggestions"]:
+                    if "improvement_suggestions" in error_analysis and error_analysis[
+                            "improvement_suggestions"]:
                         print("\n=== Improvement Suggestions ===")
-                        for suggestion in error_analysis["improvement_suggestions"][:3]:  # Top 3
+                        for suggestion in error_analysis[
+                                "improvement_suggestions"][:3]:  # Top 3
                             print(f"  - {suggestion}")
 
                     print("=" * 40)
@@ -2312,16 +2414,23 @@ except Exception as e:
         progressive_testing_results = None
         if accuracy >= 0.7:  # Only run progressive testing if current batch performance is good
             try:
-                print("Script looks promising! Running progressive testing on all seen examples...")
-                progressive_testing_results = self.run_progressive_testing(script, max_examples=20)
+                print(
+                    "Script looks promising! Running progressive testing on all seen examples..."
+                )
+                progressive_testing_results = self.run_progressive_testing(
+                    script, max_examples=20)
 
                 if progressive_testing_results:
-                    prog_accuracy = progressive_testing_results.get("accuracy", 0)
-                    prog_matches = progressive_testing_results.get("matches", 0)
-                    prog_total = progressive_testing_results.get("total_examples", 0)
+                    prog_accuracy = progressive_testing_results.get(
+                        "accuracy", 0)
+                    prog_matches = progressive_testing_results.get(
+                        "matches", 0)
+                    prog_total = progressive_testing_results.get(
+                        "total_examples", 0)
 
-                    print(f"Progressive testing results: {prog_accuracy:.2f} accuracy " + 
-                          f"({prog_matches}/{prog_total} correct)")
+                    print(
+                        f"Progressive testing results: {prog_accuracy:.2f} accuracy "
+                        + f"({prog_matches}/{prog_total} correct)")
             except Exception as e:
                 print(f"Error in progressive testing: {str(e)}")
                 progressive_testing_results = None
@@ -2335,13 +2444,18 @@ except Exception as e:
             print(f"Error adjusting explore/exploit balance: {str(e)}")
             # Maintain current values if error occurs
             new_explore, new_exploit = self.explore_rate, self.exploit_rate
-            print(f"Maintaining current explore/exploit balance: {new_explore}/{new_exploit}")
+            print(
+                f"Maintaining current explore/exploit balance: {new_explore}/{new_exploit}"
+            )
 
         # Adjust batch size for next iteration
         try:
             print("Adjusting batch size...")
-            new_batch_size, batch_adjustment_rationale = self.adjust_batch_size_with_llm(basic_evaluation)
-            print(f"New batch size: {new_batch_size} ({batch_adjustment_rationale})")
+            new_batch_size, batch_adjustment_rationale = self.adjust_batch_size_with_llm(
+                basic_evaluation)
+            print(
+                f"New batch size: {new_batch_size} ({batch_adjustment_rationale})"
+            )
         except Exception as e:
             print(f"Error adjusting batch size: {str(e)}")
             # Maintain current batch size if error occurs
@@ -2355,7 +2469,9 @@ except Exception as e:
             if best_script_info:
                 print("\n=== Current Best Script ===")
                 print(f"Iteration: {best_script_info.get('iteration')}")
-                print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
+                print(
+                    f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)"
+                )
                 print(f"Path: {best_script_info.get('path')}")
                 print(f"Approach: {best_script_info.get('approach')}")
                 print(f"Rationale: {best_script_info.get('rationale')}")
@@ -2365,20 +2481,25 @@ except Exception as e:
                     print("\n  Capability Assessment:")
 
                     # Display improvement focus
-                    improvement_focus = capability_report.get("improvement_focus", "")
+                    improvement_focus = capability_report.get(
+                        "improvement_focus", "")
                     if improvement_focus:
-                        print(f"    Focus area: {improvement_focus.upper().replace('_', ' ')}")
+                        print(
+                            f"    Focus area: {improvement_focus.upper().replace('_', ' ')}"
+                        )
 
                     # Display strengths (top 2)
                     if capability_report.get("strengths"):
                         print("    Strengths:")
-                        for strength in capability_report.get("strengths", [])[:2]:
+                        for strength in capability_report.get("strengths",
+                                                              [])[:2]:
                             print(f"      - {strength}")
 
                     # Display weaknesses (top 2)
                     if capability_report.get("weaknesses"):
                         print("    Weaknesses:")
-                        for weakness in capability_report.get("weaknesses", [])[:2]:
+                        for weakness in capability_report.get(
+                                "weaknesses", [])[:2]:
                             print(f"      - {weakness}")
         except Exception as e:
             print(f"Error identifying best script: {str(e)}")
@@ -2404,29 +2525,45 @@ except Exception as e:
 
         # Create summary
         summary = {
-            "iteration": self.current_iteration,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "strategy": strategy,
-            "explore_rate": self.explore_rate,
-            "exploit_rate": self.exploit_rate,
-            "batch_size": self.current_batch_size,
-            "approach_summary": approach_summary,
+            "iteration":
+            self.current_iteration,
+            "timestamp":
+            datetime.datetime.now().isoformat(),
+            "strategy":
+            strategy,
+            "explore_rate":
+            self.explore_rate,
+            "exploit_rate":
+            self.exploit_rate,
+            "batch_size":
+            self.current_batch_size,
+            "approach_summary":
+            approach_summary,
             "performance": {
                 "accuracy": accuracy,
                 "correct_count": matches,
                 "total_count": len(samples)
             },
-            "progressive_accuracy": progressive_testing_results.get("accuracy", None) if progressive_testing_results else None,
-            "primary_issue": evaluation.get("error_analysis", {}).get("primary_issue", "None identified"),
-            "new_explore_rate": new_explore,
-            "new_exploit_rate": new_exploit,
-            "new_batch_size": new_batch_size,
-            "capability_report": capability_report
+            "progressive_accuracy":
+            progressive_testing_results.get("accuracy", None)
+            if progressive_testing_results else None,
+            "primary_issue":
+            evaluation.get("error_analysis", {}).get("primary_issue",
+                                                     "None identified"),
+            "new_explore_rate":
+            new_explore,
+            "new_exploit_rate":
+            new_exploit,
+            "new_batch_size":
+            new_batch_size,
+            "capability_report":
+            capability_report
         }
 
         # Save to archive
         try:
-            self.save_to_archive(iteration_data, f"iteration_{self.current_iteration}.json")
+            self.save_to_archive(iteration_data,
+                                 f"iteration_{self.current_iteration}.json")
             self.update_summaries(summary)
         except Exception as e:
             print(f"Error saving iteration data: {str(e)}")
@@ -2445,12 +2582,14 @@ except Exception as e:
 
         # Update learnings file with insights from this iteration
         try:
-            print("Updating learnings file with insights from this iteration...")
+            print(
+                "Updating learnings file with insights from this iteration...")
             self.update_learnings(iteration_data)
         except Exception as e:
             print(f"Error updating learnings: {e}")
 
         return iteration_data
+
 
 class CapabilityTracker:
     """
@@ -2461,11 +2600,8 @@ class CapabilityTracker:
     def __init__(self):
         # Define core capabilities that are domain-agnostic
         self.capabilities = [
-            "information_extraction",
-            "constraint_handling",
-            "solution_generation", 
-            "solution_verification",
-            "decision_making"
+            "information_extraction", "constraint_handling",
+            "solution_generation", "solution_verification", "decision_making"
         ]
 
         # Store assessment history
@@ -2480,7 +2616,8 @@ class CapabilityTracker:
             "improvement_suggestions": []
         }
 
-    def update_from_evaluations(self, evaluations, capability_insights, error_analysis):
+    def update_from_evaluations(self, evaluations, capability_insights,
+                                error_analysis):
         """
         Generate a qualitative assessment based on evaluation results.
 
@@ -2489,9 +2626,13 @@ class CapabilityTracker:
             capability_insights: Insights from LLM analysis (may be empty)
             error_analysis: Error analysis from LLM
         """
-        print(f"Generating qualitative assessment from {len(evaluations)} evaluations")
-        print(f"Error analysis keys: {error_analysis.keys() if error_analysis else 'None'}")
-        
+        print(
+            f"Generating qualitative assessment from {len(evaluations)} evaluations"
+        )
+        print(
+            f"Error analysis keys: {error_analysis.keys() if error_analysis else 'None'}"
+        )
+
         # Log the complete error analysis for debugging
         if error_analysis:
             print("Full error analysis content:")
@@ -2499,7 +2640,8 @@ class CapabilityTracker:
                 print(f"  {key}: {value}")
 
         # Extract basic statistics
-        success_count = sum(1 for eval_data in evaluations if eval_data.get("match", False))
+        success_count = sum(1 for eval_data in evaluations
+                            if eval_data.get("match", False))
         failure_count = len(evaluations) - success_count
         success_rate = success_count / len(evaluations) if evaluations else 0
 
@@ -2525,37 +2667,56 @@ class CapabilityTracker:
                 assessment["weaknesses"] = error_analysis["weaknesses"]
 
             # Extract bottlenecks
-            if "bottlenecks" in error_analysis and error_analysis["bottlenecks"]:
+            if "bottlenecks" in error_analysis and error_analysis[
+                    "bottlenecks"]:
                 assessment["bottlenecks"] = error_analysis["bottlenecks"]
-            elif "primary_issue" in error_analysis and error_analysis["primary_issue"]:
+            elif "primary_issue" in error_analysis and error_analysis[
+                    "primary_issue"]:
                 assessment["bottlenecks"] = [error_analysis["primary_issue"]]
 
             # Extract improvement areas
-            if "improvement_areas" in error_analysis and error_analysis["improvement_areas"]:
-                assessment["improvement_areas"] = error_analysis["improvement_areas"]
+            if "improvement_areas" in error_analysis and error_analysis[
+                    "improvement_areas"]:
+                assessment["improvement_areas"] = error_analysis[
+                    "improvement_areas"]
 
             # Extract improvement suggestions
-            if "improvement_suggestions" in error_analysis and error_analysis["improvement_suggestions"]:
-                assessment["improvement_suggestions"] = error_analysis["improvement_suggestions"]
-            elif "targeted_improvements" in error_analysis and error_analysis["targeted_improvements"]:
-                assessment["improvement_suggestions"] = error_analysis["targeted_improvements"]
-        
+            if "improvement_suggestions" in error_analysis and error_analysis[
+                    "improvement_suggestions"]:
+                assessment["improvement_suggestions"] = error_analysis[
+                    "improvement_suggestions"]
+            elif "targeted_improvements" in error_analysis and error_analysis[
+                    "targeted_improvements"]:
+                assessment["improvement_suggestions"] = error_analysis[
+                    "targeted_improvements"]
+
         # Check if assessment is still empty after error analysis extraction
-        missing_data = not assessment["strengths"] and not assessment["weaknesses"]
-        print(f"After error analysis extraction, assessment data missing: {missing_data}")
+        missing_data = not assessment["strengths"] and not assessment[
+            "weaknesses"]
+        print(
+            f"After error analysis extraction, assessment data missing: {missing_data}"
+        )
 
         # If we don't have proper error analysis or data is missing, generate basic assessment
         if missing_data:
-            print("Generating fallback assessment based on success rate and failure patterns")
+            print(
+                "Generating fallback assessment based on success rate and failure patterns"
+            )
             # Add basic strength based on success rate
             if success_rate > 0.7:
-                assessment["strengths"].append(f"High success rate ({success_rate:.2f}) indicates good overall performance")
+                assessment["strengths"].append(
+                    f"High success rate ({success_rate:.2f}) indicates good overall performance"
+                )
             elif success_rate > 0.4:
-                assessment["strengths"].append(f"Moderate success rate ({success_rate:.2f}) shows potential in the approach")
+                assessment["strengths"].append(
+                    f"Moderate success rate ({success_rate:.2f}) shows potential in the approach"
+                )
 
             # Add basic weakness based on success rate
             if success_rate < 0.5:
-                assessment["weaknesses"].append(f"Low success rate ({success_rate:.2f}) indicates fundamental issues")
+                assessment["weaknesses"].append(
+                    f"Low success rate ({success_rate:.2f}) indicates fundamental issues"
+                )
 
             # Track capability failures
             capability_failures = {cap: 0 for cap in self.capabilities}
@@ -2563,7 +2724,8 @@ class CapabilityTracker:
             # Count failures by capability type
             capability_failure_count = 0
             for eval_data in evaluations:
-                if not eval_data.get("match", False) and "capability_failures" in eval_data:
+                if not eval_data.get(
+                        "match", False) and "capability_failures" in eval_data:
                     for cap in eval_data.get("capability_failures", []):
                         if cap in capability_failures:
                             capability_failures[cap] += 1
@@ -2581,36 +2743,52 @@ class CapabilityTracker:
                         assessment["weaknesses"].append(weakness)
                         assessment["improvement_areas"].append(cap)
                         print(f"Added weakness: {weakness}")
-            
+
             # If we still don't have any weaknesses, add a default one
             if not assessment["weaknesses"]:
-                print("No specific weaknesses identified, adding default weakness")
-                most_failed_cap = max(capability_failures.items(), key=lambda x: x[1])[0] if capability_failures else "information_extraction"
-                assessment["weaknesses"].append(f"Issues detected in {most_failed_cap.replace('_', ' ')}")
+                print(
+                    "No specific weaknesses identified, adding default weakness"
+                )
+                most_failed_cap = max(
+                    capability_failures.items(), key=lambda x: x[1]
+                )[0] if capability_failures else "information_extraction"
+                assessment["weaknesses"].append(
+                    f"Issues detected in {most_failed_cap.replace('_', ' ')}")
                 assessment["improvement_areas"].append(most_failed_cap)
-            
+
             # Add default improvement suggestions if none exist
             if not assessment["improvement_suggestions"]:
                 if assessment["improvement_areas"]:
                     focus_area = assessment["improvement_areas"][0]
                     if focus_area == "information_extraction":
-                        assessment["improvement_suggestions"].append("Improve prompt design for extracting key information from problem statements")
+                        assessment["improvement_suggestions"].append(
+                            "Improve prompt design for extracting key information from problem statements"
+                        )
                     elif focus_area == "constraint_handling":
-                        assessment["improvement_suggestions"].append("Enhance verification of solutions against all specified constraints")
+                        assessment["improvement_suggestions"].append(
+                            "Enhance verification of solutions against all specified constraints"
+                        )
                     elif focus_area == "solution_generation":
-                        assessment["improvement_suggestions"].append("Implement more diverse solution generation approaches")
+                        assessment["improvement_suggestions"].append(
+                            "Implement more diverse solution generation approaches"
+                        )
                     elif focus_area == "solution_verification":
-                        assessment["improvement_suggestions"].append("Add more thorough verification steps")
+                        assessment["improvement_suggestions"].append(
+                            "Add more thorough verification steps")
                     elif focus_area == "decision_making":
-                        assessment["improvement_suggestions"].append("Refine final selection criteria for choosing the best solution")
+                        assessment["improvement_suggestions"].append(
+                            "Refine final selection criteria for choosing the best solution"
+                        )
 
         # Store the assessment
         self.current_assessment = assessment
         self.history.append(assessment)
 
-        print(f"Generated qualitative assessment with {len(assessment['strengths'])} strengths, " +
-              f"{len(assessment['weaknesses'])} weaknesses, " +
-              f"{len(assessment['improvement_suggestions'])} improvement suggestions")
+        print(
+            f"Generated qualitative assessment with {len(assessment['strengths'])} strengths, "
+            + f"{len(assessment['weaknesses'])} weaknesses, " +
+            f"{len(assessment['improvement_suggestions'])} improvement suggestions"
+        )
 
         return assessment
 
@@ -2676,8 +2854,12 @@ class CapabilityTracker:
                 trends[cap] = "stable"
 
             # Check if this capability was mentioned in weaknesses in both assessments
-            latest_weakness = any(cap.replace("_", " ") in w.lower() for w in latest.get("weaknesses", []))
-            previous_weakness = any(cap.replace("_", " ") in w.lower() for w in previous.get("weaknesses", []))
+            latest_weakness = any(
+                cap.replace("_", " ") in w.lower()
+                for w in latest.get("weaknesses", []))
+            previous_weakness = any(
+                cap.replace("_", " ") in w.lower()
+                for w in previous.get("weaknesses", []))
 
             # Override based on specific capability mentions
             if previous_weakness and not latest_weakness:
@@ -2686,6 +2868,7 @@ class CapabilityTracker:
                 trends[cap] = "declining"
 
         return trends
+
 
 if __name__ == "__main__":
     pass

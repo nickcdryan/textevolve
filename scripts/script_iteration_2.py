@@ -1,6 +1,6 @@
 import os
-import json
 import re
+import json
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -31,85 +31,98 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_information_with_examples(problem):
-    """Extract key information from the problem statement using embedded examples."""
-    system_instruction = "You are an information extraction specialist. Identify all entities, relationships, and constraints."
-
+def extract_info_with_cot(problem):
+    """Extract information using Chain of Thought with example."""
+    system_instruction = "You are an expert meeting scheduler. Extract relevant information with reasoning."
     prompt = f"""
-    Extract key information from this problem. Focus on entities, relationships, and constraints.
-
-    Example:
-    Question: You need to schedule a meeting for John and Jennifer for half an hour...
+    Your task is to extract the key information from the scheduling problem, thinking step by step.
+    Here's an example:
+    Question: Schedule a 30-minute meeting for Alice and Bob on Monday between 9am and 5pm. Alice is busy 10-11am, and Bob is busy 2-3pm.
+    Let's think step by step:
+    1. Participants: Alice, Bob
+    2. Duration: 30 minutes
+    3. Day: Monday
+    4. Time range: 9am-5pm
+    5. Alice's availability: Not available 10-11am
+    6. Bob's availability: Not available 2-3pm
     Extracted Information:
-    {{ "participants": ["John", "Jennifer"], "duration": "30 minutes", ... }}
-
-    Now, extract information from this new problem:
+    {{
+        "participants": ["Alice", "Bob"],
+        "duration": "30 minutes",
+        "day": "Monday",
+        "time_range": "9am-5pm",
+        "Alice": ["10-11am"],
+        "Bob": ["2-3pm"]
+    }}
+    Now, extract the information from the following problem:
     {problem}
     """
+    return call_llm(prompt, system_instruction)
 
-    try:
-        return call_llm(prompt, system_instruction)
-    except Exception as e:
-        return f"Error during information extraction: {str(e)}"
-
-def find_available_time_with_examples(extracted_info):
-    """Find an available time slot using the extracted information."""
-    system_instruction = "You are a scheduling assistant that finds available time slots given participants' schedules."
+def find_meeting_time(extracted_info):
+    """Find a valid meeting time using extracted info and chain-of-thought."""
+    system_instruction = "You are an expert at determining valid meeting times."
     prompt = f"""
-    Given the extracted information, find an available time slot.
-
+    Given the extracted information, find a valid meeting time. Let's think step by step.
     Example:
-    Extracted Information: {{ "participants": ["John", "Jennifer"], "duration": "30 minutes", ... }}
-    Available Time: Monday, 14:30 - 15:00
-
-    Now, find an available time slot given this extracted information:
+    Extracted Info:
+    {{
+        "participants": ["Alice", "Bob"],
+        "duration": "30 minutes",
+        "day": "Monday",
+        "time_range": "9am-5pm",
+        "Alice": ["10:00-11:00"],
+        "Bob": ["2:00-3:00"]
+    }}
+    Reasoning:
+    1. Available time range: 9am-5pm on Monday
+    2. Exclude Alice's busy time: 10:00-11:00
+    3. Exclude Bob's busy time: 2:00-3:00
+    4. Possible times: 9:00-9:30, 9:30-10:00, 11:00-11:30, ..., 4:30-5:00
+    5. Select the earliest available time
+    Proposed Time: Monday, 9:00 - 9:30
+    Now, with this information:
     {extracted_info}
+    Find a valid meeting time.
     """
+    return call_llm(prompt, system_instruction)
 
-    try:
-        return call_llm(prompt, system_instruction)
-    except Exception as e:
-        return f"Error during time slot finding: {str(e)}"
-
-def verify_solution_with_examples(problem, proposed_solution):
-    """Verify if the proposed solution satisfies all constraints using embedded examples."""
-    system_instruction = "You are a solution verifier. Verify solutions satisfy all constraints."
-
+def verify_meeting_time(problem, proposed_time):
+    """Verify if the proposed meeting time is valid."""
+    system_instruction = "You are a solution verifier. Determine if a proposed meeting time is valid given the constraints."
     prompt = f"""
-    Verify if this proposed solution satisfies all constraints.
-
+    Problem: {problem}
+    Proposed Time: {proposed_time}
+    
+    Let's verify step by step if the proposed time is valid given the problem constraints.
+    
     Example:
-    Problem: You need to schedule a meeting for John and Jennifer...
-    Proposed Solution: Schedule the meeting on Wednesday from 13:00 to 13:30.
-    Verification Result: INVALID - Conflicts with Jennifer's schedule.
-
-    Problem:
-    {problem}
-
-    Proposed Solution:
-    {proposed_solution}
+    Problem: Schedule a 30-minute meeting for Alice and Bob on Monday between 9am and 5pm. Alice is busy 10-11am, and Bob is busy 2-3pm.
+    Proposed Time: Monday, 9:00 - 9:30
+    
+    Verification:
+    1. Meeting Length: 30 minutes - OK
+    2. Time Range: 9am-5pm - OK
+    3. Alice Availability: 9:00-9:30 is not within 10-11am - OK
+    4. Bob Availability: 9:00-9:30 is not within 2-3pm - OK
+    
+    Conclusion: VALID
+    
+    Now, verify this proposed time:
+    Problem: {problem}
+    Proposed Time: {proposed_time}
     """
-
-    try:
-        return call_llm(prompt, system_instruction)
-    except Exception as e:
-        return f"Error during solution verification: {str(e)}"
+    return call_llm(prompt, system_instruction)
 
 def main(question):
     """Main function to schedule a meeting."""
     try:
-        extracted_info = extract_information_with_examples(question)
-        if "Error" in extracted_info:
-            return extracted_info
-
-        available_time = find_available_time_with_examples(extracted_info)
-        if "Error" in available_time:
-            return available_time
-
-        verification_result = verify_solution_with_examples(question, available_time)
-        if "Error" in verification_result:
-            return verification_result
-
-        return available_time  # Or verification_result, depending on desired output
+        extracted_info = extract_info_with_cot(question)
+        proposed_time = find_meeting_time(extracted_info)
+        verification_result = verify_meeting_time(question, proposed_time)
+        if "VALID" in verification_result:
+            return proposed_time
+        else:
+            return "No valid meeting time found."
     except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        return f"Error during scheduling: {str(e)}"
