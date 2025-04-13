@@ -1518,24 +1518,45 @@ except Exception as e:
 
             # Call LLM for detailed error analysis
             try:
+                print("\n=== Starting LLM error analysis ===")
                 response = self.call_llm(
                     prompt,
                     system_instruction=error_analyzer_system_instruction)
 
+                # Log the raw response for debugging
+                print(f"Raw LLM response length: {len(response)}")
+                if len(response) > 200:
+                    print(f"Response preview: {response[:200]}...")
+                else:
+                    print(f"Response: {response}")
+
                 # Extract JSON from response
                 response = response.strip()
                 if response.startswith("```json"):
+                    print("Found ```json marker in response")
                     response = response.split("```json")[1]
                 elif response.startswith("```"):
+                    print("Found ``` marker in response")
                     response = response.split("```")[1]
 
                 if response.endswith("```"):
+                    print("Found trailing ``` marker in response")
                     response = response.split("```")[0]
 
-                error_analysis = json.loads(response)
+                # Attempt to parse JSON
+                print("Parsing JSON from response...")
+                try:
+                    error_analysis = json.loads(response)
+                    print(f"Successfully parsed JSON with {len(error_analysis)} keys")
+                    print(f"Found keys: {list(error_analysis.keys())}")
+                except json.JSONDecodeError as jde:
+                    print(f"JSON parse error: {jde}")
+                    print(f"Problem JSON: {response[:100]}...")
+                    raise
 
                 # Update each evaluation with capability failures
                 if "capability_mapping" in error_analysis:
+                    print(f"Processing capability mapping with {len(error_analysis['capability_mapping'])} entries")
                     for sample_id_str, failed_capabilities in error_analysis["capability_mapping"].items():
                         try:
                             # Convert sample_id from string to int (remove "sample_" prefix)
@@ -1544,8 +1565,16 @@ except Exception as e:
                             for eval_data in evaluations:
                                 if eval_data["sample_id"] == sample_index and not eval_data.get("match", False):
                                     eval_data["capability_failures"] = failed_capabilities
+                                    print(f"Assigned capabilities {failed_capabilities} to sample {sample_index}")
                         except (ValueError, KeyError) as e:
                             print(f"Error processing capability mapping for {sample_id_str}: {e}")
+                else:
+                    print("No capability_mapping found in error analysis")
+
+                # Verify critical fields exist
+                for field in ["strengths", "weaknesses", "bottlenecks", "primary_issue", "improvement_suggestions"]:
+                    if field not in error_analysis or not error_analysis[field]:
+                        print(f"Warning: Field '{field}' missing or empty in error analysis")
 
                 # Print out some of the analysis for visibility
                 if "strengths" in error_analysis and error_analysis["strengths"]:
@@ -1571,8 +1600,11 @@ except Exception as e:
                     for improvement in error_analysis["improvement_suggestions"]:
                         print(f"  - {improvement}")
 
+                print("=== LLM error analysis complete ===\n")
+
             except Exception as e:
                 print(f"Error in LLM error analysis: {e}")
+                print("Creating fallback error analysis")
                 error_analysis = {
                     "strengths": ["Analysis failed"],
                     "weaknesses": ["Unable to analyze errors with LLM"],
@@ -2459,6 +2491,12 @@ class CapabilityTracker:
         """
         print(f"Generating qualitative assessment from {len(evaluations)} evaluations")
         print(f"Error analysis keys: {error_analysis.keys() if error_analysis else 'None'}")
+        
+        # Log the complete error analysis for debugging
+        if error_analysis:
+            print("Full error analysis content:")
+            for key, value in error_analysis.items():
+                print(f"  {key}: {value}")
 
         # Extract basic statistics
         success_count = sum(1 for eval_data in evaluations if eval_data.get("match", False))
@@ -2501,9 +2539,14 @@ class CapabilityTracker:
                 assessment["improvement_suggestions"] = error_analysis["improvement_suggestions"]
             elif "targeted_improvements" in error_analysis and error_analysis["targeted_improvements"]:
                 assessment["improvement_suggestions"] = error_analysis["targeted_improvements"]
+        
+        # Check if assessment is still empty after error analysis extraction
+        missing_data = not assessment["strengths"] and not assessment["weaknesses"]
+        print(f"After error analysis extraction, assessment data missing: {missing_data}")
 
-        # If we don't have proper error analysis, generate basic assessment
-        if not assessment["strengths"] and not assessment["weaknesses"]:
+        # If we don't have proper error analysis or data is missing, generate basic assessment
+        if missing_data:
+            print("Generating fallback assessment based on success rate and failure patterns")
             # Add basic strength based on success rate
             if success_rate > 0.7:
                 assessment["strengths"].append(f"High success rate ({success_rate:.2f}) indicates good overall performance")
@@ -2517,21 +2560,49 @@ class CapabilityTracker:
             # Track capability failures
             capability_failures = {cap: 0 for cap in self.capabilities}
 
+            # Count failures by capability type
+            capability_failure_count = 0
             for eval_data in evaluations:
                 if not eval_data.get("match", False) and "capability_failures" in eval_data:
                     for cap in eval_data.get("capability_failures", []):
                         if cap in capability_failures:
                             capability_failures[cap] += 1
+                            capability_failure_count += 1
+
+            print(f"Capability failures detected: {capability_failure_count}")
+            print(f"Capability failure distribution: {capability_failures}")
 
             # Add weaknesses based on capability failures
             for cap, count in capability_failures.items():
                 if count > 0:
                     proportion = count / len(evaluations)
                     if proportion > 0.3:
-                        assessment["weaknesses"].append(
-                            f"Frequent failures in {cap.replace('_', ' ')} ({count} instances, {proportion:.0%} of examples)"
-                        )
+                        weakness = f"Frequent failures in {cap.replace('_', ' ')} ({count} instances, {proportion:.0%} of examples)"
+                        assessment["weaknesses"].append(weakness)
                         assessment["improvement_areas"].append(cap)
+                        print(f"Added weakness: {weakness}")
+            
+            # If we still don't have any weaknesses, add a default one
+            if not assessment["weaknesses"]:
+                print("No specific weaknesses identified, adding default weakness")
+                most_failed_cap = max(capability_failures.items(), key=lambda x: x[1])[0] if capability_failures else "information_extraction"
+                assessment["weaknesses"].append(f"Issues detected in {most_failed_cap.replace('_', ' ')}")
+                assessment["improvement_areas"].append(most_failed_cap)
+            
+            # Add default improvement suggestions if none exist
+            if not assessment["improvement_suggestions"]:
+                if assessment["improvement_areas"]:
+                    focus_area = assessment["improvement_areas"][0]
+                    if focus_area == "information_extraction":
+                        assessment["improvement_suggestions"].append("Improve prompt design for extracting key information from problem statements")
+                    elif focus_area == "constraint_handling":
+                        assessment["improvement_suggestions"].append("Enhance verification of solutions against all specified constraints")
+                    elif focus_area == "solution_generation":
+                        assessment["improvement_suggestions"].append("Implement more diverse solution generation approaches")
+                    elif focus_area == "solution_verification":
+                        assessment["improvement_suggestions"].append("Add more thorough verification steps")
+                    elif focus_area == "decision_making":
+                        assessment["improvement_suggestions"].append("Refine final selection criteria for choosing the best solution")
 
         # Store the assessment
         self.current_assessment = assessment

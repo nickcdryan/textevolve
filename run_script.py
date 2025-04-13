@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Any
 
 from agent_system import AgentSystem
+from capability_debug import initialize_debug_agent
 
 # Fixed random seed for reproducible dataset shuffling
 RANDOM_SEED = 42
@@ -118,8 +119,10 @@ def run_agent(iterations: int,
 
     # Initialize the agent system with the shuffled dataset
     try:
-        agent = AgentSystem(dataset_path=shuffled_dataset_path,
-                            example_prefix=example_prefix)
+        # Use the debug-enabled agent
+        print("Initializing debug-enabled agent system...")
+        agent = initialize_debug_agent(dataset_path=shuffled_dataset_path,
+                                      example_prefix=example_prefix)
     except Exception as e:
         print(f"Error initializing agent system: {e}")
         sys.exit(1)
