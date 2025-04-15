@@ -28,8 +28,8 @@ class AgentSystem:
                  example_prefix: str = "calendar_scheduling_example_"):
         """Initialize the agent system"""
         # Initialize configuration
-        self.explore_rate = 70
-        self.exploit_rate = 30
+        self.explore_rate = 60
+        self.exploit_rate = 40
         self.dataset_path = dataset_path
         self.example_prefix = example_prefix
 
@@ -315,10 +315,11 @@ class AgentSystem:
         3. Need for more diverse examples
 
         Rules:
-        - Batch size should be between 5 and 25
-        - Increase batch size when performance is stable and good
-        - Decrease batch size when performance suddenly drops
+        - Batch size should be between 5 and 15
+        - Increase batch size when performance is stable and good. For example, if every script tested on batches of 5 has been 100% accurate, then we cannot differentiate between them and tell how good they are relative to one another. In this case, you would increase the batch size to 10. 
+        - Decrease batch size if performance is consistently poor. For example, if every script tested on batches of 10 has been 0% accurate, then we are simply wasting compute, and it would be sufficient to just test on the minimum batch size. In this case you would decrease the batch size to 5.
         - Keep batch size stable when exploring new approaches
+        - Batch size should only be increased when the current batch size is performing well and we want to test more diverse examples
 
         Return only a JSON object with:
         {{"new_batch_size": <integer>, "rationale": "<brief explanation>"}}
@@ -342,7 +343,7 @@ class AgentSystem:
                 result.get("new_batch_size", self.current_batch_size))
 
             # Ensure batch size is within reasonable limits
-            new_batch_size = max(5, min(25, new_batch_size))
+            new_batch_size = max(5, min(15, new_batch_size))
 
             return new_batch_size, result.get("rationale",
                                               "No rationale provided")
@@ -920,14 +921,26 @@ class AgentSystem:
         # API usage example
         gemini_api_example = 'def call_llm(prompt, system_instruction=None):\n    """Call the Gemini LLM with a prompt and return the response"""\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f"Error calling Gemini API: {str(e)}")\n        return f"Error: {str(e)}"'
 
-        # Example 1: Information extraction with embedded example
-        extraction_example = 'def extract_information_with_examples(problem):\n    """Extract key information from the problem statement using embedded examples."""\n    system_instruction = "You are an information extraction specialist focusing on identifying key entities and constraints."\n    \n    prompt = f"""\n    Extract key information from this problem statement. Focus on identifying all entities, relationships, and constraints.\n    \n    Example usage:\n    \n    Question:\n    You need to schedule a meeting for John and Jennifer for half an hour between the work hours of 9:00 to 17:00 on either Monday, Tuesday or Wednesday. \n    Here are the existing schedules for everyone during the days: \n    John has no meetings the whole week.\n    Jennifer has meetings on Monday during 9:00 to 11:00, 11:30 to 13:00, 13:30 to 14:30, 15:00 to 17:00, Tuesday during 9:00 to 11:30, 12:00 to 17:00, Wednesday during 9:00 to 11:30, 12:00 to 12:30, 13:00 to 14:00, 14:30 to 16:00, 16:30 to 17:00.\n    John would like to avoid more meetings on Monday after 14:30. Find a time that works for everyone\'s schedule and constraints.\n    \n    Let\'s think step by step.\n    \n    The key entities are:\n    - John (participant)\n    - Jennifer (participant)\n    \n    The key constraints are:\n    - Meeting duration: 30 minutes (half an hour)\n    - Valid meeting hours: 9:00-17:00\n    - Valid days: Monday, Tuesday, or Wednesday\n    - John\'s availability: All week (no meetings)\n    - Jennifer\'s availability:\n      * Monday: Busy 9:00-11:00, 11:30-13:00, 13:30-14:30, 15:00-17:00\n      * Tuesday: Busy 9:00-11:30, 12:00-17:00\n      * Wednesday: Busy 9:00-11:30, 12:00-12:30, 13:00-14:00, 14:30-16:00, 16:30-17:00\n    - Preferences: John prefers to avoid meetings on Monday after 14:30\n    \n    Extracted Information:\n    {{\n      "participants": ["John", "Jennifer"],\n      "duration": "30 minutes",\n      "valid_hours": "9:00-17:00",\n      "valid_days": ["Monday", "Tuesday", "Wednesday"],\n      "availability": {{\n        "John": "All times",\n        "Jennifer": {{\n          "Monday": ["11:00-11:30", "13:00-13:30", "14:30-15:00"],\n          "Tuesday": ["11:30-12:00"],\n          "Wednesday": ["11:30-12:00", "12:30-13:00", "14:00-14:30", "16:00-16:30"]\n        }}\n      }},\n      "preferences": {{\n        "John": "Avoid Monday after 14:30"\n      }}\n    }}\n    \n    Now, extract information from this new problem:\n    {problem}\n    """\n    \n    return call_llm(prompt, system_instruction)'
+        # Example 1: General-purpose information extraction with embedded examples
+        extraction_example = 'def extract_information_with_examples(text):\n    """Extract key information from the input text using embedded examples."""\n    system_instruction = "You are an information extraction specialist focusing on identifying key entities and relationships."\n    \n    prompt = f"""\n    Extract key information from this text. Focus on identifying all entities, relationships, and important attributes.\n    \n    Example usage:\n    \n    Input Text:\n    The company XYZ Corp reported quarterly earnings of $3.5 million, which represents a 12% increase from last year. The CEO, Jane Smith, attributed this growth to their new product line launched in March, which has already captured 8% of the market share. They expect to expand their operations to Europe by Q2 2023.\n    \n    Let\'s think step by step.\n    \n    The key entities are:\n    - XYZ Corp (company)\n    - Jane Smith (person, CEO)\n    - New product line (product)\n    \n    The key information points are:\n    - Financial: Quarterly earnings of $3.5 million\n    - Performance: 12% increase from previous year\n    - Product: New product line launched in March\n    - Market: 8% market share for new product\n    - Plans: Expansion to Europe by Q2 2023\n    \n    Extracted Information:\n    {{\n      "entities": [\n        {{"name": "XYZ Corp", "type": "company"}},\n        {{"name": "Jane Smith", "type": "person", "role": "CEO"}},\n        {{"name": "New product line", "type": "product", "launch_date": "March"}}\n      ],\n      "financial_data": {{\n        "quarterly_earnings": "$3.5 million",\n        "growth_rate": "12%"\n      }},\n      "market_data": {{\n        "product_market_share": "8%"\n      }},\n      "future_plans": [\n        {{"type": "expansion", "region": "Europe", "timeline": "Q2 2023"}}\n      ]\n    }}\n    \n    Now, extract information from this new text:\n    {text}\n    """\n    \n    return call_llm(prompt, system_instruction)'
 
-        # Example 2: Verification with embedded example
-        verification_example = 'def verify_solution_with_examples(problem, proposed_solution):\n    """Verify if the proposed solution satisfies all constraints using embedded examples."""\n    system_instruction = "You are a critical evaluator who verifies if solutions satisfy all constraints."\n    \n    prompt = f"""\n    Verify if this proposed solution satisfies all constraints in the problem.\n    \n    Example usage:\n    \n    Problem:\n    You need to schedule a meeting for John and Jennifer for half an hour between the work hours of 9:00 to 17:00 on either Monday, Tuesday or Wednesday. \n    Here are the existing schedules for everyone during the days: \n    John has no meetings the whole week.\n    Jennifer has meetings on Monday during 9:00 to 11:00, 11:30 to 13:00, 13:30 to 14:30, 15:00 to 17:00, Tuesday during 9:00 to 11:30, 12:00 to 17:00, Wednesday during 9:00 to 11:30, 12:00 to 12:30, 13:00 to 14:00, 14:30 to 16:00, 16:30 to 17:00.\n    John would like to avoid more meetings on Monday after 14:30.\n    \n    Proposed Solution:\n    Schedule the meeting on Wednesday from 13:00 to 13:30.\n    \n    Verification:\n    Let me check each constraint:\n    1. Duration: The meeting is scheduled for 30 minutes (13:00-13:30) ✓\n    2. Work hours: Meeting time 13:00-13:30 is within 9:00-17:00 ✓\n    3. Valid day: Wednesday is one of the allowed days ✓\n    4. John\'s availability: John has no meetings all week ✓\n    5. Jennifer\'s availability on Wednesday:\n       - Jennifer is busy 9:00-11:30, 12:00-12:30, 13:00-14:00, 14:30-16:00, 16:30-17:00\n       - The proposed time 13:00-13:30 overlaps with Jennifer\'s busy time 13:00-14:00 ✗\n    6. John\'s preference: Not applicable (not Monday after 14:30) ✓\n    \n    Result: INVALID - The solution conflicts with Jennifer\'s schedule on Wednesday from 13:00-14:00.\n    \n    Problem:\n    {problem}\n    \n    Proposed Solution:\n    {proposed_solution}\n    \n    Verification:\n    """\n    \n    return call_llm(prompt, system_instruction)'
+        # Example 2: General-purpose verification with embedded examples
+        verification_example = 'def verify_solution_with_examples(problem, proposed_solution):\n    """Verify if the proposed solution satisfies all requirements using embedded examples."""\n    system_instruction = "You are a critical evaluator who verifies if solutions correctly address problems."\n    \n    prompt = f"""\n    Verify if this proposed solution correctly addresses all aspects of the problem.\n    \n    Example usage:\n    \n    Problem:\n    Design a data structure that can efficiently perform the following operations:\n    1. Insert a value\n    2. Delete a value\n    3. Get a random value with equal probability for all stored values\n    All operations should have average time complexity of O(1).\n    \n    Proposed Solution:\n    I\'ll use a combination of a hashmap and an array. The hashmap will store the value as the key and its index in the array as the value. The array will store all the inserted values.\n    \n    For insert: Add the value to the end of the array and update the hashmap with the value and its index. O(1) time.\n    \n    For delete: Look up the index of the value in the hashmap, swap the value with the last element in the array, update the hashmap for the swapped element, remove the last element from the array, and remove the value from the hashmap. O(1) time.\n    \n    For get random: Generate a random index within the array\'s bounds and return the value at that index. O(1) time.\n    \n    Verification:\n    Let me check each requirement:\n    1. Insert operation: The solution adds the value to the end of the array and updates the hashmap with O(1) time complexity ✓\n    2. Delete operation: The solution uses the hashmap to find the index, then swaps with the last element and updates accordingly with O(1) time complexity ✓\n    3. Get random operation: The solution generates a random index within the array bounds with O(1) time complexity ✓\n    4. All operations have O(1) average time complexity ✓\n    \n    Result: VALID - The solution correctly addresses all requirements with the specified time complexity.\n    \n    Problem:\n    {problem}\n    \n    Proposed Solution:\n    {proposed_solution}\n    \n    Verification:\n    """\n    \n    return call_llm(prompt, system_instruction)'
 
-        # Create few-shot examples context
-        few_shot_examples = f"EXAMPLE OF EFFECTIVE FEW-SHOT PROMPTING:\n\n```python\n{extraction_example}\n```\n\n```python\n{verification_example}\n```"
+        # Example 3: Repeated validation with feedback loop
+        validation_loop_example = 'def solve_with_validation_loop(problem, max_attempts=3):\n    """Solve a problem with iterative refinement through validation feedback loop."""\n    system_instruction_solver = "You are an expert problem solver who creates detailed, correct solutions."\n    system_instruction_validator = "You are a critical validator who carefully checks solutions against all requirements."\n    \n    # Initial solution generation\n    solution_prompt = f"""\n    Provide a detailed solution to this problem. Be thorough and ensure you address all requirements.\n    \n    Problem:\n    {problem}\n    """\n    \n    solution = call_llm(solution_prompt, system_instruction_solver)\n    \n    # Validation loop\n    for attempt in range(max_attempts):\n        # Validate the current solution\n        validation_prompt = f"""\n        Carefully validate if this solution correctly addresses all aspects of the problem.\n        If the solution is valid, respond with "VALID: [brief reason]".\n        If the solution has any issues, respond with "INVALID: [detailed explanation of issues]".\n        \n        Problem:\n        {problem}\n        \n        Proposed Solution:\n        {solution}\n        """\n        \n        validation_result = call_llm(validation_prompt, system_instruction_validator)\n        \n        # Check if solution is valid\n        if validation_result.startswith("VALID:"):\n            return solution\n        \n        # If invalid, refine the solution\n        refined_prompt = f"""\n        Your previous solution to this problem has some issues that need to be addressed.\n        \n        Problem:\n        {problem}\n        \n        Your previous solution:\n        {solution}\n        \n        Validation feedback:\n        {validation_result}\n        \n        Please provide a completely revised solution that addresses all the issues mentioned.\n        """\n        \n        solution = call_llm(refined_prompt, system_instruction_solver)\n    \n    return solution'
+
+        # Example 4: Multi-perspective analysis with synthesis
+        multi_perspective_example = 'def multi_perspective_analysis(problem):\n    """Analyze a problem from multiple specialized perspectives and synthesize the insights."""\n    # Define specialized analysis functions\n    def analyze_factual_content(problem):\n        system_instruction = "You are a factual analyst who focuses on identifying key facts and data points."\n        prompt = f"""\n        Analyze this problem for factual content only. Identify explicit facts, constraints, and requirements.\n        \n        Problem:\n        {problem}\n        """\n        return call_llm(prompt, system_instruction)\n    \n    def analyze_structure(problem):\n        system_instruction = "You are a structural analyst who specializes in problem organization and patterns."\n        prompt = f"""\n        Analyze the structure of this problem. Identify its components, relationships, and patterns.\n        \n        Problem:\n        {problem}\n        """\n        return call_llm(prompt, system_instruction)\n    \n    # Execute parallel analyses\n    factual_analysis = analyze_factual_content(problem)\n    structural_analysis = analyze_structure(problem)\n    \n    # Synthesize the results\n    synthesis_prompt = f"""\n    Synthesize these two different analyses of the same problem into a comprehensive understanding.\n    \n    Factual Analysis:\n    {factual_analysis}\n    \n    Structural Analysis:\n    {structural_analysis}\n    \n    Provide a unified analysis that leverages both perspectives.\n    """\n    \n    return call_llm(synthesis_prompt, "You are an insight synthesizer who combines multiple analyses.")'
+
+        # Example 5: Best of n approach for solution selection
+        best_of_n_example = 'def best_of_n_approach(problem, n=3):\n    """Generate multiple solutions and select the best one based on a quality evaluation."""\n    system_instruction_solver = "You are an expert problem solver who provides detailed, correct solutions."\n    system_instruction_evaluator = "You are a quality evaluator who assesses solutions based on correctness, completeness, and clarity."\n    \n    # Generate n different solutions\n    solutions = []\n    for i in range(n):\n        diversity_factor = f"Solution approach {i+1}/{n}: Use a different perspective from previous solutions."\n        solution_prompt = f"""\n        Provide a detailed solution to this problem.\n        {diversity_factor if i > 0 else ""}\n        \n        Problem:\n        {problem}\n        """\n        \n        solutions.append(call_llm(solution_prompt, system_instruction_solver))\n    \n    # Evaluate each solution\n    evaluations = []\n    for i, solution in enumerate(solutions):\n        evaluation_prompt = f"""\n        Evaluate this solution on correctness, completeness, and clarity (1-10 scale).\n        \n        Problem:\n        {problem}\n        \n        Solution {i+1}:\n        {solution}\n        \n        Provide your evaluation as a JSON with scores and explanation.\n        """\n        \n        evaluations.append(call_llm(evaluation_prompt, system_instruction_evaluator))\n    \n    # Find the best solution\n    comparison_prompt = f"""\n    Compare these solutions and their evaluations. Select the best one.\n    \n    Problem:\n    {problem}\n    \n    {["Solution " + str(i+1) + ": " + solutions[i] + "\\n\\nEvaluation: " + evaluations[i] for i in range(n)]}\n    \n    Which solution is best? Respond with the solution number and explanation.\n    """\n    \n    best_solution_index = int(call_llm(comparison_prompt, "You are a solution selector.").split()[1]) - 1\n    return solutions[best_solution_index]'
+
+        # Example 6: ReAct pattern for interactive reasoning and action
+        react_example = 'def solve_with_react_pattern(problem):\n    """Solve problems through iterative Reasoning and Acting (ReAct) approach."""\n    system_instruction = "You are a problem-solving agent that follows the ReAct pattern: Reason about the current state, take an Action, observe the result, and repeat until reaching a solution."\n    \n    # Initialize ReAct process\n    prompt = f"""\n    Solve this problem using the ReAct pattern - alternate between Reasoning and Acting until you reach a final answer.\n    \n    Example usage:\n    \n    Problem: What is the capital of the country where the Great Barrier Reef is located, and what is the population of that capital?\n    \n    Thought 1: I need to determine which country the Great Barrier Reef is in, then find its capital, and finally the population of that capital.\n    Action 1: Search[Great Barrier Reef location]\n    Observation 1: The Great Barrier Reef is located off the coast of Queensland in northeastern Australia.\n    \n    Thought 2: Now I know the Great Barrier Reef is in Australia. I need to find Australia\'s capital city.\n    Action 2: Search[capital of Australia]\n    Observation 2: The capital of Australia is Canberra.\n    \n    Thought 3: Now I need to find the population of Canberra.\n    Action 3: Search[population of Canberra]\n    Observation 3: As of 2021, the population of Canberra is approximately 431,500.\n    \n    Thought 4: I have found all the required information. The capital of Australia (where the Great Barrier Reef is located) is Canberra, and its population is approximately 431,500.\n    Action 4: Finish[The capital of Australia is Canberra, with a population of approximately 431,500.]\n    \n    Now solve this new problem:\n    {problem}\n    \n    Start with Thought 1:\n    """\n    \n    # Initial reasoning and action planning\n    react_response = call_llm(prompt, system_instruction)\n    \n    # Extract the action from the response\n    action = extract_action(react_response)\n    \n    # Continue the ReAct loop until we reach a "Finish" action\n    while not action["type"] == "Finish":\n        # Perform the requested action and get an observation\n        if action["type"] == "Search":\n            observation = perform_search(action["query"])\n        elif action["type"] == "Calculate":\n            observation = perform_calculation(action["expression"])\n        elif action["type"] == "Lookup":\n            observation = perform_lookup(action["term"])\n        else:\n            observation = f"Unknown action type: {action[\'type\']}"\n        \n        # Continue the ReAct process with the new observation\n        continuation_prompt = f"""\n        {react_response}\n        Observation {action["step_number"]}: {observation}\n        \n        Continue with the next thought and action:\n        """\n        \n        # Get the next reasoning step and action\n        react_response += "\\n" + call_llm(continuation_prompt, system_instruction)\n        \n        # Extract the next action\n        action = extract_action(react_response)\n    \n    # Extract the final answer from the Finish action\n    final_answer = action["answer"]\n    return final_answer\n\ndef extract_action(text):\n    """Parse the ReAct response to extract the current action."""\n    # Find the last action in the text\n    action_matches = re.findall(r"Action (\d+): (\\w+)\\[(.*?)\\]", text)\n    if not action_matches:\n        return {"type": "Error", "step_number": 0, "query": "No action found"}\n    \n    # Get the most recent action\n    last_action = action_matches[-1]\n    step_number = int(last_action[0])\n    action_type = last_action[1]\n    action_content = last_action[2]\n    \n    # Handle different action types\n    if action_type == "Finish":\n        return {"type": "Finish", "step_number": step_number, "answer": action_content}\n    elif action_type in ["Search", "Lookup", "Calculate"]:\n        return {"type": action_type, "step_number": step_number, "query": action_content}\n    else:\n        return {"type": "Unknown", "step_number": step_number, "query": action_content}\n\ndef perform_search(query):\n    """Simulate a search action in the ReAct pattern."""\n    # In a real implementation, this would call an actual search API\n    return call_llm(f"Provide a factual answer about: {query}", "You are a helpful search engine that provides concise, factual information.")\n\ndef perform_calculation(expression):\n    """Perform a calculation action in the ReAct pattern."""\n    try:\n        # Safely evaluate the expression\n        result = eval(expression, {"__builtins__": {}}, {"math": math})\n        return f"The result is {result}"\n    except Exception as e:\n        return f"Error in calculation: {str(e)}"\n\ndef perform_lookup(term):\n    """Simulate a lookup action for specific information."""\n    # In a real implementation, this would query a knowledge base or database\n    return call_llm(f"Provide specific information about: {term}", "You are a knowledge base that provides specific factual information.")'
+
+        # Create few-shot examples context 
+        few_shot_examples = f"EXAMPLE OF EFFECTIVE LLM USAGE PATTERNS:\n\n```python\n{extraction_example}\n```\n\n```python\n{verification_example}\n```\n\n```python\n{validation_loop_example}\n```\n\n```python\n{multi_perspective_example}\n```\n\n```python\n{best_of_n_example}\n```\n\n```python\n{react_example}\n```"
 
         # Historical context summary
         best_accuracy_str = f"{best_scripts[0].get('accuracy', 0):.2f} (iteration {best_scripts[0].get('iteration')})" if best_scripts else "None"
@@ -938,17 +951,17 @@ class AgentSystem:
         - Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}
         - Best accuracy achieved: {best_accuracy_str}
 
-    APPROACH HISTORY (last {min(5, len(approach_history))} iterations):
-    {json.dumps(approach_history[-5:] if len(approach_history) > 5 else approach_history, indent=2)}
+        APPROACH HISTORY (last {min(5, len(approach_history))} iterations):
+        {json.dumps(approach_history[-5:] if len(approach_history) > 5 else approach_history, indent=2)}
 
-    COMMON ERROR PATTERNS:
-    {json.dumps(list(set(error_patterns[-10:] if len(error_patterns) > 10 else error_patterns)), indent=2)}
+        COMMON ERROR PATTERNS:
+        {json.dumps(list(set(error_patterns[-10:] if len(error_patterns) > 10 else error_patterns)), indent=2)}
 
-    PRIMARY ISSUES (last {min(3, len(primary_issues))} iterations):
-    {json.dumps(primary_issues[-3:] if len(primary_issues) > 3 else primary_issues, indent=2)}
+        PRIMARY ISSUES (last {min(3, len(primary_issues))} iterations):
+        {json.dumps(primary_issues[-3:] if len(primary_issues) > 3 else primary_issues, indent=2)}
 
-    TARGETED IMPROVEMENTS:
-    {json.dumps(list(set(targeted_improvements[-10:] if len(targeted_improvements) > 10 else targeted_improvements)), indent=2)}
+        TARGETED IMPROVEMENTS:
+        {json.dumps(list(set(targeted_improvements[-10:] if len(targeted_improvements) > 10 else targeted_improvements)), indent=2)}
         """
 
         # Add the few-shot examples to the context
@@ -958,26 +971,26 @@ class AgentSystem:
         learning_context = ""
         if accumulated_learnings:
             learning_context = f"""
-    ACCUMULATED LEARNINGS FROM PREVIOUS ITERATIONS:
-    {accumulated_learnings}
-    """
+        ACCUMULATED LEARNINGS FROM PREVIOUS ITERATIONS:
+        {accumulated_learnings}
+        """
 
         # Add capability-specific guidance if available
         capability_context = ""
         if capability_guidance:
             capability_context = f"""
-    CAPABILITY ASSESSMENT & IMPROVEMENT GUIDANCE:
-    {capability_guidance}
-    """
+        CAPABILITY ASSESSMENT & IMPROVEMENT GUIDANCE:
+        {capability_guidance}
+        """
 
         # Set specific system instruction for script generation
-        script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {approach_type} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning to solve the problem examples provided."
+        script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {approach_type} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning, agentic LLM patterns, and python to solve the problem examples provided."
 
         # Create appropriate prompt based on strategy
         if is_exploration:
             # Exploration prompt
             prompt = f"""
-            You are developing a Python script to solve dataset problems using LLM reasoning capabilities.
+            You are developing a Python script to solve problems using LLM reasoning capabilities.
             You must generate a NEW approach that's different from previous approaches but informed by their successes and failures.
 
             Here are example problems from the dataset:
@@ -1000,17 +1013,27 @@ class AgentSystem:
                - Properly formatted output
             6. Apply the insights from the ACCUMULATED LEARNINGS section to avoid repeating past mistakes
             7. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment
+            8. Consider implementing one or more of these LLM usage patterns:
+               - Repeated validation with feedback loops
+               - Multi-perspective analysis with synthesis
+               - Dynamic input-dependent routing with an orchestrator
+               - Hybrid approaches combining LLM with deterministic functions
+               - Best-of-n solution generation and selection
+               - ReAct pattern for interactive reasoning and action
+               - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
+               - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
 
-            Here's how to call the Gemini API:
+            Here's how to call the Gemini LLM API:
             {gemini_api_example}
 
             Since this is an EXPLORATION phase:
             - Try a fundamentally different approach to reasoning about the problem
-            - Implement chain-of-thought reasoning in a new way
+            - THIS IS KEY: Break down the problem into new, distinct reasoning steps based on past performance before you start coding
             - For EACH key LLM prompt, include a relevant example with:
               * Sample input similar to the dataset
               * Expected reasoning steps
               * Desired output format
+            - Apply a verifier call to different parts of the pipeline in order to understand what parts of the pipeline of calls is successful and where the system is breaking
             - Pay special attention to addressing the primary issues from previous iterations
             - Ensure your new approach addresses the weaknesses identified in the capability assessment
 
@@ -1032,6 +1055,8 @@ class AgentSystem:
             5. Is COMPLETE - no missing code, no "..." placeholders
             6. Closes all string literals properly
 
+            This should be FUNDAMENTALLY DIFFERENT from all previous approaches. Do not reuse the same overall structure.
+
             BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
             """
         else:
@@ -1039,6 +1064,14 @@ class AgentSystem:
             best_script_code = ""
             if best_script_to_exploit and 'script' in best_script_to_exploit:
                 best_script_code = f"\nFULL SCRIPT TO REFINE:\n```python\n{best_script_to_exploit.get('script', '')}\n```"
+
+            # FIX: Properly handle the accuracy formatting
+            accuracy_str = ""
+            if best_script_to_exploit:
+                accuracy_value = best_script_to_exploit.get('accuracy', 0)
+                accuracy_str = f"{accuracy_value:.2f}"
+            else:
+                accuracy_str = "N/A"
 
             prompt = f"""
             You are improving a Python script that solves problems from a dataset.
@@ -1055,7 +1088,7 @@ class AgentSystem:
 
             BEST PERFORMING APPROACH TO REFINE:
             Iteration: {best_script_to_exploit.get('iteration') if best_script_to_exploit else 'None'}
-            Accuracy: {best_script_to_exploit.get('accuracy', 0):.2f if best_script_to_exploit else 'N/A'}
+            Accuracy: {accuracy_str}
             Approach Summary: {best_script_to_exploit.get('approach_summary') if best_script_to_exploit else 'No approach to refine'}
             {best_script_code}
 
@@ -1067,11 +1100,20 @@ class AgentSystem:
                - Step-by-step reasoning through the example
                - Properly formatted output
             4. Focus on fixing specific issues identified in previous error analyses
-            5. Enhance chain-of-thought reasoning and verification steps
+            5. Enhance chain-of-thought reasoning and verification steps. Verification steps should be added to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
             6. Apply the key insights from ACCUMULATED LEARNINGS to enhance the approach
             7. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment
+            8. Consider enhancing the script with one or more of these patterns:
+               - Repeated validation with feedback loops
+               - Multi-perspective analysis with synthesis
+               - Dynamic input-dependent routing
+               - Hybrid approaches combining LLM with deterministic functions
+               - Best-of-n solution generation and selection
+               - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
+               - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
 
-            Here's how to call the Gemini API:
+
+            Here's how to call the Gemini LLM API:
             {gemini_api_example}
 
             Since this is an EXPLOITATION phase:
@@ -1182,45 +1224,45 @@ class AgentSystem:
             print(f"Error calling Gemini API: {str(e)}")
             return f"Error: {str(e)}"
 
-    def analyze_problem(question):
-        \"\"\"Analyze the scheduling problem\"\"\"
-        system_instruction = "You are a scheduling assistant."
+    def extract_information(text):
+        \"\"\"Extract key information from the input text\"\"\"
+        system_instruction = "You are an information extraction specialist."
 
         prompt = f\"\"\"
-        Analyze this scheduling problem: 
+        Extract key information from this text. Focus on identifying important elements and relationships.
 
         Example:
-        Question: You need to schedule a meeting for Alice and Bob for 1 hour. Alice is free on Monday from 2-4pm and Tuesday all day. Bob is free on Monday and Tuesday mornings.
-        Analysis: This problem involves scheduling a 1-hour meeting for Alice and Bob. Alice is available Monday 2-4pm and all day Tuesday. Bob is available Monday morning and Tuesday morning. The only overlapping time is Tuesday morning.
+        Input: The project must be completed by June 15th and requires collaboration between the engineering and design teams.
+        Output: {"deadline": "June 15th", "teams_involved": ["engineering", "design"], "requirement": "collaboration"}
 
-        Now analyze this problem:
-        {question}
+        Now extract information from this input:
+        {text}
         \"\"\"
 
         return call_llm(prompt, system_instruction)
 
-    def generate_solution(question):
-        \"\"\"Generate a solution to the scheduling problem\"\"\"
-        system_instruction = "You are a scheduling assistant."
+    def generate_solution(problem):
+        \"\"\"Generate a solution to the problem\"\"\"
+        system_instruction = "You are a problem-solving expert."
 
         prompt = f\"\"\"
-        Generate a scheduling solution for this problem:
+        Generate a detailed solution for this problem:
 
         Example:
-        Question: You need to schedule a meeting for Alice and Bob for 1 hour. Alice is free on Monday from 2-4pm and Tuesday all day. Bob is free on Monday and Tuesday mornings.
-        Solution: Schedule the meeting for Tuesday at 10am. This works because Alice is available all day Tuesday, and Bob is available Tuesday morning.
+        Problem: Design a simple notification system that sends alerts when a temperature sensor exceeds 30°C.
+        Solution: Create a monitoring service that polls the temperature sensor every minute. When a reading exceeds 30°C, trigger the notification system to send an alert via email and SMS to registered users, including the current temperature value and timestamp.
 
         Now solve this problem:
-        {question}
+        {problem}
         \"\"\"
 
         return call_llm(prompt, system_instruction)
 
     def main(question):
-        \"\"\"Main function to solve scheduling problems\"\"\"
+        \"\"\"Main function to solve problems\"\"\"
         try:
-            # Step 1: Analyze the problem
-            analysis = analyze_problem(question)
+            # Step 1: Extract key information
+            information = extract_information(question)
 
             # Step 2: Generate a solution
             solution = generate_solution(question)
@@ -1229,7 +1271,7 @@ class AgentSystem:
             return solution
         except Exception as e:
             print(f"Error in main: {str(e)}")
-            return "I couldn't generate a scheduling plan due to an error."
+            return "I couldn't generate a solution due to an error."
     """
                     script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
                     with open(script_path, 'w', encoding='utf-8') as f:
@@ -1410,7 +1452,7 @@ except Exception as e:
                         if function_name != "main" and (
                                 "solve" in function_name
                                 or "process" in function_name
-                                or "schedule" in function_name or
+                                or "answer" in function_name or
                                 function_name.lower() == "process_question"):
                             possible_main_functions.append(function_name)
 
@@ -2272,7 +2314,7 @@ except Exception as e:
                 print("=" * 40)
 
         # Decide whether to explore or exploit
-        is_exploration = (self.explore_rate > self.exploit_rate) or (random.random() * 100 <= self.explore_rate)
+        is_exploration = (self.explore_rate > self.exploit_rate) #or (random.random() * 100 <= self.explore_rate)
 
         # If we have capability data with clear trends, potentially override the strategy
         if capability_report and capability_report.get("trend") != "insufficient_data":

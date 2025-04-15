@@ -1,5 +1,6 @@
 import os
 import re
+import json
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -31,21 +32,18 @@ def call_llm(prompt, system_instruction=None):
         return f"Error: {str(e)}"
 
 def extract_meeting_constraints(text):
-    """
-    Extract meeting constraints using an LLM with embedded examples.
-    Focuses on iterative extraction of individual constraints.
-    """
-    system_instruction = "You are an expert meeting scheduler. Extract meeting constraints from the given text."
+    """Extract meeting constraints using an LLM with embedded examples."""
+    system_instruction = "You are an expert meeting scheduler. Extract meeting constraints from the given text. Return a JSON."
 
     prompt = f"""
-    You will be given a text describing a meeting scheduling scenario. Your task is to extract all relevant constraints including:
+    You will be given a text describing a meeting scheduling scenario. Your task is to extract all relevant constraints and return a JSON object:
     - Participants: Names of people involved in the meeting.
     - Duration: Length of the meeting in minutes.
     - Days: Acceptable days for the meeting.
-    - Schedule: Existing schedules of each participant with busy time intervals.
+    - Schedules: Existing schedules of each participant with busy time intervals. Each schedule should contain the day, start time, end time and if it's free or busy.
     - Preferences: Any other preferences (e.g., earliest availability).
 
-    Example 1:
+    Example:
     Input:
     You need to schedule a meeting for Daniel and Kathleen for half an hour between the work hours of 9:00 to 17:00 on Monday.
     Daniel has no meetings the whole day. Kathleen is busy on Monday during 14:30 to 15:30.
@@ -69,38 +67,12 @@ def extract_meeting_constraints(text):
         "preferences": []
     }}
 
-    Example 2:
-    Input:
-    You need to schedule a meeting for Ralph and Patricia for half an hour between the work hours of 9:00 to 17:00 on either Monday or Tuesday.
-    Ralph has blocked their calendar on Monday during 9:00 to 9:30, 10:30 to 11:00, Tuesday during 10:00 to 11:00.
-    Patricia has blocked their calendar on Monday during 9:00 to 11:30, Tuesday during 10:30 to 12:00.
-    The group would like to meet at their earlist availability.
-
-    Reasoning:
-    1. Participants: Ralph, Patricia
-    2. Duration: 30 minutes
-    3. Days: Monday, Tuesday
-    4. Ralph's Schedule: Monday: 9:00-9:30, 10:30-11:00. Tuesday: 10:00-11:00.
-    5. Patricia's Schedule: Monday: 9:00-11:30. Tuesday: 10:30-12:00.
-    6. Preference: Earliest availability
-
-    Output:
-    {{
-        "participants": ["Ralph", "Patricia"],
-        "duration": 30,
-        "days": ["Monday", "Tuesday"],
-        "schedules": {{
-            "Ralph": [["Monday", "9:00", "9:30", "busy"], ["Monday", "10:30", "11:00", "busy"], ["Tuesday", "10:00", "11:00", "busy"]],
-            "Patricia": [["Monday", "9:00", "11:30", "busy"], ["Tuesday", "10:30", "12:00", "busy"]]
-        }},
-        "preferences": ["earliest availability"]
-    }}
-
     Now, extract the meeting constraints from the following text:
     {text}
     """
     try:
-        return call_llm(prompt, system_instruction)
+        extracted_info = call_llm(prompt, system_instruction)
+        return extracted_info
     except Exception as e:
         print(f"Error in constraint extraction: {e}")
         return None
@@ -108,13 +80,11 @@ def extract_meeting_constraints(text):
 
 def find_available_time_slots(constraints_json):
     """Find available time slots based on extracted constraints.  Simulates finding time slots.  LLM Driven."""
-    system_instruction = "You are a meeting scheduling expert. Find available time slots based on the provided constraints."
+    system_instruction = "You are a meeting scheduling expert. Find available time slots based on the provided constraints, considering earliest availability. Return the response in format 'Here is the proposed time: [Day], [Start Time] - [End Time]'."
 
     prompt = f"""
-    You are provided with a JSON object that contains meeting constraints. Your task is to analyze the constraints and determine a suitable time slot for the meeting.
+    You are provided with a JSON object that contains meeting constraints. Your task is to analyze the constraints and determine the *earliest* suitable time slot for the meeting.
     The constraints include participants, duration, days, schedules, and preferences.
-
-    Based on your understanding, propose a time and date for the meeting that fits within all constraints.
 
     Example:
     Input:
@@ -134,17 +104,18 @@ def find_available_time_slots(constraints_json):
     3. Days: Monday
     4. Daniel is available all day
     5. Kathleen is busy from 14:30 to 15:30
-    6. Propose time: Monday 13:30-14:00 (before Kathleen's busy time)
+    6. Propose the *earliest* time: Monday 9:00-9:30 (Daniel's first possible time, and before Kathleen's busy time)
     Output:
-    Here is the proposed time: Monday, 13:30 - 14:00
+    Here is the proposed time: Monday, 9:00 - 9:30
 
-    Now, using the same chain of thought reasoning process as above, find a suitable time slot based on these new meeting constraints.
+    Now, using the same chain of thought reasoning process as above, find the *earliest* suitable time slot based on these new meeting constraints. Make sure you follow the requested output format exactly.
     Constraints:
     {constraints_json}
     """
 
     try:
-        return call_llm(prompt, system_instruction)
+        proposed_solution = call_llm(prompt, system_instruction)
+        return proposed_solution
     except Exception as e:
         print(f"Error finding time slots: {e}")
         return None
@@ -152,10 +123,10 @@ def find_available_time_slots(constraints_json):
 
 def verify_solution(question, proposed_solution):
     """Verify if the proposed solution is valid using an LLM."""
-    system_instruction = "You are an expert solution checker. Verify the proposed solution."
+    system_instruction = "You are an expert solution checker. Verify the proposed solution against all constraints. Answer 'VALID' if correct, else 'INVALID'."
 
     prompt = f"""
-    You are given a question and a proposed solution. Verify if the proposed solution is valid and satisfies all the constraints mentioned in the question.
+    You are given a question and a proposed solution. Verify if the proposed solution is valid and satisfies *all* the constraints mentioned in the question.
 
     Example:
     Question:
@@ -171,9 +142,9 @@ def verify_solution(question, proposed_solution):
     4. All constraints are satisfied.
 
     Output:
-    VALID: The proposed solution satisfies all constraints.
+    VALID
 
-    Now, using the same chain of thought reasoning process as above, verify the proposed solution for the following new question.
+    Now, using the same chain of thought reasoning process as above, verify the proposed solution for the following new question. Answer 'VALID' if correct, else 'INVALID'.
     Question:
     {question}
     Proposed solution:
@@ -181,7 +152,8 @@ def verify_solution(question, proposed_solution):
     """
 
     try:
-        return call_llm(prompt, system_instruction)
+        verification_result = call_llm(prompt, system_instruction)
+        return verification_result
     except Exception as e:
         print(f"Error during solution verification: {e}")
         return None

@@ -30,129 +30,106 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_information(problem):
-    """Extract key information from the problem statement using an LLM with examples."""
-    system_instruction = "You are an expert information extractor for scheduling problems."
-
+def extract_schedule_information(text):
+    """Extract schedule information for each person using LLM with examples."""
+    system_instruction = "You are a scheduling assistant. Extract schedule information."
     prompt = f"""
-    Extract the key information about the scheduling problem and format it as a JSON object.
-    Pay close attention to participants, duration, valid hours, valid days and individual availabilities.
-    Differentiate preferences from hard constraints.
-
-    Example Input:
-    You need to schedule a meeting for John and Jennifer for half an hour between the work hours of 9:00 to 17:00 on either Monday, Tuesday or Wednesday. 
-    Here are the existing schedules for everyone during the days: 
-    John has no meetings the whole week.
-    Jennifer has meetings on Monday during 9:00 to 11:00, 11:30 to 13:00, 13:30 to 14:30, 15:00 to 17:00, Tuesday during 9:00 to 11:30, 12:00 to 17:00, Wednesday during 9:00 to 11:30, 12:00 to 12:30, 13:00 to 14:00, 14:30 to 16:00, 16:30 to 17:00.
-    John would like to avoid more meetings on Monday after 14:30.
-
-    Example Output:
-    {{
-      "participants": ["John", "Jennifer"],
-      "duration": "30 minutes",
-      "valid_hours": "9:00-17:00",
-      "valid_days": ["Monday", "Tuesday", "Wednesday"],
-      "availability": {{
-        "John": {{
-          "Monday": ["9:00-17:00"],
-          "Tuesday": ["9:00-17:00"],
-          "Wednesday": ["9:00-17:00"]
-        }},
-        "Jennifer": {{
-          "Monday": ["11:00-11:30", "13:00-13:30", "14:30-15:00"],
-          "Tuesday": ["11:30-12:00"],
-          "Wednesday": ["11:30-12:00", "12:30-13:00", "14:00-14:30", "16:00-16:30"]
-        }}
-      }},
-      "preferences": {{
-        "John": "Avoid Monday after 14:30"
-      }}
-    }}
-
-    Now, extract information from this new problem:
-    {problem}
-    """
-    try:
-        return call_llm(prompt, system_instruction)
-    except Exception as e:
-        return f"Error extracting information: {str(e)}"
-
-def find_available_time(extracted_info_json):
-    """Find an available time slot given the extracted information using LLM reasoning."""
-    system_instruction = "You are an expert at finding available time slots for meetings."
-
-    prompt = f"""
-    Given the following extracted information about a scheduling problem, find a valid time slot for the meeting.
-    Consider the duration, valid hours, valid days, and individual availabilities. Find the earliest available slot.
-    Consider preferences last, but do not violate hard constraints.
-
-    Extracted Information:
-    {extracted_info_json}
-
-    Reasoning:
-    First, consider the valid days. Then, consider each participant's availability on those days within the valid hours.
-    Look for a time slot that accommodates everyone, giving priority to earliest times.
-
+    Extract the schedule for each person mentioned.
     Example:
-    If John is available all day Monday and Jennifer is available Monday 13:00-14:00, then a valid meeting time is Monday 13:00-13:30 for a 30-minute meeting.
-
-    Now, find the available time for the information provided:
+    Input:
+    Jennifer has blocked their calendar on Monday during 12:30 to 13:00, 14:30 to 15:00, 16:00 to 16:30;
+    Christine is busy on Monday during 10:00 to 11:00, 12:00 to 14:30, 16:00 to 16:30
+    Output:
+    {{
+      "Jennifer": {{"Monday": ["12:30-13:00", "14:30-15:00", "16:00-16:30"]}},
+      "Christine": {{"Monday": ["10:00-11:00", "12:00-14:30", "16:00-16:30"]}}
+    }}
+    Now extract information from this text:
+    {text}
     """
-    try:
-        return call_llm(prompt, system_instruction)
-    except Exception as e:
-        return f"Error finding available time: {str(e)}"
+    return call_llm(prompt, system_instruction)
 
-def verify_solution(problem, proposed_solution):
-    """Verify if the proposed solution satisfies all constraints using LLM with examples."""
-    system_instruction = "You are a solution verifier, ensuring that the proposed solution is correct."
-
+def find_available_times(schedules, duration, days, start_time="9:00", end_time="17:00"):
+    """Find available time slots for a given duration, schedules and days."""
+    system_instruction = "You are a scheduling expert. Find available time slots."
     prompt = f"""
-    You are given a problem and a proposed solution. Determine if the solution is valid.
-    List all the constraints present in the problem and verify them one by one.
-    Return "Valid" if all constraints are satisfied, else return "Invalid" and list the violated constraints.
-
-    Example Problem:
-    You need to schedule a meeting for John and Jennifer for half an hour between the work hours of 9:00 to 17:00 on either Monday, Tuesday or Wednesday. 
-    Here are the existing schedules for everyone during the days: 
-    John has no meetings the whole week.
-    Jennifer has meetings on Monday during 9:00 to 11:00, 11:30 to 13:00, 13:30 to 14:30, 15:00 to 17:00, Tuesday during 9:00 to 11:30, 12:00 to 17:00, Wednesday during 9:00 to 11:30, 12:00 to 12:30, 13:00 to 14:00, 14:30 to 16:00, 16:30 to 17:00.
-    John would like to avoid more meetings on Monday after 14:30.
-
-    Proposed Solution:
-    Schedule the meeting on Wednesday from 13:00 to 13:30.
-
-    Verification:
-    Jennifer is busy 13:00-14:00 on Wednesday, therefore the proposed solution is invalid.
-
-    Problem:
-    {problem}
-
-    Proposed Solution:
-    {proposed_solution}
+    Given the schedules of people, find the available time slots of specified duration on the given days.
+    Example:
+    Input:
+    schedules:
+    {{
+      "Jennifer": {{"Monday": ["12:30-13:00", "14:30-15:00", "16:00-16:30"]}},
+      "Christine": {{"Monday": ["10:00-11:00", "12:00-14:30", "16:00-16:30"]}}
+    }}
+    duration: 0.5
+    days: ["Monday"]
+    start_time: "9:00"
+    end_time: "17:00"
+    Output:
+    {{
+      "Monday": ["9:00-9:30", "9:30-10:00", "11:00-12:00", "15:00-16:00"]
+    }}
+    Now find the time slots for this:
+    schedules: {schedules}
+    duration: {duration}
+    days: {days}
+    start_time: {start_time}
+    end_time: {end_time}
     """
+    return call_llm(prompt, system_instruction)
 
-    try:
-        return call_llm(prompt, system_instruction)
-    except Exception as e:
-        return f"Error verifying solution: {str(e)}"
+def verify_solution(proposed_time, schedules):
+    """Verify that the proposed time works with all the schedules."""
+    system_instruction = "You are a solution checker. Verify if the given time works for all the people"
+    prompt = f"""
+    Verify that the proposed time does not conflict with the schedules of any person.
+    Example:
+    Input:
+    proposed_time: "Monday, 9:00-9:30"
+    schedules:
+    {{
+      "Jennifer": {{"Monday": ["12:30-13:00", "14:30-15:00", "16:00-16:30"]}},
+      "Christine": {{"Monday": ["10:00-11:00", "12:00-14:30", "16:00-16:30"]}}
+    }}
+    Output:
+    True
+    Now check this:
+    proposed_time: {proposed_time}
+    schedules: {schedules}
+    """
+    return call_llm(prompt, system_instruction)
 
 def main(question):
-    """Main function to schedule a meeting."""
+    """Main function to schedule meetings."""
     try:
-        extracted_info_json = extract_information(question)
-        if "Error" in extracted_info_json:
-            return extracted_info_json
-
-        available_time = find_available_time(extracted_info_json)
-        if "Error" in available_time:
-            return available_time
+        # 1. Extract information
+        schedule_text = question.split("Here are the existing schedules for everyone during the days: ")[1].split("Find a time")[0]
+        schedules_json = extract_schedule_information(schedule_text)
+        schedules = json.loads(schedules_json)
         
-        verification_result = verify_solution(question, available_time)
-        if "Error" in verification_result:
-            return verification_result
+        # 2. Get Duration
+        duration_line = question.split("schedule a meeting for ")[1].split(" for ")[1]
+        duration = float(duration_line.split(" ")[0])/2 if "half" in duration_line else float(duration_line.split(" ")[0])
 
-        return f"Here is the proposed time: {available_time}"
+        # 3. Get Days
+        days_line = question.split("schedule a meeting for ")[1].split(" on ")[1].split(".")[0]
+        days = [d.strip() for d in days_line.split(",")]
+
+        # 4. Find available times
+        available_times_json = find_available_times(schedules, duration, days)
+        available_times = json.loads(available_times_json)
+
+        # 5. Verify and propose a time
+        for day in days:
+            if day in available_times:
+                times = available_times[day]
+                for time in times:
+                    proposed_time = f"{day}, {time}"
+                    verification_result = verify_solution(proposed_time, schedules)
+                    if "True" in verification_result:
+                        return f"Here is the proposed time: {proposed_time} "
+
+        return "No suitable time found."
 
     except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        return f"Error: {str(e)}"

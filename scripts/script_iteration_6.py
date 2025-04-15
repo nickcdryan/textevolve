@@ -69,33 +69,6 @@ def extract_meeting_constraints(text):
         "preferences": []
     }}
 
-    Example 2:
-    Input:
-    You need to schedule a meeting for Ralph and Patricia for half an hour between the work hours of 9:00 to 17:00 on either Monday or Tuesday.
-    Ralph has blocked their calendar on Monday during 9:00 to 9:30, 10:30 to 11:00, Tuesday during 10:00 to 11:00.
-    Patricia has blocked their calendar on Monday during 9:00 to 11:30, Tuesday during 10:30 to 12:00.
-    The group would like to meet at their earlist availability.
-
-    Reasoning:
-    1. Participants: Ralph, Patricia
-    2. Duration: 30 minutes
-    3. Days: Monday, Tuesday
-    4. Ralph's Schedule: Monday: 9:00-9:30, 10:30-11:00. Tuesday: 10:00-11:00.
-    5. Patricia's Schedule: Monday: 9:00-11:30. Tuesday: 10:30-12:00.
-    6. Preference: Earliest availability
-
-    Output:
-    {{
-        "participants": ["Ralph", "Patricia"],
-        "duration": 30,
-        "days": ["Monday", "Tuesday"],
-        "schedules": {{
-            "Ralph": [["Monday", "9:00", "9:30", "busy"], ["Monday", "10:30", "11:00", "busy"], ["Tuesday", "10:00", "11:00", "busy"]],
-            "Patricia": [["Monday", "9:00", "11:30", "busy"], ["Tuesday", "10:30", "12:00", "busy"]]
-        }},
-        "preferences": ["earliest availability"]
-    }}
-
     Now, extract the meeting constraints from the following text:
     {text}
     """
@@ -108,13 +81,11 @@ def extract_meeting_constraints(text):
 
 def find_available_time_slots(constraints_json):
     """Find available time slots based on extracted constraints.  Simulates finding time slots.  LLM Driven."""
-    system_instruction = "You are a meeting scheduling expert. Find available time slots based on the provided constraints."
+    system_instruction = "You are a meeting scheduling expert. Find available time slots based on the provided constraints, considering earliest availability."
 
     prompt = f"""
-    You are provided with a JSON object that contains meeting constraints. Your task is to analyze the constraints and determine a suitable time slot for the meeting.
+    You are provided with a JSON object that contains meeting constraints. Your task is to analyze the constraints and determine the *earliest* suitable time slot for the meeting.
     The constraints include participants, duration, days, schedules, and preferences.
-
-    Based on your understanding, propose a time and date for the meeting that fits within all constraints.
 
     Example:
     Input:
@@ -134,11 +105,11 @@ def find_available_time_slots(constraints_json):
     3. Days: Monday
     4. Daniel is available all day
     5. Kathleen is busy from 14:30 to 15:30
-    6. Propose time: Monday 13:30-14:00 (before Kathleen's busy time)
+    6. Propose the *earliest* time: Monday 9:00-9:30 (Daniel's first possible time, and before Kathleen's busy time)
     Output:
-    Here is the proposed time: Monday, 13:30 - 14:00
+    Here is the proposed time: Monday, 9:00 - 9:30
 
-    Now, using the same chain of thought reasoning process as above, find a suitable time slot based on these new meeting constraints.
+    Now, using the same chain of thought reasoning process as above, find the *earliest* suitable time slot based on these new meeting constraints.
     Constraints:
     {constraints_json}
     """
@@ -152,10 +123,10 @@ def find_available_time_slots(constraints_json):
 
 def verify_solution(question, proposed_solution):
     """Verify if the proposed solution is valid using an LLM."""
-    system_instruction = "You are an expert solution checker. Verify the proposed solution."
+    system_instruction = "You are an expert solution checker. Verify the proposed solution against all constraints."
 
     prompt = f"""
-    You are given a question and a proposed solution. Verify if the proposed solution is valid and satisfies all the constraints mentioned in the question.
+    You are given a question and a proposed solution. Verify if the proposed solution is valid and satisfies *all* the constraints mentioned in the question.
 
     Example:
     Question:
