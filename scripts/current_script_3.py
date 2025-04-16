@@ -1,5 +1,4 @@
 import os
-import re
 import json
 
 def call_llm(prompt, system_instruction=None):
@@ -31,128 +30,146 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_scheduling_info(text):
-    """Extracts scheduling information from the input text using LLM with examples."""
-    system_instruction = "You are an expert at extracting scheduling information."
+def extract_meeting_constraints(question):
+    """Extract all constraints using example-based prompting."""
+    system_instruction = "You are an expert at identifying meeting constraints."
     prompt = f"""
-    Extract the key scheduling information from the text, including participants, duration, day, time range, and conflicts.
+    Identify and extract all meeting constraints (participants, duration, days, time range, preferences) from the given text.
 
-    Example Input:
-    You need to schedule a meeting for Alice and Bob for 1 hour between 9:00 and 17:00 on Tuesday.
-    Alice is busy on Tuesday from 10:00-12:00 and 14:00-15:00. Bob is busy from 11:00-13:00 and 16:00-17:00.
-
-    Reasoning:
-    1. Participants: Identify the participants (Alice, Bob).
-    2. Duration: Find the meeting duration (1 hour).
-    3. Day: Identify the day (Tuesday).
-    4. Time Range: Find the start and end times (9:00, 17:00).
-    5. Conflicts: List each participant's busy times.
-
-    Extracted Information:
+    Example:
+    Text: You need to schedule a meeting for John and Jane for half an hour between 9:00 to 17:00 on Monday. Jane prefers not to meet before 10:00.
+    Constraints:
     {{
-      "participants": ["Alice", "Bob"],
-      "duration": "1 hour",
-      "day": "Tuesday",
-      "time_range_start": "9:00",
-      "time_range_end": "17:00",
-      "conflicts": {{
-        "Alice": ["10:00-12:00", "14:00-15:00"],
-        "Bob": ["11:00-13:00", "16:00-17:00"]
-      }}
+      "participants": ["John", "Jane"],
+      "duration": "half an hour",
+      "days": ["Monday"],
+      "time_range": ["9:00", "17:00"],
+      "preferences": {{"Jane": "not before 10:00"}}
     }}
 
-    Now extract the information from this text:
-    {text}
+    Now extract constraints from:
+    {question}
     """
-    return call_llm(prompt, system_instruction)
+    try:
+        response = call_llm(prompt, system_instruction)
+        return json.loads(response)
+    except Exception as e:
+        print(f"Error extracting constraints: {e}")
+        return None
 
-def verify_extracted_info(text, extracted_info):
-    """Verifies the extracted information for accuracy and completeness using LLM with examples."""
-    system_instruction = "You are a meticulous verifier ensuring information accuracy."
+def extract_participant_schedules(question, participants):
+    """Extract schedules for each participant using LLM calls."""
+    system_instruction = "You are an expert at extracting schedules for individuals from text."
     prompt = f"""
-    You are given the original text and extracted information. Verify the extracted information is accurate and complete.
+    Extract the schedule for each participant from the following text. Return a JSON object where each participant's name is a key, and the value is a list of their busy time slots.
 
-    Example Input:
-    Text: Schedule a meeting for Charlie and David for 30 minutes between 10:00 and 16:00 on Wednesday.
-    Charlie is unavailable from 11:00-12:00. David is unavailable from 14:00-15:00.
-    Extracted Info:
+    Example:
+    Text: John is busy on Monday from 9:00 to 10:00 and on Tuesday from 14:00 to 15:00. Jane is busy on Wednesday from 11:00 to 12:00.
+    Participants: ["John", "Jane"]
+    Schedules:
     {{
-      "participants": ["Charlie", "David"],
-      "duration": "30 minutes",
-      "day": "Wednesday",
-      "time_range_start": "10:00",
-      "time_range_end": "16:00",
-      "conflicts": {{
-        "Charlie": ["11:00-12:00"],
-        "David": ["14:00-15:00"]
-      }}
+      "John": [["Monday", "9:00", "10:00"], ["Tuesday", "14:00", "15:00"]],
+      "Jane": [["Wednesday", "11:00", "12:00"]]
     }}
 
-    Reasoning:
-    1. Participants: Are all participants listed correctly?
-    2. Duration: Is the duration accurate?
-    3. Day: Is the correct day identified?
-    4. Time Range: Is the time range correct?
-    5. Conflicts: Are all conflicts accurately listed for each participant?
-
-    Verification Result:
-    VALID: All extracted information is accurate and complete.
-
-    Now verify the extracted information for this text:
-    Text: {text}
-    Extracted Info: {extracted_info}
+    Now, extract the schedules for the following participants: {participants} from this text:
+    {question}
     """
-    verification_result = call_llm(prompt, system_instruction)
-    return verification_result
+    try:
+        response = call_llm(prompt, system_instruction)
+        return json.loads(response)
+    except Exception as e:
+        print(f"Error extracting schedules: {e}")
+        return None
 
-def find_available_time_slot(extracted_info):
-    """Finds an available time slot using LLM, considering extracted constraints."""
-    system_instruction = "You are an expert in finding available meeting times."
+def verify_extracted_data(constraints, schedules, question):
+    """Verify constraints and schedules using a LLM-based verification agent."""
+    system_instruction = "You are a meticulous verifier, checking information extraction for accuracy and completeness."
     prompt = f"""
-    Given the extracted scheduling information, find a suitable meeting time.
+    Verify that the extracted constraints and schedules are complete, accurate, and consistent with the original text.
+    If there are any errors or omissions, explain them in detail. If the extraction is perfect, respond with "VALID".
 
-    Example Input:
+    Example:
+    Text: Schedule a meeting for John and Jane on Tuesday. John is busy 9:00-10:00.
+    Constraints:
     {{
-      "participants": ["Eve", "Frank"],
-      "duration": "45 minutes",
-      "day": "Thursday",
-      "time_range_start": "9:00",
-      "time_range_end": "17:00",
-      "conflicts": {{
-        "Eve": ["10:00-11:00", "14:00-15:00"],
-        "Frank": ["11:00-12:00", "16:00-17:00"]
-      }}
+      "participants": ["John", "Jane"],
+      "duration": null,
+      "days": ["Tuesday"],
+      "time_range": ["9:00", "17:00"]
     }}
+    Schedules:
+    {{
+      "John": [["Tuesday", "9:00", "10:00"]]
+    }}
+    Verification Result: VALID
 
-    Reasoning:
-    1. Parse the conflicts for each participant.
-    2. Determine available time slots for each participant within the time range.
-    3. Find an overlapping time slot that accommodates the meeting duration.
-
-    Available Time:
-    Thursday, 9:00-9:45
+    Now, verify the extracted constraints and schedules against the following text:
+    Text: {question}
+    Constraints: {json.dumps(constraints)}
+    Schedules: {json.dumps(schedules)}
     """
-    return call_llm(prompt, system_instruction)
+    try:
+        response = call_llm(prompt, system_instruction)
+        return response
+    except Exception as e:
+        print(f"Error verifying data: {e}")
+        return None
+
+def find_available_time(constraints, schedules):
+    """Find available time using LLM reasoning."""
+    system_instruction = "You are an expert at finding available times given meeting constraints and schedules."
+    prompt = f"""
+    Given the meeting constraints and participant schedules, find a time that works for everyone.
+    Respond in the format: "Here is the proposed time: [Day], [Start Time] - [End Time]". If no time is available, respond with "No available time found."
+
+    Example:
+    Constraints:
+    {{
+      "participants": ["John", "Jane"],
+      "duration": "half an hour",
+      "days": ["Monday"],
+      "time_range": ["9:00", "17:00"]
+    }}
+    Schedules:
+    {{
+      "John": [["Monday", "9:00", "9:30"]],
+      "Jane": [["Monday", "10:00", "10:30"]]
+    }}
+    Available Time: Here is the proposed time: Monday, 9:30 - 10:00
+
+    Now, find an available time for the following:
+    Constraints: {json.dumps(constraints)}
+    Schedules: {json.dumps(schedules)}
+    """
+    try:
+        response = call_llm(prompt, system_instruction)
+        return response
+    except Exception as e:
+        print(f"Error finding available time: {e}")
+        return None
 
 def main(question):
-    """Main function to orchestrate the scheduling process."""
+    """Main function to schedule a meeting."""
     try:
-        # 1. Extract Scheduling Information
-        extracted_info = extract_scheduling_info(question)
-        
-        # 2. Verify Extracted Information
-        verification = verify_extracted_info(question, extracted_info)
-        if "INVALID" in verification:
-            return "Error: Extracted information is invalid."
-        
-        # 3. Find Available Time Slot
-        available_time = find_available_time_slot(extracted_info)
-        if "Available Time:" in available_time:
-            proposed_time = available_time.split("Available Time:\n")[1].strip()
-            return "Here is the proposed time: " + proposed_time
-        else:
-            return "Could not find a valid meeting time."
+        constraints = extract_meeting_constraints(question)
+        if not constraints:
+            return "Error: Could not extract meeting constraints."
+
+        schedules = extract_participant_schedules(question, constraints["participants"])
+        if not schedules:
+            return "Error: Could not extract schedules."
+
+        verification_result = verify_extracted_data(constraints, schedules, question)
+        if "VALID" not in verification_result:
+            return f"Error: Data verification failed: {verification_result}"
+
+        available_time = find_available_time(constraints, schedules)
+        if not available_time:
+            return "Error: Could not find available time."
+
+        return available_time
 
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
-        return "Error occurred while scheduling."
+        print(f"An error occurred: {e}")
+        return "An error occurred while scheduling the meeting."

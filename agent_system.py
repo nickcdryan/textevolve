@@ -30,6 +30,7 @@ class AgentSystem:
         # Initialize configuration
         self.explore_rate = 60
         self.exploit_rate = 40
+        self.force_exploitation_next = False
         self.dataset_path = dataset_path
         self.example_prefix = example_prefix
 
@@ -2356,7 +2357,13 @@ except Exception as e:
                 print("=" * 40)
 
         # Decide whether to explore or exploit
-        is_exploration = (self.explore_rate > self.exploit_rate) #or (random.random() * 100 <= self.explore_rate)
+        if self.force_exploitation_next:
+            is_exploration = False
+            self.force_exploitation_next = False  # Reset the flag
+            print("Forcing exploitation based on previous good performance")
+        else:
+            # Use only random probability for exploration decision
+            is_exploration = random.random() * 100 <= self.explore_rate
 
         # If we have capability data with clear trends, potentially override the strategy
         if capability_report and capability_report.get("trend") != "insufficient_data":
@@ -2513,7 +2520,8 @@ except Exception as e:
 
         # Run progressive testing on all seen examples for promising scripts
         progressive_testing_results = None
-        if accuracy >= 0.7:  # Only run progressive testing if current batch performance is good
+        if accuracy >= 0.5:  # Only run progressive testing if current batch performance is good
+            self.force_exploitation_next = True
             try:
                 print("Script looks promising! Running progressive testing on all seen examples...")
                 progressive_testing_results = self.run_progressive_testing(script, max_examples=20)

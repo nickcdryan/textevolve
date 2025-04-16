@@ -31,102 +31,124 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_data_and_verify(text):
-    """Extract scheduling constraints and verifies if extraction is correct"""
-    system_instruction = "You are an information extraction and verification expert."
+def extract_meeting_info(question):
+    """Extract meeting details (participants, duration, days) from the question using LLM with example."""
+    system_instruction = "You are an expert at extracting meeting details."
     prompt = f"""
-    Extract scheduling constraints from the text and verify the correctness of the extraction in a chain of thought manner.
-    
-    Example Input:
-    You need to schedule a meeting for Carol and Mark for half an hour between the work hours of 9:00 to 17:00 on Monday.
-    Carol has blocked their calendar on Monday during 10:00 to 11:00, 14:30 to 15:00, 15:30 to 17:00;
-    Mark has blocked their calendar on Monday during 9:30 to 10:00, 10:30 to 17:00;
-    
-    Let's think step by step:
-    1. Participants: Carol and Mark.
-    2. Duration: Half an hour (30 minutes).
-    3. Day: Monday.
-    4. Time Range: 9:00 to 17:00.
-    5. Carol's Conflicts: 10:00-11:00, 14:30-15:00, 15:30-17:00.
-    6. Mark's Conflicts: 9:30-10:00, 10:30-17:00.
-    
-    Extracted data:
-    {{
-        "participants": ["Carol", "Mark"],
-        "duration": "30 minutes",
-        "day": "Monday",
-        "time_range_start": "9:00",
-        "time_range_end": "17:00",
-        "conflicts": {{
-            "Carol": ["10:00-11:00", "14:30-15:00", "15:30-17:00"],
-            "Mark": ["9:30-10:00", "10:30-17:00"]
-        }}
-    }}
-    
-    Verification:
-    1. Participants are correctly identified.
-    2. Duration is accurately extracted as 30 minutes.
-    3. Day is correctly identified as Monday.
-    4. Time range is accurate.
-    5. Carol's conflicts are correctly listed.
-    6. Mark's conflicts are correctly listed.
-    Result: Extraction is Valid.
-    
-    Now, extract and verify for this new text:
-    {text}
-    """
-    return call_llm(prompt, system_instruction)
+    Extract the participants, duration, and possible days for the meeting from the given text.
 
-def find_available_time_slots(data):
-    """Find available time slots using LLM."""
-    system_instruction = "You are an expert at identifying available time slots given constraints."
-    prompt = f"""
-    Given the data extracted and verified, find available time slots.
-    
-    Example Input:
+    Example:
+    Text: You need to schedule a meeting for Carol and Mark for half an hour between the work hours of 9:00 to 17:00 on Monday.
+    Extracted Info:
     {{
         "participants": ["Carol", "Mark"],
         "duration": "30 minutes",
-        "day": "Monday",
-        "time_range_start": "9:00",
-        "time_range_end": "17:00",
-        "conflicts": {{
-            "Carol": ["10:00-11:00", "14:30-15:00", "15:30-17:00"],
-            "Mark": ["9:30-10:00", "10:30-17:00"]
+        "days": ["Monday"]
+    }}
+
+    Text: You need to schedule a meeting for Jennifer and Christine for half an hour between the work hours of 9:00 to 17:00 on either Monday, Tuesday or Wednesday.
+    Extracted Info:
+    {{
+        "participants": ["Jennifer", "Christine"],
+        "duration": "30 minutes",
+        "days": ["Monday", "Tuesday", "Wednesday"]
+    }}
+
+    Now extract from this text:
+    {question}
+    """
+    try:
+        response = call_llm(prompt, system_instruction)
+        return json.loads(response)
+    except Exception as e:
+        print(f"Error extracting meeting info: {e}")
+        return None
+
+def extract_schedules(question, participants, days):
+    """Extract and verify schedules for each participant on the specified days using LLM with example."""
+    system_instruction = "You are an expert at extracting participant schedules."
+    prompt = f"""
+    Extract the schedules for each participant on the specified days. Verify the extracted schedules for correctness.
+
+    Example:
+    Question: You need to schedule a meeting for Carol and Mark for half an hour on Monday.
+    Here are the existing schedules: Carol has blocked their calendar on Monday during 10:00 to 11:00; Mark has blocked their calendar on Monday during 9:30 to 10:00.
+    Participants: ["Carol", "Mark"]
+    Days: ["Monday"]
+    Extracted Schedules:
+    {{
+        "Carol": {{
+            "Monday": ["10:00-11:00"]
+        }},
+        "Mark": {{
+            "Monday": ["9:30-10:00"]
         }}
     }}
-    
-    Let's think step by step:
-    1. Available Time Range: 9:00 to 17:00 on Monday.
-    2. Meeting Duration: 30 minutes.
-    3. Carol's Available Times: 9:00-10:00, 11:00-14:30, 15:00-15:30
-    4. Mark's Available Times: 9:00-9:30, 10:00-10:30
-    5. Combining, the available time slots are: 9:00-9:30, 10:00-10:30.
-    
-    Proposed Time: Monday, 9:00-9:30.
-    
-    Now, find the available time based on this data:
-    {data}
+
+    Now extract from this question, participants and days:
+    Question: {question}
+    Participants: {participants}
+    Days: {days}
     """
-    return call_llm(prompt, system_instruction)
+    try:
+        response = call_llm(prompt, system_instruction)
+        return json.loads(response)
+    except Exception as e:
+        print(f"Error extracting schedules: {e}")
+        return None
+
+def find_available_time(meeting_info, schedules):
+    """Find an available time slot that works for all participants using LLM with example."""
+    system_instruction = "You are an expert at finding available meeting times."
+    prompt = f"""
+    Given the meeting information and participant schedules, find an available time slot that works for everyone.
+
+    Example:
+    Meeting Info:
+    {{
+        "participants": ["Carol", "Mark"],
+        "duration": "30 minutes",
+        "days": ["Monday"]
+    }}
+    Schedules:
+    {{
+        "Carol": {{
+            "Monday": ["10:00-11:00"]
+        }},
+        "Mark": {{
+            "Monday": ["9:30-10:00"]
+        }}
+    }}
+    Available Time: Monday, 9:00 - 9:30
+
+    Now find an available time for the following:
+    Meeting Info: {meeting_info}
+    Schedules: {schedules}
+    """
+    try:
+        response = call_llm(prompt, system_instruction)
+        return response
+    except Exception as e:
+        print(f"Error finding available time: {e}")
+        return None
 
 def main(question):
-    """Main function."""
+    """Main function to schedule a meeting."""
     try:
-        extracted_data = extract_data_and_verify(question)
-        available_time = find_available_time_slots(extracted_data)
-        
-        if "Proposed Time:" in available_time:
-            proposed_time = available_time.split("Proposed Time:")[1].strip()
-            return "Here is the proposed time: " + proposed_time
-        else:
-            return "Could not find a valid meeting time."
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
-        return "Error occurred while scheduling."
+        meeting_info = extract_meeting_info(question)
+        if not meeting_info:
+            return "Could not extract meeting information."
 
-# Example usage:
-if __name__ == "__main__":
-    question = "You need to schedule a meeting for Nicholas, Sara, Helen, Brian, Nancy, Kelly and Judy for half an hour between the work hours of 9:00 to 17:00 on Monday. \n\nHere are the existing schedules for everyone during the day: \nNicholas is busy on Monday during 9:00 to 9:30, 11:00 to 11:30, 12:30 to 13:00, 15:30 to 16:00; \nSara is busy on Monday during 10:00 to 10:30, 11:00 to 11:30; \nHelen is free the entire day.\nBrian is free the entire day.\nNancy has blocked their calendar on Monday during 9:00 to 10:00, 11:00 to 14:00, 15:00 to 17:00; \nKelly is busy on Monday during 10:00 to 11:30, 12:00 to 12:30, 13:30 to 14:00, 14:30 to 15:30, 16:30 to 17:00; \nJudy has blocked their calendar on Monday during 9:00 to 11:30, 12:00 to 12:30, 13:00 to 13:30, 14:30 to 17:00; \n\nFind a time that works for everyone's schedule and constraints."
-    answer = main(question)
-    print(answer)
+        schedules = extract_schedules(question, meeting_info["participants"], meeting_info["days"])
+        if not schedules:
+            return "Could not extract schedules."
+
+        available_time = find_available_time(meeting_info, schedules)
+        if not available_time:
+            return "Could not find an available time."
+
+        return f"Here is the proposed time: {available_time}"
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return "An error occurred while scheduling the meeting."
