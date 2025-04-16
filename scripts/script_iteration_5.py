@@ -1,6 +1,6 @@
 import os
-import json
 import re
+import json
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -31,136 +31,165 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_meeting_constraints(text):
-    """Extracts meeting constraints using an LLM-driven approach with examples."""
-    system_instruction = "You are an expert at extracting meeting constraints from text."
+def extract_constraints_with_examples(text):
+    """Extract scheduling constraints from the input text using LLM and examples."""
+    system_instruction = "You are an expert in extracting scheduling constraints."
     prompt = f"""
-    Extract the meeting constraints from the following text.
+    Extract all scheduling constraints from the text.
 
-    Example:
-    Input: You need to schedule a meeting for Ronald and Ann for one hour between the work hours of 9:00 to 17:00 on Monday. Ronald has meetings on Monday during 9:30 to 10:30; Ann is busy on Monday during 9:30 to 10:00.
-    
-    Let's think step by step:
-    1. Identify the participants: Ronald and Ann
-    2. Meeting duration: one hour
-    3. Working hours: 9:00 to 17:00
-    4. Day: Monday
-    5. Ronald's busy times: 9:30 to 10:30
-    6. Ann's busy times: 9:30 to 10:00
-    
-    Output:
+    Example Input:
+    You need to schedule a meeting for Nicholas, Sara, and Helen for half an hour between 9:00 to 17:00 on Monday.
+    Nicholas is busy on Monday during 9:00 to 9:30, 11:00 to 11:30, 12:30 to 13:00, 15:30 to 16:00;
+    Sara is busy on Monday during 10:00 to 10:30, 11:00 to 11:30;
+    Helen is free the entire day.
+
+    Reasoning:
+    1. Participants: Identify all participants (Nicholas, Sara, Helen)
+    2. Duration: Identify the meeting duration (30 minutes)
+    3. Time Range: Identify the possible time range (9:00 to 17:00)
+    4. Day: Identify the day (Monday)
+    5. Conflicts: Extract the busy times for each participant. Represent "free the entire day" as an empty list. Ensure times are in 24:00 format.
+
+    Extracted Constraints:
     {{
-      "participants": ["Ronald", "Ann"],
-      "duration": "60",
-      "work_hours": "9:00 to 17:00",
-      "day": "Monday",
-      "Ronald": ["9:30 to 10:30"],
-      "Ann": ["9:30 to 10:00"]
+        "participants": ["Nicholas", "Sara", "Helen"],
+        "duration": "30 minutes",
+        "available_time_range": ["09:00", "17:00"],
+        "day": "Monday",
+        "conflicts": {{
+            "Nicholas": ["09:00-09:30", "11:00-11:30", "12:30-13:00", "15:30-16:00"],
+            "Sara": ["10:00-10:30", "11:00-11:30"],
+            "Helen": []
+        }}
     }}
-    
-    Now extract information from this new text:
+
+    Now, extract constraints from this new text:
     {text}
     """
-    try:
-        response = call_llm(prompt, system_instruction)
-        return json.loads(response)
-    except Exception as e:
-        print(f"Error extracting constraints: {str(e)}")
-        return {}
-        
-def verify_constraints(constraints):
-    """Verify the extracted constraints for correctness."""
-    system_instruction = "You are a constraint verifier that checks to ensure the details extracted from a prompt are correct."
-    prompt = f"""
-    Verify the meeting constraints for correctness. Ensure that the participant names, duration, working hours, days, and schedules are correct. Provide feedback for any errors, following this example format.
-    
-    Example:
-    Input: 
-    {{
-      "participants": ["Ronald", "Ann"],
-      "duration": "60",
-      "work_hours": "9:00 to 17:00",
-      "day": "Monday",
-      "Ronald": ["9:30 to 10:30"],
-      "Ann": ["9:30 to 10:00"]
-    }}
-    
-    Let's think step by step:
-    1. Check if all the participant names are correct
-    2. Check if the meeting duration is correct
-    3. Check if the working hours are correct
-    4. Check if the day is correct
-    5. Verify each participant's schedule is correctly captured
-    
-    Output:
-    {{
-      "verification_status": "VALID",
-      "feedback": "No errors found."
-    }}
-    
-    Now verify this new input:
-    {constraints}
-    """
-    try:
-        response = call_llm(prompt, system_instruction)
-        return json.loads(response)
-    except Exception as e:
-        print(f"Error verifying constraints: {str(e)}")
-        return {"verification_status": "ERROR", "feedback": str(e)}
+    return call_llm(prompt, system_instruction)
 
-def find_available_time_slot(constraints):
-    """Finds an available time slot given the meeting constraints."""
-    system_instruction = "You are an expert meeting scheduler that finds the best time slot for a meeting."
+def verify_extracted_constraints(constraints_json):
+    """Verify the extracted constraints using LLM to ensure correctness."""
+    system_instruction = "You are an expert in verifying extracted scheduling constraints."
     prompt = f"""
-    Find an available time slot that meets all the provided constraints, following the below format.
-    
-    Example:
-    Input:
+    You are given a JSON of extracted scheduling constraints. Verify the data for correctness, completeness and consistency.
+
+    Example Input:
     {{
-      "participants": ["Ronald", "Ann"],
-      "duration": "60",
-      "work_hours": "9:00 to 17:00",
-      "day": "Monday",
-      "Ronald": ["9:30 to 10:30"],
-      "Ann": ["9:30 to 10:00"]
+        "participants": ["Nicholas", "Sara", "Helen"],
+        "duration": "30 minutes",
+        "available_time_range": ["09:00", "17:00"],
+        "day": "Monday",
+        "conflicts": {{
+            "Nicholas": ["09:00-09:30", "11:00-11:30", "12:30-13:00", "15:30-16:00"],
+            "Sara": ["10:00-10:30", "11:00-11:30"],
+            "Helen": []
+        }}
     }}
-    
-    Let's think step by step:
-    1. Determine the working hours: 9:00 to 17:00 on Monday
-    2. Consider the meeting duration: 60 minutes
-    3. Identify Ronald's busy times: 9:30 to 10:30
-    4. Identify Ann's busy times: 9:30 to 10:00
-    5. Find a time slot that works for both Ronald and Ann
-    
-    Output:
-    {{
-      "proposed_time": "Monday, 10:30 - 11:30"
-    }}
-    
-    Now provide a time slot for this new input:
-    {constraints}
+
+    Reasoning:
+    1. Check participants: Verify if all participants are correctly listed.
+    2. Check duration: Ensure the duration is correctly specified.
+    3. Check time range: Confirm the available time range is valid.
+    4. Check day: Verify the day is correctly identified.
+    5. Check conflicts: Ensure all conflicts are accurately listed for each participant. Specifically, check that 'free the entire day' is represented by an empty list.
+    6. Check time format: All times should be in HH:MM format.
+
+    Verification Result:
+    VALID: The extracted constraints are complete and consistent.
+
+    Now, verify these constraints:
+    {constraints_json}
     """
-    try:
-        response = call_llm(prompt, system_instruction)
-        return json.loads(response)
-    except Exception as e:
-        print(f"Error finding available time slot: {str(e)}")
-        return {}
+    return call_llm(prompt, system_instruction)
+
+def find_available_times_with_examples(constraints_json):
+    """Find available meeting times based on extracted constraints using LLM."""
+    system_instruction = "You are an expert in finding available meeting times."
+    prompt = f"""
+    Given these scheduling constraints, find a suitable meeting time.
+
+    Example Input:
+    {{
+        "participants": ["Nicholas", "Sara", "Helen"],
+        "duration": "30 minutes",
+        "available_time_range": ["09:00", "17:00"],
+        "day": "Monday",
+        "conflicts": {{
+            "Nicholas": ["09:00-09:30", "11:00-11:30", "12:30-13:00", "15:30-16:00"],
+            "Sara": ["10:00-10:30", "11:00-11:30"],
+            "Helen": []
+        }}
+    }}
+
+    Reasoning:
+    1. Parse conflicts: Extract the busy time slots for each participant.
+    2. Iterate Time: Iterate through possible time slots within the available time range. Granularity is 30 minutes.
+    3. Check conflicts: Check if the current time slot conflicts with any participant's schedule.
+    4. Find available time: Output a time that doesn't conflict with any participants.
+
+    Available Time:
+    Monday, 14:00 - 14:30
+
+    Now, find the available time based on these constraints:
+    {constraints_json}
+    """
+    return call_llm(prompt, system_instruction)
+
+def verify_solution_with_examples(problem, proposed_solution):
+    """Verify the proposed meeting time with LLM and example."""
+    system_instruction = "You are a critical evaluator verifying meeting schedule solutions."
+    prompt = f"""
+    Verify if the proposed meeting time satisfies all constraints.
+
+    Example Input:
+    Problem: Schedule a meeting for Nicholas, Sara, and Helen for half an hour between 9:00 to 17:00 on Monday.
+    Nicholas is busy on Monday during 9:00 to 9:30, 11:00 to 11:30, 12:30 to 13:00, 15:30 to 16:00;
+    Sara is busy on Monday during 10:00 to 10:30, 11:00 to 11:30;
+    Helen is free the entire day.
+    Proposed Solution: Monday, 14:00 - 14:30
+
+    Reasoning:
+    1. Parse participants: Identify participants (Nicholas, Sara, Helen).
+    2. Check conflicts: Ensure the time slot doesn't conflict with anyone's schedule. Granularity is 30 minutes.
+    3. Validate time range: Ensure the time is within the given range.
+
+    Verification Result:
+    VALID: The proposed time does not conflict with any participant's schedule and is within the specified time range.
+
+    Now, verify this new solution:
+    Problem: {problem}
+    Proposed Solution: {proposed_solution}
+    """
+    return call_llm(prompt, system_instruction)
 
 def main(question):
-    """Main function to schedule a meeting given a question."""
-    # Extract meeting constraints
-    constraints = extract_meeting_constraints(question)
-    
-    # Verify extracted constraints
-    verification = verify_constraints(constraints)
-    
-    if verification["verification_status"] != "VALID":
-        return "Error: " + verification["feedback"]
+    """Main function to schedule a meeting."""
+    try:
+        # Extract scheduling constraints
+        constraints_json = extract_constraints_with_examples(question)
+        
+        # Verify extracted constraints
+        verification_result = verify_extracted_constraints(constraints_json)
+        if "INVALID" in verification_result:
+            return "Could not find a valid meeting time due to constraint extraction error."
+        
+        # Find available time
+        available_time = find_available_times_with_examples(constraints_json)
+        
+        # Verify solution
+        final_verification_result = verify_solution_with_examples(question, available_time)
+        
+        if "VALID" in final_verification_result:
+            return "Here is the proposed time: " + available_time
+        else:
+            return "Could not find a valid meeting time."
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return "Error occurred while scheduling."
 
-    # Find an available time slot
-    time_slot = find_available_time_slot(constraints)
-    if "proposed_time" in time_slot:
-        return "Here is the proposed time: " + time_slot["proposed_time"]
-    else:
-        return "No suitable time slot found."
+# Example usage:
+if __name__ == "__main__":
+    question = "You need to schedule a meeting for Nicholas, Sara, Helen, Brian, Nancy, Kelly and Judy for half an hour between the work hours of 9:00 to 17:00 on Monday. \n\nHere are the existing schedules for everyone during the day: \nNicholas is busy on Monday during 9:00 to 9:30, 11:00 to 11:30, 12:30 to 13:00, 15:30 to 16:00; \nSara is busy on Monday during 10:00 to 10:30, 11:00 to 11:30; \nHelen is free the entire day.\nBrian is free the entire day.\nNancy has blocked their calendar on Monday during 9:00 to 10:00, 11:00 to 14:00, 15:00 to 17:00; \nKelly is busy on Monday during 10:00 to 11:30, 12:00 to 12:30, 13:30 to 14:00, 14:30 to 15:30, 16:30 to 17:00; \nJudy has blocked their calendar on Monday during 9:00 to 11:30, 12:00 to 12:30, 13:00 to 13:30, 14:30 to 17:00; \n\nFind a time that works for everyone's schedule and constraints."
+    answer = main(question)
+    print(answer)

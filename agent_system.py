@@ -24,7 +24,7 @@ class AgentSystem:
     """
 
     def __init__(self,
-                 dataset_path: str = "calendar_scheduling.json",
+                 dataset_path: str = "shuffled_calendar_scheduling.json",
                  example_prefix: str = "calendar_scheduling_example_"):
         """Initialize the agent system"""
         # Initialize configuration
@@ -904,6 +904,39 @@ class AgentSystem:
                 capability_guidance = self._generate_capability_guidance(capability_report)
                 print(f"Focusing script improvement on: {improvement_focus.upper().replace('_', ' ') if improvement_focus else 'No specific focus'}")
 
+        # ==== RETRIEVE LAST FIVE SCRIPTS FOR EXPLORATION CONTEXT ====
+        last_scripts_context = ""
+        if is_exploration and iterations:
+            # Get the last 5 iterations, sorted by recency
+            sorted_iterations = sorted(iterations, key=lambda x: x.get('iteration', 0) if x and 'iteration' in x else 0, reverse=True)
+            last_scripts = []
+
+            for i, iteration in enumerate(sorted_iterations[:5]):
+                if iteration and 'script' in iteration:
+                    iteration_num = iteration.get('iteration', 'unknown')
+                    accuracy = iteration.get('performance', {}).get('accuracy', 0)
+                    strategy = iteration.get('strategy', 'unknown')
+                    approach = iteration.get('approach_summary', 'No summary available')
+
+                    # For space management, limit script size if necessary
+                    script = iteration.get('script', '')
+
+                    last_scripts.append({
+                        "iteration": iteration_num,
+                        "accuracy": accuracy,
+                        "strategy": strategy,
+                        "approach": approach,
+                        "script": script
+                    })
+
+            # Generate the context with the scripts
+            if last_scripts:
+                last_scripts_context = "\nPREVIOUSLY TRIED APPROACHES (LAST 5 SCRIPTS):\n"
+                for script_info in last_scripts:
+                    last_scripts_context += f"\n=== SCRIPT FROM ITERATION {script_info['iteration']} ({script_info['strategy']}, ACCURACY: {script_info['accuracy']:.2f}) ===\n"
+                    last_scripts_context += f"Approach: {script_info['approach']}\n\n"
+                    last_scripts_context += f"```python\n{script_info['script']}\n```\n"
+
         # ==== DETERMINE STRATEGY ====
         approach_type = "exploration" if is_exploration else "exploitation"
         best_script_to_exploit = None
@@ -951,14 +984,14 @@ class AgentSystem:
         - Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}
         - Best accuracy achieved: {best_accuracy_str}
 
-        APPROACH HISTORY (last {min(5, len(approach_history))} iterations):
-        {json.dumps(approach_history[-5:] if len(approach_history) > 5 else approach_history, indent=2)}
+        APPROACH HISTORY (last {min(10, len(approach_history))} iterations):
+        {json.dumps(approach_history[-10:] if len(approach_history) > 10 else approach_history, indent=2)}
 
         COMMON ERROR PATTERNS:
         {json.dumps(list(set(error_patterns[-10:] if len(error_patterns) > 10 else error_patterns)), indent=2)}
 
         PRIMARY ISSUES (last {min(3, len(primary_issues))} iterations):
-        {json.dumps(primary_issues[-3:] if len(primary_issues) > 3 else primary_issues, indent=2)}
+        {json.dumps(primary_issues[-10:] if len(primary_issues) > 10 else primary_issues, indent=2)}
 
         TARGETED IMPROVEMENTS:
         {json.dumps(list(set(targeted_improvements[-10:] if len(targeted_improvements) > 10 else targeted_improvements)), indent=2)}
@@ -988,7 +1021,7 @@ class AgentSystem:
 
         # Create appropriate prompt based on strategy
         if is_exploration:
-            # Exploration prompt
+            # Exploration prompt - now including last_scripts_context
             prompt = f"""
             You are developing a Python script to solve problems using LLM reasoning capabilities.
             You must generate a NEW approach that's different from previous approaches but informed by their successes and failures.
@@ -996,18 +1029,24 @@ class AgentSystem:
             Here are example problems from the dataset:
             {json.dumps(example_problems, indent=2)}
 
+            HISTORICAL CONTEXT:
             {historical_context}
 
+            PREVIOUSLY TRIED APPROACHES (LAST 5 SCRIPTS). YOUR APPROACH MUST BE SUBSTANTIVELY DIFFERENT THAN THESE:
+            {last_scripts_context}
+
+            LEARNINGS FROM PREVIOUS ITERATIONS:
             {learning_context}
 
+            CAPABILITY ASSESSMENT & IMPROVEMENT GUIDANCE:
             {capability_context}
 
             EXPLORATION GUIDANCE:
             1. Review the historical approaches, error patterns, and accumulated learnings carefully
-            2. Design a new approach that specifically addresses common error patterns
-            3. Take inspiration from successful aspects of previous approaches but create something distinct
+            2. Review the FULL CODE of previous scripts to understand what has already been tried
+            3. Design a new approach that is DISTINCTLY DIFFERENT from previous attempts
             4. CRITICAL: Include EMBEDDED EXAMPLES directly within your LLM prompts
-            5. For each key function, show a complete worked example including:
+            5. For each key function, show a complete worked example, or include multiple examples, including:
                - Input example that resembles the dataset
                - Step-by-step reasoning through the example
                - Properly formatted output
@@ -1023,7 +1062,7 @@ class AgentSystem:
                - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
                - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
 
-            Here's how to call the Gemini LLM API:
+            Here's how to call the Gemini API:
             {gemini_api_example}
 
             Since this is an EXPLORATION phase:
@@ -1113,7 +1152,7 @@ class AgentSystem:
                - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
 
 
-            Here's how to call the Gemini LLM API:
+            Here's how to call the Gemini API:
             {gemini_api_example}
 
             Since this is an EXPLOITATION phase:
@@ -1189,7 +1228,7 @@ class AgentSystem:
 
                 if attempts >= max_attempts:
                     print(
-                        "Maximum attempts reached. Returning a simple fallback script."
+                        "\n***\nFALLBACK: Maximum attempts reached. Returning a simple fallback script.\n***\n"
                     )
                     # Create a simple fallback script with embedded examples
                     fallback_script = """
@@ -1884,7 +1923,8 @@ except Exception as e:
         Do these answers effectively communicate the same information, even if worded differently?
         Return only a JSON object with: {{"match": true/false, "confidence": 0-1, "explanation": "reason"}}
         """
-
+        print ("SYSTEM ANSWER: ", system_answer)
+        print ("GOLDEN ANSWER: ", golden_answer)
         try:
             response = self.call_llm(
                 prompt, system_instruction=evaluator_system_instruction)
@@ -1936,7 +1976,9 @@ except Exception as e:
         1. What LLM-based techniques are used (chain-of-thought, verification, etc.)
         2. How the problem is decomposed
         3. What agent roles are involved
-        4. The overall workflow
+        4. What other functions are used
+        5. A brief list of the function names used and how they are used with one another
+        6. The overall workflow
 
         Script:
         ```python
