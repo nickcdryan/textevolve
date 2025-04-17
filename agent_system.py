@@ -1556,6 +1556,7 @@ except Exception as e:
         """
         Use the LLM to evaluate results and perform detailed error analysis.
         Generates natural language analysis of strengths, weaknesses, and improvements.
+        Now includes raw execution outputs for better error diagnosis.
         """
         evaluations = []
 
@@ -1567,6 +1568,7 @@ except Exception as e:
                     "sample_id": i,
                     "success": False,
                     "error": result.get("error", "Unknown error"),
+                    "output": result.get("output", "No output captured"),  # Include raw output for failed executions
                     "match": False,
                     "capability_failures": ["execution"]  # Track execution failures
                 })
@@ -1582,22 +1584,24 @@ except Exception as e:
 
             if result.get("match", False):
                 correct_count += 1
-                # For successful cases, we consider all capabilities successful
+                # For successful cases, still include the output
                 evaluations.append({
                     "sample_id": i,
                     "success": True,
                     "system_answer": result.get("answer", "").strip(),
                     "golden_answer": sample.get("golden_plan", "").strip(),
+                    "output": result.get("output", "No output captured"),  # Include output even for successful runs
                     "match": True,
                     "evaluation": result.get("evaluation", {})
                 })
             else:
-                # For failed cases, we'll determine which capabilities failed later
+                # For failed cases, include output for analysis
                 evaluations.append({
                     "sample_id": i,
                     "success": True,
                     "system_answer": result.get("answer", "").strip(),
                     "golden_answer": sample.get("golden_plan", "").strip(),
+                    "output": result.get("output", "No output captured"),  # Include raw output for analysis
                     "match": False,
                     "evaluation": result.get("evaluation", {}),
                     "capability_failures": []  # Placeholder, will be populated after error analysis
@@ -1617,6 +1621,7 @@ except Exception as e:
                     "system_answer": eval_data.get("system_answer", ""),
                     "golden_answer": eval_data.get("golden_answer", ""),
                     "error_message": eval_data.get("error", ""),
+                    "output": eval_data.get("output", "No output captured"),  # Include raw output for error analysis
                     "explanation": eval_data.get("evaluation", {}).get("explanation", "")
                 })
 
@@ -1630,7 +1635,7 @@ except Exception as e:
             # Modified system instruction for error analyzer that produces text instead of JSON
             error_analyzer_system_instruction = f"{self.system_prompt}\n\nYou are a Forensic Error Analyzer specializing in debugging complex reasoning systems. Your task is to perform deep, deliberate analysis of errors to identify specific failure points and propose targeted improvements."
 
-            # Modified prompt for LLM to generate a natural language analysis
+            # Modified prompt for LLM to generate a natural language analysis, now including raw outputs
             prompt = f"""
             Perform a thorough forensic analysis of these error cases in our AI problem-solving system.
 
@@ -1642,13 +1647,15 @@ except Exception as e:
             ANALYSIS INSTRUCTIONS:
             1. TRACE THE REASONING PATH: For each error case, reconstruct the likely reasoning path the system took. Where precisely did the reasoning go wrong?
 
-            2. IDENTIFY SPECIFIC FAILURE POINTS: What exact component, reasoning step, or assumption failed? 
+            2. IDENTIFY SPECIFIC FAILURE POINTS: What exact component, reasoning step, or assumption failed? Pay special attention to the 'output' field which contains the raw execution output with detailed information about errors and execution flow.
 
-            3. COMPARE WITH CORRECT SOLUTION: Analyze how the golden answer's reasoning differs from the system's approach
+            3. ANALYZE RAW OUTPUTS: Look for specific error patterns (like JSONDecodeError, TypeError, etc.) in the output field that may reveal implementation issues or runtime errors.
 
-            4. FIND PATTERNS ACROSS ERRORS: Are there common failure modes or recurring issues?
+            4. COMPARE WITH CORRECT SOLUTION: Analyze how the golden answer's reasoning differs from the system's approach.
 
-            5. MAP FAILURES TO SYSTEM CAPABILITIES: For each error, identify which of these capabilities failed:
+            5. FIND PATTERNS ACROSS ERRORS: Are there common failure modes or recurring issues?
+
+            6. MAP FAILURES TO SYSTEM CAPABILITIES: For each error, identify which of these capabilities failed:
                - information_extraction: Extracting relevant information from the problem statement
                - constraint_handling: Identifying and applying constraints correctly
                - solution_generation: Generating valid potential solutions
@@ -1656,6 +1663,9 @@ except Exception as e:
                - decision_making: Making a final decision on the best solution
 
             FORMAT YOUR RESPONSE AS A STRUCTURED TEXT REPORT with the following sections:
+
+            ## RUNTIME ERRORS
+            (Identify and categorize any error messages or exceptions found in the 'output' fields)
 
             ## STRENGTHS
             (List 2-3 specific strengths of the current approach)
@@ -1681,7 +1691,7 @@ except Exception as e:
             ## CAPABILITY MAPPING
             (For each sample with errors, list which capabilities failed)
 
-            BE EXTREMELY SPECIFIC IN YOUR ANALYSIS. Avoid generic recommendations like "improve parsing" - instead identify exactly what type of parsing is failing and how to fix that specific issue.
+            BE EXTREMELY SPECIFIC IN YOUR ANALYSIS. If you see technical errors in the outputs (like JSONDecodeError or TypeError), highlight these explicitly and explain their implications.
             """
 
             # Call LLM for detailed error analysis as text
@@ -1700,6 +1710,14 @@ except Exception as e:
                     weaknesses = []
                     primary_issue = "See full text report"
                     improvement_suggestions = []
+                    runtime_errors = []
+
+                    # Extract runtime errors section if it exists
+                    if "## RUNTIME ERRORS" in error_analysis_text:
+                        runtime_errors_section = error_analysis_text.split("## RUNTIME ERRORS")[1].split("##")[0].strip()
+                        for line in runtime_errors_section.split("\n"):
+                            if line.strip() and line.strip()[0] in ["-", "*", "•"]:
+                                runtime_errors.append(line.strip().lstrip("-*• "))
 
                     # Very simple extraction - this won't be comprehensive but will give us something
                     strength_section = error_analysis_text.split("## STRENGTHS")[1].split("##")[0].strip()
@@ -1725,6 +1743,7 @@ except Exception as e:
                     error_analysis["weaknesses"] = weaknesses
                     error_analysis["primary_issue"] = primary_issue
                     error_analysis["improvement_suggestions"] = improvement_suggestions
+                    error_analysis["runtime_errors"] = runtime_errors  # Add runtime errors to the analysis
 
                 print("Successfully extracted information from text report")
 
@@ -1752,10 +1771,14 @@ except Exception as e:
                 "improvement_suggestions": []
             }
 
-        # Generate a capability report text
+        # Generate a capability report text, now including raw outputs
         try:
             # Define a system instruction for the capability reporter
             capability_reporter_system_instruction = f"{self.system_prompt}\n\nYou are a System Capability Analyst who specializes in providing actionable insights for improving AI systems."
+
+            # Collect all outputs for analysis
+            all_outputs = [eval_data.get("output", "No output captured") for eval_data in evaluations]
+            sample_outputs = all_outputs[:3]  # Take a sample of outputs for the prompt
 
             capability_prompt = f"""
             Generate a comprehensive capability report for our AI system based on its performance.
@@ -1767,7 +1790,13 @@ except Exception as e:
             ERROR ANALYSIS REPORT:
             {error_analysis_text}
 
+            SAMPLE EXECUTION OUTPUTS:
+            {json.dumps(sample_outputs, indent=2)}
+
             Please provide a thorough capability assessment that includes:
+
+            ## EXECUTION ANALYSIS
+            (Analysis of the raw execution outputs, including any errors or issues observed)
 
             ## CAPABILITY ASSESSMENT
             (Overall assessment of the system's capabilities)
@@ -1788,6 +1817,7 @@ except Exception as e:
             (Assessment of whether capabilities are improving, declining, or stable)
 
             Your assessment should be specific, actionable, and focused on concrete improvements.
+            Pay particular attention to any patterns in the execution outputs that might reveal issues with the implementation.
             """
 
             capability_report_text = self.call_llm(capability_prompt, system_instruction=capability_reporter_system_instruction)
@@ -1810,7 +1840,8 @@ except Exception as e:
                 "improvement_focus": improvement_focus,
                 "strengths": error_analysis.get("strengths", []),
                 "weaknesses": error_analysis.get("weaknesses", []),
-                "improvement_suggestions": error_analysis.get("improvement_suggestions", [])
+                "improvement_suggestions": error_analysis.get("improvement_suggestions", []),
+                "runtime_errors": error_analysis.get("runtime_errors", [])  # Include runtime errors
             }
 
         except Exception as e:
@@ -1924,7 +1955,7 @@ except Exception as e:
         Do these answers effectively communicate the same information, even if worded differently?
         Return only a JSON object with: {{"match": true/false, "confidence": 0-1, "explanation": "reason"}}
         """
-        print ("SYSTEM ANSWER: ", system_answer)
+        print ("SYSTEM ANSWER: ....", system_answer[-200:])
         print ("GOLDEN ANSWER: ", golden_answer)
         try:
             response = self.call_llm(
@@ -2520,7 +2551,7 @@ except Exception as e:
 
         # Run progressive testing on all seen examples for promising scripts
         progressive_testing_results = None
-        if accuracy >= 0.5:  # Only run progressive testing if current batch performance is good
+        if accuracy >= 0.6:  # Only run progressive testing if current batch performance is good
             self.force_exploitation_next = True
             try:
                 print("Script looks promising! Running progressive testing on all seen examples...")
