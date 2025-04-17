@@ -1,5 +1,137 @@
 import os
 import json
+import re
+import math
+
+def main(question):
+    """
+    Orchestrates meeting scheduling using a dynamic ReAct-based approach, 
+    focusing on iterative extraction, constraint application, and verification with targeted refinements.
+    """
+    try:
+        # Initialize the ReAct agent
+        react_agent = MeetingSchedulingAgent()
+        solution = react_agent.solve(question)
+        return solution
+    except Exception as e:
+        return f"Error in main: {str(e)}"
+
+class MeetingSchedulingAgent:
+    """
+    An agent that uses the ReAct pattern to schedule meetings.
+    """
+    def __init__(self):
+        self.system_instruction = "You are an expert meeting scheduling agent."
+
+    def solve(self, problem, max_iterations=5):
+        """Solves the meeting scheduling problem using ReAct."""
+        thought = "Let's start by extracting all key information from the problem description."
+        actions = []
+        for i in range(max_iterations):
+            prompt = f"""
+            Problem: {problem}
+            {thought}
+            Possible actions: ExtractInformation, GenerateSchedule, VerifySchedule, Finish
+            What is your next thought and what action will you take?
+            
+            Example 1:
+            Problem: You need to schedule a meeting for John and Jane for 30 minutes on Monday. John is busy 1-2pm. Jane prefers to meet before noon.
+            Thought: First, I need to extract the key information like participants, duration and constraints.
+            Action: ExtractInformation[question="{problem}"]
+
+            Example 2:
+            Problem: Extracted info: {{"participants": ["John", "Jane"], "duration": "30 minutes", "available_days": ["Monday"], "time_constraints": "John is busy 1-2pm. Jane prefers to meet before noon."}}
+            Thought: Now that I have the information, I can create a candidate meeting schedule.
+            Action: GenerateSchedule[extracted_info="{{\\"participants\\": [\\"John\\", \\"Jane\\"], \\"duration\\": \\"30 minutes\\", \\"available_days\\": [\\"Monday\\"], \\"time_constraints\\": \\"John is busy 1-2pm. Jane prefers to meet before noon.\\" }}""]
+            """
+            response = call_llm(prompt, self.system_instruction)
+            try:
+                thought, action = response.split("Action: ")
+                thought = "Thought: " + thought.split("Thought: ")[-1].strip()
+                action_type, action_details = action.split("[")
+                action_details = action_details[:-1]
+                actions.append({"type": action_type.strip(), "details": action_details.strip()})
+                # Handle actions
+                if action_type.strip() == "ExtractInformation":
+                    extracted_info = self._extract_information(action_details)
+                    thought = "Thought: I have extracted the information. Now I can generate a schedule."
+                elif action_type.strip() == "GenerateSchedule":
+                    schedule = self._generate_schedule(action_details)
+                    thought = "Thought: I have generated a schedule. I need to verify it."
+                elif action_type.strip() == "VerifySchedule":
+                    verification_result = self._verify_schedule(action_details)
+                    if verification_result == "Valid":
+                        return schedule
+                    else:
+                        thought = f"Thought: The schedule is invalid. I need to generate a new schedule. {verification_result}"
+                        schedule = self._generate_schedule(extracted_info)
+                elif action_type.strip() == "Finish":
+                    return action_details
+            except Exception as e:
+                return f"Error processing ReAct step: {str(e)}"
+        return "Could not find a valid solution."
+
+    def _extract_information(self, details):
+        """Extracts meeting information with a specific schema and examples."""
+        system_instruction = "You are an expert at extracting structured information from text."
+        prompt = f"""
+        Extract the following information from the text: participants, duration, available days, time constraints. Return a JSON.
+        
+        Example:
+        Input: Schedule a meeting for John, Jane, and Peter for 1 hour on Monday or Tuesday between 9am and 5pm. John is busy from 10am-11am on Monday. Jane is unavailable from 2pm-3pm on Tuesday.
+        Output:
+        {{
+          "participants": ["John", "Jane", "Peter"],
+          "duration": "1 hour",
+          "available_days": ["Monday", "Tuesday"],
+          "time_constraints": "between 9am and 5pm. John is busy from 10am-11am on Monday. Jane is unavailable from 2pm-3pm on Tuesday."
+        }}
+        Now extract the same from:
+        {details}
+        """
+        return call_llm(prompt, system_instruction)
+
+    def _generate_schedule(self, extracted_info):
+        """Generates a candidate schedule based on extracted information."""
+        system_instruction = "You are an expert meeting scheduler."
+        prompt = f"""
+        Generate a candidate meeting schedule that satisfies the constraints in JSON.
+        
+        Example:
+        Input:
+        {{
+          "participants": ["John", "Jane"],
+          "duration": "30 minutes",
+          "available_days": ["Monday"],
+          "time_constraints": "John is busy from 10am-11am."
+        }}
+        Output: Monday, 9:00 - 9:30
+        Now generate the same from:
+        {extracted_info}
+        """
+        return call_llm(prompt, system_instruction)
+
+    def _verify_schedule(self, details):
+        """Verifies the candidate schedule against the extracted information."""
+        system_instruction = "You are a meeting schedule validator."
+        prompt = f"""
+        Verify the following schedule is valid based on extracted information, return "Valid" or "Invalid" with reason.
+        
+        Example:
+        Extracted Information:
+        {{
+          "participants": ["John", "Jane"],
+          "duration": "30 minutes",
+          "available_days": ["Monday"],
+          "time_constraints": "John is busy from 10am-11am."
+        }}
+        Candidate schedule: Monday, 10:30 - 11:00
+        Output: Invalid, John is busy.
+        
+        Now verify the same from:
+        {details}
+        """
+        return call_llm(prompt, system_instruction)
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -13,7 +145,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -29,137 +161,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def extract_info_structured(question):
-    """Extract meeting info, participants, and schedules using structured prompting and examples."""
-    system_instruction = "You are an expert at extracting structured information for meeting scheduling."
-    prompt = f"""
-    Extract the following information from the text, structured as JSON:
-    - participants: A list of all participants in the meeting.
-    - duration: The duration of the meeting (e.g., "half an hour", "one hour").
-    - days: A list of possible days for the meeting.
-    - schedules: A dictionary where keys are participant names, and values are lists of busy time intervals (e.g., "9:00-10:00").
-
-    Example:
-    Text: You need to schedule a meeting for Daniel, Kathleen, and Carolyn for half an hour on Monday. Daniel is busy 9:00-9:30, Kathleen is busy 10:00-11:00, and Carolyn is busy 14:00-15:00.
-    Output:
-    {{
-      "participants": ["Daniel", "Kathleen", "Carolyn"],
-      "duration": "half an hour",
-      "days": ["Monday"],
-      "schedules": {{
-        "Daniel": ["9:00-9:30"],
-        "Kathleen": ["10:00-11:00"],
-        "Carolyn": ["14:00-15:00"]
-      }}
-    }}
-
-    Now, extract the structured information from the following text:
-    {question}
-    """
-    try:
-        response = call_llm(prompt, system_instruction)
-        return json.loads(response)
-    except Exception as e:
-        print(f"Error extracting structured info: {e}")
-        return None
-
-def verify_extracted_info(extracted_info, question):
-    """Verify the extracted information against the original question using LLM."""
-    system_instruction = "You are a meticulous verifier, checking information extraction for accuracy."
-    prompt = f"""
-    You are provided with structured information extracted from a text and the original text.
-    Verify that the extracted information is complete, accurate, and consistent with the original text.
-    If there are any errors or omissions, explain them in detail. If the extraction is perfect, respond with "VALID".
-
-    Example:
-    Text: Schedule a meeting for John and Jane on Tuesday. John is busy 9:00-10:00.
-    Extracted Info:
-    {{
-      "participants": ["John"],
-      "duration": null,
-      "days": ["Tuesday"],
-      "schedules": {{
-        "John": ["9:00-10:00"]
-      }}
-    }}
-    Verification Result:
-    "INVALID: Missing participant 'Jane'. Duration is not specified."
-
-    Text: Schedule a meeting for Alice and Bob for one hour on Wednesday. Alice is busy 11:00-12:00, Bob is busy 14:00-15:00.
-    Extracted Info:
-    {{
-      "participants": ["Alice", "Bob"],
-      "duration": "one hour",
-      "days": ["Wednesday"],
-      "schedules": {{
-        "Alice": ["11:00-12:00"],
-        "Bob": ["14:00-15:00"]
-      }}
-    }}
-    Verification Result: VALID
-
-    Now, verify the extracted info against the following text:
-    Text: {question}
-    Extracted Info: {json.dumps(extracted_info)}
-    """
-    try:
-        response = call_llm(prompt, system_instruction)
-        return response
-    except Exception as e:
-        print(f"Error verifying extracted info: {e}")
-        return None
-
-def find_available_time(extracted_info):
-    """Find an available meeting time using LLM, given the extracted and verified info."""
-    system_instruction = "You are an expert at determining available meeting times based on participant schedules."
-    prompt = f"""
-    Given the extracted meeting information, determine an available time slot that works for all participants, considering their schedules and any other constraints.
-    Respond in the format: "Here is the proposed time: [Day], [Start Time] - [End Time]". If no time is available, respond with "No available time found."
-
-    Example:
-    Extracted Info:
-    {{
-      "participants": ["Daniel", "Kathleen"],
-      "duration": "half an hour",
-      "days": ["Monday"],
-      "schedules": {{
-        "Daniel": ["9:00-9:30"],
-        "Kathleen": ["10:00-11:00"]
-      }}
-    }}
-    Available Time: Here is the proposed time: Monday, 9:30 - 10:00
-
-    Now, find an available time for the following extracted info:
-    {json.dumps(extracted_info)}
-    """
-    try:
-        response = call_llm(prompt, system_instruction)
-        return response
-    except Exception as e:
-        print(f"Error finding available time: {e}")
-        return None
-
-def main(question):
-    """Main function to schedule a meeting."""
-    try:
-        # 1. Extract structured information
-        extracted_info = extract_info_structured(question)
-        if not extracted_info:
-            return "Error: Could not extract information."
-
-        # 2. Verify extracted information
-        verification_result = verify_extracted_info(extracted_info, question)
-        if "VALID" not in verification_result:
-            return f"Error: Information extraction verification failed: {verification_result}"
-
-        # 3. Find available time
-        available_time = find_available_time(extracted_info)
-        if not available_time:
-            return "Error: Could not find available time."
-
-        return available_time
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return "An error occurred while scheduling the meeting."
