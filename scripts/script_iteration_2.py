@@ -1,7 +1,8 @@
 import os
 import json
 import re
-import math
+import datetime
+from datetime import timedelta
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -33,159 +34,188 @@ def call_llm(prompt, system_instruction=None):
         return f"Error: {str(e)}"
 
 def main(question):
-    """Orchestrates meeting scheduling using iterative extraction and verification."""
-    # Step 1: Extract initial meeting details
-    meeting_details = extract_meeting_details(question)
-
-    # Step 2: Validate the extracted details and refine if necessary
-    validated_details = validate_meeting_details(question, meeting_details)
-
-    # Step 3: Generate candidate meeting times
-    candidate_times = generate_candidate_times(validated_details)
-
-    # Step 4: Check constraints against the candidate times
-    available_times = check_constraints(validated_details, candidate_times)
-    
-    # Step 5: Return available times
-    if available_times:
-        solution = f"Here is the proposed time: {available_times[0]}"
-    else:
-        solution = "No suitable meeting time found."
-    return solution
-
-def extract_meeting_details(question):
-    """Extracts meeting details from the input question."""
-    system_instruction = "You are a meeting scheduling assistant."
-    prompt = f"""
-    Extract the following meeting details from the question: participants, duration, working hours, possible days, and existing schedules.
-
-    Example Input:
-    Schedule a meeting for John, Jane, and Peter for 30 minutes between 9:00 and 17:00 on Monday. John is busy from 10:00-11:00, Jane is busy from 14:00-15:00, and Peter is free all day.
-
-    Expected Output:
-    {{
-      "participants": ["John", "Jane", "Peter"],
-      "duration": "30 minutes",
-      "working_hours": ["9:00", "17:00"],
-      "possible_days": ["Monday"],
-      "schedules": {{
-        "John": {{"Monday": ["10:00-11:00"]}},
-        "Jane": {{"Monday": ["14:00-15:00"]}},
-        "Peter": {{"Monday": []}}
-      }}
-    }}
-
-    Input Question: {question}
     """
-    return call_llm(prompt, system_instruction)
-
-def validate_meeting_details(question, meeting_details):
-    """Validates the extracted meeting details and refines if necessary."""
-    system_instruction = "You are a meeting scheduling expert."
-    prompt = f"""
-    Validate the following meeting details extracted from the question. If any details are incorrect or missing, correct them.
-
-    Example Input:
-    Question: Schedule a meeting for Alice and Bob for 1 hour between 9:00 and 17:00 on Tuesday. Alice is busy from 10:00-11:00.
-    Extracted Details:
-    {{
-      "participants": ["Alice", "Bob"],
-      "duration": "1 hour",
-      "working_hours": ["9:00", "17:00"],
-      "possible_days": ["Tuesday"],
-      "schedules": {{
-        "Alice": {{"Tuesday": ["10:00-11:00"]}},
-        "Bob": {{"Tuesday": []}}
-      }}
-    }}
-    
-    Reasoning:
-    The extracted details seem correct based on the question provided.
-    
-    Validated Details:
-    {{
-      "participants": ["Alice", "Bob"],
-      "duration": "1 hour",
-      "working_hours": ["9:00", "17:00"],
-      "possible_days": ["Tuesday"],
-      "schedules": {{
-        "Alice": {{"Tuesday": ["10:00-11:00"]}},
-        "Bob": {{"Tuesday": []}}
-      }}
-    }}
-
-    Question: {question}
-    Extracted Details: {meeting_details}
+    Schedules meetings by first summarizing the schedules into a standard format,
+    then generating and filtering slots, and finally selecting the best slot.
     """
-    return call_llm(prompt, system_instruction)
+    try:
+        schedule_summary = summarize_schedules(question)
+        if "Error" in schedule_summary:
+            return "Error summarizing schedules."
 
-def generate_candidate_times(validated_details):
-    """Generates candidate meeting times."""
-    working_hours = validated_details.split('"working_hours": [')[1].split(']')[0].replace('"', '').split(', ')
-    start_time = working_hours[0]
-    end_time = working_hours[1]
-    duration = validated_details.split('"duration": "')[1].split('"')[0]
-    duration_minutes = int(duration.split(" ")[0])
+        possible_slots = generate_meeting_slots(schedule_summary)
+        if "Error" in possible_slots:
+            return "Error generating possible meeting slots."
 
-    possible_times = []
-    days = validated_details.split('"possible_days": [')[1].split(']')[0].replace('"', '').split('", "')
-    for day in days:
-        current_time = start_time
-        while True:
-            start_hour, start_minute = map(int, current_time.split(':'))
-            end_hour, end_minute = map(int, end_time.split(':'))
-            if start_hour > end_hour or (start_hour == end_hour and start_minute >= end_minute):
-                break
-            
-            possible_end_minute = start_minute + duration_minutes
-            possible_end_hour = start_hour
-            if possible_end_minute >= 60:
-                possible_end_hour = start_hour + 1
-                possible_end_minute = possible_end_minute - 60
-                
-            #Format End Time
-            end_time_string = str(possible_end_hour).zfill(2) + ":" + str(possible_end_minute).zfill(2)
-            
-            #Add in Zfill
-            possible_times.append(f"{day}, {current_time} - {end_time_string}")
-            
-            start_minute = start_minute + 30
-            if start_minute >= 60:
-                start_hour = start_hour + 1
-                start_minute = start_minute - 60
+        filtered_slots = filter_meeting_slots(schedule_summary, possible_slots)
+        if "Error" in filtered_slots:
+            return "Error filtering meeting slots."
 
-            current_time = str(start_hour).zfill(2) + ":" + str(start_minute).zfill(2)
+        best_slot = select_best_meeting_slot(schedule_summary, filtered_slots)
+        if "Error" in best_slot:
+            return "Error selecting the best meeting slot."
 
-    return possible_times
+        return best_slot
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
 
-def check_constraints(validated_details, candidate_times):
-    """Checks constraints against the candidate meeting times."""
-    schedule = validated_details.split('"schedules": {')[1].split('}')[0]
-    available_times = []
-    for time in candidate_times:
-        day = time.split(",")[0]
-        start_time = time.split(", ")[1].split(" - ")[0]
-        end_time = time.split(" - ")[1]
-        is_available = True
+def summarize_schedules(question):
+    """Summarizes the schedules into a structured format using LLM."""
+    system_instruction = "You are an expert at summarizing meeting schedules."
+    prompt = f"""
+    Summarize the following meeting scheduling request into a structured format:
 
-        participants = validated_details.split('"participants": [')[1].split(']')[0].replace('"', '').split('", "')
-        for participant in participants:
-            if participant in schedule:
-                schedule_data = validated_details.split('"schedules": {')[1].split('}')[0]
-                schedule_data_part = schedule_data.split(participant + '": {')[1].split('}')[0]
-                busy_slots = []
-                if day in schedule_data_part:
-                    busy_slots = schedule_data_part.split('"'+day+'": [')[1].split(']')[0].replace('"', '').split('", "')
+    Example:
+    Input: You need to schedule a meeting for John and Jennifer for half an hour between the work hours of 9:00 to 17:00 on either Monday, Tuesday or Wednesday. 
+    Here are the existing schedules for everyone during the days: 
+    John has no meetings the whole week.
+    Jennifer has meetings on Monday during 9:00 to 11:00, 11:30 to 13:00, 13:30 to 14:30, 15:00 to 17:00, Tuesday during 9:00 to 11:30, 12:00 to 17:00, Wednesday during 9:00 to 11:30, 12:00 to 12:30, 13:00 to 14:00, 14:30 to 16:00, 16:30 to 17:00; 
+    John would like to avoid more meetings on Monday after 14:30. Tuesday. Wednesday.
+    Output:
+    {{
+      "participants": ["John", "Jennifer"],
+      "duration": 30,
+      "days": ["Monday", "Tuesday", "Wednesday"],
+      "work_hours": ["9:00", "17:00"],
+      "schedules": {{
+        "John": {{
+          "Monday": [],
+          "Tuesday": [],
+          "Wednesday": []
+        }},
+        "Jennifer": {{
+          "Monday": [["9:00", "11:00"], ["11:30", "13:00"], ["13:30", "14:30"], ["15:00", "17:00"]],
+          "Tuesday": [["9:00", "11:30"], ["12:00", "17:00"]],
+          "Wednesday": [["9:00", "11:30"], ["12:00", "12:30"], ["13:00", "14:00"], ["14:30", "16:00"], ["16:30", "17:00"]]
+        }}
+      }},
+      "preferences": {{
+        "John": {{"Monday": "14:30"}}
+      }}
+    }}
+    Input: {question}
+    Output:
+    """
+    try:
+        llm_response = call_llm(prompt, system_instruction)
+        return llm_response
+    except Exception as e:
+        return f"Error summarizing schedules: {str(e)}"
 
-                for busy_slot in busy_slots:
-                    if busy_slot != '':
-                        busy_start, busy_end = busy_slot.split('-')
-                        if not (end_time <= busy_start or start_time >= busy_end):
-                            is_available = False
-                            break
-            if not is_available:
-                break
+def generate_meeting_slots(schedule_summary_str):
+    """Generates possible meeting slots based on the summarized schedule using Python code."""
+    try:
+        schedule_summary = json.loads(schedule_summary_str)
+        duration = schedule_summary["duration"]
+        work_hours = schedule_summary["work_hours"]
+        days = schedule_summary["days"]
 
-        if is_available:
-            available_times.append(time)
-    return available_times
+        start_time = datetime.datetime.strptime(work_hours[0], "%H:%M").time()
+        end_time = datetime.datetime.strptime(work_hours[1], "%H:%M").time()
+
+        slots = []
+        for day in days:
+            current_time = datetime.datetime.combine(datetime.date.today(), start_time)
+            end_datetime = datetime.datetime.combine(datetime.date.today(), end_time)
+            while current_time + timedelta(minutes=duration) <= end_datetime:
+                start_str = current_time.strftime("%H:%M")
+                end_str = (current_time + timedelta(minutes=duration)).strftime("%H:%M")
+                slots.append({"day": day, "start": start_str, "end": end_str})
+                current_time += timedelta(minutes=30)  # Increment by 30 minutes
+
+        return json.dumps(slots)
+    except Exception as e:
+        return f"Error generating meeting slots: {str(e)}"
+
+def filter_meeting_slots(schedule_summary_str, possible_slots_str):
+    """Filters out invalid meeting slots based on summarized schedules using LLM reasoning."""
+    system_instruction = "You are an expert at filtering meeting slots based on availability and constraints."
+    prompt = f"""
+    Given the summarized schedule and possible meeting slots, filter the slots to find times that work for everyone, considering their schedules and constraints.
+
+    Example:
+    Summarized Schedule:
+    {{
+      "participants": ["John", "Jennifer"],
+      "duration": 30,
+      "days": ["Monday"],
+      "work_hours": ["09:00", "17:00"],
+      "schedules": {{
+        "John": {{
+          "Monday": []
+        }},
+        "Jennifer": {{
+          "Monday": [["09:00", "11:00"], ["11:30", "13:00"]]
+        }}
+      }},
+      "preferences": {{}}
+    }}
+    Possible Slots:
+    [
+      {{"day": "Monday", "start": "11:00", "end": "11:30"}},
+      {{"day": "Monday", "start": "13:00", "end": "13:30"}},
+      {{"day": "Monday", "start": "15:00", "end": "15:30"}}
+    ]
+    Filtered Slots:
+    [
+      {{"day": "Monday", "start": "13:00", "end": "13:30"}},
+      {{"day": "Monday", "start": "15:00", "end": "15:30"}}
+    ]
+
+    Summarized Schedule: {schedule_summary_str}
+    Possible Slots: {possible_slots_str}
+    Filtered Slots:
+    """
+    try:
+        llm_response = call_llm(prompt, system_instruction)
+        return llm_response
+    except Exception as e:
+        return f"Error filtering meeting slots: {str(e)}"
+
+def select_best_meeting_slot(schedule_summary_str, filtered_slots_str):
+    """Selects the best meeting slot based on preferences using LLM."""
+    system_instruction = "You are an expert at selecting the best meeting slot from available options, considering preferences."
+    prompt = f"""
+    Given the summarized schedule and filtered meeting slots, select the best slot based on stated preferences. If no preferences are stated, return the first available slot.
+
+    Example:
+    Summarized Schedule:
+    {{
+      "participants": ["David", "Ethan", "Bradley", "Natalie"],
+      "duration": 30,
+      "days": ["Monday"],
+      "work_hours": ["09:00", "17:00"],
+      "schedules": {{
+        "David": {{
+          "Monday": [["14:00", "14:30"], ["16:30", "17:00"]]
+        }},
+        "Ethan": {{
+          "Monday": [["13:00", "13:30"], ["14:30", "15:00"]]
+        }},
+        "Bradley": {{
+          "Monday": [["09:30", "10:30"], ["11:00", "12:00"], ["13:30", "14:00"], ["15:30", "17:00"]]
+        }},
+        "Natalie": {{
+          "Monday": [["09:30", "10:00"], ["10:30", "12:00"], ["12:30", "15:30"], ["16:00", "17:00"]]
+        }}
+      }},
+      "preferences": {{
+        "Natalie": {{"Monday": "10:30"}}
+      }}
+    }}
+    Filtered Slots:
+    [
+      {{"day": "Monday", "start": "09:00", "end": "09:30"}},
+      {{"day": "Monday", "start": "15:30", "end": "16:00"}}
+    ]
+    Best Slot: Here is the proposed time: Monday, 09:00 - 09:30
+
+    Summarized Schedule: {schedule_summary_str}
+    Filtered Slots: {filtered_slots_str}
+    Best Slot:
+    """
+    try:
+        llm_response = call_llm(prompt, system_instruction)
+        return "Here is the proposed time: " + llm_response
+    except Exception as e:
+        return f"Error selecting best slot: {str(e)}"

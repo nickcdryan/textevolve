@@ -1,12 +1,12 @@
 {
   "iteration": 4,
-  "timestamp": "2025-04-17T23:15:37.173200",
+  "timestamp": "2025-04-18T03:35:40.208562",
   "strategy": "Exploration",
-  "explore_rate": 90,
-  "exploit_rate": 10,
+  "explore_rate": 80,
+  "exploit_rate": 20,
   "batch_size": 5,
-  "script": "import os\nimport json\nimport re\nimport math\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef extract_meeting_data(question):\n    \"\"\"Extracts meeting data using LLM with structured extraction and validation.\"\"\"\n    system_instruction = \"You are an expert at extracting meeting details.\"\n    prompt = f\"\"\"\n    Extract meeting details from the input. Output a JSON with 'participants', 'duration_minutes', 'days', and 'availability' (participant: day: [start-end]).\n\n    Example:\n    Input: Schedule John and Mary for 30 minutes on Monday between 9-5. John is busy 10-11, Mary is free.\n    Output:\n    {{\n        \"participants\": [\"John\", \"Mary\"],\n        \"duration_minutes\": 30,\n        \"days\": [\"Monday\"],\n        \"availability\": {{\n            \"John\": {{ \"Monday\": [\"9:00-10:00\", \"11:00-17:00\"] }},\n            \"Mary\": {{ \"Monday\": [\"9:00-17:00\"] }}\n        }}\n    }}\n    \n    Input: {question}\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef validate_extracted_data(extracted_data):\n    \"\"\"Validates the extracted data using LLM, correcting inconsistencies.\"\"\"\n    system_instruction = \"You are an expert at validating meeting data.\"\n    prompt = f\"\"\"\n    Validate the extracted meeting data. Check for inconsistencies and correct them. Output a valid JSON.\n\n    Example:\n    Input:\n    {{\n        \"participants\": [\"John\", \"Mary\"],\n        \"duration_minutes\": 30,\n        \"days\": [\"Mondays\"],\n        \"availability\": {{\n            \"John\": {{ \"Monday\": [\"9:00-10:00\", \"11:00-17:00\"] }},\n            \"Mary\": {{ \"Monday\": [\"9:00-17:00\"] }}\n        }}\n    }}\n    Output:\n    {{\n        \"participants\": [\"John\", \"Mary\"],\n        \"duration_minutes\": 30,\n        \"days\": [\"Monday\"],\n        \"availability\": {{\n            \"John\": {{ \"Monday\": [\"9:00-10:00\", \"11:00-17:00\"] }},\n            \"Mary\": {{ \"Monday\": [\"9:00-17:00\"] }}\n        }}\n    }}\n    \n    Input: {extracted_data}\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef find_meeting_time(validated_data):\n    \"\"\"Finds a valid meeting time based on validated data, using LLM for final suggestion.\"\"\"\n    system_instruction = \"You are an expert meeting scheduler.\"\n    prompt = f\"\"\"\n    Find a valid meeting time based on the following validated meeting data. Suggest a meeting time or state if impossible.\n    Prioritize the earliest available time.\n\n    Example:\n    Input:\n    {{\n        \"participants\": [\"John\", \"Mary\"],\n        \"duration_minutes\": 30,\n        \"days\": [\"Monday\"],\n        \"availability\": {{\n            \"John\": {{ \"Monday\": [\"9:00-10:00\", \"11:00-17:00\"] }},\n            \"Mary\": {{ \"Monday\": [\"9:00-17:00\"] }}\n        }}\n    }}\n    Output: Here is the proposed time: Monday, 9:00 - 9:30\n    \n    Input: {validated_data}\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef main(question):\n    \"\"\"Main function to schedule meetings.\"\"\"\n    try:\n        # 1. Extract data\n        extracted_data = extract_meeting_data(question)\n\n        # 2. Validate and correct extracted data\n        validated_data = validate_extracted_data(extracted_data)\n\n        # 3. Find a meeting time\n        meeting_time = find_meeting_time(validated_data)\n        return meeting_time\n\n    except Exception as e:\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script schedules meetings by using an LLM to extract meeting details, validate the extracted data, and find a valid meeting time. The problem is decomposed into three stages: `extract_meeting_data`, `validate_extracted_data`, and `find_meeting_time`. Each stage utilizes the `call_llm` function to interact with the LLM. The workflow is sequential: the `main` function calls `extract_meeting_data`, then `validate_extracted_data`, and finally `find_meeting_time`, returning the suggested meeting time or an error message.",
+  "script": "import os\nimport json\nimport re\nimport datetime\nfrom datetime import timedelta\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question):\n    \"\"\"Schedules meetings using a new approach: Multi-stage information extraction with structured output and ReAct for slot finding.\"\"\"\n    try:\n        # 1. Extract structured meeting information using multi-stage extraction\n        meeting_info = extract_structured_meeting_info(question)\n        if \"Error\" in meeting_info:\n            return \"Error extracting meeting information.\"\n\n        # 2. Use ReAct pattern to find a valid meeting slot\n        best_slot = find_meeting_slot_with_react(meeting_info)\n        if \"Error\" in best_slot:\n            return \"Error finding a valid meeting slot.\"\n\n        return best_slot\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef extract_structured_meeting_info(question):\n    \"\"\"Extracts meeting information in a structured format using LLM with embedded examples.\"\"\"\n    system_instruction = \"You are an expert at extracting meeting scheduling details into a structured format.\"\n    prompt = f\"\"\"\n    Extract structured meeting information from the following text. Return the information as a JSON object.\n    \n    Example:\n    Input: You need to schedule a meeting for John and Jane for 30 minutes between 9:00 and 17:00 on Monday. John is busy 10:00-11:00, Jane is busy 13:00-14:00.\n    Output:\n    {{\n      \"participants\": [\"John\", \"Jane\"],\n      \"duration\": 30,\n      \"days\": [\"Monday\"],\n      \"work_hours\": [\"9:00\", \"17:00\"],\n      \"schedules\": {{\n        \"John\": [[\"10:00\", \"11:00\"]],\n        \"Jane\": [[\"13:00\", \"14:00\"]]\n      }}\n    }}\n    \n    Input: {question}\n    Output:\n    \"\"\"\n    try:\n        extracted_info = call_llm(prompt, system_instruction)\n        return extracted_info\n    except Exception as e:\n        return f\"Error extracting info: {str(e)}\"\n\ndef find_meeting_slot_with_react(meeting_info_str):\n    \"\"\"Finds a valid meeting slot using the ReAct pattern with LLM reasoning.\"\"\"\n    system_instruction = \"You are a ReAct agent for finding valid meeting times, alternating between reasoning and actions.\"\n    prompt = f\"\"\"\n    You are provided with meeting information in JSON format. Use the ReAct pattern to find a valid meeting slot.\n    \n    Meeting Information:\n    {meeting_info_str}\n    \n    Here's how to use the ReAct pattern:\n    1. REASON: Start by carefully reviewing the meeting information and identify available time slots.\n    2. ACTION: Propose a potential meeting slot (e.g., \"Monday, 14:00 - 14:30\").\n    3. OBSERVATION: Check if the proposed slot conflicts with any participant's schedule.\n    4. Repeat steps 1-3 until a valid slot is found, or you determine no valid slot exists.\n    5. FINISH: Once a valid slot is found, output the result (e.g., \"Valid meeting slot: Monday, 14:00 - 14:30\"). If no valid slot can be found, output \"No valid meeting slot found\".\n    \n    Example:\n    Meeting Information:\n    {{\n      \"participants\": [\"John\", \"Jane\"],\n      \"duration\": 30,\n      \"days\": [\"Monday\"],\n      \"work_hours\": [\"9:00\", \"17:00\"],\n      \"schedules\": {{\n        \"John\": [[\"10:00\", \"11:00\"]],\n        \"Jane\": [[\"13:00\", \"14:00\"]]\n      }}\n    }}\n    \n    Thought 1: Okay, let's find a 30-minute slot on Monday between 9:00 and 17:00 that works for both John and Jane, considering their schedules.\n    Action 1: Propose Monday, 9:00 - 9:30\n    Observation 1: John is available. Jane is available. The proposed slot is valid.\n    Action 2: FINISH Valid meeting slot: Monday, 9:00 - 9:30\n    \n    Let's begin! Start with Thought 1.\n    \"\"\"\n    try:\n        react_response = call_llm(prompt, system_instruction)\n        # Extract result. If finding result failed it should say No valid meeting slot found\n        if \"Valid meeting slot\" in react_response:\n            return react_response.split(\"Valid meeting slot: \")[1].strip()\n        else:\n            return \"No valid meeting slot found\"\n\n    except Exception as e:\n        return f\"Error finding slot: {str(e)}\"",
+  "approach_summary": "The script schedules meetings by first extracting structured meeting information (participants, duration, time constraints, and existing schedules) using the `extract_structured_meeting_info` function, which uses the LLM to extract information in JSON format from the prompt. The `find_meeting_slot_with_react` function then uses the ReAct pattern to find a valid meeting slot, where the LLM reasons about potential slots, proposes a slot as an action, and observes for conflicts based on participant schedules until a suitable slot is found or no slot can be found. The `main` function orchestrates the process by calling `extract_structured_meeting_info` to parse the question, then uses `find_meeting_slot_with_react` to determine the best slot, and finally returns the found meeting slot or an error message if it failed.",
   "sample_count": 5,
   "samples": [
     {
@@ -58,387 +58,187 @@
   "results": [
     {
       "success": true,
-      "answer": "Here is the proposed time: Monday, 16:30 - 17:00",
-      "output": "ANSWER_START\nHere is the proposed time: Monday, 16:30 - 17:00\nANSWER_END\n",
+      "answer": "Monday, 16:30 - 17:00",
+      "output": "ANSWER_START\nMonday, 16:30 - 17:00\nANSWER_END\n",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are exactly the same, conveying the same proposed time."
+        "explanation": "Both answers clearly state the same proposed time for a meeting: Monday, 16:30 - 17:00. The Golden answer includes introductory wording, but it does not change the meaning."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "Here is the proposed time: Wednesday, 13:00 - 14:00",
-      "output": "ANSWER_START\nHere is the proposed time: Wednesday, 13:00 - 14:00\nANSWER_END\n",
+      "answer": "Wednesday, 14:30 - 15:30",
+      "output": "ANSWER_START\nWednesday, 14:30 - 15:30\nANSWER_END\n",
       "evaluation": {
         "match": false,
         "confidence": 1.0,
-        "explanation": "The answers propose different times for the meeting (13:00-14:00 vs 9:30-10:30), so they do not convey the same information."
+        "explanation": "The two answers provide a suggested meeting time, but the provided times do not match."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Here is the proposed time: Monday, 15:00 - 15:30",
-      "output": "ANSWER_START\nHere is the proposed time: Monday, 15:00 - 15:30\nANSWER_END\n",
-      "evaluation": {
-        "match": true,
-        "confidence": 1.0,
-        "explanation": "The answers are identical and convey the exact same information."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Here is the proposed time: Monday, 15:30 - 16:00",
-      "output": "ANSWER_START\nHere is the proposed time: Monday, 15:30 - 16:00\nANSWER_END\n",
-      "evaluation": {
-        "match": true,
-        "confidence": 1.0,
-        "explanation": "Both answers provide the exact same time and day proposal. There are no differences in wording that would alter the conveyed information."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Here is the proposed time: Tuesday, 15:00 - 16:00",
-      "output": "ANSWER_START\nHere is the proposed time: Tuesday, 15:00 - 16:00\nANSWER_END\n",
+      "answer": "No valid meeting slot found",
+      "output": "ANSWER_START\nNo valid meeting slot found\nANSWER_END\n",
       "evaluation": {
         "match": false,
         "confidence": 1.0,
-        "explanation": "The system answer and the golden answer propose different days and times for the meeting, thus they do not convey the same information."
+        "explanation": "The system answer indicates that no meeting slot could be found, while the golden answer proposes a specific time for the meeting. These two statements contradict each other. Therefore, the answers do not effectively communicate the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Monday, 15:30 - 16:00",
+      "output": "ANSWER_START\nMonday, 15:30 - 16:00\nANSWER_END\n",
+      "evaluation": {
+        "match": true,
+        "confidence": 1.0,
+        "explanation": "Both answers indicate the same day and time, despite the slightly different phrasing. The core information (day and time) is identical."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "No valid meeting slot found",
+      "output": "ANSWER_START\nNo valid meeting slot found\nANSWER_END\n",
+      "evaluation": {
+        "match": false,
+        "confidence": 1.0,
+        "explanation": "The system answer indicates that a valid meeting slot was not found, implying that a meeting cannot be scheduled. The golden answer proposes a specific meeting time, indicating that a meeting can be scheduled at that time. These answers directly contradict each other and therefore do not communicate the same information."
       },
       "match": false
     }
   ],
   "performance": {
-    "accuracy": 0.6,
-    "correct_count": 3,
+    "accuracy": 0.4,
+    "correct_count": 2,
     "total_count": 5,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Here is the proposed time: Monday, 16:30 - 17:00",
+        "system_answer": "Monday, 16:30 - 17:00",
         "golden_answer": "Here is the proposed time: Monday, 16:30 - 17:00",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 16:30 - 17:00\nANSWER_END\n",
+        "output": "ANSWER_START\nMonday, 16:30 - 17:00\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are exactly the same, conveying the same proposed time."
+          "explanation": "Both answers clearly state the same proposed time for a meeting: Monday, 16:30 - 17:00. The Golden answer includes introductory wording, but it does not change the meaning."
         }
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "Here is the proposed time: Wednesday, 13:00 - 14:00",
+        "system_answer": "Wednesday, 14:30 - 15:30",
         "golden_answer": "Here is the proposed time: Wednesday, 9:30 - 10:30",
-        "output": "ANSWER_START\nHere is the proposed time: Wednesday, 13:00 - 14:00\nANSWER_END\n",
+        "output": "ANSWER_START\nWednesday, 14:30 - 15:30\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1.0,
-          "explanation": "The answers propose different times for the meeting (13:00-14:00 vs 9:30-10:30), so they do not convey the same information."
+          "explanation": "The two answers provide a suggested meeting time, but the provided times do not match."
         },
         "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "Here is the proposed time: Monday, 15:00 - 15:30",
+        "system_answer": "No valid meeting slot found",
         "golden_answer": "Here is the proposed time: Monday, 15:00 - 15:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 15:00 - 15:30\nANSWER_END\n",
-        "match": true,
+        "output": "ANSWER_START\nNo valid meeting slot found\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1.0,
-          "explanation": "The answers are identical and convey the exact same information."
-        }
+          "explanation": "The system answer indicates that no meeting slot could be found, while the golden answer proposes a specific time for the meeting. These two statements contradict each other. Therefore, the answers do not effectively communicate the same information."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "Here is the proposed time: Monday, 15:30 - 16:00",
+        "system_answer": "Monday, 15:30 - 16:00",
         "golden_answer": "Here is the proposed time: Monday, 15:30 - 16:00",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 15:30 - 16:00\nANSWER_END\n",
+        "output": "ANSWER_START\nMonday, 15:30 - 16:00\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1.0,
-          "explanation": "Both answers provide the exact same time and day proposal. There are no differences in wording that would alter the conveyed information."
+          "explanation": "Both answers indicate the same day and time, despite the slightly different phrasing. The core information (day and time) is identical."
         }
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "Here is the proposed time: Tuesday, 15:00 - 16:00",
+        "system_answer": "No valid meeting slot found",
         "golden_answer": "Here is the proposed time: Monday, 10:00 - 11:00",
-        "output": "ANSWER_START\nHere is the proposed time: Tuesday, 15:00 - 16:00\nANSWER_END\n",
+        "output": "ANSWER_START\nNo valid meeting slot found\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1.0,
-          "explanation": "The system answer and the golden answer propose different days and times for the meeting, thus they do not convey the same information."
+          "explanation": "The system answer indicates that a valid meeting slot was not found, implying that a meeting cannot be scheduled. The golden answer proposes a specific meeting time, indicating that a meeting can be scheduled at that time. These answers directly contradict each other and therefore do not communicate the same information."
         },
         "capability_failures": []
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nThere are no visible runtime errors (e.g., JSONDecodeError, TypeError) in the provided outputs. This suggests the issues lie in the reasoning or logic rather than code execution problems.\n\n## STRENGTHS\n1. **Clear Output Formatting**: The system provides its answers in a consistent format (\"Here is the proposed time: ...\"). This makes it easier to parse the output and evaluate its correctness.\n2. **Constraint Awareness**: The problem descriptions explicitly state that a feasible solution exists. The system appears to attempt to satisfy constraints, although it sometimes fails.\n\n## WEAKNESSES\n1. **Constraint Handling Errors**: The system fails to correctly incorporate all the provided constraints when generating the meeting schedule. It sometimes proposes times that conflict with the participant's existing blocked schedules.\n2. **Preference Ignoring**: In the first example, Barbara expresses a preference *not* to meet on Tuesday. This preference seems to be completely ignored by the system.\n\n## CRITICAL BOTTLENECKS\n1. **Inaccurate Constraint Application**: The primary bottleneck appears to be the inaccurate application of constraints extracted from the input text when generating potential meeting times.\n2. **Preference Handling**: The system is not effectively incorporating participant preferences into the scheduling process.\n\n## ERROR PATTERNS\nThe dominant pattern is a failure to fully integrate the provided constraints, specifically individual schedules and stated preferences, into the meeting time generation process. The proposed times often conflict with explicitly blocked timeslots.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's unreliable constraint handling, leading to proposals of meeting times that violate explicitly stated scheduling conflicts. The system is failing to accurately identify available time slots for all participants.\n\n## IMPROVEMENT AREAS\n1. **Constraint Handling**: Improve the extraction and application of scheduling constraints. Focus on precisely identifying blocked time slots for each participant and avoiding those times.\n2. **Preference Handling**: Incorporate preferences into the scheduling decision-making process.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Enhanced Information Extraction**: Improve information extraction to focus specifically on blocked time slots for each person and the days available for meetings, including preferences. Employ a more robust parsing mechanism or leverage LLMs for more accurate extraction.\n2. **Explicit Constraint Verification**: Before proposing a meeting time, implement an explicit constraint verification step. This step should take a proposed meeting time and verify that it does not conflict with any participant's blocked schedule or expressed preferences.\n3. **Re-rank Possible Solutions**: When generating potential times, filter impossible solutions by each constraints that need to be satisfied.\n\n## CAPABILITY MAPPING\n*   **Sample 1:**\n    *   information_extraction (partially failed: failed to extract preference)\n    *   constraint_handling (failed)\n    *   solution_generation (failed: generated invalid solution)\n    *   solution_verification (failed: didn't detect the conflict)\n    *   decision_making (failed: selected invalid solution)\n*   **Sample 4:**\n    *   information_extraction (partially failed: failed to fully extract time constraints)\n    *   constraint_handling (failed)\n    *   solution_generation (failed: generated invalid solution)\n    *   solution_verification (failed: didn't detect the conflict)\n    *   decision_making (failed: selected invalid solution)\n",
-      "strengths": [],
-      "weaknesses": [],
-      "primary_issue": "The most critical problem is the system's unreliable constraint handling, leading to proposals of meeting times that violate explicitly stated scheduling conflicts. The system is failing to accurately identify available time slots for all participants.",
-      "improvement_suggestions": [],
+      "text_report": "## RUNTIME ERRORS\nThere are no visible runtime errors (e.g. JSONDecodeError, TypeError) provided in the error cases. The system appears to complete execution without crashing, but it arrives at incorrect conclusions.\n\n## STRENGTHS\n- The system attempts to follow the scheduling instructions and considers constraints.\n- The system is able to process relatively complex scheduling scenarios with multiple participants and time blocks.\n\n## WEAKNESSES\n- **Inaccurate Constraint Handling:** The system struggles with accurately interpreting and applying constraints related to busy schedules. This is evident in cases where valid meeting slots are missed.\n- **Limited Reasoning Depth:** The system lacks the reasoning depth necessary to fully explore all possible meeting slots and accurately determine availability.\n- **Lack of Explicit Reasoning Trace:** There is no explicit log of the system's reasoning process, making it difficult to pinpoint exactly where the errors occur.\n\n## CRITICAL BOTTLENECKS\n- **Constraint Evaluation:** Accurately evaluating whether a given time slot satisfies all constraints.\n- **Exhaustive Slot Search:** Thoroughly searching for all possible meeting slots, especially when dealing with multiple participants and busy schedules.\n\n## ERROR PATTERNS\n- **Missed Valid Solutions:** In all error cases, the system fails to identify a valid meeting slot that is presented in the golden answer.\n- **Binary Output:** The system returns a binary output (\"Valid slot found\" or \"No valid slot found\"), which does not give insight into the decision making.\n\n## PRIMARY ISSUE\nThe primary issue is the system's inability to accurately evaluate time slot availability, leading to missed valid solutions. This suggests a flaw in the core constraint handling logic. The system seems to prematurely terminate the search for valid slots before exploring all possibilities, or misinterprets participants' availabilities.\n\n## IMPROVEMENT AREAS\n- **Constraint Handling:** Develop more robust and accurate constraint handling logic to ensure that all constraints are correctly applied. This should include careful consideration of edge cases and potential conflicts.\n- **Solution Generation:** Improve the solution generation process to explore all possible meeting slots systematically and exhaustively.\n- **Reasoning Trace:** Add detailed logging to trace reasoning process, which can provide better insight into the decision making process.\n\n## IMPROVEMENT SUGGESTIONS\n- **Explicit Availability Matrix:** Create an explicit availability matrix for each participant, representing their availability in small time increments (e.g., 15-minute intervals). This would allow the system to visualize and easily evaluate potential meeting slots.\n- **Constraint Checking Function:** Implement a dedicated function for checking whether a given time slot satisfies all constraints. This function should be thoroughly tested and validated.\n- **Iterative Slot Search with Backtracking:** Implement an iterative slot search algorithm that systematically explores all possible meeting slots. If a conflict is found, the algorithm should backtrack and try a different slot.\n- **Detailed Logging:** Add detailed logging to the system to track the reasoning process. This should include the constraints being considered, the potential meeting slots being evaluated, and the reasons for accepting or rejecting each slot.\n- **Increase Complexity of Training Data:** Create and incorporate more complicated training examples.\n\n## CAPABILITY MAPPING\n- **Sample 1:** constraint_handling, solution_generation, solution_verification\n- **Sample 2:** constraint_handling, solution_generation, solution_verification\n- **Sample 4:** constraint_handling, solution_generation, solution_verification\n",
+      "strengths": [
+        "The system attempts to follow the scheduling instructions and considers constraints.",
+        "The system is able to process relatively complex scheduling scenarios with multiple participants and time blocks."
+      ],
+      "weaknesses": [
+        "Inaccurate Constraint Handling:** The system struggles with accurately interpreting and applying constraints related to busy schedules. This is evident in cases where valid meeting slots are missed.",
+        "Limited Reasoning Depth:** The system lacks the reasoning depth necessary to fully explore all possible meeting slots and accurately determine availability.",
+        "Lack of Explicit Reasoning Trace:** There is no explicit log of the system's reasoning process, making it difficult to pinpoint exactly where the errors occur."
+      ],
+      "primary_issue": "The primary issue is the system's inability to accurately evaluate time slot availability, leading to missed valid solutions. This suggests a flaw in the core constraint handling logic. The system seems to prematurely terminate the search for valid slots before exploring all possibilities, or misinterprets participants' availabilities.",
+      "improvement_suggestions": [
+        "Explicit Availability Matrix:** Create an explicit availability matrix for each participant, representing their availability in small time increments (e.g., 15-minute intervals). This would allow the system to visualize and easily evaluate potential meeting slots.",
+        "Constraint Checking Function:** Implement a dedicated function for checking whether a given time slot satisfies all constraints. This function should be thoroughly tested and validated.",
+        "Iterative Slot Search with Backtracking:** Implement an iterative slot search algorithm that systematically explores all possible meeting slots. If a conflict is found, the algorithm should backtrack and try a different slot.",
+        "Detailed Logging:** Add detailed logging to the system to track the reasoning process. This should include the constraints being considered, the potential meeting slots being evaluated, and the reasons for accepting or rejecting each slot.",
+        "Increase Complexity of Training Data:** Create and incorporate more complicated training examples."
+      ],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a thorough capability assessment of your AI system based on the provided performance summary, error analysis report, sample execution outputs, and your specified sections.\n\n## EXECUTION ANALYSIS\n\nThe raw execution outputs reveal a few key issues:\n\n*   **Format Consistency:** The `ANSWER_START` and `ANSWER_END` tags confirm the system maintains a consistent output format, as noted in the \"STRENGTHS\" section of the error analysis. This is a positive aspect.\n*   **Constraint Violations (Inferred):** Without the input examples used to generate the outputs, we must infer constraint violations from the Error Analysis. The outputs, in isolation, *appear* valid. Therefore, the constraint violation is likely subtle: the proposed times likely conflict with some participants' explicit schedules or preferences.\n*   **Limited Time Range:** The very limited output sample of three results suggests that this assessment involves very simple scheduling problems.\n\n## CAPABILITY ASSESSMENT\n\nOverall, the system demonstrates a basic capability for proposing meeting times, but its constraint handling and preference integration are significantly flawed. This renders the proposed solutions unreliable and practically unusable. The core issue appears to be an insufficient understanding of the input constraints or a failure to properly translate them into actionable scheduling rules.\n\n## KEY STRENGTHS\n\n*   **Consistent Output Formatting:** This facilitates parsing and integration with other systems. This should be maintained in future iterations.\n*   **Constraint Awareness (Partial):** The system *attempts* to consider constraints.\n\n## KEY WEAKNESSES\n\n*   **Unreliable Constraint Handling:** The system's inability to consistently adhere to explicit scheduling constraints is a critical flaw. This is by far the most significant issue.\n*   **Preference Ignoring:** Ignoring user preferences degrades the quality of the proposed schedules.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Constraint Handling**.  Accurate constraint handling is foundational for a functional scheduling system. Without it, the system produces incorrect results, no matter how efficiently it may operate.\n\n## ACTIONABLE RECOMMENDATIONS\n\nHere are specific changes to implement in the next iteration, focusing on constraint handling:\n\n1.  **Implement Information Extraction Agent & Schema:**\n    *   **Create:** A specialized information extraction agent designed for scheduling.\n    *   **Focus:** Extracting and structuring participants, existing meetings, blocked time slots (with days and times), and stated preferences (days/times to avoid, preferred durations).\n    *   **Output:** Define a rigorous schema for the information extraction agent to use that structures data as:\n\n    ```json\n    {\n        \"participants\": [\n            {\n                \"name\": \"string\",\n                \"blocked_timeslots\": [\n                    {\"day\": \"string\", \"start_time\": \"string\", \"end_time\": \"string\"},\n                    ...\n                ],\n                \"preferences\": {\n                    \"avoid_days\": [\"string\"],\n                    \"preferred_duration\": \"integer\"\n                }\n            },\n            ...\n        ],\n        \"meeting_duration\": \"integer\"\n    }\n    ```\n\n    *   **Reasoning:** Use chain-of-thought prompting so that the LLM justifies why it's extracting and structuring entities.\n    *   **Verification:** Design a parsing-verification agent that checks if the structure follows the schema, and fails/succeeds depending on if the structure adheres to the schema.\n2.  **Develop Explicit Constraint Verification Agent:**\n    *   **Create:** A constraint verification agent that takes a *proposed* meeting time and the extracted schedule information (from the information extraction agent) as inputs.\n    *   **Function:**  This agent rigorously checks whether the proposed time violates *any* constraint (blocked time slots, day preferences).\n    *   **Output:** Binary output (VALID/INVALID) + a detailed explanation of *why* the time is invalid if it violates a constraint.\n    *   **Few-Shot Examples**: Provide the agent with several diverse examples of both valid and invalid times and the reasons why.\n3.  **Implement \"Re-Rank Possible Solutions\" During Solution Generation:**\n    *   **During Solution Generation:** Instead of generating times without explicit checks, generate a wider range of *possible* times, then use the new Constraint Verification Agent to ruthlessly filter out any invalid options.\n    *   **Preference Integration:** Incorporate a scoring mechanism that gives slightly higher scores to times that align with participant preferences (e.g., if someone prefers mornings, slightly favor morning slots).\n    *   **Output:** A much-narrowed set of VALID proposed meeting times that adheres to all constraints with preference scoring as described above.\n\n## CAPABILITY TREND\n\nBased on the provided information, it's difficult to definitively assess the capability trend. However, given the significant weaknesses in constraint handling, it's likely the system's capabilities are currently **stable (at a low level)**. Improvement requires addressing the fundamental flaws in constraint processing. The proposed recommendations, if implemented effectively, should lead to a positive trend.\n",
+      "text_report": "Okay, here's a thorough capability assessment of the AI system, based on the provided performance summary, error analysis report, sample execution outputs, and your instructions.\n\n## EXECUTION ANALYSIS\n\nThe execution outputs confirm the error patterns identified in the error analysis report. Specifically:\n\n*   **Missed Valid Solutions:** The outputs show that in at least two cases (\"Sample 1\" and \"Sample 2\"), the system found a valid meeting slot, as evidenced by the presence of a specific time within `ANSWER_START` and `ANSWER_END` tags. However, in \"Sample 4\", the system incorrectly reports \"No valid meeting slot found.\" This directly confirms the primary issue of the system failing to identify valid solutions.\n*   **String Formatting:** The presence of `ANSWER_START` and `ANSWER_END` suggests that the formatting is at least partially working, allowing for parsing of the answer.\n\n## CAPABILITY ASSESSMENT\n\nOverall, the system demonstrates a *limited* capability in scheduling meetings with constraints. It can process relatively complex scenarios, but struggles with accurately applying the constraints, especially when those constraints require deeper reasoning or exhaustive search. The system appears to have a basic framework for scheduling, but the core constraint evaluation and solution generation logic are flawed.\n\n## KEY STRENGTHS\n\n*   **Scenario Processing:** The system can ingest and process relatively complex scheduling scenarios with multiple participants and time blocks.\n*   **Partial Formatting:** The formatting is mostly working, indicating an ability to generate structured output.\n\n## KEY WEAKNESSES\n\n*   **Inaccurate Constraint Handling:** The system consistently fails to accurately interpret and apply constraints related to busy schedules. This is the most critical weakness.\n*   **Premature Search Termination:** The system seems to prematurely terminate its search for valid slots, leading to missed opportunities.\n*   **Lack of Transparency (Reasoning Trace):** The absence of a reasoning trace makes debugging extremely difficult.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Constraint Handling**. Correctly interpreting and applying constraints is the foundation of any successful scheduling system. Without accurate constraint handling, the system will continue to produce incorrect results, regardless of improvements in other areas.\n\n## ACTIONABLE RECOMMENDATIONS\n\nHere are specific changes to implement in the next iteration, directly addressing the identified weaknesses and improvement focus:\n\n1.  **Implement Explicit Availability Matrix:** Create an explicit availability matrix for each participant, representing their availability in small time increments (e.g., 15-minute intervals). This should be implemented in code, not just as a conceptual idea. This will also help the LLM focus on the reasoning/slot-selection aspects, and reduce its burden from parsing constraints.\n\n    *   *Implementation Detail:* The matrix should be a data structure (e.g., a list of lists or a pandas DataFrame) that can be easily accessed and manipulated by the system.\n2.  **Implement Constraint Checking Function:** Develop a dedicated function, `is_slot_available(slot, participants, availability_matrix)`, that checks whether a given time slot satisfies all constraints based on the availability matrix.  This will focus the logic and make it easier to test and validate.\n\n    *   *Implementation Detail:* This function should take a time slot, a list of participants, and the availability matrix as input. It should return `True` if the slot is available for all participants and `False` otherwise. Test this function *independently* with various scenarios.\n3.  **Implement Iterative Slot Search with Backtracking:** Implement a systematic slot search algorithm, incorporating iterative search and backtracking. Start with the earliest possible slot, and increment the time in small steps (e.g., 15 minutes). If a conflict is found, increment the time again. When the end of the day is reached, go to the next day and repeat.\n\n    *   *Implementation Detail:* This algorithm should use the `is_slot_available()` function to check the availability of each slot. If a slot is unavailable, the algorithm should *increment* the time slot until a valid time is found or the end of the search period is reached.\n4.  **Add Detailed Logging to *ALL* Parts of the System:**  Introduce granular logging at all stages, especially within the constraint checking function and the slot search algorithm. Log the constraints being considered, the slots being evaluated, the results of the `is_slot_available()` function, and the reasons for accepting or rejecting each slot.\n    *   *Implementation Detail:* Use a proper logging library (e.g., `logging` in Python) to manage the logging output.  Make sure the log messages are clear, informative, and easily searchable.\n5. **Modify Prompting Strategy:**\n    * Rather than directly asking to find a final solution, make the prompt a step-by-step reasoning task.\n    * Break the prompt into discrete steps: `1. Extract constraints`, `2. Generate potential slots`, `3. Filter slots based on constraints`, `4. Output valid slots`\n    * Use a ReAct approach to give the LLM iterative attempts at reasoning.\n\n## CAPABILITY TREND\n\nBased on the provided information, the capability trend is currently **stable at a low level**. While the system can process scheduling scenarios, its inability to accurately handle constraints prevents it from providing reliable results. These proposed improvements should lead to a sharp increase in accuracy.\n",
       "improvement_focus": "constraint_handling",
-      "strengths": [],
-      "weaknesses": [],
-      "improvement_suggestions": [],
+      "strengths": [
+        "The system attempts to follow the scheduling instructions and considers constraints.",
+        "The system is able to process relatively complex scheduling scenarios with multiple participants and time blocks."
+      ],
+      "weaknesses": [
+        "Inaccurate Constraint Handling:** The system struggles with accurately interpreting and applying constraints related to busy schedules. This is evident in cases where valid meeting slots are missed.",
+        "Limited Reasoning Depth:** The system lacks the reasoning depth necessary to fully explore all possible meeting slots and accurately determine availability.",
+        "Lack of Explicit Reasoning Trace:** There is no explicit log of the system's reasoning process, making it difficult to pinpoint exactly where the errors occur."
+      ],
+      "improvement_suggestions": [
+        "Explicit Availability Matrix:** Create an explicit availability matrix for each participant, representing their availability in small time increments (e.g., 15-minute intervals). This would allow the system to visualize and easily evaluate potential meeting slots.",
+        "Constraint Checking Function:** Implement a dedicated function for checking whether a given time slot satisfies all constraints. This function should be thoroughly tested and validated.",
+        "Iterative Slot Search with Backtracking:** Implement an iterative slot search algorithm that systematically explores all possible meeting slots. If a conflict is found, the algorithm should backtrack and try a different slot.",
+        "Detailed Logging:** Add detailed logging to the system to track the reasoning process. This should include the constraints being considered, the potential meeting slots being evaluated, and the reasons for accepting or rejecting each slot.",
+        "Increase Complexity of Training Data:** Create and incorporate more complicated training examples."
+      ],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nThere are no visible runtime errors (e.g., JSONDecodeError, TypeError) in the provided outputs. This suggests the issues lie in the reasoning or logic rather than code execution problems.\n\n## STRENGTHS\n1. **Clear Output Formatting**: The system provides its answers in a consistent format (\"Here is the proposed time: ...\"). This makes it easier to parse the output and evaluate its correctness.\n2. **Constraint Awareness**: The problem descriptions explicitly state that a feasible solution exists. The system appears to attempt to satisfy constraints, although it sometimes fails.\n\n## WEAKNESSES\n1. **Constraint Handling Errors**: The system fails to correctly incorporate all the provided constraints when generating the meeting schedule. It sometimes proposes times that conflict with the participant's existing blocked schedules.\n2. **Preference Ignoring**: In the first example, Barbara expresses a preference *not* to meet on Tuesday. This preference seems to be completely ignored by the system.\n\n## CRITICAL BOTTLENECKS\n1. **Inaccurate Constraint Application**: The primary bottleneck appears to be the inaccurate application of constraints extracted from the input text when generating potential meeting times.\n2. **Preference Handling**: The system is not effectively incorporating participant preferences into the scheduling process.\n\n## ERROR PATTERNS\nThe dominant pattern is a failure to fully integrate the provided constraints, specifically individual schedules and stated preferences, into the meeting time generation process. The proposed times often conflict with explicitly blocked timeslots.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's unreliable constraint handling, leading to proposals of meeting times that violate explicitly stated scheduling conflicts. The system is failing to accurately identify available time slots for all participants.\n\n## IMPROVEMENT AREAS\n1. **Constraint Handling**: Improve the extraction and application of scheduling constraints. Focus on precisely identifying blocked time slots for each participant and avoiding those times.\n2. **Preference Handling**: Incorporate preferences into the scheduling decision-making process.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Enhanced Information Extraction**: Improve information extraction to focus specifically on blocked time slots for each person and the days available for meetings, including preferences. Employ a more robust parsing mechanism or leverage LLMs for more accurate extraction.\n2. **Explicit Constraint Verification**: Before proposing a meeting time, implement an explicit constraint verification step. This step should take a proposed meeting time and verify that it does not conflict with any participant's blocked schedule or expressed preferences.\n3. **Re-rank Possible Solutions**: When generating potential times, filter impossible solutions by each constraints that need to be satisfied.\n\n## CAPABILITY MAPPING\n*   **Sample 1:**\n    *   information_extraction (partially failed: failed to extract preference)\n    *   constraint_handling (failed)\n    *   solution_generation (failed: generated invalid solution)\n    *   solution_verification (failed: didn't detect the conflict)\n    *   decision_making (failed: selected invalid solution)\n*   **Sample 4:**\n    *   information_extraction (partially failed: failed to fully extract time constraints)\n    *   constraint_handling (failed)\n    *   solution_generation (failed: generated invalid solution)\n    *   solution_verification (failed: didn't detect the conflict)\n    *   decision_making (failed: selected invalid solution)\n",
-    "capability_report_text": "Okay, here's a thorough capability assessment of your AI system based on the provided performance summary, error analysis report, sample execution outputs, and your specified sections.\n\n## EXECUTION ANALYSIS\n\nThe raw execution outputs reveal a few key issues:\n\n*   **Format Consistency:** The `ANSWER_START` and `ANSWER_END` tags confirm the system maintains a consistent output format, as noted in the \"STRENGTHS\" section of the error analysis. This is a positive aspect.\n*   **Constraint Violations (Inferred):** Without the input examples used to generate the outputs, we must infer constraint violations from the Error Analysis. The outputs, in isolation, *appear* valid. Therefore, the constraint violation is likely subtle: the proposed times likely conflict with some participants' explicit schedules or preferences.\n*   **Limited Time Range:** The very limited output sample of three results suggests that this assessment involves very simple scheduling problems.\n\n## CAPABILITY ASSESSMENT\n\nOverall, the system demonstrates a basic capability for proposing meeting times, but its constraint handling and preference integration are significantly flawed. This renders the proposed solutions unreliable and practically unusable. The core issue appears to be an insufficient understanding of the input constraints or a failure to properly translate them into actionable scheduling rules.\n\n## KEY STRENGTHS\n\n*   **Consistent Output Formatting:** This facilitates parsing and integration with other systems. This should be maintained in future iterations.\n*   **Constraint Awareness (Partial):** The system *attempts* to consider constraints.\n\n## KEY WEAKNESSES\n\n*   **Unreliable Constraint Handling:** The system's inability to consistently adhere to explicit scheduling constraints is a critical flaw. This is by far the most significant issue.\n*   **Preference Ignoring:** Ignoring user preferences degrades the quality of the proposed schedules.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Constraint Handling**.  Accurate constraint handling is foundational for a functional scheduling system. Without it, the system produces incorrect results, no matter how efficiently it may operate.\n\n## ACTIONABLE RECOMMENDATIONS\n\nHere are specific changes to implement in the next iteration, focusing on constraint handling:\n\n1.  **Implement Information Extraction Agent & Schema:**\n    *   **Create:** A specialized information extraction agent designed for scheduling.\n    *   **Focus:** Extracting and structuring participants, existing meetings, blocked time slots (with days and times), and stated preferences (days/times to avoid, preferred durations).\n    *   **Output:** Define a rigorous schema for the information extraction agent to use that structures data as:\n\n    ```json\n    {\n        \"participants\": [\n            {\n                \"name\": \"string\",\n                \"blocked_timeslots\": [\n                    {\"day\": \"string\", \"start_time\": \"string\", \"end_time\": \"string\"},\n                    ...\n                ],\n                \"preferences\": {\n                    \"avoid_days\": [\"string\"],\n                    \"preferred_duration\": \"integer\"\n                }\n            },\n            ...\n        ],\n        \"meeting_duration\": \"integer\"\n    }\n    ```\n\n    *   **Reasoning:** Use chain-of-thought prompting so that the LLM justifies why it's extracting and structuring entities.\n    *   **Verification:** Design a parsing-verification agent that checks if the structure follows the schema, and fails/succeeds depending on if the structure adheres to the schema.\n2.  **Develop Explicit Constraint Verification Agent:**\n    *   **Create:** A constraint verification agent that takes a *proposed* meeting time and the extracted schedule information (from the information extraction agent) as inputs.\n    *   **Function:**  This agent rigorously checks whether the proposed time violates *any* constraint (blocked time slots, day preferences).\n    *   **Output:** Binary output (VALID/INVALID) + a detailed explanation of *why* the time is invalid if it violates a constraint.\n    *   **Few-Shot Examples**: Provide the agent with several diverse examples of both valid and invalid times and the reasons why.\n3.  **Implement \"Re-Rank Possible Solutions\" During Solution Generation:**\n    *   **During Solution Generation:** Instead of generating times without explicit checks, generate a wider range of *possible* times, then use the new Constraint Verification Agent to ruthlessly filter out any invalid options.\n    *   **Preference Integration:** Incorporate a scoring mechanism that gives slightly higher scores to times that align with participant preferences (e.g., if someone prefers mornings, slightly favor morning slots).\n    *   **Output:** A much-narrowed set of VALID proposed meeting times that adheres to all constraints with preference scoring as described above.\n\n## CAPABILITY TREND\n\nBased on the provided information, it's difficult to definitively assess the capability trend. However, given the significant weaknesses in constraint handling, it's likely the system's capabilities are currently **stable (at a low level)**. Improvement requires addressing the fundamental flaws in constraint processing. The proposed recommendations, if implemented effectively, should lead to a positive trend.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no visible runtime errors (e.g. JSONDecodeError, TypeError) provided in the error cases. The system appears to complete execution without crashing, but it arrives at incorrect conclusions.\n\n## STRENGTHS\n- The system attempts to follow the scheduling instructions and considers constraints.\n- The system is able to process relatively complex scheduling scenarios with multiple participants and time blocks.\n\n## WEAKNESSES\n- **Inaccurate Constraint Handling:** The system struggles with accurately interpreting and applying constraints related to busy schedules. This is evident in cases where valid meeting slots are missed.\n- **Limited Reasoning Depth:** The system lacks the reasoning depth necessary to fully explore all possible meeting slots and accurately determine availability.\n- **Lack of Explicit Reasoning Trace:** There is no explicit log of the system's reasoning process, making it difficult to pinpoint exactly where the errors occur.\n\n## CRITICAL BOTTLENECKS\n- **Constraint Evaluation:** Accurately evaluating whether a given time slot satisfies all constraints.\n- **Exhaustive Slot Search:** Thoroughly searching for all possible meeting slots, especially when dealing with multiple participants and busy schedules.\n\n## ERROR PATTERNS\n- **Missed Valid Solutions:** In all error cases, the system fails to identify a valid meeting slot that is presented in the golden answer.\n- **Binary Output:** The system returns a binary output (\"Valid slot found\" or \"No valid slot found\"), which does not give insight into the decision making.\n\n## PRIMARY ISSUE\nThe primary issue is the system's inability to accurately evaluate time slot availability, leading to missed valid solutions. This suggests a flaw in the core constraint handling logic. The system seems to prematurely terminate the search for valid slots before exploring all possibilities, or misinterprets participants' availabilities.\n\n## IMPROVEMENT AREAS\n- **Constraint Handling:** Develop more robust and accurate constraint handling logic to ensure that all constraints are correctly applied. This should include careful consideration of edge cases and potential conflicts.\n- **Solution Generation:** Improve the solution generation process to explore all possible meeting slots systematically and exhaustively.\n- **Reasoning Trace:** Add detailed logging to trace reasoning process, which can provide better insight into the decision making process.\n\n## IMPROVEMENT SUGGESTIONS\n- **Explicit Availability Matrix:** Create an explicit availability matrix for each participant, representing their availability in small time increments (e.g., 15-minute intervals). This would allow the system to visualize and easily evaluate potential meeting slots.\n- **Constraint Checking Function:** Implement a dedicated function for checking whether a given time slot satisfies all constraints. This function should be thoroughly tested and validated.\n- **Iterative Slot Search with Backtracking:** Implement an iterative slot search algorithm that systematically explores all possible meeting slots. If a conflict is found, the algorithm should backtrack and try a different slot.\n- **Detailed Logging:** Add detailed logging to the system to track the reasoning process. This should include the constraints being considered, the potential meeting slots being evaluated, and the reasons for accepting or rejecting each slot.\n- **Increase Complexity of Training Data:** Create and incorporate more complicated training examples.\n\n## CAPABILITY MAPPING\n- **Sample 1:** constraint_handling, solution_generation, solution_verification\n- **Sample 2:** constraint_handling, solution_generation, solution_verification\n- **Sample 4:** constraint_handling, solution_generation, solution_verification\n",
+    "capability_report_text": "Okay, here's a thorough capability assessment of the AI system, based on the provided performance summary, error analysis report, sample execution outputs, and your instructions.\n\n## EXECUTION ANALYSIS\n\nThe execution outputs confirm the error patterns identified in the error analysis report. Specifically:\n\n*   **Missed Valid Solutions:** The outputs show that in at least two cases (\"Sample 1\" and \"Sample 2\"), the system found a valid meeting slot, as evidenced by the presence of a specific time within `ANSWER_START` and `ANSWER_END` tags. However, in \"Sample 4\", the system incorrectly reports \"No valid meeting slot found.\" This directly confirms the primary issue of the system failing to identify valid solutions.\n*   **String Formatting:** The presence of `ANSWER_START` and `ANSWER_END` suggests that the formatting is at least partially working, allowing for parsing of the answer.\n\n## CAPABILITY ASSESSMENT\n\nOverall, the system demonstrates a *limited* capability in scheduling meetings with constraints. It can process relatively complex scenarios, but struggles with accurately applying the constraints, especially when those constraints require deeper reasoning or exhaustive search. The system appears to have a basic framework for scheduling, but the core constraint evaluation and solution generation logic are flawed.\n\n## KEY STRENGTHS\n\n*   **Scenario Processing:** The system can ingest and process relatively complex scheduling scenarios with multiple participants and time blocks.\n*   **Partial Formatting:** The formatting is mostly working, indicating an ability to generate structured output.\n\n## KEY WEAKNESSES\n\n*   **Inaccurate Constraint Handling:** The system consistently fails to accurately interpret and apply constraints related to busy schedules. This is the most critical weakness.\n*   **Premature Search Termination:** The system seems to prematurely terminate its search for valid slots, leading to missed opportunities.\n*   **Lack of Transparency (Reasoning Trace):** The absence of a reasoning trace makes debugging extremely difficult.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Constraint Handling**. Correctly interpreting and applying constraints is the foundation of any successful scheduling system. Without accurate constraint handling, the system will continue to produce incorrect results, regardless of improvements in other areas.\n\n## ACTIONABLE RECOMMENDATIONS\n\nHere are specific changes to implement in the next iteration, directly addressing the identified weaknesses and improvement focus:\n\n1.  **Implement Explicit Availability Matrix:** Create an explicit availability matrix for each participant, representing their availability in small time increments (e.g., 15-minute intervals). This should be implemented in code, not just as a conceptual idea. This will also help the LLM focus on the reasoning/slot-selection aspects, and reduce its burden from parsing constraints.\n\n    *   *Implementation Detail:* The matrix should be a data structure (e.g., a list of lists or a pandas DataFrame) that can be easily accessed and manipulated by the system.\n2.  **Implement Constraint Checking Function:** Develop a dedicated function, `is_slot_available(slot, participants, availability_matrix)`, that checks whether a given time slot satisfies all constraints based on the availability matrix.  This will focus the logic and make it easier to test and validate.\n\n    *   *Implementation Detail:* This function should take a time slot, a list of participants, and the availability matrix as input. It should return `True` if the slot is available for all participants and `False` otherwise. Test this function *independently* with various scenarios.\n3.  **Implement Iterative Slot Search with Backtracking:** Implement a systematic slot search algorithm, incorporating iterative search and backtracking. Start with the earliest possible slot, and increment the time in small steps (e.g., 15 minutes). If a conflict is found, increment the time again. When the end of the day is reached, go to the next day and repeat.\n\n    *   *Implementation Detail:* This algorithm should use the `is_slot_available()` function to check the availability of each slot. If a slot is unavailable, the algorithm should *increment* the time slot until a valid time is found or the end of the search period is reached.\n4.  **Add Detailed Logging to *ALL* Parts of the System:**  Introduce granular logging at all stages, especially within the constraint checking function and the slot search algorithm. Log the constraints being considered, the slots being evaluated, the results of the `is_slot_available()` function, and the reasons for accepting or rejecting each slot.\n    *   *Implementation Detail:* Use a proper logging library (e.g., `logging` in Python) to manage the logging output.  Make sure the log messages are clear, informative, and easily searchable.\n5. **Modify Prompting Strategy:**\n    * Rather than directly asking to find a final solution, make the prompt a step-by-step reasoning task.\n    * Break the prompt into discrete steps: `1. Extract constraints`, `2. Generate potential slots`, `3. Filter slots based on constraints`, `4. Output valid slots`\n    * Use a ReAct approach to give the LLM iterative attempts at reasoning.\n\n## CAPABILITY TREND\n\nBased on the provided information, the capability trend is currently **stable at a low level**. While the system can process scheduling scenarios, its inability to accurately handle constraints prevents it from providing reliable results. These proposed improvements should lead to a sharp increase in accuracy.\n"
   },
-  "progressive_testing": {
-    "total_examples": 20,
-    "successful_runs": 20,
-    "matches": 11,
-    "accuracy": 0.55,
-    "results": [
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Tuesday, 14:30 - 15:00",
-        "output": "ANSWER_START\nHere is the proposed time: Tuesday, 14:30 - 15:00\nANSWER_END\n",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system and golden answer propose different times (different days and times), so they do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 15:00 - 15:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 15:00 - 15:30\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1.0,
-          "explanation": "Both answers are identical and convey the same information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Tuesday, 10:30 - 11:00",
-        "output": "ANSWER_START\nHere is the proposed time: Tuesday, 10:30 - 11:00\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers provide the exact same information: the proposed meeting time is Tuesday from 10:30 to 11:00. There are no differences in wording or meaning."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Tuesday, 9:00 - 9:30",
-        "output": "ANSWER_START\nHere is the proposed time: Tuesday, 9:00 - 9:30\nANSWER_END\n",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The proposed times are completely different days and times. Therefore the answers do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Wednesday, 10:30 - 11:30",
-        "output": "ANSWER_START\nHere is the proposed time: Wednesday, 10:30 - 11:30\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers state the same proposed time: Wednesday, 10:30 - 11:30. They are identical."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 10:30 - 11:00",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 10:30 - 11:00\nANSWER_END\n",
-        "evaluation": {
-          "match": false,
-          "confidence": 1.0,
-          "explanation": "The answers propose different times for the meeting (10:30-11:00 vs 12:00-12:30), therefore they do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 15:00 - 15:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 15:00 - 15:30\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1.0,
-          "explanation": "Both answers are identical and propose the same time."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 9:00 - 9:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 9:00 - 9:30\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers convey the exact same information in the same way. There is no difference in wording or meaning."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 9:00 - 9:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 9:00 - 9:30\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1.0,
-          "explanation": "The answers are identical and convey the same information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 11:00 - 11:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 11:00 - 11:30\nANSWER_END\n",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The proposed times are different (11:00 vs 13:00), therefore they do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Thursday, 13:00 - 14:00",
-        "output": "ANSWER_START\nHere is the proposed time: Thursday, 13:00 - 14:00\nANSWER_END\n",
-        "evaluation": {
-          "match": false,
-          "confidence": 1.0,
-          "explanation": "The proposed times are different. The system answer suggests a meeting from 13:00 to 14:00, while the golden answer suggests a meeting from 13:30 to 14:30. These are not the same."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Wednesday, 16:00 - 16:30",
-        "output": "ANSWER_START\nHere is the proposed time: Wednesday, 16:00 - 16:30\nANSWER_END\n",
-        "evaluation": {
-          "match": false,
-          "confidence": 1.0,
-          "explanation": "The answers propose different times (day and hour) for the meeting. Thus they do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 14:30 - 15:00",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 14:30 - 15:00\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1.0,
-          "explanation": "Both answers are identical and convey the same information about the proposed time for the meeting."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 13:30 - 14:00",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 13:30 - 14:00\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers provide the exact same proposed time, so they convey the same information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Tuesday, 9:30 - 10:00",
-        "output": "ANSWER_START\nHere is the proposed time: Tuesday, 9:30 - 10:00\nANSWER_END\n",
-        "evaluation": {
-          "match": false,
-          "confidence": 1.0,
-          "explanation": "The answers propose different times on different days. Therefore, they do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 9:00 - 9:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 9:00 - 9:30\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1.0,
-          "explanation": "The two answers are identical and convey the same information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 9:00 - 9:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 9:00 - 9:30\nANSWER_END\n",
-        "evaluation": {
-          "match": false,
-          "confidence": 1.0,
-          "explanation": "The proposed times in the two answers are completely different, including the day and the time. Therefore, they do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 9:00 - 9:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 9:00 - 9:30\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1.0,
-          "explanation": "Both answers are identical and convey the same information: a proposed meeting time of Monday, 9:00 - 9:30."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 11:00 - 11:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 11:00 - 11:30\nANSWER_END\n",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same proposed meeting time."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Here is the proposed time: Monday, 9:00 - 9:30",
-        "output": "ANSWER_START\nHere is the proposed time: Monday, 9:00 - 9:30\nANSWER_END\n",
-        "evaluation": {
-          "match": false,
-          "confidence": 1.0,
-          "explanation": "The proposed times are different, therefore the answers do not convey the same information. 9:00 is not the same as 13:00."
-        },
-        "match": false
-      }
-    ]
-  },
-  "execution_time": 157.5350284576416,
+  "progressive_testing": null,
+  "execution_time": 62.180009841918945,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],
     "weaknesses": [],
     "improvement_suggestions": [],
-    "improvement_focus": "information_extraction",
+    "improvement_focus": "no specific focus, refer to text reports",
     "trend": "insufficient_data"
   }
 }

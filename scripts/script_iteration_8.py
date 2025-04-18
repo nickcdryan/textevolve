@@ -1,7 +1,8 @@
 import os
 import json
 import re
-import math
+import datetime
+from datetime import timedelta
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -32,198 +33,172 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_meeting_details(question):
-    """Extracts meeting details using LLM with structured extraction and validation."""
-    system_instruction = "You are an expert at extracting meeting details. Focus on high accuracy."
-    prompt = f"""
-    Extract meeting details from the input. Output a JSON with 'participants', 'duration_minutes', 'days', and 'availability' (participant: day: [start-end]).
-    Also, note participant preferences as 'preferences' (participant: reason).
-
-    Example:
-    Input: Schedule John and Mary for 30 minutes on Monday between 9-5. John is busy 10-11, Mary is free. Mary prefers to meet before noon.
-    Output:
-    {{
-        "participants": ["John", "Mary"],
-        "duration_minutes": 30,
-        "days": ["Monday"],
-        "availability": {{
-            "John": {{ "Monday": ["9:00-10:00", "11:00-17:00"] }},
-            "Mary": {{ "Monday": ["9:00-17:00"] }}
-        }},
-        "preferences": {{
-            "Mary": "to meet before noon"
-        }}
-    }}
-
-    Reasoning:
-    1. Participants are John and Mary
-    2. Duration is 30 minutes
-    3. Day is Monday
-    4. John is busy from 10-11 on Monday
-    5. Mary has no restrictions
-    6. Mary prefers to meet before noon
-
-    Input: You need to schedule a meeting for Jeffrey and Timothy for one hour between the work hours of 9:00 to 17:00 on either Monday, Tuesday, Wednesday, Thursday or Friday. Jeffrey has meetings on Monday during 11:00 to 11:30, 12:30 to 13:00, 14:30 to 15:00, Tuesday during 12:30 to 13:00, 14:30 to 15:00, Wednesday during 9:30 to 10:00, 10:30 to 11:00, 11:30 to 12:00, 13:00 to 13:30, 15:00 to 15:30, 16:00 to 16:30, Thursday during 11:00 to 11:30, 12:30 to 13:00, 15:00 to 16:00, 16:30 to 17:00, Friday during 9:30 to 10:00, 12:30 to 13:30, 14:30 to 15:00; Timothy has blocked their calendar on Monday during 9:30 to 13:00, 13:30 to 16:00, 16:30 to 17:00, Tuesday during 9:30 to 12:00, 12:30 to 14:00, 14:30 to 16:00, 16:30 to 17:00, Wednesday during 9:30 to 10:00, 10:30 to 12:30, 13:00 to 16:30, Thursday during 9:00 to 9:30, 10:30 to 16:00, Friday during 9:00 to 11:30, 12:00 to 14:00, 14:30 to 16:30;
-    Output:
-    {{
-        "participants": ["Jeffrey", "Timothy"],
-        "duration_minutes": 60,
-        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "availability": {{
-            "Jeffrey": {{
-                "Monday": ["9:00-11:00", "11:30-12:30", "13:00-14:30", "15:00-17:00"],
-                "Tuesday": ["9:00-12:30", "13:00-14:30", "15:00-17:00"],
-                "Wednesday": ["9:00-9:30", "10:00-10:30", "11:00-11:30", "12:00-13:00", "13:30-15:00", "15:30-16:00"],
-                "Thursday": ["9:00-11:00", "11:30-12:30", "13:00-15:00", "16:00-16:30"],
-                "Friday": ["10:00-12:30", "13:30-14:30", "15:00-17:00"]
-            }},
-            "Timothy": {{
-                "Monday": ["9:00-9:30", "13:00-13:30", "16:00-16:30"],
-                "Tuesday": ["9:00-9:30", "12:00-12:30", "14:00-14:30", "16:00-16:30"],
-                "Wednesday": ["9:00-9:30", "10:00-10:30", "12:30-13:00", "16:30-17:00"],
-                "Thursday": ["9:30-10:30", "16:00-17:00"],
-                "Friday": ["11:30-12:00", "14:00-14:30", "16:30-17:00"]
-            }}
-        }},
-        "preferences": {{}}
-    }}
-
-    Input: {question}
-    """
-    return call_llm(prompt, system_instruction)
-
-def find_meeting_time(meeting_details_json):
-    """Finds the best meeting time using LLM, incorporating preferences and a verification step."""
-    system_instruction = "You are an expert at scheduling meetings, focusing on earliest availability and constraint satisfaction."
-    prompt = f"""
-    Given these meeting details, find the *earliest* valid meeting time, respecting all availability and preferences.
-
-    Example:
-    Input:
-    {{
-        "participants": ["John", "Mary"],
-        "duration_minutes": 30,
-        "days": ["Monday"],
-        "availability": {{
-            "John": {{ "Monday": ["9:00-10:00", "11:00-17:00"] }},
-            "Mary": {{ "Monday": ["9:00-17:00"] }}
-        }},
-        "preferences": {{
-            "Mary": "to meet before noon"
-        }}
-    }}
-    Reasoning: The earliest time is 9:00. John is available. Mary is available and prefers this time.
-    Output: Here is the proposed time: Monday, 9:00 - 9:30
-
-    Input:
-    {{
-        "participants": ["Jeffrey", "Timothy"],
-        "duration_minutes": 60,
-        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "availability": {{
-            "Jeffrey": {{
-                "Monday": ["9:00-11:00", "11:30-12:30", "13:00-14:30", "15:00-17:00"],
-                "Tuesday": ["9:00-12:30", "13:00-14:30", "15:00-17:00"],
-                "Wednesday": ["9:00-9:30", "10:00-10:30", "11:00-11:30", "12:00-13:00", "13:30-15:00", "15:30-16:00"],
-                "Thursday": ["9:00-11:00", "11:30-12:30", "13:00-15:00", "16:00-16:30"],
-                "Friday": ["10:00-12:30", "13:30-14:30", "15:00-17:00"]
-            }},
-            "Timothy": {{
-                "Monday": ["9:00-9:30", "13:00-13:30", "16:00-16:30"],
-                "Tuesday": ["9:00-9:30", "12:00-12:30", "14:00-14:30", "16:00-16:30"],
-                "Wednesday": ["9:00-9:30", "10:00-10:30", "12:30-13:00", "16:30-17:00"],
-                "Thursday": ["9:30-10:30", "16:00-17:00"],
-                "Friday": ["11:30-12:00", "14:00-14:30", "16:30-17:00"]
-            }}
-        }},
-        "preferences": {{}}
-    }}
-    Reasoning:
-    1. Monday: Jeffrey is available at 9:00. Timothy is available at 9:00. Duration is 60 min. -> 9:00-10:00 works for both.
-    Output: Here is the proposed time: Monday, 9:00 - 10:00
-
-    Input: {meeting_details_json}
-    """
-    suggested_time = call_llm(prompt, system_instruction)
-    return suggested_time
-
-def verify_meeting_time(question, meeting_details_json, suggested_time):
-    """Verifies if the suggested meeting time is valid and respects all constraints."""
-    system_instruction = "You are a meticulous meeting scheduler. Double-check every detail."
-    prompt = f"""
-    Carefully verify if the suggested meeting time is valid and respects *all* availability constraints and preferences from the original question. If *any* constraint is violated, respond with "INVALID: [reason]". If the time is valid, respond with "VALID".
-
-    Example:
-    Question: Schedule John and Mary for 30 minutes on Monday between 9-5. John is busy 10-11, Mary is free. Mary prefers to meet before noon.
-    Meeting Details:
-    {{
-        "participants": ["John", "Mary"],
-        "duration_minutes": 30,
-        "days": ["Monday"],
-        "availability": {{
-            "John": {{ "Monday": ["9:00-10:00", "11:00-17:00"] }},
-            "Mary": {{ "Monday": ["9:00-17:00"] }}
-        }},
-        "preferences": {{
-            "Mary": "to meet before noon"
-        }}
-    }}
-    Suggested Time: Here is the proposed time: Monday, 11:00 - 11:30
-    Reasoning: John is available. Mary is available and her preference is met. All constraints are respected.
-    Output: VALID
-
-    Question: You need to schedule a meeting for Jeffrey and Timothy for one hour between the work hours of 9:00 to 17:00 on either Monday, Tuesday, Wednesday, Thursday or Friday. Jeffrey has meetings on Monday during 11:00 to 11:30, 12:30 to 13:00, 14:30 to 15:00, Tuesday during 12:30 to 13:00, 14:30 to 15:00, Wednesday during 9:30 to 10:00, 10:30 to 11:00, 11:30 to 12:00, 13:00 to 13:30, 15:00 to 15:30, 16:00 to 16:30, Thursday during 11:00 to 11:30, 12:30 to 13:00, 15:00 to 16:00, 16:30 to 17:00, Friday during 9:30 to 10:00, 12:30 to 13:30, 14:30 to 15:00; Timothy has blocked their calendar on Monday during 9:30 to 13:00, 13:30 to 16:00, 16:30 to 17:00, Tuesday during 9:30 to 12:00, 12:30 to 14:00, 14:30 to 16:00, 16:30 to 17:00, Wednesday during 9:30 to 10:00, 10:30 to 12:30, 13:00 to 16:30, Thursday during 9:00 to 9:30, 10:30 to 16:00, Friday during 9:00 to 11:30, 12:00 to 14:00, 14:30 to 16:30;
-    Meeting Details:
-    {{
-        "participants": ["Jeffrey", "Timothy"],
-        "duration_minutes": 60,
-        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "availability": {{
-            "Jeffrey": {{
-                "Monday": ["9:00-11:00", "11:30-12:30", "13:00-14:30", "15:00-17:00"],
-                "Tuesday": ["9:00-12:30", "13:00-14:30", "15:00-17:00"],
-                "Wednesday": ["9:00-9:30", "10:00-10:30", "11:00-11:30", "12:00-13:00", "13:30-15:00", "15:30-16:00"],
-                "Thursday": ["9:00-11:00", "11:30-12:30", "13:00-15:00", "16:00-16:30"],
-                "Friday": ["10:00-12:30", "13:30-14:30", "15:00-17:00"]
-            }},
-            "Timothy": {{
-                "Monday": ["9:00-9:30", "13:00-13:30", "16:00-16:30"],
-                "Tuesday": ["9:00-9:30", "12:00-12:30", "14:00-14:30", "16:00-16:30"],
-                "Wednesday": ["9:00-9:30", "10:00-10:30", "12:30-13:00", "16:30-17:00"],
-                "Thursday": ["9:30-10:30", "16:00-17:00"],
-                "Friday": ["11:30-12:00", "14:00-14:30", "16:30-17:00"]
-            }}
-        }},
-        "preferences": {{}}
-    }}
-    Suggested Time: Here is the proposed time: Monday, 9:00 - 10:00
-    Reasoning: Jeffrey is available. Timothy is available. The suggested time respects all constraints.
-    Output: VALID
-
-    Question: {question}
-    Meeting Details: {meeting_details_json}
-    Suggested Time: {suggested_time}
-    """
-    verification_result = call_llm(prompt, system_instruction)
-    return verification_result
-
 def main(question):
-    """Main function to schedule meetings with LLM and verification."""
+    """Schedules meetings using multi-stage extraction and iterative validation."""
     try:
-        # 1. Extract meeting details.
-        meeting_details_json = extract_meeting_details(question)
+        # 1. Extract meeting information - extract details individually
+        participants = extract_participants(question)
+        duration = extract_duration(question)
+        days = extract_days(question)
+        work_hours = extract_work_hours(question)
+        schedules = extract_schedules(question, participants)
 
-        # 2. Find a meeting time
-        suggested_time = find_meeting_time(meeting_details_json)
-
-        # 3. Verify the suggested time
-        verification_result = verify_meeting_time(question, meeting_details_json, suggested_time)
-
-        # 4. Return the result
-        if "INVALID" in verification_result:
-            return "No suitable meeting time found." #f"Error: {verification_result}"
-        else:
-            return suggested_time
+        # 2. Combine extracted information into a dictionary
+        meeting_info = {
+            "participants": participants,
+            "duration": duration,
+            "days": days,
+            "work_hours": work_hours,
+            "schedules": schedules
+        }
+        
+        # 3. Find an available meeting slot
+        available_slot = find_available_slot(meeting_info)
+        
+        return available_slot
 
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"An unexpected error occurred: {str(e)}"
+
+def extract_participants(question):
+    """Extracts participants from the question using LLM."""
+    system_instruction = "You are an expert at extracting participant names from meeting scheduling requests."
+    prompt = f"""
+    Extract the names of all participants from the following text.
+    
+    Example:
+    Input: You need to schedule a meeting for John and Jane for 30 minutes between 9:00 and 17:00 on Monday.
+    Output: ["John", "Jane"]
+    
+    Input: {question}
+    Output:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        return json.loads(extracted_info)
+    except Exception as e:
+        return f"Error extracting info: {str(e)}"
+
+def extract_duration(question):
+    """Extracts the duration of the meeting from the question using LLM."""
+    system_instruction = "You are an expert at extracting meeting duration from scheduling requests."
+    prompt = f"""
+    Extract the duration of the meeting (in minutes) from the following text.
+    
+    Example:
+    Input: You need to schedule a meeting for John and Jane for 30 minutes between 9:00 and 17:00 on Monday.
+    Output: 30
+    
+    Input: {question}
+    Output:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        return int(extracted_info)
+    except Exception as e:
+        return f"Error extracting info: {str(e)}"
+
+def extract_days(question):
+    """Extracts the days the meeting can take place on from the question using LLM."""
+    system_instruction = "You are an expert at extracting days from meeting scheduling requests."
+    prompt = f"""
+    Extract the days on which the meeting can take place from the following text.
+    
+    Example:
+    Input: You need to schedule a meeting for John and Jane for 30 minutes between 9:00 and 17:00 on Monday.
+    Output: ["Monday"]
+    
+    Input: {question}
+    Output:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        return json.loads(extracted_info)
+    except Exception as e:
+        return f"Error extracting info: {str(e)}"
+
+def extract_work_hours(question):
+    """Extracts the work hours from the question using LLM."""
+    system_instruction = "You are an expert at extracting work hours from meeting scheduling requests."
+    prompt = f"""
+    Extract the work hours (start and end time) from the following text.
+    
+    Example:
+    Input: You need to schedule a meeting for John and Jane for 30 minutes between 9:00 and 17:00 on Monday.
+    Output: ["9:00", "17:00"]
+    
+    Input: {question}
+    Output:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        return json.loads(extracted_info)
+    except Exception as e:
+        return f"Error extracting info: {str(e)}"
+
+def extract_schedules(question, participants):
+    """Extracts the schedules of all participants from the question using LLM."""
+    system_instruction = "You are an expert at extracting participant schedules from meeting scheduling requests."
+    schedules = {}
+    for participant in participants:
+        prompt = f"""
+        Extract the schedule of {participant} from the following text. Return the schedule as a list of time ranges.
+        
+        Example:
+        Input: You need to schedule a meeting for John and Jane for 30 minutes between 9:00 and 17:00 on Monday. John is busy 10:00-11:00.
+        Participant: John
+        Output: [["10:00", "11:00"]]
+        
+        Input: {question}
+        Participant: {participant}
+        Output:
+        """
+        try:
+            extracted_info = call_llm(prompt, system_instruction)
+            schedules[participant] = json.loads(extracted_info)
+        except Exception as e:
+            schedules[participant] = []  # If fails, set empty schedule
+
+    return schedules
+
+def find_available_slot(meeting_info, max_attempts=5):
+    """Finds available slots and validates them iteratively with LLM."""
+    system_instruction = "You are an expert meeting scheduler."
+
+    for attempt in range(max_attempts):
+        # 1. Propose a meeting slot
+        proposal_prompt = f"""
+        Based on this meeting information: {meeting_info}, propose a possible meeting slot (day, start time - end time). Be mindful of work hours and participant schedules.
+
+        Example:
+        Meeting Info: {{"participants": ["John", "Jane"], "duration": 30, "days": ["Monday"], "work_hours": ["9:00", "17:00"], "schedules": {{"John": [["10:00", "11:00"]], "Jane": [["13:00", "14:00"]]}}}}
+        Proposed Slot: Monday, 9:00 - 9:30
+
+        Meeting Info: {meeting_info}
+        Proposed Slot:
+        """
+
+        proposed_slot = call_llm(proposal_prompt, system_instruction)
+
+        # 2. Validate proposed slot against constraints with dedicated validator
+        validator_prompt = f"""
+        You are an expert validator. Validate that this meeting slot: {proposed_slot} works for everyone and satisfies these meeting requirements: {meeting_info}.
+
+        Example:
+        Proposed Slot: Monday, 9:00 - 9:30
+        Meeting Info: {{"participants": ["John", "Jane"], "duration": 30, "days": ["Monday"], "work_hours": ["9:00", "17:00"], "schedules": {{"John": [["10:00", "11:00"]], "Jane": [["13:00", "14:00"]]}}}}
+        Validation: Valid
+
+        Proposed Slot: {proposed_slot}
+        Meeting Info: {meeting_info}
+        Validation:
+        """
+        validator_system_instruction = "You are an expert validator that must validate meeting slots"
+        validation_result = call_llm(validator_prompt, validator_system_instruction)
+
+        if "Valid" in validation_result:
+            return f"Here is the proposed time: {proposed_slot}"
+        else:
+            continue  # Retry with a new proposal
+
+    return "Error: Could not find a suitable meeting time after multiple attempts."

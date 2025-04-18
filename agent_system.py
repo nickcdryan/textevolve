@@ -932,6 +932,20 @@ class AgentSystem:
                         iteration.get('performance', {})
                     })
 
+        # Get top performing scripts for exploitation instead of just the best one
+        top_scripts_to_exploit = []
+        if not is_exploration and best_scripts:
+            # Get the top 2-3 performing scripts (depending on how many are available)
+            top_count = min(3, len(best_scripts))
+            for i in range(top_count):
+                script_info = best_scripts[i]
+                # Find the full script content
+                for iteration in iterations:
+                    if iteration.get("iteration") == script_info.get("iteration"):
+                        script_info["script"] = iteration.get("script", "")
+                        break
+                top_scripts_to_exploit.append(script_info)
+
         # Collect approach history
         approach_history = []
         for summary in summaries:
@@ -1196,9 +1210,31 @@ class AgentSystem:
             else:
                 accuracy_str = "N/A"
 
+            # Generate content for multiple top scripts
+            top_scripts_content = ""
+            if top_scripts_to_exploit:
+                for i, script_info in enumerate(top_scripts_to_exploit):
+                    accuracy_value = script_info.get('accuracy', 0)
+                    accuracy_str = f"{accuracy_value:.2f}"
+
+                    script_content = ""
+                    if 'script' in script_info:
+                        script_content = f"\n```python\n{script_info.get('script', '')}\n```"
+
+                    top_scripts_content += f"\nTOP PERFORMING APPROACH #{i+1}:\n"
+                    top_scripts_content += f"Iteration: {script_info.get('iteration', 'Unknown')}\n"
+                    top_scripts_content += f"Accuracy: {accuracy_str}\n"
+                    top_scripts_content += f"Approach Summary: {script_info.get('approach_summary', 'No summary available')}\n"
+
+                    # Only include full code for the best script to avoid making prompt too long
+                    if i == 0:  # Only for the top script
+                        top_scripts_content += f"\nFULL SCRIPT TO REFINE:{script_content}\n"
+                    else:  # For other scripts, mention they're available for reference
+                        top_scripts_content += f"\nKey approach aspects (full code available for reference)\n"
+
             prompt = f"""
             You are improving a Python script that solves problems from a dataset.
-            Your goal is to REFINE and ENHANCE the current best approach based on detailed error analysis and accumulated learnings.
+            Your goal is to REFINE and ENHANCE the best performing approaches by combining their strengths and addressing specific weaknesses identified in error analysis.
 
             Here are example problems from previously seen data:
             {json.dumps(example_problems, indent=2)}
@@ -1209,38 +1245,53 @@ class AgentSystem:
 
             {capability_context}
 
-            BEST PERFORMING APPROACH TO REFINE:
-            Iteration: {best_script_to_exploit.get('iteration') if best_script_to_exploit else 'None'}
-            Accuracy: {accuracy_str}
-            Approach Summary: {best_script_to_exploit.get('approach_summary') if best_script_to_exploit else 'No approach to refine'}
-            {best_script_code}
+            TOP PERFORMING APPROACHES TO BUILD UPON:
+            {top_scripts_content}
+
+            PREVIOUSLY ATTEMPTED VARIATIONS:
+            {last_scripts_context}
 
             EXPLOITATION GUIDANCE:
             1. Review the error patterns, targeted improvements, and accumulated learnings carefully
-            2. Maintain the core successful elements of the best approach
-            3. CRITICAL: Add EMBEDDED EXAMPLES to EVERY LLM prompt that illustrate:
+            2. CRITICAL: Break down the problem into distinct reasoning steps before modifying code
+            3. CRITICAL: Analyze the best scripts to identify which components are working well and which are failing. Focus your improvements on the weak points while preserving successful components.
+            4. Maintain the core successful elements of the best approaches
+            5. Consider how you can combine strengths from multiple top-performing approaches
+            6. CRITICAL: Add EMBEDDED EXAMPLES to EVERY LLM prompt that illustrate:
                - Sample input that resembles the dataset
                - Step-by-step reasoning through the example
                - Properly formatted output
-            4. Focus on fixing specific issues identified in previous error analyses
-            5. Enhance chain-of-thought reasoning and verification steps. Verification steps should be added to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
-            6. Apply the key insights from ACCUMULATED LEARNINGS to enhance the approach
-            7. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment
-            8. Consider enhancing the script with one or more of these patterns:
-               - Repeated validation with feedback loops
-               - Multi-perspective analysis with synthesis
-               - Dynamic input-dependent routing
-               - Hybrid approaches combining LLM with deterministic functions
-               - Best-of-n solution generation and selection
-               - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
-               - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
+            7. Focus on fixing specific issues identified in previous error analyses
+            8. Enhance chain-of-thought reasoning and verification steps. Verification steps should be added to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
+            9. Apply the key insights from ACCUMULATED LEARNINGS to enhance the approach
+            10. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment
 
+            IMPROVEMENT STRATEGY:
+            Analyze why the top approaches succeeded where others failed. Identify the key differentiators and strengthen them further.
+
+            SYSTEMATIC ENHANCEMENT APPROACH:
+            1. First, identify which specific function or component is underperforming based on error analysis
+            2. Examine how error cases differ from successful cases
+            3. For each identified weakness, implement a targeted enhancement
+            4. Add additional verification steps around modified components
+            5. Consider how components interact - ensure improvements don't break successful parts
+
+            Consider enhancing the script with one or more of these patterns:
+            - Repeated validation with feedback loops
+            - Multi-perspective analysis with synthesis
+            - Dynamic input-dependent routing
+            - Hybrid approaches combining LLM with deterministic functions
+            - Best-of-n solution generation and selection
+            - ReAct pattern for interactive reasoning and action
+            - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
+            - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for refinement with feedback
 
             Here's how to call the Gemini API:
             {gemini_api_example}
 
             Since this is an EXPLOITATION phase:
-            - Build upon what's working well in the best approach
+            - Build upon what's working well in the best approaches
+            - Consider creative combinations of successful techniques from different scripts
             - Make TARGETED improvements to address specific error patterns
             - For EACH key LLM prompt, include a relevant example with:
               * Sample input similar to the dataset
@@ -2842,7 +2893,7 @@ class CapabilityTracker:
                         return cap
 
         # Default to information extraction if nothing else is identified
-        return "information_extraction"
+        return "no specific focus, refer to text reports"
 
     def generate_report(self):
         """
