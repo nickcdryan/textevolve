@@ -1,8 +1,7 @@
-import os
 import json
+import os
 import re
-import datetime
-from datetime import timedelta
+import math
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -33,95 +32,137 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
+def extract_participants(question, max_attempts=3):
+    """Extract participant names from the question using LLM with retries and examples."""
+    system_instruction = "You are an expert at extracting participant names from scheduling requests."
+    prompt = f"""
+    Extract a list of participant names from the question. Return a JSON list.
+
+    Example:
+    Question: Schedule a meeting for John, Jane, and Mike.
+    Participants: ["John", "Jane", "Mike"]
+
+    Question: {question}
+    Participants:
+    """
+    for attempt in range(max_attempts):
+        try:
+            participants_str = call_llm(prompt, system_instruction)
+            participants = json.loads(participants_str)
+            return participants
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Attempt {attempt + 1} failed to parse participants: {e}")
+            if attempt == max_attempts - 1:
+                return [] # Return an empty list on final failure
+            # Adjust the prompt on retry, adding more structure
+            prompt += "\nEnsure your response is a valid JSON list."
+    return []
+
+def extract_constraints(question, max_attempts=3):
+    """Extract meeting constraints from the question using LLM with retries and examples."""
+    system_instruction = "You are an expert at extracting scheduling constraints from meeting requests."
+    prompt = f"""
+    Extract the meeting constraints from the question, including unavailable times and preferred days.
+    Return the constraints as a string.
+
+    Example:
+    Question: Schedule a meeting, John is busy Monday 9-10, Jane prefers Tuesdays.
+    Constraints: John is busy Monday 9-10, Jane prefers Tuesdays.
+
+    Question: {question}
+    Constraints:
+    """
+    for attempt in range(max_attempts):
+        try:
+            constraints = call_llm(prompt, system_instruction)
+            return constraints
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed to extract constraints: {e}")
+            if attempt == max_attempts - 1:
+                return "" # Return an empty string on final failure
+            prompt += "\nProvide the constraints as a simple, readable string."
+    return ""
+
+def solve_meeting_problem(participants, constraints, max_attempts=3):
+    """Solve the meeting scheduling problem using LLM with improved examples."""
+    system_instruction = "You are an expert at solving meeting scheduling problems with complex constraints. Provide the solution as a string."
+    prompt = f"""
+    Given the participants and constraints, find a suitable meeting time.
+
+    Example:
+    Participants: ["John", "Jane"]
+    Constraints: John is busy Monday 9-10, Jane prefers Tuesdays.
+    Solution: Tuesday, 11:00 - 11:30
+
+    Participants: {participants}
+    Constraints: {constraints}
+    Solution:
+    """
+    for attempt in range(max_attempts):
+        try:
+            solution = call_llm(prompt, system_instruction)
+            return solution
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed to solve meeting problem: {e}")
+            if attempt == max_attempts - 1:
+                return "No suitable time slots found." # Return default on final failure
+            prompt += "\nProvide the solution as a day and time range, like 'Monday, 14:00 - 14:30'."
+    return "No suitable time slots found."
+
+def verify_solution(question, solution, max_attempts=3):
+    """Verify the proposed solution using LLM with clear examples."""
+    system_instruction = "You are an expert at verifying if a proposed meeting time is valid. Respond with 'VALID' or 'INVALID'."
+    prompt = f"""
+    Verify if the proposed meeting time is valid given the original question. Respond ONLY with 'VALID' or 'INVALID'.
+
+    Example:
+    Question: Schedule a meeting for John, Jane, and Mike. John is busy Monday 9-10.
+    Proposed Solution: Monday, 11:00 - 11:30
+    Verification: VALID
+
+    Question: {question}
+    Proposed Solution: {solution}
+    Verification:
+    """
+    for attempt in range(max_attempts):
+        try:
+            verification = call_llm(prompt, system_instruction)
+            if "VALID" in verification.upper():
+                return "VALID"
+            else:
+                return "INVALID"
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed to verify solution: {e}")
+            if attempt == max_attempts - 1:
+                return "INVALID"
+            prompt += "\nRespond ONLY with the word 'VALID' or 'INVALID'."
+    return "INVALID"
+
 def main(question):
-    """Schedules meetings using a new approach: Multi-stage information extraction with structured output and ReAct for slot finding."""
+    """Main function to schedule meetings."""
     try:
-        # 1. Extract structured meeting information using multi-stage extraction
-        meeting_info = extract_structured_meeting_info(question)
-        if "Error" in meeting_info:
-            return "Error extracting meeting information."
+        # 1. Extract participants
+        participants = extract_participants(question)
+        if not participants:
+            return "Error: Could not extract participants."
 
-        # 2. Use ReAct pattern to find a valid meeting slot
-        best_slot = find_meeting_slot_with_react(meeting_info)
-        if "Error" in best_slot:
-            return "Error finding a valid meeting slot."
+        # 2. Extract constraints
+        constraints = extract_constraints(question)
+        if not constraints:
+            return "Error: Could not extract constraints."
 
-        return best_slot
-    except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        # 3. Solve the meeting problem
+        solution = solve_meeting_problem(participants, constraints)
+        if "No suitable time slots found" in solution:
+            return "No suitable time slots found."
 
-def extract_structured_meeting_info(question):
-    """Extracts meeting information in a structured format using LLM with embedded examples."""
-    system_instruction = "You are an expert at extracting meeting scheduling details into a structured format."
-    prompt = f"""
-    Extract structured meeting information from the following text. Return the information as a JSON object.
-    
-    Example:
-    Input: You need to schedule a meeting for John and Jane for 30 minutes between 9:00 and 17:00 on Monday. John is busy 10:00-11:00, Jane is busy 13:00-14:00.
-    Output:
-    {{
-      "participants": ["John", "Jane"],
-      "duration": 30,
-      "days": ["Monday"],
-      "work_hours": ["9:00", "17:00"],
-      "schedules": {{
-        "John": [["10:00", "11:00"]],
-        "Jane": [["13:00", "14:00"]]
-      }}
-    }}
-    
-    Input: {question}
-    Output:
-    """
-    try:
-        extracted_info = call_llm(prompt, system_instruction)
-        return extracted_info
-    except Exception as e:
-        return f"Error extracting info: {str(e)}"
+        # 4. Verify solution
+        verification = verify_solution(question, solution)
 
-def find_meeting_slot_with_react(meeting_info_str):
-    """Finds a valid meeting slot using the ReAct pattern with LLM reasoning."""
-    system_instruction = "You are a ReAct agent for finding valid meeting times, alternating between reasoning and actions."
-    prompt = f"""
-    You are provided with meeting information in JSON format. Use the ReAct pattern to find a valid meeting slot.
-    
-    Meeting Information:
-    {meeting_info_str}
-    
-    Here's how to use the ReAct pattern:
-    1. REASON: Start by carefully reviewing the meeting information and identify available time slots.
-    2. ACTION: Propose a potential meeting slot (e.g., "Monday, 14:00 - 14:30").
-    3. OBSERVATION: Check if the proposed slot conflicts with any participant's schedule.
-    4. Repeat steps 1-3 until a valid slot is found, or you determine no valid slot exists.
-    5. FINISH: Once a valid slot is found, output the result (e.g., "Valid meeting slot: Monday, 14:00 - 14:30"). If no valid slot can be found, output "No valid meeting slot found".
-    
-    Example:
-    Meeting Information:
-    {{
-      "participants": ["John", "Jane"],
-      "duration": 30,
-      "days": ["Monday"],
-      "work_hours": ["9:00", "17:00"],
-      "schedules": {{
-        "John": [["10:00", "11:00"]],
-        "Jane": [["13:00", "14:00"]]
-      }}
-    }}
-    
-    Thought 1: Okay, let's find a 30-minute slot on Monday between 9:00 and 17:00 that works for both John and Jane, considering their schedules.
-    Action 1: Propose Monday, 9:00 - 9:30
-    Observation 1: John is available. Jane is available. The proposed slot is valid.
-    Action 2: FINISH Valid meeting slot: Monday, 9:00 - 9:30
-    
-    Let's begin! Start with Thought 1.
-    """
-    try:
-        react_response = call_llm(prompt, system_instruction)
-        # Extract result. If finding result failed it should say No valid meeting slot found
-        if "Valid meeting slot" in react_response:
-            return react_response.split("Valid meeting slot: ")[1].strip()
+        if verification == "VALID":
+            return f"Here is the proposed time: {solution}"
         else:
-            return "No valid meeting slot found"
+            return "No suitable time slots found."
 
     except Exception as e:
-        return f"Error finding slot: {str(e)}"
+        return f"Error: {str(e)}"

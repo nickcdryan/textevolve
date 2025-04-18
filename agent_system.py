@@ -2893,7 +2893,8 @@ class CapabilityTracker:
                         return cap
 
         # Default to information extraction if nothing else is identified
-        return "no specific focus, refer to text reports"
+        #return "no specific focus, refer to text reports"
+        return "information_extraction"
 
     def generate_report(self):
         """

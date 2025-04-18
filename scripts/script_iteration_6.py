@@ -1,8 +1,7 @@
 import os
 import json
 import re
-import datetime
-from datetime import timedelta
+import math
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -33,95 +32,90 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def main(question):
-    """Schedules meetings using a different approach: decompose problem into extraction, then use a verification and iterative refinement strategy to find available slots."""
-    try:
-        # 1. Extract meeting information
-        extracted_info = extract_meeting_info(question)
-        if "Error" in extracted_info:
-            return "Error extracting meeting information."
-
-        meeting_info = json.loads(extracted_info)
-
-        # 2. Find an available meeting slot with validation
-        available_slot = find_available_slot(meeting_info, question)
-        if "Error" in available_slot:
-            return "Error finding a suitable meeting time."
-
-        return available_slot
-
-    except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
-
-def extract_meeting_info(question):
-    """Extracts meeting information with a few-shot example."""
-    system_instruction = "You are an expert at extracting meeting scheduling details into a structured format."
+def extract_participants(question):
+    """Extract participant names from the question using LLM with an example."""
+    system_instruction = "You are an expert at extracting participant names from scheduling requests."
     prompt = f"""
-    Extract structured meeting information from the following text. Return the information as a JSON object.
+    Extract the participant names from the question.
 
     Example:
-    Input: You need to schedule a meeting for John and Jane for 30 minutes between 9:00 and 17:00 on Monday. John is busy 10:00-11:00, Jane is busy 13:00-14:00.
-    Output:
-    {{
-      "participants": ["John", "Jane"],
-      "duration": 30,
-      "days": ["Monday"],
-      "work_hours": ["9:00", "17:00"],
-      "schedules": {{
-        "John": [["10:00", "11:00"]],
-        "Jane": [["13:00", "14:00"]]
-      }}
-    }}
+    Question: Schedule a meeting for John, Jane, and Mike.
+    Participants: John, Jane, Mike
 
-    Input: {question}
-    Output:
+    Question: {question}
+    Participants:
     """
     try:
-        extracted_info = call_llm(prompt, system_instruction)
-        return extracted_info
+        participants = call_llm(prompt, system_instruction)
+        return [p.strip() for p in participants.split(',')]  # Split and strip names
     except Exception as e:
-        return f"Error extracting info: {str(e)}"
+        print(f"Error extracting participants: {e}")
+        return []  # Return empty list on error
 
-def find_available_slot(meeting_info, question, max_attempts=5):
-    """Finds available slots and validates them iteratively with LLM."""
-    system_instruction = "You are an expert meeting scheduler. You will propose a time and then confirm with the validator that it works."
+def extract_constraints_with_example(question):
+    """Extract scheduling constraints using LLM with an example and structured output."""
+    system_instruction = "You are an expert at extracting scheduling constraints from meeting requests, providing structured output."
+    prompt = f"""
+    Extract the scheduling constraints from the question and format them as a list of sentences.
 
-    for attempt in range(max_attempts):
-        # 1. Propose a meeting slot
-        proposal_prompt = f"""
-        Based on this meeting information: {meeting_info}, propose a possible meeting slot (day, start time, end time). Consider work hours and participant schedules.
+    Example:
+    Question: John is busy Monday 9-10, Jane prefers Tuesdays. Schedule a meeting for them.
+    Constraints:
+    - John is busy Monday 9-10.
+    - Jane prefers Tuesdays.
 
-        Example:
-        Meeting Info: {{"participants": ["John", "Jane"], "duration": 30, "days": ["Monday"], "work_hours": ["9:00", "17:00"], "schedules": {{"John": [["10:00", "11:00"]], "Jane": [["13:00", "14:00"]]}}}}
-        Proposed Slot: Monday, 9:00 - 9:30
+    Question: {question}
+    Constraints:
+    """
+    try:
+        constraints = call_llm(prompt, system_instruction)
+        return [c.strip() for c in constraints.split('\n') if c.strip()]  # Split and strip constraints
+    except Exception as e:
+        print(f"Error extracting constraints: {e}")
+        return []  # Return empty list on error
 
-        Meeting Info: {meeting_info}
-        Proposed Slot:
-        """
+def solve_meeting_problem(participants, constraints):
+    """Solve the scheduling problem using LLM with example."""
+    system_instruction = "You are an expert at solving meeting scheduling problems with constraints."
+    prompt = f"""
+    Given the participants and constraints, find a suitable meeting time.
 
-        proposed_slot = call_llm(proposal_prompt, system_instruction)
+    Example:
+    Participants: John, Jane
+    Constraints:
+    - John is busy Monday 9-10.
+    - Jane prefers Tuesdays.
+    Solution: Tuesday, 11:00 - 11:30
 
-        # 2. Validate proposed slot against constraints
-        validation_prompt = f"""
-        You are a meeting scheduler and need to determine if this slot: {proposed_slot} is valid given the following constraints: {meeting_info}.
+    Participants: {', '.join(participants)}
+    Constraints:
+    {chr(10).join(constraints)}
+    Solution:
+    """
+    try:
+        solution = call_llm(prompt, system_instruction)
+        return solution
+    except Exception as e:
+        print(f"Error solving the meeting problem: {e}")
+        return "No suitable time slots found."
 
-        Respond with VALID or INVALID followed by the reason.
+def main(question):
+    """Main function to schedule meetings."""
+    try:
+        # 1. Extract participants
+        participants = extract_participants(question)
+        if not participants:
+            return "Error: Could not extract participants."
 
-        Example:
-        Proposed Slot: Monday, 9:00 - 9:30
-        Meeting Info: {{"participants": ["John", "Jane"], "duration": 30, "days": ["Monday"], "work_hours": ["9:00", "17:00"], "schedules": {{"John": [["10:00", "11:00"]], "Jane": [["13:00", "14:00"]]}}}}
-        Validation: VALID
+        # 2. Extract constraints
+        constraints = extract_constraints_with_example(question)
+        if not constraints:
+            return "Error: Could not extract constraints."
 
-        Proposed Slot: {proposed_slot}
-        Meeting Info: {meeting_info}
-        Validation:
-        """
+        # 3. Solve the meeting problem
+        solution = solve_meeting_problem(participants, constraints)
 
-        validation_result = call_llm(validation_prompt, system_instruction)
+        return f"Here is the proposed time: {solution}"
 
-        if "VALID" in validation_result:
-            return f"Here is the proposed time: {proposed_slot}"
-        else:
-            continue  # Retry with a new proposal
-
-    return "Error: Could not find a suitable meeting time after multiple attempts."
+    except Exception as e:
+        return f"Error: {str(e)}"

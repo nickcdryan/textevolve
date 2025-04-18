@@ -1,8 +1,7 @@
 import os
 import json
 import re
-import datetime
-from datetime import timedelta
+import math
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
@@ -33,108 +32,102 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def main(question):
-    """Schedules meetings using multi-perspective analysis and iterative refinement."""
-    try:
-        # 1. Analyze the problem from multiple perspectives
-        analysis_result = multi_perspective_analysis(question)
-
-        # 2. Extract key information from the combined analysis
-        meeting_info = extract_meeting_info(analysis_result["synthesis"])
-
-        # 3. Find an available meeting slot based on extracted information
-        available_slot = find_available_time_slot(meeting_info, question)
-        return available_slot
-
-    except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
-
-def multi_perspective_analysis(question):
-    """Analyzes the question from different perspectives to extract relevant info."""
-    system_instruction = "You are a multi-faceted analyst combining insights from different experts."
+def extract_meeting_data(question):
+    """Extract participants, duration, and working hours using LLM with examples."""
+    system_instruction = "You are an expert in extracting data from scheduling requests."
     prompt = f"""
-    Analyze this meeting scheduling question from three perspectives:
-    1. Information Extraction Expert: Focus on identifying key information (participants, duration, time, constraints).
-    2. Constraint Satisfaction Expert: Focus on understanding the constraints and how they limit the solution space.
-    3. Time Management Expert: Focus on time arithmetic and finding optimal meeting slots.
+    Extract participant names, meeting duration, and working hours from the question.
 
     Example:
-    Question: Schedule a meeting for John and Jane for 30 minutes between 9:00 and 17:00 on Monday. John is busy 10:00-11:00, Jane is busy 13:00-14:00.
-    Analysis:
+    Question: Schedule a meeting for John, Jane, and Mike for half an hour between 9:00 to 17:00 on Monday.
+    Data:
     {{
-        "information_extraction": "Participants: John, Jane; Duration: 30; Time: 9:00-17:00; Day: Monday; Constraints: John busy 10:00-11:00, Jane busy 13:00-14:00",
-        "constraint_satisfaction": "Need to find a 30-minute slot that doesn't overlap with John's 10:00-11:00 or Jane's 13:00-14:00 on Monday",
-        "time_management": "Possible slots: 9:00-9:30, 9:30-10:00, 11:00-11:30, 11:30-12:00... Check each slot for conflicts."
+      "participants": ["John", "Jane", "Mike"],
+      "duration": "30 minutes",
+      "working_hours": "9:00 to 17:00",
+      "days": ["Monday"]
+    }}
+
+    Question: Schedule a meeting for Alice and Bob for 1 hour between 10:00 and 16:00 on Tuesday and Wednesday.
+    Data:
+    {{
+      "participants": ["Alice", "Bob"],
+      "duration": "1 hour",
+      "working_hours": "10:00 to 16:00",
+      "days": ["Tuesday", "Wednesday"]
     }}
 
     Question: {question}
-    Analysis:
+    Data:
     """
-    analysis = call_llm(prompt, system_instruction)
-    try:
-        return json.loads(analysis)
-    except:
-        return {"synthesis": analysis}  # If JSON fails, return raw analysis
+    return call_llm(prompt, system_instruction)
 
-def extract_meeting_info(analysis):
-    """Extracts key meeting information from the multi-perspective analysis."""
-    system_instruction = "You are an expert at extracting meeting details from the analysis."
+def extract_availabilities(question, participants):
+    """Extract availabilities of participants using LLM with examples."""
+    system_instruction = "You are an expert in extracting availabilities of people."
     prompt = f"""
-    Based on this multi-perspective analysis, extract the key meeting information.
-    Analysis: {analysis}
+    For each participant, extract their availabilities (or busy times) from the question.
 
     Example:
-    Analysis: {{"information_extraction": "Participants: John, Jane; Duration: 30; Time: 9:00-17:00; Day: Monday; Constraints: John busy 10:00-11:00, Jane busy 13:00-14:00", "constraint_satisfaction": "Need to find a 30-minute slot that doesn't overlap with John's 10:00-11:00 or Jane's 13:00-14:00 on Monday", "time_management": "Possible slots: 9:00-9:30, 9:30-10:00, 11:00-11:30, 11:30-12:00... Check each slot for conflicts."}}
-    Output:
-    {{
-      "participants": ["John", "Jane"],
-      "duration": 30,
-      "days": ["Monday"],
-      "work_hours": ["9:00", "17:00"],
-      "schedules": {{
-        "John": [["10:00", "11:00"]],
-        "Jane": [["13:00", "14:00"]]
-      }}
-    }}
+    Question: Schedule a meeting for John and Jane. John is busy Monday 9-10. Jane is busy Tuesdays.
+    John: John is busy Monday 9-10.
+    Jane: Jane is busy Tuesdays.
 
-    Output:
+    Question: Schedule a meeting for Charles, Kayla, Cynthia. Charles is free all day. Kayla is busy Monday 12-1.
+    Charles: Charles is free all day.
+    Kayla: Kayla is busy Monday 12-1.
+    Cynthia: Cynthia is free all day.
+
+    Participants: {participants}
+    Question: {question}
     """
-    extracted_info = call_llm(prompt, system_instruction)
+    return call_llm(prompt, system_instruction)
+
+def find_free_slots(availabilities, working_hours, duration, days):
+    """Use LLM to generate potential time slots with example."""
+    system_instruction = "You are an expert at generating meeting schedules."
+    prompt = f"""
+    Given the availabilities, working hours, meeting duration and the desired days, determine the possible time slots.
+    Availabilities: {availabilities}
+    Working Hours: {working_hours}
+    Duration: {duration}
+    Days: {days}
+
+    Example:
+    Availabilities: John is busy Monday 9-10. Jane is busy Tuesdays.
+    Working Hours: 9:00 to 17:00
+    Duration: 30 minutes
+    Days: Monday, Tuesday
+    Possible Time Slots:
+    Monday: 10:00-10:30, 10:30-11:00, 11:00-11:30, 11:30-12:00, 12:00-12:30, 12:30-13:00, 13:00-13:30, 13:30-14:00, 14:00-14:30, 14:30-15:00, 15:00-15:30, 15:30-16:00, 16:00-16:30, 16:30-17:00
+    Tuesday: 9:00-9:30, 9:30-10:00, 10:00-10:30, 10:30-11:00, 11:00-11:30, 11:30-12:00, 12:00-12:30, 12:30-13:00, 13:00-13:30, 13:30-14:00, 14:00-14:30, 14:30-15:00, 15:00-15:30, 15:30-16:00, 16:00-16:30, 16:30-17:00
+
+    Availabilities: {availabilities}
+    Working Hours: {working_hours}
+    Duration: {duration}
+    Days: {days}
+    Possible Time Slots:
+    """
+    return call_llm(prompt, system_instruction)
+
+def main(question):
+    """Main function to schedule meetings."""
     try:
-        return json.loads(extracted_info)
-    except:
-        return "Error: Could not extract valid JSON"
+        # Extract participants, duration, and working hours
+        meeting_data = extract_meeting_data(question)
+        meeting_data_json = json.loads(meeting_data)
+        participants = meeting_data_json["participants"]
+        duration = meeting_data_json["duration"]
+        working_hours = meeting_data_json["working_hours"]
+        days = meeting_data_json["days"]
 
-def find_available_time_slot(info, question, max_attempts=5):
-    """Finds an available time slot with iterative verification."""
-    system_instruction = "You are an expert meeting scheduler."
-    for attempt in range(max_attempts):
-        proposal_prompt = f"""
-        Given the meeting information: {info}, propose a valid meeting slot (day, start time - end time).
-        Consider the constraints and schedules.
+        # Extract availabilities of each participant
+        availabilities = extract_availabilities(question, participants)
 
-        Example:
-        Info: {{"participants": ["John", "Jane"], "duration": 30, "days": ["Monday"], "work_hours": ["9:00", "17:00"], "schedules": {{"John": [["10:00", "11:00"]], "Jane": [["13:00", "14:00"]]}}}}
-        Proposal: Monday, 9:00 - 9:30
+        # Determine possible time slots
+        possible_time_slots = find_free_slots(availabilities, working_hours, duration, days)
 
-        Proposal:
-        """
-        proposed_slot = call_llm(proposal_prompt, system_instruction)
+        return f"Here is the proposed time: {possible_time_slots}"
 
-        verifier_prompt = f"""
-        Verify if this slot: {proposed_slot} is valid given the constraints: {info}.
-        Problem: {question}
-        Example:
-        Slot: Monday, 9:00 - 9:30
-        Info: {{"participants": ["John", "Jane"], "duration": 30, "days": ["Monday"], "work_hours": ["9:00", "17:00"], "schedules": {{"John": [["10:00", "11:00"]], "Jane": [["13:00", "14:00"]]}}}}
-        Verification: Valid
-
-        Verification:
-        """
-        verification_result = call_llm(verifier_prompt, system_instruction)
-
-        if "Valid" in verification_result:
-            return f"Here is the proposed time: {proposed_slot}"
-        else:
-            continue
-    return "Error: Could not find a suitable meeting time"
+    except Exception as e:
+        return f"Error: {str(e)}"
