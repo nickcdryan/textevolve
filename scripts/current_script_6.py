@@ -34,13 +34,14 @@ def call_llm(prompt, system_instruction=None):
 
 def extract_meeting_details(question):
     """Extracts meeting details using LLM with structured extraction and validation."""
-    system_instruction = "You are an expert at extracting meeting details. Focus on high accuracy."
+    system_instruction = "You are an expert at extracting meeting details. Focus on high accuracy and complete data extraction."
     prompt = f"""
     Extract meeting details from the input. Output a JSON with 'participants', 'duration_minutes', 'days', and 'availability' (participant: day: [start-end]).
-    Also, note participant preferences as 'preferences' (participant: reason).
+    Also, note participant preferences as 'preferences' (participant: reason). Be precise and complete.
 
     Example:
     Input: Schedule John and Mary for 30 minutes on Monday between 9-5. John is busy 10-11, Mary is free. Mary prefers to meet before noon.
+    Reasoning: Extract participants, duration as 30, day as Monday. John's availability is 9-10 and 11-17. Mary is fully available. Note Mary's preference.
     Output:
     {{
         "participants": ["John", "Mary"],
@@ -61,7 +62,7 @@ def extract_meeting_details(question):
 
 def find_meeting_time(meeting_details_json):
     """Finds the best meeting time using LLM, incorporating preferences and a verification step."""
-    system_instruction = "You are an expert at scheduling meetings, focusing on earliest availability and constraint satisfaction."
+    system_instruction = "You are an expert at scheduling meetings, focusing on earliest availability and constraint satisfaction. Prioritize earliest valid time."
     prompt = f"""
     Given these meeting details, find the *earliest* valid meeting time, respecting all availability and preferences.
 
@@ -79,7 +80,7 @@ def find_meeting_time(meeting_details_json):
             "Mary": "to meet before noon"
         }}
     }}
-    Reasoning: The earliest time is 9:00. John is available. Mary is available and prefers this time.
+    Reasoning: The earliest time is 9:00. John is available. Mary is available and prefers this time (before noon).
     Output: Here is the proposed time: Monday, 9:00 - 9:30
 
     Input: {meeting_details_json}
@@ -89,9 +90,9 @@ def find_meeting_time(meeting_details_json):
 
 def verify_meeting_time(question, meeting_details_json, suggested_time):
     """Verifies if the suggested meeting time is valid and respects all constraints."""
-    system_instruction = "You are a meticulous meeting scheduler. Double-check every detail."
+    system_instruction = "You are a meticulous meeting scheduler. Double-check every detail and list the steps taken to find the answer."
     prompt = f"""
-    Carefully verify if the suggested meeting time is valid and respects *all* availability constraints and preferences from the original question. If *any* constraint is violated, respond with "INVALID: [reason]". If the time is valid, respond with "VALID".
+    Carefully verify if the suggested meeting time is valid and respects *all* availability constraints and preferences from the original question. Explain your reasoning. If *any* constraint is violated, respond with "INVALID: [reason]". If the time is valid, respond with "VALID".
 
     Example:
     Question: Schedule John and Mary for 30 minutes on Monday between 9-5. John is busy 10-11, Mary is free. Mary prefers to meet before noon.
@@ -109,9 +110,9 @@ def verify_meeting_time(question, meeting_details_json, suggested_time):
         }}
     }}
     Suggested Time: Here is the proposed time: Monday, 11:00 - 11:30
-    Reasoning: John is available. Mary is available and her preference is met. All constraints are respected.
-    Output: VALID
-
+    Reasoning: John is available from 11:00-11:30 (busy 10-11). Mary is available from 11:00-11:30. Mary's preference to meet before noon is NOT met.
+    Output: INVALID: Mary's preference is not met, and 11:00 - 11:30 is not the earliest time slot.
+    
     Question: {question}
     Meeting Details: {meeting_details_json}
     Suggested Time: {suggested_time}

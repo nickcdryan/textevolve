@@ -41,6 +41,14 @@ def extract_meeting_details(question):
 
     Example:
     Input: Schedule John and Mary for 30 minutes on Monday between 9-5. John is busy 10-11, Mary is free. Mary prefers to meet before noon.
+    Reasoning:
+    Participants: John, Mary
+    Duration: 30 minutes
+    Days: Monday
+    John's availability: Monday 9:00-10:00, 11:00-17:00
+    Mary's availability: Monday 9:00-17:00
+    Mary's preference: Meet before noon
+
     Output:
     {{
         "participants": ["John", "Mary"],
@@ -79,7 +87,7 @@ def find_meeting_time(meeting_details_json):
             "Mary": "to meet before noon"
         }}
     }}
-    Reasoning: The earliest time is 9:00. John is available. Mary is available and prefers this time.
+    Reasoning: The earliest time is 9:00. John is available from 9:00-10:00 and Mary is available from 9:00-17:00. Mary prefers to meet before noon. So 9:00-9:30 is the best time.
     Output: Here is the proposed time: Monday, 9:00 - 9:30
 
     Input: {meeting_details_json}
@@ -109,7 +117,7 @@ def verify_meeting_time(question, meeting_details_json, suggested_time):
         }}
     }}
     Suggested Time: Here is the proposed time: Monday, 11:00 - 11:30
-    Reasoning: John is available. Mary is available and her preference is met. All constraints are respected.
+    Reasoning: John is available from 11:00-17:00. Mary is available from 9:00-17:00. All constraints are respected.
     Output: VALID
 
     Question: {question}

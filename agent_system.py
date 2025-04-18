@@ -24,8 +24,8 @@ class AgentSystem:
     """
 
     def __init__(self,
-                 dataset_path: str = "shuffled_calendar_scheduling.json",
-                 example_prefix: str = "calendar_scheduling_example_"):
+         dataset_path: str = "shuffled_calendar_scheduling.json",
+         example_prefix: str = "calendar_scheduling_example_"):
         """Initialize the agent system"""
         # Initialize configuration
         self.explore_rate = 60
@@ -71,9 +71,74 @@ class AgentSystem:
                 "No existing learnings found. Will start accumulating learnings."
             )
 
+        # ADDED: Reserve training examples to prevent data leakage
+        self.mark_training_examples()
+
         # Load previous iterations if available
         self._load_previous_state()
 
+    def get_training_examples(self, count: int = 5) -> List[Dict]:
+        """
+        Get a fixed set of examples for initial training (cold start).
+        These examples are reserved and never used for testing.
+
+        Args:
+            count: Number of training examples to return
+
+        Returns:
+            List of example dictionaries with prompt_0shot and golden_plan
+        """
+        # Load the entire dataset
+        dataset = self.load_dataset()
+        if not dataset:
+            return []
+
+        # Create a deterministic set of training examples
+        # We'll use the first 'count' examples after shuffling with a fixed seed
+        # that's different from the main shuffle seed
+        training_seed = 12345  # Different from the main RANDOM_SEED
+
+        # Save current random state
+        old_state = random.getstate()
+
+        # Set seed for deterministic training examples
+        random.seed(training_seed)
+
+        all_examples = []
+        for key, value in dataset.items():
+            if key.startswith(self.example_prefix):
+                all_examples.append((key, value))
+
+        if not all_examples:
+            # Restore random state and return empty list
+            random.setstate(old_state)
+            return []
+
+        # Shuffle with fixed seed and take first 'count' examples
+        random.shuffle(all_examples)
+        training_examples = all_examples[:min(count, len(all_examples))]
+
+        # Reset the random seed back to previous state
+        random.setstate(old_state)
+
+        # Mark these examples as "seen" so they won't be used for testing
+        for key, _ in training_examples:
+            self.seen_examples.add(key)
+
+        # Return just the example data
+        return [example for _, example in training_examples]
+
+    def mark_training_examples(self):
+        """
+        Mark the initial training examples as seen to ensure they're not used for testing.
+        This should be called during initialization to establish the training set.
+        """
+        # Only run this if we don't have any seen examples yet
+        if not self.seen_examples:
+            # The training examples will be added to seen_examples
+            training_examples = self.get_training_examples(5)  # Get 5 training examples
+            print(f"Reserved {len(training_examples)} examples for initial training")
+    
     def _load_system_prompt(self) -> str:
         """Load the system prompt from the system_prompt.md file"""
         system_prompt_path = Path("system_prompt.md")
@@ -808,22 +873,40 @@ class AgentSystem:
     def generate_script_with_llm(self, is_exploration: bool) -> str:
         """
         Use the LLM to generate a script to solve dataset problems.
-        Includes embedded example prompts to improve performance.
+        Modified to prevent data leakage by using only previously seen examples.
         """
-        # Get previous iterations and samples
+        # Get previous iterations and summaries
         iterations = self.get_all_iterations()
         summaries = self.get_summaries()
-        samples_data = self.get_samples()
-        samples = samples_data["samples"]
 
-        # Extract example problems for context (limit to 2-3 for space)
+        # MODIFIED: Instead of getting current test samples, use examples from past iterations
         example_problems = []
-        for i, sample in enumerate(samples[:3]):
-            example_problems.append({
-                "id": i,
-                "question": sample.get("prompt_0shot", ""),
-                "answer": sample.get("golden_plan", "")
-            })
+
+        if iterations:
+            # Collect samples from previous iterations
+            prev_samples = []
+            for iteration in sorted(iterations, key=lambda x: x.get('iteration', 0) if x else 0, reverse=True)[:3]:
+                if iteration and 'samples' in iteration:
+                    prev_samples.extend(iteration.get('samples', [])[:2])  # Get up to 2 from each recent iteration
+
+            # Use these previous samples as examples
+            for i, sample in enumerate(prev_samples[:3]):  # Limit to 3 examples
+                example_problems.append({
+                    "id": i,
+                    "question": sample.get("prompt_0shot", ""),
+                    "answer": sample.get("golden_plan", "")
+                })
+
+        # Handle cold start (first iteration)
+        if not example_problems:
+            # For initial training, get examples from a fixed training set
+            training_examples = self.get_training_examples(3)  # Using a helper method to get training examples
+            for i, sample in enumerate(training_examples):
+                example_problems.append({
+                    "id": i,
+                    "question": sample.get("prompt_0shot", ""),
+                    "answer": sample.get("golden_plan", "")
+                })
 
         # ==== LOAD ACCUMULATED LEARNINGS ====
         accumulated_learnings = self._load_learnings()
@@ -1027,7 +1110,7 @@ class AgentSystem:
             You are developing a Python script to solve problems using LLM reasoning capabilities.
             You must generate a NEW approach that's different from previous approaches but informed by their successes and failures.
 
-            Here are example problems from the dataset:
+            Here are example problems from previously seen data:
             {json.dumps(example_problems, indent=2)}
 
             HISTORICAL CONTEXT:
@@ -1117,7 +1200,7 @@ class AgentSystem:
             You are improving a Python script that solves problems from a dataset.
             Your goal is to REFINE and ENHANCE the current best approach based on detailed error analysis and accumulated learnings.
 
-            Here are example problems from the dataset:
+            Here are example problems from previously seen data:
             {json.dumps(example_problems, indent=2)}
 
             {historical_context}
@@ -2345,72 +2428,50 @@ except Exception as e:
 
         iteration_start_time = time.time()
 
-        # Get samples from dataset
-        samples_data = self.get_samples()
-        samples = samples_data["samples"]
-
-        if not samples:
-            print("No samples available in dataset. Exiting iteration.")
-            return {"success": False, "error": "No samples available"}
-
-        print(f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)")
-
         # Get capability report if available
         capability_report = None
         if hasattr(self, 'capability_tracker'):
             capability_report = self.capability_tracker.generate_report()
             if capability_report:
                 print("\n=== Current Capability Status ===")
-
                 # Display improvement focus
                 improvement_focus = capability_report.get("improvement_focus", "")
                 if improvement_focus:
                     print(f"  Focus area: {improvement_focus.upper().replace('_', ' ')}")
-
-                # Display strengths
+                # Display strengths and weaknesses...
                 if capability_report.get("strengths"):
                     print("\n  Strengths:")
-                    for strength in capability_report.get("strengths", [])[:2]:  # Show top 2
+                    for strength in capability_report.get("strengths", [])[:2]:
                         print(f"    - {strength}")
-
-                # Display weaknesses
                 if capability_report.get("weaknesses"):
                     print("\n  Weaknesses:")
-                    for weakness in capability_report.get("weaknesses", [])[:2]:  # Show top 2
+                    for weakness in capability_report.get("weaknesses", [])[:2]:
                         print(f"    - {weakness}")
-
-                # Display improvement suggestions if available
                 if capability_report.get("improvement_suggestions"):
                     print("\n  Suggested Improvements:")
                     for suggestion in capability_report.get("improvement_suggestions", [])[:2]:
                         print(f"    - {suggestion}")
-
                 print("=" * 40)
 
         # Decide whether to explore or exploit
         if self.force_exploitation_next:
             is_exploration = False
-            self.force_exploitation_next = False  # Reset the flag
+            self.force_exploitation_next = False
             print("Forcing exploitation based on previous good performance")
         else:
-            # Use only random probability for exploration decision
             is_exploration = random.random() * 100 <= self.explore_rate
 
         # If we have capability data with clear trends, potentially override the strategy
         if capability_report and capability_report.get("trend") != "insufficient_data":
             weakest_capability = capability_report.get("improvement_focus", "")
-
-            # Check trend for the weakest capability
             trends = capability_report.get("trend", {})
             weakest_trend = trends.get(weakest_capability) if isinstance(trends, dict) else None
 
-            # If our weakest capability is declining, force exploration
+            # Strategy overrides based on trends...
             if weakest_trend == "declining":
                 if not is_exploration:
                     print(f"Strategy override: Forcing exploration to address declining capability: {weakest_capability}")
                     is_exploration = True
-
-            # If all capabilities are improving, consider more exploitation
             if isinstance(trends, dict):
                 improving_count = sum(1 for trend in trends.values() if trend == "improving")
                 if improving_count == len(trends) and is_exploration and improving_count > 0:
@@ -2420,13 +2481,12 @@ except Exception as e:
         strategy = "Exploration" if is_exploration else "Exploitation"
         print(f"Strategy for this iteration: {strategy}")
 
-        # Generate script using LLM
+        # MODIFIED: Generate script using LLM BEFORE getting test samples
         print("Generating script with LLM...")
 
         # Get capability insights
         capability_guidance = ""
         improvement_focus = None
-
         if hasattr(self, 'capability_tracker'):
             capability_report = self.capability_tracker.generate_report()
             improvement_focus = capability_report.get("improvement_focus", "")
@@ -2434,6 +2494,7 @@ except Exception as e:
                 capability_guidance = self._generate_capability_guidance(capability_report)
                 print(f"Focusing script improvement on: {improvement_focus.upper().replace('_', ' ')}")
 
+        # Generate script before getting any test samples - prevent data leakage
         script = self.generate_script_with_llm(is_exploration)
 
         # Generate a summary of the approach
@@ -2446,6 +2507,16 @@ except Exception as e:
 
         print(f"Approach summary: {approach_summary}")
 
+        # AFTER script generation, get the test samples that the script hasn't seen
+        samples_data = self.get_samples()
+        samples = samples_data["samples"]
+
+        if not samples:
+            print("No samples available in dataset. Exiting iteration.")
+            return {"success": False, "error": "No samples available"}
+
+        print(f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)")
+
         # Execute script on samples
         print("Executing script on samples...")
         results = []
@@ -2456,16 +2527,13 @@ except Exception as e:
 
             if result.get("success"):
                 print(f"    Result: {result.get('answer')}")
-
                 # Evaluate with LLM
                 golden_answer = sample.get("golden_plan", "")
                 system_answer = result.get("answer", "")
-
                 try:
                     evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
                     result["evaluation"] = evaluation
                     result["match"] = evaluation.get("match", False)
-
                     if result["match"]:
                         print(f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})")
                     else:
@@ -2487,6 +2555,8 @@ except Exception as e:
 
             results.append(result)
 
+        # Rest of function remains the same...
+
         # Calculate basic performance metrics
         successful_runs = sum(1 for r in results if r.get("success", False))
         matches = sum(1 for r in results if r.get("match", False))
@@ -2506,39 +2576,31 @@ except Exception as e:
         try:
             print("Performing error analysis with LLM...")
             evaluation = self.evaluate_with_llm(samples, results)
-
             if evaluation.get('error_analysis'):
                 primary_issue = evaluation.get('error_analysis', {}).get('primary_issue', 'None')
                 print(f"Primary issue identified: {primary_issue}")
-
                 # Display strengths, weaknesses, and improvement suggestions
                 if "error_analysis" in evaluation and evaluation["error_analysis"]:
                     error_analysis = evaluation["error_analysis"]
-
                     if "strengths" in error_analysis and error_analysis["strengths"]:
                         print("\n=== Strengths Identified ===")
                         for strength in error_analysis["strengths"]:
                             print(f"  - {strength}")
-
                     if "weaknesses" in error_analysis and error_analysis["weaknesses"]:
                         print("\n=== Weaknesses Identified ===")
                         for weakness in error_analysis["weaknesses"]:
                             print(f"  - {weakness}")
-
                     if "bottlenecks" in error_analysis and error_analysis["bottlenecks"]:
                         print("\n=== Critical Bottlenecks ===")
                         for bottleneck in error_analysis["bottlenecks"]:
                             print(f"  - {bottleneck}")
-
                     if "improvement_suggestions" in error_analysis and error_analysis["improvement_suggestions"]:
                         print("\n=== Improvement Suggestions ===")
-                        for suggestion in error_analysis["improvement_suggestions"][:3]:  # Top 3
+                        for suggestion in error_analysis["improvement_suggestions"][:3]:
                             print(f"  - {suggestion}")
-
                     print("=" * 40)
             else:
                 print("No specific issues identified")
-
         except Exception as e:
             print(f"Error in error analysis: {str(e)}")
             evaluation = basic_evaluation
@@ -2551,17 +2613,15 @@ except Exception as e:
 
         # Run progressive testing on all seen examples for promising scripts
         progressive_testing_results = None
-        if accuracy >= 0.6:  # Only run progressive testing if current batch performance is good
+        if accuracy >= 0.6:
             self.force_exploitation_next = True
             try:
                 print("Script looks promising! Running progressive testing on all seen examples...")
-                progressive_testing_results = self.run_progressive_testing(script, max_examples=20)
-
+                progressive_testing_results = self.run_progressive_testing(script, max_examples=10)
                 if progressive_testing_results:
                     prog_accuracy = progressive_testing_results.get("accuracy", 0)
                     prog_matches = progressive_testing_results.get("matches", 0)
                     prog_total = progressive_testing_results.get("total_examples", 0)
-
                     print(f"Progressive testing results: {prog_accuracy:.2f} accuracy " + 
                           f"({prog_matches}/{prog_total} correct)")
             except Exception as e:
@@ -2575,7 +2635,6 @@ except Exception as e:
             print(f"New explore/exploit balance: {new_explore}/{new_exploit}")
         except Exception as e:
             print(f"Error adjusting explore/exploit balance: {str(e)}")
-            # Maintain current values if error occurs
             new_explore, new_exploit = self.explore_rate, self.exploit_rate
             print(f"Maintaining current explore/exploit balance: {new_explore}/{new_exploit}")
 
@@ -2586,7 +2645,6 @@ except Exception as e:
             print(f"New batch size: {new_batch_size} ({batch_adjustment_rationale})")
         except Exception as e:
             print(f"Error adjusting batch size: {str(e)}")
-            # Maintain current batch size if error occurs
             new_batch_size = self.current_batch_size
             batch_adjustment_rationale = f"Error: {str(e)}"
             print(f"Maintaining current batch size: {new_batch_size}")
@@ -2601,23 +2659,16 @@ except Exception as e:
                 print(f"Path: {best_script_info.get('path')}")
                 print(f"Approach: {best_script_info.get('approach')}")
                 print(f"Rationale: {best_script_info.get('rationale')}")
-
                 # Display capability assessment for the best script if available
                 if hasattr(self, 'capability_tracker') and capability_report:
                     print("\n  Capability Assessment:")
-
-                    # Display improvement focus
                     improvement_focus = capability_report.get("improvement_focus", "")
                     if improvement_focus:
                         print(f"    Focus area: {improvement_focus.upper().replace('_', ' ')}")
-
-                    # Display strengths (top 2)
                     if capability_report.get("strengths"):
                         print("    Strengths:")
                         for strength in capability_report.get("strengths", [])[:2]:
                             print(f"      - {strength}")
-
-                    # Display weaknesses (top 2)
                     if capability_report.get("weaknesses"):
                         print("    Weaknesses:")
                         for weakness in capability_report.get("weaknesses", [])[:2]:
@@ -2694,6 +2745,7 @@ except Exception as e:
             print(f"Error updating learnings: {e}")
 
         return iteration_data
+        
 
 class CapabilityTracker:
     """

@@ -1,89 +1,121 @@
+import google.generativeai as genai
 import os
-import json
-import re
 
-def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response"""
+# Replace with your actual Gemini API key
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+genai.configure(api_key=GOOGLE_API_KEY)
+
+model = genai.GenerativeModel('gemini-pro')
+
+
+def call_llm(prompt, model=model):
+    """
+    Calls the Gemini LLM with the given prompt and returns the response.
+    Handles potential errors during the API call.
+    """
     try:
-        from google import genai
-        from google.genai import types
-
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
-
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        print(f"Error calling Gemini API: {str(e)}")
-        return f"Error: {str(e)}"
+        print(f"Error calling LLM: {e}")
+        return None
 
-def extract_meeting_constraints(question):
-    """Extract meeting constraints from the input question using LLM with examples."""
-    system_instruction = "You are an expert at extracting meeting constraints from text."
-    prompt = f"""
-    Extract the following constraints from the question: participants, duration, days, start_time, end_time, existing schedules, preferences.
-    Example:
-    Question: You need to schedule a meeting for Carol and Mark for half an hour between the work hours of 9:00 to 17:00 on Monday. Carol has blocked their calendar on Monday during 10:00 to 11:00; Mark has blocked their calendar on Monday during 9:30 to 10:00.
-    Extracted Constraints: {{"participants": ["Carol", "Mark"], "duration": "half an hour", "days": ["Monday"], "start_time": "9:00", "end_time": "17:00", "existing_schedules": {{"Carol": {{"Monday": ["10:00-11:00"]}}, "Mark": {{"Monday": ["9:30-10:00"]}}}}, "preferences": {{}}}}
 
-    Question: {question}
+def extract_answer_from_solution(solution):
     """
-    return call_llm(prompt, system_instruction)
-
-def propose_meeting_time(constraints_json):
-    """Propose a meeting time using LLM reasoning with examples."""
-    system_instruction = "You are an expert at proposing meeting times given constraints."
-    prompt = f"""
-    Given these meeting constraints, propose a meeting time.
-    Example:
-    Constraints: {{"participants": ["Carol", "Mark"], "duration": "half an hour", "days": ["Monday"], "start_time": "9:00", "end_time": "17:00", "existing_schedules": {{"Carol": {{"Monday": ["10:00-11:00"]}}, "Mark": {{"Monday": ["9:30-10:00"]}}}}, "preferences": {{}}}}
-    Proposed Time: Here is the proposed time: Monday, 9:00 - 9:30
-
-    Constraints: {constraints_json}
+    Extracts the final answer from a detailed solution string, handling potential errors.
     """
-    return call_llm(prompt, system_instruction)
+    try:
+        # LLM call to extract answer
+        prompt = f"""
+        Extract the final answer from the following solution:
 
-def verify_solution(question, proposed_time):
-    """Verify if the proposed solution satisfies all requirements using LLM with examples."""
-    system_instruction = "You are a critical evaluator who verifies meeting schedules."
-    prompt = f"""
-    Verify if the proposed meeting time satisfies all requirements in the question.
-    Example:
-    Question: You need to schedule a meeting for Carol and Mark for half an hour between 9:00 to 17:00 on Monday. Carol has blocked their calendar on Monday during 10:00 to 11:00; Mark has blocked their calendar on Monday during 9:30 to 10:00.
-    Proposed Time: Monday, 9:00 - 9:30
-    Verification: The proposed time satisfies all requirements.
+        Solution:
+        {solution}
 
-    Question: {question}
-    Proposed Time: {proposed_time}
+        Example:
+        Solution: The cost of apples is $3.60 and the cost of oranges is $1.60 for a total of $5.20. The change from $10 is $4.80.
+        Answer: $4.80
+
+        Now extract the answer from:
+        {solution}
+        """
+
+        answer = call_llm(prompt)
+        return answer
+    except Exception as e:
+        print(f"Error extracting answer: {e}")
+        return "Could not extract answer."
+
+
+def solve_question(question):
     """
-    return call_llm(prompt, system_instruction)
+    Solves a question by breaking it down into smaller reasoning steps using LLM calls.
+    """
+    try:
+        # Step 1: Understand the question
+        understanding_prompt = f"""
+        Understand the question and identify the key information needed to answer it.
+
+        Question:
+        {question}
+
+        Example:
+        Question: John has 5 apples and buys 3 more. How many does he have now?
+        Key information: John initially has 5 apples. John buys 3 more apples.
+        The question asks for the total number of apples.
+        """
+        understanding = call_llm(understanding_prompt)
+
+        # Step 2: Devise a plan
+        plan_prompt = f"""
+        Devise a plan to answer the question, given the following understanding:
+
+        Understanding:
+        {understanding}
+
+        Question:
+        {question}
+
+        Example:
+        Understanding: John initially has 5 apples. John buys 3 more apples. The question asks for the total number of apples.
+        Plan: Add the initial number of apples (5) to the number of apples John buys (3) to find the total number of apples.
+        """
+        plan = call_llm(plan_prompt)
+
+        # Step 3: Execute the plan
+        execution_prompt = f"""
+        Execute the plan and provide the final answer.
+
+        Plan:
+        {plan}
+
+        Question:
+        {question}
+
+        Example:
+        Plan: Add the initial number of apples (5) to the number of apples John buys (3) to find the total number of apples.
+        Answer: 5 + 3 = 8. John has 8 apples.
+        """
+        execution = call_llm(execution_prompt)
+
+        # Step 4: Extract the final answer from the solution
+        final_answer = extract_answer_from_solution(execution)
+        return final_answer
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return "Could not solve the question."
+
 
 def main(question):
-    """Main function to schedule a meeting."""
-    try:
-        # Extract meeting constraints
-        constraints_json = extract_meeting_constraints(question)
+    """
+    Main function to solve the question using LLM.
+    """
+    return solve_question(question)
 
-        # Propose a meeting time
-        proposed_time = propose_meeting_time(constraints_json)
 
-        # Verify the solution
-        verification_result = verify_solution(question, proposed_time)
-
-        return proposed_time
-    except Exception as e:
-        return f"Error: {str(e)}"
+if __name__ == "__main__":
+    example_question = "What is the capital of France?"
+    answer = main(example_question)
+    print(f"Question: {example_question}\nAnswer: {answer}")
