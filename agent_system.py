@@ -1098,6 +1098,196 @@ class AgentSystem:
         # Add the few-shot examples to the context
         historical_context += f"\n\n{few_shot_examples}"
 
+        historical_context += """MULTI-EXAMPLE PROMPTING GUIDANCE:
+        1. CRITICAL: Use MULTIPLE examples (2-5) in EVERY LLM prompt, not just one
+        2. Vary the number of examples based on task complexity - more complex tasks need more examples
+        3. Select diverse examples that showcase different patterns and edge cases
+        4. Structure your few-shot examples to demonstrate clear step-by-step reasoning
+        5. Consider using both "easy" and "challenging" examples to help the LLM learn from contrasts
+        6. The collection of examples should collectively cover all key aspects of the problem
+        7. When available, use examples from previous iterations that revealed specific strengths or weaknesses
+
+        Example of poor single-example prompting:
+        ```python
+        def extract_entities(text):
+            prompt = f'''
+            Extract entities from this text.
+
+            Example:
+            Text: John will meet Mary at 3pm on Tuesday.
+            Entities: {{"people": ["John", "Mary"], "time": "3pm", "day": "Tuesday"}}
+
+            Text: {text}
+            Entities:
+            '''
+            return call_llm(prompt)
+        ```
+
+        Example of effective multi-example prompting:
+        ```python
+        def extract_entities(text):
+            prompt = f'''
+            Extract entities from this text.
+
+            Example 1:
+            Text: John will meet Mary at 3pm on Tuesday.
+            Entities: {{"people": ["John", "Mary"], "time": "3pm", "day": "Tuesday"}}
+
+            Example 2:
+            Text: The team needs to submit the report by Friday at noon.
+            Entities: {{"people": ["the team"], "time": "noon", "day": "Friday", "object": "report"}}
+
+            Example 3:
+            Text: Alex cannot attend the conference from Jan 3-5 due to prior commitments.
+            Entities: {{"people": ["Alex"], "event": "conference", "date_range": ["Jan 3-5"], "reason": "prior commitments"}}
+
+            Text: {text}
+            Entities:
+            '''
+            return call_llm(prompt)
+        ```
+
+        IMPLEMENTATION STRATEGIES:
+        1. Maintain a "example bank" of successful and failed examples to select from
+        2. Implement n-shot prompting with n=3 as default, but adapt based on performance
+        3. For complex tasks, use up to 5 examples; for simpler tasks, 2-3 may be sufficient
+        4. Include examples with a range of complexity levels, rather than all similar examples
+
+
+        VALIDATION AND VERIFICATION GUIDANCE:
+        1. CRITICAL: Consider implementing validation loops for EACH key processing step, not just final outputs
+        2. Design your system to detect, diagnose, and recover from specific errors. This will help future learnings
+        3. For every LLM extraction or generation, add a verification step that checks:
+           - Whether the output is well-formed and complete
+           - Whether the output is logically consistent with the input
+           - Whether all constraints are satisfied
+        4. Add feedback loops that retry failures with specific feedback
+        5. Include diagnostic outputs that reveal exactly where failures occur
+        6. Include capability to trace through execution steps to identify failure points
+
+        Example of pipeline without verification:
+        ```python
+        def process_question(question):
+            entities = extract_entities(question)
+            constraints = identify_constraints(question)
+            solution = generate_solution(entities, constraints)
+            return solution
+        ```
+
+        Example of robust pipeline with verification:
+        ```python
+        def process_question(question, max_attempts=3):
+            # Step 1: Extract entities with verification
+            entities_result = extract_entities_with_verification(question)
+            if not entities_result.get("is_valid"):
+                print(f"Entity extraction failed: {entities_result.get('validation_feedback')}")
+                return f"Error in entity extraction: {entities_result.get('validation_feedback')}"
+
+            # Step 2: Identify constraints with verification
+            constraints_result = identify_constraints_with_verification(question, entities_result["entities"])
+            if not constraints_result.get("is_valid"):
+                print(f"Constraint identification failed: {constraints_result.get('validation_feedback')}")
+                return f"Error in constraint identification: {constraints_result.get('validation_feedback')}"
+
+            # Step 3: Generate solution with verification
+            solution_result = generate_solution_with_verification(
+                question, 
+                entities_result["entities"], 
+                constraints_result["constraints"]
+            )
+            if not solution_result.get("is_valid"):
+                print(f"Solution generation failed: {solution_result.get('validation_feedback')}")
+                return f"Error in solution generation: {solution_result.get('validation_feedback')}"
+
+            return solution_result["solution"]
+
+        def extract_entities_with_verification(question, max_attempts=3):
+            #Extract entities and verify their validity with feedback loop.
+            system_instruction = "You are an expert at extracting and validating entities."
+
+            for attempt in range(max_attempts):
+                # First attempt at extraction
+                extraction_prompt = f'''
+                Extract key entities from this question. 
+                Return a JSON object with the extracted entities.
+
+                Example 1: [example with entities]
+                Example 2: [example with different entities]
+                Example 3: [example with complex entities]
+
+                Question: {question}
+                Extraction:
+                '''
+
+                extracted_data = call_llm(extraction_prompt, system_instruction)
+
+                try:
+                    # Parse the extraction
+                    data = json.loads(extracted_data)
+
+                    # Verification step
+                    verification_prompt = f'''
+                    Verify if these extracted entities are complete and correct:
+
+                    Question: {question}
+                    Extracted entities: {json.dumps(data, indent=2)}
+
+                    Check if:
+                    1. All relevant entities are extracted
+                    2. No irrelevant entities are included
+                    3. All entity values are correct
+
+                    Return a JSON with:
+                    {{
+                      "is_valid": true/false,
+                      "validation_feedback": "detailed explanation",
+                      "missing_entities": ["entity1", "entity2"],
+                      "incorrect_entities": ["entity3"]
+                    }}
+                    '''
+
+                    verification_result = call_llm(verification_prompt, system_instruction)
+                    verification_data = json.loads(verification_result)
+
+                    if verification_data.get("is_valid", False):
+                        data["is_valid"] = True
+                        data["validation_feedback"] = "All entities are valid."
+                        return data
+
+                    # If not valid and we have attempts left, refine with feedback
+                    if attempt < max_attempts - 1:
+                        feedback = verification_data.get("validation_feedback", "")
+                        print(f"Validation failed (attempt {attempt+1}/{max_attempts}): {feedback}")
+                        continue
+
+                    # If we're out of attempts, return the best we have with validation info
+                    data["is_valid"] = False
+                    data["validation_feedback"] = verification_data.get("validation_feedback", "Unknown validation error")
+                    return data
+
+                except Exception as e:
+                    print(f"Error in extraction/validation (attempt {attempt+1}/{max_attempts}): {str(e)}")
+                    if attempt >= max_attempts - 1:
+                        return {
+                            "is_valid": False,
+                            "validation_feedback": f"Error during processing: {str(e)}"
+                        }
+
+            return {
+                "is_valid": False,
+                "validation_feedback": "Failed to extract valid entities after multiple attempts."
+            }
+        ```
+
+        VALIDATION IMPLEMENTATION STRATEGIES:
+        1. Create detailed verification functions for each major processing step
+        2. Implement max_attempts limits on all retry loops (typically 3-5 attempts)
+        3. Pass specific feedback from verification to subsequent retry attempts
+        4. Log all verification failures to help identify systemic issues
+        5. Design fallback behaviors when verification repeatedly fails
+
+        """
+
         # Add the accumulated learnings to the context
         learning_context = ""
         if accumulated_learnings:
