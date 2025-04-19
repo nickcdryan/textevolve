@@ -596,7 +596,7 @@ class AgentSystem:
 
         Your output will replace the current learnings file and serve as long-term memory for working specifically with this dataset.
 
-        IMPORTANT: Preserve all concrete, specific insights from both the existing learnings and new batch. Don't lose valuable information.
+        IMPORTANT: Preserve all concrete, specific insights from both the existing learnings and new batch. Don't lose valuable information. Preserve the details of runtime, execution, error, and processing problems so that we can learn from them in the future and DO NOT make the same mistakes again.
         """
 
         try:
@@ -1473,6 +1473,257 @@ class AgentSystem:
 
                 BE EXTREMELY CAREFUL WITH STRING LITERALS AND QUOTES!
                 """
+
+    def log_script_error_to_learnings(self, error_info: str, script_snippet):
+        """
+        Add script errors to learnings.txt in a minimal way.
+
+        Args:
+            error_info: Description of the error
+            script_snippet: Optional short snippet from the script (if available) # DISABLED
+        """
+        try:
+            # Load existing learnings
+            current_learnings = self._load_learnings()
+
+            # Create a timestamp
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Format the entry for learnings.txt
+            new_learning = f"""
+
+    === SCRIPT ERROR ENCOUNTERED [{timestamp}] ===
+    {error_info}
+    """
+
+
+
+            new_learning += """
+    === END SCRIPT ERROR ===
+
+    """
+
+            # Add to learnings file
+            updated_learnings = current_learnings + new_learning
+            self._save_learnings(updated_learnings)
+
+            print("Added script error to learnings.txt")
+
+        except Exception as e:
+            print(f"Error logging script error to learnings: {e}")
+            # Don't block the main process if logging fails
+    
+    def repair_script_with_llm(self, script: str, question: str, error_output: str) -> str:
+        """
+        Use the LLM to repair a script that had execution errors.
+
+        Args:
+            script: The original script with errors
+            question: The input question that caused the error
+            error_output: The error output from executing the script
+
+        Returns:
+            A repaired script
+        """
+        # Role-specific system instruction for the script repairer
+        repairer_system_instruction = f"{self.system_prompt}\n\nYou are a Script Repair Specialist. Your task is to analyze error outputs and fix scripts to make them execute correctly."
+
+
+        prompt = f"""
+        I need you to repair a Python script that's encountering errors.
+
+        Here's the original script:
+        ```python
+        {script}
+        ```
+
+        When executing this script with the following input:
+        ```
+        {question}
+        ```
+
+        It produces this error:
+        ```
+        {error_output}
+        ```
+
+        Please analyze the error and provide a corrected version of the script that will fix the issue.
+        Focus specifically on the error shown above.
+
+        Return ONLY the complete fixed script without explanations.
+        """
+
+        try:
+            response = self.call_llm(prompt, system_instruction=repairer_system_instruction)
+
+            # Extract code block from response
+            if "```python" in response:
+                fixed_script = response.split("```python")[1].split("```")[0].strip()
+            elif "```" in response:
+                fixed_script = response.split("```")[1].split("```")[0].strip()
+            else:
+                fixed_script = response.strip()
+
+            return fixed_script
+        except Exception as e:
+            print(f"Error repairing script with LLM: {e}")
+            return script  # Return original script if repair fails
+
+
+    def check_output_for_errors(self, output: str, answer: str) -> tuple:
+        """
+        Use LLM to check if the script output contains error messages.
+
+        Args:
+            output: Raw output from script execution
+            answer: The answer returned by the script
+
+        Returns:
+            Tuple of (has_error, error_description)
+        """
+        # Role-specific system instruction for error checker
+        error_checker_system_instruction = "You are an Error Detection Specialist. Your task is to determine if output contains error messages."
+
+        prompt = f"""
+        Analyze this output from a script execution and determine if it contains error messages, execution errors, or could not run as intended. You are not to check if the answer is correct, only if the script ran successfully.
+
+        Raw output:
+        ```
+        {output}
+        ```
+
+        Script's answer:
+        ```
+        {answer}
+        ```
+
+        Does this output contain error messages or indicate the script failed to run properly?
+
+        Respond with ONLY "ERROR: <brief error description>" if you detect an error message or execution problem.
+
+        If the output seems normal and indicates successful execution, respond with ONLY "SUCCESS: Script executed normally."
+
+        Your response:
+        """
+
+        try:
+            response = self.call_llm(prompt, system_instruction=error_checker_system_instruction)
+
+            # Check if the response indicates an error
+            response = response.strip()
+            if response.startswith("ERROR:"):
+                return True, response
+            else:
+                return False, response
+        except Exception as e:
+            # If there's an error calling the LLM, assume there's an issue with the script to be safe
+            print(f"Error checking for errors with LLM: {e}")
+            return True, f"Error checking output with LLM: {str(e)}"
+
+    def attempt_script_repair(self, script: str, max_attempts: int = 3) -> str:
+        """
+        Attempt to repair a script by testing it with a sample question and fixing errors.
+        Uses an LLM to determine if the output contains errors and logs errors to learnings.txt.
+
+        Args:
+            script: The script to repair
+            max_attempts: Maximum number of repair attempts
+
+        Returns:
+            The best script (original or repaired)
+        """
+        print("Attempting script repair and verification...")
+
+        # Get a test example from the reserved training examples
+        test_examples = self.get_training_examples(1)
+        if not test_examples:
+            print("No test examples available for script repair.")
+            return script
+
+        test_question = test_examples[0].get("prompt_0shot", "")
+        print(f"Using test question for repair: {test_question[:50]}...")
+
+        current_script = script
+        best_script = script
+        best_result = None
+
+        for attempt in range(max_attempts):
+            # Try to execute the current script
+            result = self.execute_script(current_script, test_question)
+
+            # Get the output and answer
+            output = result.get("output", "")
+            answer = result.get("answer", "")
+
+            # Check if the script execution succeeded
+            if result.get("success", False):
+                # Use LLM to check if the output contains error messages
+                has_error, error_description = self.check_output_for_errors(output, answer)
+
+                # If no errors detected, return this script
+                if not has_error:
+                    print(f"Script passed verification on attempt {attempt + 1}!")
+                    print(f"LLM verdict: {error_description}")
+                    return current_script
+
+                print(f"LLM detected error in output: {error_description}")
+
+            print(f"Repair attempt {attempt + 1}/{max_attempts} needed - script has errors.")
+
+            # Save the best result so far (prioritize scripts that at least executed partially)
+            if best_result is None or (
+                result.get("success", False) and 
+                (not best_result.get("success", False) or
+                 ("error" not in answer.lower() and "error" in best_result.get("answer", "").lower()))
+            ):
+                best_script = current_script
+                best_result = result
+
+            # Extract error information
+            error = result.get("error", "Unknown error")
+
+            # If LLM detected an error, use that description
+            if result.get("success", False) and locals().get('error_description'):
+                error = error_description
+
+            # Log the error to learnings.txt
+            # Get a small snippet from the script (focus on main function if possible)
+            script_snippet = ""
+            if "def main" in current_script:
+                lines = current_script.split('\n')
+                main_line = next((i for i, line in enumerate(lines) if "def main" in line), -1)
+                if main_line >= 0:
+                    start_line = max(0, main_line - 2)
+                    end_line = min(len(lines), main_line + 8)
+                    script_snippet = '\n'.join(lines[start_line:end_line])
+
+            # Log the error
+            self.log_script_error_to_learnings(
+                f"Error detected during script repair (attempt {attempt+1}): {error}",
+                script_snippet
+            )
+
+            # Don't try to repair if this is the last attempt
+            if attempt >= max_attempts - 1:
+                print("Maximum repair attempts reached, using best version.")
+                break
+
+            # Repair the script using LLM
+            print(f"Repairing script with LLM based on error: {error[:100]}...")
+            current_script = self.repair_script_with_llm(current_script, test_question, output)
+
+            # Validate the script syntax
+            try:
+                import ast
+                ast.parse(current_script)
+                print("Repaired script passed syntax check.")
+            except SyntaxError as e:
+                print(f"Repaired script has syntax error: {e}")
+                # Keep the previous best script if the repair introduced syntax errors
+                current_script = best_script
+
+        print(f"Script repair completed with best available version after {max_attempts} attempts.")
+        return best_script
     
     def execute_script(self, script: str, question: str) -> Dict:
         """
@@ -2547,6 +2798,9 @@ except Exception as e:
 
         # Generate script before getting any test samples - prevent data leakage
         script = self.generate_script_with_llm(is_exploration)
+
+        print("Performing initial script verification and repair...")
+        script = self.attempt_script_repair(script, max_attempts=3)
 
         # Generate a summary of the approach
         try:

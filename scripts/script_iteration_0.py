@@ -1,6 +1,6 @@
 import os
-import json
 import re
+import json
 import math
 
 def call_llm(prompt, system_instruction=None):
@@ -32,91 +32,107 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def main(question):
-    """Main function to schedule meetings given constraints."""
-
-    # 1. Extract structured information from the question
-    structured_info = extract_meeting_info(question)
-
-    # 2. Find available time slots given extracted info
-    available_slots = find_available_time_slots(structured_info)
-
-    # 3. Filter available slots based on constraints
-    filtered_slots = filter_slots_by_constraints(available_slots, structured_info)
-
-    # 4. Select best slot if multiple exist, otherwise, return the only slot
-    best_slot = select_best_time_slot(filtered_slots, structured_info)
-
-    return best_slot
-
-def extract_meeting_info(question):
-    """Extract structured information from the question using LLM."""
-    system_instruction = "You are an expert meeting scheduler who extracts key pieces of information."
+def extract_meeting_constraints(text):
+    """Extract meeting constraints using LLM with examples."""
+    system_instruction = "You are an expert at extracting meeting constraints from text."
     prompt = f"""
-    Extract the meeting participants, duration, working hours, days, existing schedules, and preferences from the following text.
-    Provide the output as JSON.
+    Extract all the constraints from the following text.
 
     Example:
-    Input: You need to schedule a meeting for Joyce, Christine and Alexander for half an hour between the work hours of 9:00 to 17:00 on Monday. Joyce has meetings on Monday during 11:00 to 11:30, 13:30 to 14:00, 14:30 to 16:30; Christine has no meetings the whole day. Alexander has meetings on Monday during 9:00 to 11:00, 12:00 to 12:30, 13:30 to 15:00, 15:30 to 16:00, 16:30 to 17:00; Christine can not meet on Monday before 12:00.
-    Output:
+    Text: You need to schedule a meeting for Joyce, Christine and Alexander for half an hour between the work hours of 9:00 to 17:00 on Monday. Joyce has meetings on Monday during 11:00 to 11:30, 13:30 to 14:00, 14:30 to 16:30; Christinehas no meetings the whole day. Alexander has meetings on Monday during 9:00 to 11:00, 12:00 to 12:30, 13:30 to 15:00, 15:30 to 16:00, 16:30 to 17:00; Christine can not meet on Monday before 12:00.
+    Extracted Constraints:
     {{
         "participants": ["Joyce", "Christine", "Alexander"],
-        "duration": 30,
-        "working_hours": [900, 1700],
-        "days": ["Monday"],
-        "schedules": {{
-            "Joyce": [["Monday", 1100, 1130], ["Monday", 1330, 1400], ["Monday", 1430, 1630]],
-            "Christine": [],
-            "Alexander": [["Monday", 900, 1100], ["Monday", 1200, 1230], ["Monday", 1330, 1500], ["Monday", 1530, 1600], ["Monday", 1630, 1700]]
-        }},
-        "constraints": {{
-            "Christine": [["Monday", "before", 1200]]
-        }}
+        "duration": "half an hour",
+        "day": "Monday",
+        "start_time": "9:00",
+        "end_time": "17:00",
+        "Joyce_schedule": ["11:00 to 11:30", "13:30 to 14:00", "14:30 to 16:30"],
+        "Christine_schedule": [],
+        "Alexander_schedule": ["9:00 to 11:00", "12:00 to 12:30", "13:30 to 15:00", "15:30 to 16:00", "16:30 to 17:00"],
+        "Christine_constraint": "not before 12:00"
     }}
 
-    Now extract the information from:
-    {question}
+    Text: {text}
+    Extracted Constraints:
     """
-    try:
-        structured_info_str = call_llm(prompt, system_instruction)
-        structured_info = json.loads(structured_info_str)
-        return structured_info
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON: {e}")
-        return None
-    except Exception as e:
-        print(f"Error extracting information: {e}")
-        return None
+    return call_llm(prompt, system_instruction)
 
-def find_available_time_slots(structured_info):
-    """Find available time slots given the structured information"""
-    # This is a placeholder. Implement this function's logic.
-    return "Placeholder - Implement find_available_time_slots()"
-
-def filter_slots_by_constraints(available_slots, structured_info):
-    """Filter the available time slots based on the constraints using LLM."""
-    system_instruction = "You are an expert at filtering available time slots based on constraints."
+def find_available_time(constraints_json):
+    """Find an available time slot given the extracted constraints using LLM."""
+    system_instruction = "You are an expert at scheduling meetings given a set of constraints."
     prompt = f"""
-    Given available time slots and constraints, filter out the invalid time slots.
+    Given the following constraints, find an available time slot that works for everyone.
 
     Example:
-    Available Slots: [["Monday", 1230, 1300], ["Monday", 1300, 1330]]
-    Constraints: Christine can not meet on Monday before 1300.
-    Filtered Slots: [["Monday", 1300, 1330]]
+    Constraints:
+    {{
+        "participants": ["Joyce", "Christine", "Alexander"],
+        "duration": "half an hour",
+        "day": "Monday",
+        "start_time": "9:00",
+        "end_time": "17:00",
+        "Joyce_schedule": ["11:00 to 11:30", "13:30 to 14:00", "14:30 to 16:30"],
+        "Christine_schedule": [],
+        "Alexander_schedule": ["9:00 to 11:00", "12:00 to 12:30", "13:30 to 15:00", "15:30 to 16:00", "16:30 to 17:00"],
+        "Christine_constraint": "not before 12:00"
+    }}
+    Available Time: Monday, 12:30 - 13:00
 
-    Available Slots: {available_slots}
-    Constraints: {structured_info.get("constraints", "")}
-    Filtered Slots:
+    Constraints:
+    {constraints_json}
+    Available Time:
     """
-    try:
-        filtered_slots_str = call_llm(prompt, system_instruction)
-        # In a real implementation, you would parse filtered_slots_str into a list
-        return filtered_slots_str # Returning the string for this example.
-    except Exception as e:
-        print(f"Error filtering slots: {e}")
-        return None
+    return call_llm(prompt, system_instruction)
 
-def select_best_time_slot(filtered_slots, structured_info):
-    """Select the best time slot among the filtered slots."""
-    # This is a placeholder. Implement this function's logic.
-    return "Placeholder - Implement select_best_time_slot()"
+def verify_solution(question, constraints_json, proposed_solution):
+    """Verify if the proposed solution satisfies the constraints using LLM."""
+    system_instruction = "You are a meeting scheduling expert. Verify proposed solutions meet constraints."
+    prompt = f"""
+    You are given a question and a proposed solution, along with extracted constraints from the question. Determine if the proposed solution is valid based on the constraints.
+
+    Example:
+    Question: You need to schedule a meeting for Joyce, Christine and Alexander for half an hour between the work hours of 9:00 to 17:00 on Monday. Joyce has meetings on Monday during 11:00 to 11:30, 13:30 to 14:00, 14:30 to 16:30; Christine has no meetings the whole day. Alexander has meetings on Monday during 9:00 to 11:00, 12:00 to 12:30, 13:30 to 15:00, 15:30 to 16:00, 16:30 to 17:00; Christine can not meet on Monday before 12:00.
+    Constraints:
+    {{
+        "participants": ["Joyce", "Christine", "Alexander"],
+        "duration": "half an hour",
+        "day": "Monday",
+        "start_time": "9:00",
+        "end_time": "17:00",
+        "Joyce_schedule": ["11:00 to 11:30", "13:30 to 14:00", "14:30 to 16:30"],
+        "Christine_schedule": [],
+        "Alexander_schedule": ["9:00 to 11:00", "12:00 to 12:30", "13:30 to 15:00", "15:30 to 16:00", "16:30 to 17:00"],
+        "Christine_constraint": "not before 12:00"
+    }}
+    Proposed Solution: Monday, 12:30 - 13:00
+    Is the solution valid? Yes, the solution is valid.
+
+    Question: {question}
+    Constraints:
+    {constraints_json}
+    Proposed Solution: {proposed_solution}
+    Is the solution valid?
+    """
+    return call_llm(prompt, system_instruction)
+
+def main(question):
+    """Main function to schedule meetings."""
+    try:
+        # Extract constraints
+        constraints_json = extract_meeting_constraints(question)
+
+        # Find available time
+        proposed_solution = find_available_time(constraints_json)
+
+        # Verify solution
+        verification_result = verify_solution(question, constraints_json, proposed_solution)
+
+        if "Yes" in verification_result:
+            return "Here is the proposed time: " + proposed_solution
+        else:
+            return "Could not find a valid meeting time."
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return "Error processing the request."
