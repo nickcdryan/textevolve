@@ -1,69 +1,28 @@
 import os
 import re
-import json
-import math
-from typing import List, Dict, Any
 
-# Overall reasoning:
-# This iteration explores a new approach that focuses on a hybrid approach:
-# 1) A rule-based system extracts preliminary data (participants and initial time possibilities)
-# 2) An LLM refines these possibilities based on complex constraints
-
-# The hypothesis is that using a rule-based system for preliminary data extraction will reduce the load on the LLM,
-# allowing it to focus on complex constraint reasoning. This hybrid approach should improve efficiency and accuracy.
-# We will test this approach and add verification steps to deduce if the changes are helpful.
-
-# Unlike previous iterations, this iteration will not call LLM to extract the participants
-
-# The script contains several functions including extract_participants_rule_based, refine_schedule_with_llm and main.
-# This approach will use multi-example prompting and incorporate validation loops at the refinement stage.
-
-# THIS IS KEY: The API error has been fixed. The `call_llm` function is included.
-# THIS IS KEY: All the string literals are properly handled.
-
-# Define `call_llm` to call the Gemini API.
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
     try:
         from google import genai
-        from google.generativeai import types
+        from google.genai import types
 
         # Initialize the Gemini client
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-        model = genai.GenerativeModel('gemini-pro') # or 'gemini-pro-vision' if image input
-        
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
         # Call the API with system instruction if provided
         if system_instruction:
-            response = model.generate_content(
-                prompt,
-                generation_config = {
-                    "temperature": 0.7,
-                    "top_p": 1,
-                    "top_k": 32,
-                    "max_output_tokens": 4096,
-                },
-                safety_settings={
-                    genai.HarmCategory.HARASSMENT: genai.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    genai.HarmCategory.HATE_SPEECH: genai.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    genai.HarmCategory.SEXUALLY_EXPLICIT: genai.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    genai.HarmCategory.DANGEROUS_CONTENT: genai.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                }
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
             )
         else:
-            response = model.generate_content(
-                prompt,
-                generation_config = {
-                    "temperature": 0.7,
-                    "top_p": 1,
-                    "top_k": 32,
-                    "max_output_tokens": 4096,
-                },
-                safety_settings={
-                    genai.HarmCategory.HARASSMENT: genai.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    genai.HarmCategory.HATE_SPEECH: genai.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    genai.HarmCategory.SEXUALLY_EXPLICIT: genai.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    genai.HarmCategory.DANGEROUS_CONTENT: genai.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                }
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
             )
 
         return response.text
@@ -71,96 +30,100 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_participants_rule_based(question: str) -> List[str]:
-    """
-    Extracts participants from the question using a rule-based approach (regex).
-    """
-    try:
-        match = re.search(r"schedule a meeting for (.*?) for", question)
-        if match:
-            participants = [name.strip() for name in match.group(1).split(',')]
-            return participants
-        else:
-            return []
-    except Exception as e:
-        print(f"Error extracting participants: {str(e)}")
-        return []
+def main(question):
+    """Main function to schedule meetings based on constraints."""
 
-def refine_schedule_with_llm(question: str, participants: List[str], max_attempts: int = 3) -> str:
-    """
-    Refines the schedule using LLM, considering complex constraints.
-    """
-    system_instruction = "You are an expert at refining meeting schedules based on complex constraints."
+    # Step 1: Extract information with a structured extraction prompt, including reasoning steps
+    def extract_meeting_details(question_text):
+        """Extract meeting details with example-driven structured extraction."""
+        system_instruction = "You are an expert at extracting structured meeting data."
+        prompt = f"""
+        Extract meeting details from the text, following the example below:
 
-    for attempt in range(max_attempts):
-        refinement_prompt = f"""
-        Refine the meeting schedule based on the following information.
-        Participants: {participants}
-        Question: {question}
+        Example:
+        Text: You need to schedule a meeting for John and Mary for half an hour between 9:00 and 17:00 on Monday. John is busy Monday 10:00-11:00. Mary is busy Monday 14:00-15:00.
+        Reasoning:
+        1. Participants: Identify the people involved: John and Mary.
+        2. Duration: Note the meeting duration: half an hour.
+        3. Days: Determine the possible days: Monday.
+        4. Work Hours: Capture the work hours: 9:00 to 17:00.
+        5. Schedules: Extract each participant's schedule: John is busy 10:00-11:00, Mary is busy 14:00-15:00 on Monday.
 
-        Consider all constraints and provide the best possible meeting schedule.
+        Extracted Details:
+        {{
+          "participants": ["John", "Mary"],
+          "duration": "30 minutes",
+          "days": ["Monday"],
+          "work_hours": "9:00 to 17:00",
+          "John_schedule": "Monday: 10:00-11:00",
+          "Mary_schedule": "Monday: 14:00-15:00"
+        }}
 
-        Example 1:
-        Participants: ["John", "Jennifer"]
-        Question: Schedule a meeting for John and Jennifer for half an hour between 9:00 to 17:00 on Monday. John would like to avoid meetings after 14:00.
-        Refined Schedule: Monday, 9:00 - 9:30
-
-        Example 2:
-        Participants: ["Patricia", "Harold"]
-        Question: Schedule a meeting for Patricia and Harold for an hour between 10:00 and 16:00 on Tuesday or Wednesday. Harold would rather not meet before 11:00.
-        Refined Schedule: Tuesday, 11:00 - 12:00
-
-        Example 3:
-        Participants: ["Nicholas", "Sara", "Helen", "Brian", "Nancy", "Kelly", "Judy"]
-        Question: You need to schedule a meeting for Nicholas, Sara, Helen, Brian, Nancy, Kelly and Judy for half an hour between the work hours of 9:00 to 17:00 on Monday.
-        Refined Schedule: Monday, 14:00 - 14:30
-
-        Refined Schedule:
+        Now, extract details from this text:
+        {question_text}
         """
+        return call_llm(prompt, system_instruction)
 
-        refined_schedule = call_llm(refinement_prompt, system_instruction)
+    extracted_details = extract_meeting_details(question)
+    print(f"Extracted Details: {extracted_details}")
 
-        # Verification Step
-        verification_prompt = f"""
-            Verify if the refined schedule is feasible and satisfies all constraints.
-            Participants: {participants}
-            Question: {question}
-            Refined Schedule: {refined_schedule}
+    # Step 2: Validate extracted details for completeness and correctness
+    def validate_extraction(extracted_data, original_question):
+        """Validates the extracted data with a verification prompt."""
+        system_instruction = "You are an expert at validating extracted meeting data."
+        prompt = f"""
+        Validate the extracted meeting data below, checking for completeness and correctness against the original question.
 
-            Respond with "VALID" if the schedule is valid, or "INVALID: [reason]" if not.
+        Example:
+        Question: Schedule a meeting for Alice and Bob on Tuesday. Alice is busy 9am-10am.
+        Extracted: {{"participants": ["Alice"], "days": ["Tuesday"]}}
+        Validation: INCOMPLETE. Missing participants and schedule information.
+
+        Question: Schedule a meeting for Charlie and David on Wednesday. Charlie is busy 2pm-3pm. David is busy 4pm-5pm.
+        Extracted: {{"participants": ["Charlie", "David"], "days": ["Wednesday"], "Charlie_schedule": "2pm-3pm"}}
+        Validation: INCOMPLETE. Missing David's schedule information.
+
+        Question: {original_question}
+        Extracted: {extracted_data}
+        Validation:
+        """
+        return call_llm(prompt, system_instruction)
+
+    validation_result = validate_extraction(extracted_details, question)
+    print(f"Validation Result: {validation_result}")
+
+    # Step 3: Refine extraction based on validation feedback (if needed)
+    if "INCOMPLETE" in validation_result:
+        def refine_extraction(extracted_data, validation_result, original_question):
+            """Refines extraction based on feedback using an LLM call."""
+            system_instruction = "You are an expert at refining meeting data extractions."
+            prompt = f"""
+            Refine the extracted meeting data to address the issues identified in the validation.
+
+            Example:
+            Original Question: Schedule a meeting for Eric and Fiona. Eric is busy 11am-12pm.
+            Extracted: {{"participants": ["Eric"], "days": []}}
+            Validation: INCOMPLETE. Missing participants, schedule information, and day details.
+            Refined Extraction: {{"participants": ["Eric", "Fiona"], "days": [], "Eric_schedule": "11am-12pm"}}
+
+            Original Question: {original_question}
+            Extracted: {extracted_data}
+            Validation: {validation_result}
+            Refined Extraction:
             """
+            return call_llm(prompt, system_instruction)
 
-        verification_result = call_llm(verification_prompt, system_instruction)
+        refined_details = refine_extraction(extracted_details, validation_result, question)
+        print(f"Refined Details: {refined_details}")
+        extracted_details = refined_details # Update the data with refined details
 
-        if "VALID" in verification_result:
-            return refined_schedule
-        else:
-            print(f"Schedule refinement failed verification: {verification_result}")
-            continue
+    # Step 4: Identify available time slots (simplified for brevity - the key is the initial extraction)
+    def find_available_slots(data):
+        """Identifies available time slots based on extracted data (placeholder)."""
+        system_instruction = "You are an expert at scheduling meetings given extracted data."
+        prompt = f"""Given this extracted data, find ONE suitable 30 minute time: {data}."""
+        return call_llm(prompt, system_instruction)
 
-    return "Could not find a suitable meeting time."
-
-def main(question: str) -> str:
-    """Main function to schedule a meeting."""
-    try:
-        # 1. Extract Participants (Rule-based)
-        participants = extract_participants_rule_based(question)
-        if not participants:
-            return "Error: Could not extract participants."
-
-        # 2. Refine Schedule with LLM
-        refined_schedule = refine_schedule_with_llm(question, participants)
-        if not refined_schedule:
-            return "Error: Could not refine schedule."
-
-        return f"Here is the proposed time: {refined_schedule}"
-
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
-        return f"Error: {str(e)}"
-
-# Example usage:
-if __name__ == "__main__":
-    question = "You are an expert at scheduling meetings. You are given a few constraints on the existing schedule of each participant, the meeting duration, and possibly some preferences on the meeting time. Note there exists a solution that works with existing schedule of every participant. Here are a few example tasks and solutions:\n\nTASK: You need to schedule a meeting for Joyce, Christine and Alexander for half an hour between the work hours of 9:00 to 17:00 on Monday. \n\nHere are the existing schedules for everyone during the day: \nJoyce has meetings on Monday during 11:00 to 11:30, 13:30 to 14:00, 14:30 to 16:30; \nChristinehas no meetings the whole day.\nAlexander has meetings on Monday during 9:00 to 11:00, 12:00 to 12:30, 13:30 to 15:00, 15:30 to 16:00, 16:30 to 17:00; \n\nChristine can not meet on Monday before 12:00. Find a time that works for everyone's schedule and constraints. "
-    answer = main(question)
-    print(f"Final Answer: {answer}")
+    available_slots = find_available_slots(extracted_details)
+    print(f"Available Slots: {available_slots}")
+    return "Here is the proposed time: " + available_slots

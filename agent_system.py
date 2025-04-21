@@ -1312,7 +1312,7 @@ class AgentSystem:
             # Exploration prompt - now including last_scripts_context
             prompt = f"""
             You are developing a Python script to solve problems using LLM reasoning capabilities.
-            You must generate a NEW approach that's different from previous approaches but informed by their successes and failures. With this approach, you will have a specific NEW HYPOTHESIS or variable you are trying to test. Your goal is to see if this new approach works, and you must add verification and validation steps to deduce if this new change is helpful.
+            You must generate a NEW approach that's different from previous approaches but informed by their successes and failures.
 
             Here are example problems from previously seen data:
             {json.dumps(example_problems, indent=2)}
@@ -1332,7 +1332,7 @@ class AgentSystem:
             EXPLORATION GUIDANCE:
             1. Review the historical approaches, error patterns, and accumulated learnings carefully
             2. Review the FULL CODE of previous scripts to understand what has already been tried
-            3. Design a new approach that is DISTINCTLY DIFFERENT from previous attempts. This approach should have a specific NEW HYPOTHESIS or variable you are trying to test.
+            3. Design a new approach that is DISTINCTLY DIFFERENT from previous attempts
             4. CRITICAL: Include EMBEDDED EXAMPLES directly within your LLM prompts
             5. For each key function, show a complete worked example, or include multiple examples, including:
                - Input example that resembles the dataset
@@ -1354,7 +1354,7 @@ class AgentSystem:
             {gemini_api_example}
 
             Since this is an EXPLORATION phase:
-            - Try a fundamentally different approach to reasoning about the problem. Test a NEW HYPOTHESIS or variable, and add verification steps to deduce if this new change is helpful.
+            - Try a fundamentally different approach to reasoning about the problem
             - THIS IS KEY: Break down the problem into new, distinct reasoning steps based on past performance before you start coding
             - For EACH key LLM prompt, include a relevant example with:
               * Sample input similar to the dataset
@@ -1366,12 +1366,14 @@ class AgentSystem:
 
             CRITICAL REQUIREMENTS:
             1. The script MUST properly handle all string literals - be extremely careful with quotes and triple quotes
-            2. Include detailed comments explaining your reasoning approach
-            3. EVERY SINGLE LLM PROMPT must include at least one embedded example showing:
+            2. The script MUST NOT exceed 150 lines of code to prevent truncation
+            3. Include detailed comments explaining your reasoning approach
+            4. EVERY SINGLE LLM PROMPT must include at least one embedded example showing:
                - Sample input with reasoning
                - Desired output format
-            4. Make proper use of error handling
-            5. Implement robust capabilities to address the specific weaknesses identified in the capability assessment
+            5. Make proper use of error handling
+            6. Implement robust capabilities to address the specific weaknesses identified in the capability assessment
+            7. Do NOT use json.loads() in the LLM calls to process input data. JSON formatting is good to use to structure information as inputs and outputs, but attempting to have functions process JSON data explicitly with strict built-in functionality is error prone due to formatting issues and additional text that appears as documentation, reasoning, or comments. When passing data into another LLM call, you can read it as plain text rather than trying to load it in strict json format, is the better approach.
 
             Return a COMPLETE, RUNNABLE Python script that:
             1. Has a main function that takes a question string as input and returns the answer string
@@ -1491,12 +1493,14 @@ class AgentSystem:
 
             CRITICAL REQUIREMENTS:
             1. The script MUST properly handle all string literals - be extremely careful with quotes and triple quotes
-            2. Include detailed comments explaining your improvements
-            3. EVERY SINGLE LLM PROMPT must include at least one embedded example showing:
+            2. The script MUST NOT exceed 150 lines of code to prevent truncation
+            3. Include detailed comments explaining your improvements
+            4. EVERY SINGLE LLM PROMPT must include at least one embedded example showing:
                - Sample input with reasoning
                - Desired output format
-            4. Make proper use of error handling
-            5. Implement robust capabilities to address the specific weaknesses identified in the capability assessment
+            5. Make proper use of error handling
+            6. Implement robust capabilities to address the specific weaknesses identified in the capability assessment
+            7. Do NOT use json.loads() in the LLM calls to process input data. JSON formatting is good to use to structure information as inputs and outputs, but attempting to have functions process JSON data explicitly with strict built-in functionality is error prone due to formatting issues and additional text that appears as documentation, reasoning, or comments. When passing data into another LLM call, you can read it as plain text rather than trying to load it in strict json format, is the better approach.
 
             Return a COMPLETE, RUNNABLE Python script that:
             1. Has a main function that takes a question string as input and returns the answer string
@@ -1649,8 +1653,9 @@ class AgentSystem:
                 Please generate a new script paying special attention to:
                 1. Properly closing all string literals (quotes and triple quotes)
                 2. Properly closing all parentheses and braces
-                3. Using only syntactically valid Python code
-                4. INCLUDING EMBEDDED EXAMPLES in all LLM prompts
+                3. Keeping the script simple and short (under 150 lines)
+                4. Using only syntactically valid Python code
+                5. INCLUDING EMBEDDED EXAMPLES in all LLM prompts
 
                 Generate a complete, runnable Python script that:
                 1. Has a main function that takes a question string as input and returns the answer string
@@ -1713,7 +1718,7 @@ class AgentSystem:
             A repaired script
         """
         # Role-specific system instruction for the script repairer
-        repairer_system_instruction = f"{self.system_prompt}\n\nYou are a Script Repair Specialist. Your task is to analyze error outputs and fix scripts to make them execute correctly. Think carefullly, step by step, about the error, breaking down what's happening and what is causing the error. Once you understand the error, you can then fix the script."
+        repairer_system_instruction = f"{self.system_prompt}\n\nYou are a Script Repair Specialist. Your task is to analyze error outputs and fix scripts to make them execute correctly."
 
 
         prompt = f"""
@@ -1738,6 +1743,8 @@ class AgentSystem:
         Focus specifically on the error shown above.
 
         Return ONLY the complete fixed script without explanations.
+
+        If there are JSON errors, you should attempt to remove calls like json.loads() to explicitly read the output of one LLM call as strict json data. JSON formatting is good to use to structure information as inputs and outputs, but attempting to have functions process JSON data explicitly with strict built-in functionality is error prone due to formatting issues and additional text that appears as documentation, reasoning, or comments when generated by an LLM. When passing data from one LLM call into another another LLM call, it best to process the inputs as plain text rather than trying to load it in strict json format.
         """
 
         try:
