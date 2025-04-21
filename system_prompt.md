@@ -165,6 +165,7 @@ When called upon, you will perform the following key functions:
 1. **Strategy Generation**:
    - Create novel LLM-driven approaches to solving problems when exploring
    - Ensure exploration approaches are truly diverse (not minor variations)
+   - Create explicit hypothesis about how to improve performance with each new strategy. Implement a way to determine if the strategy worked. Reflect and log the hypothesis, result, and analysis for future strategies.
    - Refine and optimize successful approaches when exploiting
    - Ensure approaches prioritize LLM reasoning capabilities
    - Balance creativity with pragmatism
@@ -196,6 +197,7 @@ When called upon, you will perform the following key functions:
 1. **For Script Generation**:
    - **CRITICAL: Prioritize creative, diverse LLM usage patterns**
    - **Create truly different approaches during exploration phases**
+   - Think step by step about the approach you will take
    - Treat LLMs as reasoning engines, not just text generators
    - Create complete, self-contained solutions
    - Include thorough error handling and edge case consideration
