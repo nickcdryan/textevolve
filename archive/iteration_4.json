@@ -1,12 +1,12 @@
 {
   "iteration": 4,
-  "timestamp": "2025-04-19T02:30:33.594392",
+  "timestamp": "2025-04-19T04:10:58.033190",
   "strategy": "Exploration",
   "explore_rate": 60,
   "exploit_rate": 40,
   "batch_size": 10,
-  "script": "import os\nimport re\nimport json\nimport math\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef extract_constraints_with_validation(question, max_attempts=3):\n    \"\"\"Extracts constraints and validates them using a loop.\"\"\"\n    system_instruction = \"You are an expert at extracting and validating meeting constraints.\"\n    prompt = f\"\"\"\n    Extract meeting constraints from the question and VALIDATE the extracted constraints.\n\n    Example:\n    Question: Schedule a meeting for John and Mary for 30 minutes on Monday between 9am and 5pm. John is busy 10-11am, Mary is busy 2-3pm.\n    Output:\n    {{\n      \"participants\": [\"John\", \"Mary\"],\n      \"duration\": \"30 minutes\",\n      \"day\": \"Monday\",\n      \"start_time\": \"9am\",\n      \"end_time\": \"5pm\",\n      \"John_schedule\": [\"10-11am\"],\n      \"Mary_schedule\": [\"2-3pm\"],\n      \"is_valid\": true,\n      \"validation_feedback\": \"All constraints are valid.\"\n    }}\n\n    Question: {question}\n    Output:\n    \"\"\"\n\n    for attempt in range(max_attempts):\n        extracted_data = call_llm(prompt, system_instruction)\n        try:\n            data = json.loads(extracted_data)\n            # Validation step: Ask LLM to verify its own extracted data\n            verification_prompt = f\"\"\"\n            You extracted the following data:\n            {data}\n            From the question:\n            {question}\n            Is the extracted data valid (Yes/No)? Explain any issues.\n            \"\"\"\n            verification_result = call_llm(verification_prompt, system_instruction)\n            if \"Yes\" in verification_result:\n                data[\"is_valid\"] = True\n                data[\"validation_feedback\"] = \"Data is valid.\"\n                return data\n            else:\n                data[\"is_valid\"] = False\n                data[\"validation_feedback\"] = verification_result\n                #Refine data with feedback, but only if attempts are remaining\n\n        except Exception as e:\n            print(f\"Error extracting/validating constraints: {e}\")\n            return {\"is_valid\": False, \"validation_feedback\": f\"Error during processing: {e}\"}\n\n    return {\"is_valid\": False, \"validation_feedback\": \"Could not extract valid constraints after multiple attempts.\"}\n\ndef generate_time_slots(constraints, max_slots=5):\n    \"\"\"Generates a list of potential time slots using LLM.\"\"\"\n    system_instruction = \"You are an expert at generating potential meeting time slots based on given constraints.\"\n    prompt = f\"\"\"\n    Given the following constraints, generate a list of {max_slots} potential time slots. Provide times in format HH:MM-HH:MM.\n\n    Example:\n    Constraints:\n    {{\n      \"participants\": [\"John\", \"Mary\"],\n      \"duration\": \"30 minutes\",\n      \"day\": \"Monday\",\n      \"start_time\": \"9am\",\n      \"end_time\": \"5pm\",\n      \"John_schedule\": [\"10:00-11:00\"],\n      \"Mary_schedule\": [\"2:00-3:00\"],\n      \"is_valid\": true\n    }}\n    Potential Time Slots: [\"09:00-09:30\", \"09:30-10:00\", \"11:00-11:30\", \"11:30-12:00\", \"12:00-12:30\"]\n\n    Constraints: {constraints}\n    Potential Time Slots:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef filter_time_slots(question, constraints, time_slots_str):\n    \"\"\"Filters the generated time slots based on given constraints using LLM and provides one time.\"\"\"\n    system_instruction = \"You are an expert at filtering time slots and selecting ONE valid option.\"\n    prompt = f\"\"\"\n    Given the question, constraints, and potential time slots, filter the slots to suggest ONE valid meeting time.\n\n    Example:\n    Question: Schedule a meeting for John and Mary for 30 minutes on Monday between 9am and 5pm. John is busy 10-11am, Mary is busy 2-3pm.\n    Constraints:\n    {{\n      \"participants\": [\"John\", \"Mary\"],\n      \"duration\": \"30 minutes\",\n      \"day\": \"Monday\",\n      \"start_time\": \"9am\",\n      \"end_time\": \"5pm\",\n      \"John_schedule\": [\"10:00-11:00\"],\n      \"Mary_schedule\": [\"2:00-3:00\"],\n      \"is_valid\": true\n    }}\n    Time Slots: [\"09:00-09:30\", \"09:30-10:00\", \"11:00-11:30\", \"11:30-12:00\", \"12:00-12:30\"]\n    Valid Meeting Time: Monday, 09:00-09:30\n\n    Question: {question}\n    Constraints: {constraints}\n    Time Slots: {time_slots_str}\n    Valid Meeting Time:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef main(question):\n    \"\"\"Main function to orchestrate meeting scheduling.\"\"\"\n    try:\n        # 1. Extract constraints with validation\n        constraints_data = extract_constraints_with_validation(question)\n        if not constraints_data[\"is_valid\"]:\n            return f\"Error: Could not extract valid constraints. {constraints_data['validation_feedback']}\"\n\n        # 2. Generate potential time slots\n        time_slots_str = generate_time_slots(json.dumps(constraints_data))\n\n        # 3. Filter and suggest ONE valid time\n        valid_meeting_time = filter_time_slots(question, json.dumps(constraints_data), time_slots_str)\n\n        return f\"Here is the proposed time: {valid_meeting_time}\"\n\n    except Exception as e:\n        print(f\"An error occurred: {e}\")\n        return \"Error processing the request.\"",
-  "approach_summary": "The script schedules meetings by using LLMs to extract constraints, generate potential time slots, and filter for a valid meeting time. It decomposes the problem into constraint extraction with validation, time slot generation, and time slot filtering. `extract_constraints_with_validation` extracts and validates meeting constraints and uses `call_llm` to extract and validate, while `generate_time_slots` generates potential time slots and uses `call_llm` for generation, and `filter_time_slots` filters slots and also uses `call_llm`. The overall workflow involves extracting constraints, generating time slots, filtering for a valid time, and reporting the result, with validation feedback used in the first step for increased reliability.",
+  "script": "import os\nimport json\nimport re\nimport math\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef extract_and_verify_constraints(question, max_attempts=3):\n    \"\"\"Extracts constraints and verifies them using a multi-stage approach.\"\"\"\n    system_instruction = \"You are an expert at extracting and verifying meeting constraints.\"\n    # Use LLM to extract constraints.\n    extraction_prompt = f\"\"\"\n    Extract the participants, duration, time constraints, existing schedules, and preferences from the following text. Present it in a key-value format.\n\n    Example:\n    Text: You need to schedule a meeting for John and Jennifer for half an hour between 9:00 and 17:00 on Monday. John has no meetings. Jennifer has meetings on Monday from 9:00-11:00.\n    Extraction:\n    participants: John, Jennifer\n    duration: 30 minutes\n    constraints: between 9:00 and 17:00 on Monday\n    schedules: John - None, Jennifer - Monday 9:00-11:00\n    preferences: None\n\n    Text: {question}\n    Extraction:\n    \"\"\"\n    extracted_info = call_llm(extraction_prompt, system_instruction)\n\n    # Use LLM to verify the extracted constraints.\n    verification_prompt = f\"\"\"\n    Verify that the following extracted information contains all necessary components: participants, duration, constraints, schedules, and preferences. If something is missing or unclear, identify what it is.\n    Extracted Information:\n    {extracted_info}\n\n    Example:\n    Extracted Information:\n    participants: John, Jennifer\n    duration: \n    constraints: between 9:00 and 17:00 on Monday\n    schedules: John - None, Jennifer - Monday 9:00-11:00\n    preferences: None\n    Feedback: Missing duration.\n\n    Validation:\n    \"\"\"\n    verification_result = call_llm(verification_prompt, system_instruction)\n\n    #Retry logic to refine with feedback\n    if \"Missing\" in verification_result:\n      print(f\"Retrying constraint extraction due to missing information: {verification_result}\")\n      refinement_prompt = f\"\"\"\n        You extracted: {extracted_info}\n        However, the following information is missing: {verification_result}\n        Please extract all the constraints AGAIN:\n        Text: {question}\n      \"\"\"\n      extracted_info = call_llm(refinement_prompt, system_instruction)\n\n    return extracted_info\n\ndef generate_and_verify_schedule(constraints, max_attempts=3):\n    \"\"\"Generates a meeting schedule and verifies that it satisfies the constraints.\"\"\"\n    system_instruction = \"You are an expert meeting scheduler.\"\n\n    # Use LLM to generate a meeting schedule.\n    schedule_generation_prompt = f\"\"\"\n    Given the extracted constraints, generate a meeting schedule.\n    Constraints: {constraints}\n\n    Example:\n    Constraints:\n    participants: John, Jennifer\n    duration: 30 minutes\n    constraints: between 9:00 and 17:00 on Monday\n    schedules: John - None, Jennifer - Monday 9:00-11:00\n    preferences: None\n    Proposed Schedule: Here is the proposed time: Monday, 13:00 - 13:30\n\n    Proposed Schedule:\n    \"\"\"\n    proposed_schedule = call_llm(schedule_generation_prompt, system_instruction)\n\n    # Use LLM to verify that the schedule satisfies all constraints.\n    schedule_verification_prompt = f\"\"\"\n    You are given the extracted constraints and a proposed meeting schedule. Verify if the schedule satisfies all the constraints. Respond with VALID or INVALID with the reason.\n\n    Constraints: {constraints}\n    Proposed Schedule: {proposed_schedule}\n\n    Example:\n    Constraints:\n    participants: John, Jennifer\n    duration: 30 minutes\n    constraints: between 9:00 and 17:00 on Monday\n    schedules: John - None, Jennifer - Monday 9:00-11:00\n    preferences: None\n    Proposed Schedule: Here is the proposed time: Monday, 13:00 - 13:30\n    Verification: VALID\n\n    Verification:\n    \"\"\"\n    verification_result = call_llm(schedule_verification_prompt, system_instruction)\n\n    return proposed_schedule if \"VALID\" in verification_result else f\"INVALID: {verification_result}\"\n\ndef main(question):\n    \"\"\"Main function to process the question and return the answer.\"\"\"\n    try:\n        constraints = extract_and_verify_constraints(question)\n        schedule = generate_and_verify_schedule(constraints)\n        return schedule\n    except Exception as e:\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script implements a multi-stage LLM-driven approach to schedule meetings, using constraint extraction, schedule generation, and verification. The problem is decomposed into extracting meeting constraints, generating a proposed schedule, and then verifying the schedule against the constraints. Two main functions are used: `extract_and_verify_constraints` and `generate_and_verify_schedule`, both leveraging the `call_llm` function. The `extract_and_verify_constraints` uses the LLM to first extract the meeting information, and then verifies that the extracted information contains all the proper information, and retries if some information is missing. The `generate_and_verify_schedule` function generates a proposed schedule and then verifies the schedule with the constraints to confirm that it is valid. The main function `main` orchestrates these steps by first extracting the constraints and then generating the meeting schedule based on those constraints.",
   "sample_count": 10,
   "samples": [
     {
@@ -103,302 +103,278 @@
   "results": [
     {
       "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+      "answer": "Here is the proposed time: Monday, 14:00 - 14:30",
+      "output": "ANSWER_START\nHere is the proposed time: Monday, 14:00 - 14:30\nANSWER_END\n",
       "evaluation": {
         "match": false,
         "confidence": 1.0,
-        "explanation": "The system answer indicates a failure to extract constraints and process the request, resulting in an error. The golden answer proposes a specific time for a meeting. These answers do not convey the same information; one indicates a failure, while the other provides a proposed solution."
+        "explanation": "The answers propose different times, Monday 14:00 - 14:30 vs. Monday 16:30 - 17:00, which means they do not convey the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+      "answer": "Here is the proposed time: Monday, 10:30 - 11:30",
+      "output": "ANSWER_START\nHere is the proposed time: Monday, 10:30 - 11:30\nANSWER_END\n",
       "evaluation": {
         "match": false,
         "confidence": 1.0,
-        "explanation": "The system answer indicates an error, while the golden answer provides a specific proposed time. They do not convey the same information at all."
+        "explanation": "The system and golden answers propose different days and times for the meeting. Monday, 10:30 - 11:30 is different from Wednesday, 9:30 - 10:30."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+      "answer": "Here is the proposed time: Monday, 15:00 - 15:30",
+      "output": "ANSWER_START\nHere is the proposed time: Monday, 15:00 - 15:30\nANSWER_END\n",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers state the exact same proposed time: Monday, 15:00 - 15:30. There are no differences in wording or meaning."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Here is the proposed time: Monday, 15:30 - 16:00",
+      "output": "ANSWER_START\nHere is the proposed time: Monday, 15:30 - 16:00\nANSWER_END\n",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers provide the exact same information regarding the proposed time."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Here is the proposed time: Monday, 11:00 - 12:00",
+      "output": "ANSWER_START\nHere is the proposed time: Monday, 11:00 - 12:00\nANSWER_END\n",
       "evaluation": {
         "match": false,
-        "confidence": 1.0,
-        "explanation": "The system answer indicates a failure to extract constraints and errors during processing, while the golden answer provides a specific time for the proposed meeting. These answers do not convey the same information."
+        "confidence": 1,
+        "explanation": "The answers propose different times for the meeting (11:00-12:00 vs. 10:00-11:00). Therefore, they do not convey the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+      "answer": "Here is the proposed time: Monday, 13:30 - 14:00",
+      "output": "ANSWER_START\nHere is the proposed time: Monday, 13:30 - 14:00\nANSWER_END\n",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The answers are identical and convey the same information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Here is the proposed time: Monday, 09:00 - 09:30",
+      "output": "ANSWER_START\nHere is the proposed time: Monday, 09:00 - 09:30\n\nANSWER_END\n",
       "evaluation": {
         "match": false,
-        "confidence": 1.0,
-        "explanation": "The system answer indicates an error and failure to extract constraints, while the golden answer proposes a specific meeting time. These convey completely different and incompatible information. The system failed, and the golden answer provided a proposed solution."
+        "confidence": 1,
+        "explanation": "The answers propose different times for the meeting. The System answer suggests 09:00-09:30 on Monday, while the Golden answer suggests 14:00-14:30 on Monday. These are distinct and non-overlapping time slots."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+      "answer": "Here is the proposed time: Monday, 10:30 - 11:30",
+      "output": "ANSWER_START\nHere is the proposed time: Monday, 10:30 - 11:30\n\nANSWER_END\n",
       "evaluation": {
         "match": false,
         "confidence": 1.0,
-        "explanation": "The system answer indicates an error in processing and inability to extract constraints, while the golden answer proposes a specific time for a meeting. They do not convey the same information."
+        "explanation": "The answers propose different times, so they do not communicate the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+      "answer": "Here is the proposed time: Monday, 15:30 - 16:00",
+      "output": "ANSWER_START\nHere is the proposed time: Monday, 15:30 - 16:00\nANSWER_END\n",
       "evaluation": {
-        "match": false,
+        "match": true,
         "confidence": 1.0,
-        "explanation": "The system answer indicates an error during processing and couldn't extract valid constraints, meaning it provides no useful information about the meeting time. The golden answer, on the other hand, gives a specific proposed time for the meeting. Therefore, they do not communicate the same information."
+        "explanation": "The answers are identical, conveying the same information with 100% certainty."
       },
-      "match": false
+      "match": true
     },
     {
       "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+      "answer": "Here is the proposed time: Tuesday, 13:00 - 14:00",
+      "output": "ANSWER_START\nHere is the proposed time: Tuesday, 13:00 - 14:00\nANSWER_END\n",
       "evaluation": {
         "match": false,
         "confidence": 1.0,
-        "explanation": "The system answer indicates an error in processing and inability to extract valid constraints, while the golden answer provides a proposed time for a meeting. They do not convey the same information."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
-      "evaluation": {
-        "match": false,
-        "confidence": 1.0,
-        "explanation": "The system answer indicates an error occurred and no valid information could be extracted. The golden answer provides a specific proposed meeting time. These convey completely different information, with the system answer essentially conveying no information about a potential meeting time."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
-      "evaluation": {
-        "match": false,
-        "confidence": 1.0,
-        "explanation": "The system answer indicates a failure to extract constraints and an error during processing, while the golden answer provides a specific proposed meeting time. They do not convey the same information at all. The system answer suggests a problem, while the golden answer gives a solution."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
-      "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
-      "evaluation": {
-        "match": false,
-        "confidence": 1.0,
-        "explanation": "The system answer indicates a failure to extract valid constraints, resulting in an error. The golden answer proposes a specific time. These two answers do not convey the same information. The system answer conveys that no information about a time could be found while the golden answer conveys that a time was successfully proposed."
+        "explanation": "The proposed times in the two answers are different (different days and different times), so they do not convey the same information."
       },
       "match": false
     }
   ],
   "performance": {
-    "accuracy": 0.0,
-    "correct_count": 0,
+    "accuracy": 0.4,
+    "correct_count": 4,
     "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Monday, 14:00 - 14:30",
         "golden_answer": "Here is the proposed time: Monday, 16:30 - 17:00",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+        "output": "ANSWER_START\nHere is the proposed time: Monday, 14:00 - 14:30\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1.0,
-          "explanation": "The system answer indicates a failure to extract constraints and process the request, resulting in an error. The golden answer proposes a specific time for a meeting. These answers do not convey the same information; one indicates a failure, while the other provides a proposed solution."
+          "explanation": "The answers propose different times, Monday 14:00 - 14:30 vs. Monday 16:30 - 17:00, which means they do not convey the same information."
         },
         "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Monday, 10:30 - 11:30",
         "golden_answer": "Here is the proposed time: Wednesday, 9:30 - 10:30",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+        "output": "ANSWER_START\nHere is the proposed time: Monday, 10:30 - 11:30\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1.0,
-          "explanation": "The system answer indicates an error, while the golden answer provides a specific proposed time. They do not convey the same information at all."
+          "explanation": "The system and golden answers propose different days and times for the meeting. Monday, 10:30 - 11:30 is different from Wednesday, 9:30 - 10:30."
         },
         "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Monday, 15:00 - 15:30",
         "golden_answer": "Here is the proposed time: Monday, 15:00 - 15:30",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
-        "match": false,
+        "output": "ANSWER_START\nHere is the proposed time: Monday, 15:00 - 15:30\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
-          "confidence": 1.0,
-          "explanation": "The system answer indicates a failure to extract constraints and errors during processing, while the golden answer provides a specific time for the proposed meeting. These answers do not convey the same information."
-        },
-        "capability_failures": []
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers state the exact same proposed time: Monday, 15:00 - 15:30. There are no differences in wording or meaning."
+        }
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Monday, 15:30 - 16:00",
         "golden_answer": "Here is the proposed time: Monday, 15:30 - 16:00",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
-        "match": false,
+        "output": "ANSWER_START\nHere is the proposed time: Monday, 15:30 - 16:00\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
-          "confidence": 1.0,
-          "explanation": "The system answer indicates an error and failure to extract constraints, while the golden answer proposes a specific meeting time. These convey completely different and incompatible information. The system failed, and the golden answer provided a proposed solution."
-        },
-        "capability_failures": []
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers provide the exact same information regarding the proposed time."
+        }
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Monday, 11:00 - 12:00",
         "golden_answer": "Here is the proposed time: Monday, 10:00 - 11:00",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+        "output": "ANSWER_START\nHere is the proposed time: Monday, 11:00 - 12:00\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
-          "confidence": 1.0,
-          "explanation": "The system answer indicates an error in processing and inability to extract constraints, while the golden answer proposes a specific time for a meeting. They do not convey the same information."
+          "confidence": 1,
+          "explanation": "The answers propose different times for the meeting (11:00-12:00 vs. 10:00-11:00). Therefore, they do not convey the same information."
         },
         "capability_failures": []
       },
       {
         "sample_id": 5,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Monday, 13:30 - 14:00",
         "golden_answer": "Here is the proposed time: Monday, 13:30 - 14:00",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
-        "match": false,
+        "output": "ANSWER_START\nHere is the proposed time: Monday, 13:30 - 14:00\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
-          "confidence": 1.0,
-          "explanation": "The system answer indicates an error during processing and couldn't extract valid constraints, meaning it provides no useful information about the meeting time. The golden answer, on the other hand, gives a specific proposed time for the meeting. Therefore, they do not communicate the same information."
-        },
-        "capability_failures": []
+          "match": true,
+          "confidence": 1,
+          "explanation": "The answers are identical and convey the same information."
+        }
       },
       {
         "sample_id": 6,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Monday, 09:00 - 09:30",
         "golden_answer": "Here is the proposed time: Monday, 14:00 - 14:30",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+        "output": "ANSWER_START\nHere is the proposed time: Monday, 09:00 - 09:30\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
-          "confidence": 1.0,
-          "explanation": "The system answer indicates an error in processing and inability to extract valid constraints, while the golden answer provides a proposed time for a meeting. They do not convey the same information."
+          "confidence": 1,
+          "explanation": "The answers propose different times for the meeting. The System answer suggests 09:00-09:30 on Monday, while the Golden answer suggests 14:00-14:30 on Monday. These are distinct and non-overlapping time slots."
         },
         "capability_failures": []
       },
       {
         "sample_id": 7,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Monday, 10:30 - 11:30",
         "golden_answer": "Here is the proposed time: Monday, 9:30 - 10:30",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+        "output": "ANSWER_START\nHere is the proposed time: Monday, 10:30 - 11:30\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1.0,
-          "explanation": "The system answer indicates an error occurred and no valid information could be extracted. The golden answer provides a specific proposed meeting time. These convey completely different information, with the system answer essentially conveying no information about a potential meeting time."
+          "explanation": "The answers propose different times, so they do not communicate the same information."
         },
         "capability_failures": []
       },
       {
         "sample_id": 8,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Monday, 15:30 - 16:00",
         "golden_answer": "Here is the proposed time: Monday, 15:30 - 16:00",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
-        "match": false,
+        "output": "ANSWER_START\nHere is the proposed time: Monday, 15:30 - 16:00\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1.0,
-          "explanation": "The system answer indicates a failure to extract constraints and an error during processing, while the golden answer provides a specific proposed meeting time. They do not convey the same information at all. The system answer suggests a problem, while the golden answer gives a solution."
-        },
-        "capability_failures": []
+          "explanation": "The answers are identical, conveying the same information with 100% certainty."
+        }
       },
       {
         "sample_id": 9,
         "success": true,
-        "system_answer": "Error: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)",
+        "system_answer": "Here is the proposed time: Tuesday, 13:00 - 14:00",
         "golden_answer": "Here is the proposed time: Monday, 14:00 - 15:00",
-        "output": "Error extracting/validating constraints: Expecting value: line 1 column 1 (char 0)\nANSWER_START\nError: Could not extract valid constraints. Error during processing: Expecting value: line 1 column 1 (char 0)\nANSWER_END\n",
+        "output": "ANSWER_START\nHere is the proposed time: Tuesday, 13:00 - 14:00\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1.0,
-          "explanation": "The system answer indicates a failure to extract valid constraints, resulting in an error. The golden answer proposes a specific time. These two answers do not convey the same information. The system answer conveys that no information about a time could be found while the golden answer conveys that a time was successfully proposed."
+          "explanation": "The proposed times in the two answers are different (different days and different times), so they do not convey the same information."
         },
         "capability_failures": []
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\n\nThe primary runtime error observed across all samples is:\n\n*   **JSONDecodeError: Expecting value: line 1 column 1 (char 0)**\n\nThis error indicates that the system is attempting to parse a JSON string, but the string is empty or doesn't contain valid JSON data. This suggests that the LLM is not generating valid JSON, or that the component responsible for generating the JSON output is failing to produce any output at all.\n\n## STRENGTHS\n\n*   The system is designed to handle complex scheduling scenarios with multiple participants and constraints.\n*   The system attempts to provide a structured output (JSON) for easier parsing and processing, even if it fails in some cases.\n*   The prompt includes examples to guide the LLM.\n\n## WEAKNESSES\n\n*   The system consistently fails to extract valid constraints, resulting in a JSONDecodeError.\n*   The reliance on JSON parsing makes the system brittle, as any deviation from the expected JSON format leads to a complete failure.\n*   The error message \"Could not extract valid constraints\" is not informative enough for debugging and doesn't pinpoint the source of the problem.\n\n## CRITICAL BOTTLENECKS\n\n1.  **LLM's inability to consistently generate valid JSON for constraint extraction.** This leads to a cascade of failures as downstream components cannot process the empty or invalid JSON.\n2.  **Lack of robust error handling for invalid JSON outputs.** The system fails to gracefully handle the JSONDecodeError and doesn't attempt to recover or provide a more informative error message.\n\n## ERROR PATTERNS\n\n*   All error cases exhibit the same JSONDecodeError during constraint extraction. This suggests a systemic issue with the prompt, LLM configuration, or the parsing logic.\n*   The system consistently fails to extract constraints, even when the problem description is relatively straightforward. This indicates a potential misunderstanding of the task or an inability to handle the complexity of the input format.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the **failure of the LLM to consistently generate valid JSON for constraint extraction.** This invalid output prevents the system from progressing to the scheduling stage and results in a complete failure.\n\n## IMPROVEMENT AREAS\n\n*   **Information Extraction:** The system needs a more reliable method for extracting scheduling constraints from the input text.\n*   **Constraint Handling:** The system needs to be able to handle missing or invalid constraints more gracefully. It should not crash due to a parsing error.\n*   **Error Handling:** Improve error handling to provide more specific and actionable error messages. Instead of a generic \"Could not extract valid constraints,\" provide details about the specific parsing error and the problematic input.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Revise the prompt to explicitly instruct the LLM to output valid JSON.** Include more examples and clearly define the expected JSON structure. Consider using a more robust and less error-prone format, such as a list of key-value pairs.\n2.  **Implement a verification step to check the validity of the generated JSON.** If the JSON is invalid, retry with a slightly modified prompt or use a different approach for constraint extraction.\n3.  **Move away from strict JSON parsing to more robust information extraction methods.** Consider using regular expressions or other techniques to extract the necessary information directly from the text.\n4.  **Implement fallback mechanisms for constraint extraction.** If the primary method fails, try a simpler approach or use a default set of constraints.\n5.  **Add logging and debugging information to the constraint extraction component.** This will help to identify the specific causes of the JSONDecodeError and other parsing errors.\n6.  **Implement a timeout mechanism for LLM calls.** If the LLM takes too long to respond, assume that there is an error and retry or use a different approach.\n7.  **Reduce the complexity of the prompt and input format.** Simplify the problem description and use a more structured format for the input data.\n\n## CAPABILITY MAPPING\n\n*   **Sample 0:** information\\_extraction, constraint\\_handling\n*   **Sample 1:** information\\_extraction, constraint\\_handling\n*   **Sample 2:** information\\_extraction, constraint\\_handling\n*   **Sample 3:** information\\_extraction, constraint\\_handling\n*   **Sample 4:** information\\_extraction, constraint\\_handling\n*   **Sample 5:** information\\_extraction, constraint\\_handling\n*   **Sample 6:** information\\_extraction, constraint\\_handling\n*   **Sample 7:** information\\_extraction, constraint\\_handling\n*   **Sample 8:** information\\_extraction, constraint\\_handling\n*   **Sample 9:** information\\_extraction, constraint\\_handling\n",
-      "strengths": [
-        "The system is designed to handle complex scheduling scenarios with multiple participants and constraints.",
-        "The system attempts to provide a structured output (JSON) for easier parsing and processing, even if it fails in some cases.",
-        "The prompt includes examples to guide the LLM."
-      ],
-      "weaknesses": [
-        "The system consistently fails to extract valid constraints, resulting in a JSONDecodeError.",
-        "The reliance on JSON parsing makes the system brittle, as any deviation from the expected JSON format leads to a complete failure.",
-        "The error message \"Could not extract valid constraints\" is not informative enough for debugging and doesn't pinpoint the source of the problem."
-      ],
-      "primary_issue": "The single most critical problem is the **failure of the LLM to consistently generate valid JSON for constraint extraction.** This invalid output prevents the system from progressing to the scheduling stage and results in a complete failure.",
+      "text_report": "## RUNTIME ERRORS\n\nNo explicit runtime errors (e.g., JSONDecodeError, TypeError) were found in the provided error cases. The errors seem to stem from incorrect reasoning and constraint handling rather than technical execution failures.\n\n## STRENGTHS\n\n1.  **Consistent Output Format:** The system consistently provides an answer in the requested format (\"Here is the proposed time: ...\").\n2.  **Basic Constraint Awareness:** The system appears to understand the time constraints (9:00 to 17:00) and the duration of the meetings.\n\n## WEAKNESSES\n\n1.  **Inaccurate Constraint Handling:** The system frequently fails to correctly incorporate the existing schedules of all participants, leading to proposed meeting times that conflict with those schedules.\n2.  **Preference Neglect:** The system doesn't reliably consider preferences, such as the preference not to meet on a certain day.\n3.  **Earliest Availability Calculation Error:** In at least one instance, the system incorrectly determines the earliest available time slot, violating the \"earliest availability\" constraint.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Erroneous Schedule Evaluation:** The most critical bottleneck is the system's inability to accurately determine valid time slots by comparing candidate meeting times with the complex, multi-person schedules. This points to a flaw in the information extraction or constraint handling stage.\n2.  **Inconsistent Constraint Satisfaction:** Even when individual constraints are considered, their integration and consistent application across all participants and days proves to be unreliable.\n\n## ERROR PATTERNS\n\n1.  **Off-by-One Errors:** The system sometimes proposes times that are very close to blocked times, suggesting a minor error in schedule comparison.\n2.  **Day/Time Mix-ups:** The system frequently proposes the wrong day or a completely invalid time, indicating a more fundamental misunderstanding of the schedule data.\n3.  **Ignoring Preferences:** The system regularly fails to accommodate preferences given in the prompts (e.g. \"Barbara would rather not meet on Tuesday\"). This might indicate a priority issue.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's **inability to reliably verify generated solutions against the provided schedules of all participants.** The system might extract the schedules correctly but fails in the crucial step of confirming the proposed time works for *everyone*. It seems the system either misses certain conflicts or does not fully integrate the constraints in its solution verification step.\n\n## IMPROVEMENT AREAS\n\n1.  **Solution Verification:** The solution verification process needs significant strengthening to ensure that every proposed time slot is rigorously checked against the schedules of all participants.\n2.  **Constraint Prioritization:** The system should be improved to handle preferences reliably, potentially by assigning different weights or priorities to various constraints.\n3.  **Information Extraction:** While not explicitly throwing errors, the information extraction could be improved to ensure more robust handling of time intervals and days, preventing simple misinterpretations.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a dedicated schedule verification module:** This module should take the proposed time, participant schedules, and meeting duration as input and return a boolean indicating whether the time slot is valid. This module should meticulously check for conflicts and strictly adhere to all stated constraints. It should be separated from the solution generation to ensure more modular and robust verification.\n2.  **Develop a more robust constraint handling system:** This could involve representing schedules as data structures (e.g., lists of time intervals) and using algorithms to efficiently check for overlaps.\n3.  **Implement a multi-stage approach with explicit reasoning:** The system could first identify all possible time slots, then filter them based on constraints, and finally select the best option based on preferences. Each stage should have its verification.\n4.  **Incorporate more test cases with varying complexity:** Include test cases with more participants, longer schedules, and conflicting preferences to further stress-test the system and identify weaknesses.\n5.  **Refine Few-Shot Examples:** Ensure the few-shot examples demonstrate complex constraint handling, including negative constraints (participants unavailable) and preferences, to guide the LLM's reasoning.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** constraint\\_handling, solution\\_verification\n*   **Sample ID 1:** constraint\\_handling, solution\\_verification, decision\\_making\n*   **Sample ID 4:** constraint\\_handling, solution\\_verification\n*   **Sample ID 6:** constraint\\_handling, solution\\_verification, decision\\_making\n*   **Sample ID 7:** constraint\\_handling, solution\\_verification\n*   **Sample ID 9:** constraint\\_handling, solution\\_verification\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The primary issue is the system's **inability to reliably verify generated solutions against the provided schedules of all participants.** The system might extract the schedules correctly but fails in the crucial step of confirming the proposed time works for *everyone*. It seems the system either misses certain conflicts or does not fully integrate the constraints in its solution verification step.",
       "improvement_suggestions": [],
-      "runtime_errors": [
-        "JSONDecodeError: Expecting value: line 1 column 1 (char 0)**"
-      ]
+      "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, I will provide a thorough capability assessment of the AI system based on the provided performance summary, error analysis report, sample execution outputs, and the prompt instructions.\n\n## EXECUTION ANALYSIS\n\nThe raw execution outputs clearly show that the system is consistently failing at the first step: extracting and validating constraints. The error message \"Expecting value: line 1 column 1 (char 0)\" indicates that the LLM is returning an empty string or a non-JSON string where valid JSON is expected. The consistent failure across all samples highlights a fundamental problem in either the prompt design or the LLM's ability to follow the instructions. This suggests that the reliance on JSON is a flawed approach, at least in its current implementation.\n\n## CAPABILITY ASSESSMENT\n\nThe system currently has extremely limited capabilities. While the design aims for complex scheduling, the inability to extract constraints renders it completely non-functional. The system can be said to have successfully *attempted* to implement a scheduling solution, but the core dependency of JSON output has not succeeded in any case.\n\n## KEY STRENGTHS\n\n*   **Ambitious Design:** The system attempts to address a complex real-world problem (scheduling with constraints).\n*   **Structured Output Goal:** The intention to use JSON for structured output is good in principle (for downstream processing), but needs a better approach.\n*   **Example-Based Prompting:** The use of examples in the prompt is a valid strategy.\n\n## KEY WEAKNESSES\n\n*   **Complete Failure in Constraint Extraction:** The system *always* fails to extract constraints, making it unusable.\n*   **Brittle JSON Dependency:** The system's reliance on perfect JSON output is a major point of failure.\n*   **Inadequate Error Handling:** The error messages are generic and do not provide enough information for debugging.\n*   **Over-Reliance on LLM**: Relies too much on a single LLM call instead of breaking the problem into smaller, verifiable steps.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Extraction**, specifically extracting the constraints from the input text. This is the critical bottleneck that prevents the entire system from functioning. The goal should be to reliably extract constraint information from the input text, even if it isn't perfectly formatted.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Move Away from Strict JSON Output:** Abandon the requirement for the LLM to output *only* JSON. Instead, instruct the LLM to extract constraints in a more natural language format or a simpler format like a comma-separated list, followed by Python code to parse this into structured variables. This drastically reduces the likelihood of complete failure due to JSON parsing errors.\n\n2.  **Implement a Multi-Stage Information Extraction Process:**\n    *   **Stage 1: Constraint Identification:** First, instruct the LLM to simply identify the sentences in the input that contain constraints.\n    *   **Stage 2: Constraint Extraction:** Then, instruct it to extract the specific constraints from those sentences. This simplifies the task and makes it more manageable for the LLM.\n\n3.  **Refine the Prompt with Negative Examples:** Include examples of *incorrect* JSON output (or other formats) and explicitly instruct the LLM to avoid these patterns. This can help to guide the LLM towards the desired output format.\n\n4.  **Implement a Robust Parsing Function with Fallbacks:**\n    *   Write Python code to parse the LLM's output.\n    *   Use regular expressions or string manipulation to extract the constraint information, even if the format isn't perfect.\n    *   Provide default constraints if the extraction fails completely.\n\n5.  **Improve Error Handling with Specific Messages:** Replace the generic \"Could not extract valid constraints\" message with more informative messages that indicate the specific parsing error and the problematic input.\n\n6.  **Limit LLM complexity by splitting into separate calls**: Remove the large prompt and split it into separate steps with separate calls to the LLM to improve reliability.\n\n7.  **Implement a Multi-Agent Approach**: Create a specialized agent for constraint extraction and another for solution generation, with a verifier agent to check that the constraints extracted are valid.\n\n8.  **Test the Extraction Logic Thoroughly**: Create a dedicated test suite with a variety of input examples (including edge cases) to ensure that the constraint extraction logic is robust.\n\n## CAPABILITY TREND\n\nCurrently, the capability trend is **Stable (at zero)**. The system consistently fails to perform the core task of constraint extraction. It needs significant modifications to become functional.\n\nBy implementing these actionable recommendations, the next iteration should see a marked improvement in the system's ability to extract constraints and, consequently, its overall performance. The key is to move away from the brittle JSON dependency and adopt a more robust and flexible approach to information extraction.\n",
-      "improvement_focus": "information_extraction",
-      "strengths": [
-        "The system is designed to handle complex scheduling scenarios with multiple participants and constraints.",
-        "The system attempts to provide a structured output (JSON) for easier parsing and processing, even if it fails in some cases.",
-        "The prompt includes examples to guide the LLM."
-      ],
-      "weaknesses": [
-        "The system consistently fails to extract valid constraints, resulting in a JSONDecodeError.",
-        "The reliance on JSON parsing makes the system brittle, as any deviation from the expected JSON format leads to a complete failure.",
-        "The error message \"Could not extract valid constraints\" is not informative enough for debugging and doesn't pinpoint the source of the problem."
-      ],
+      "text_report": "Okay, here's the capability assessment of the AI system, based on the performance summary, error analysis report, sample execution outputs, and your instructions:\n\n## EXECUTION ANALYSIS\n\nThe sample execution outputs confirm several observations from the error analysis:\n\n*   **Consistent Formatting:** The outputs adhere to the \"ANSWER\\_START...ANSWER\\_END\" format consistently, which confirms the reported strength.\n*   **Incorrect Times:** Without knowing the specific problem context, it's impossible to definitively say the proposed times are incorrect from these snippets alone, but the low overall accuracy (40%) and high error rate (60%) strongly suggest this is the case. The consistency of the output format makes it easier to programmatically test the validity of a given solution.\n*   **Limited Detail:** The outputs only provide the proposed time, which makes it difficult to directly assess the reasoning process or constraint handling.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a rudimentary ability to schedule meetings within a given time window. However, its primary limitation lies in the unreliable integration of individual schedules and preferences. While the output format is consistent, the actual times proposed are frequently invalid due to conflicts and ignored preferences. The system possesses a basic understanding of time-related constraints but lacks the sophistication needed to navigate real-world scheduling complexities.\n\n## KEY STRENGTHS\n\n*   **Consistent Output Formatting:**  Maintain this, as it simplifies programmatic evaluation and integration.\n*   **Basic Time Constraint Awareness:** The system does understand the concept of time ranges and meeting durations. Build on this.\n\n## KEY WEAKNESSES\n\n*   **Inaccurate Schedule Evaluation/Solution Verification:** This is the single biggest problem. The system fails to reliably confirm whether a proposed time slot is truly free for all participants given their existing schedules.\n*   **Preference Handling:** The system does not consistently consider stated preferences.\n*   **Erroneous Earliest Availability Calculation:** Incorrectly identifying the earliest available time is a crucial flaw that prevents effective scheduling.\n\n## IMPROVEMENT FOCUS\n\n**Solution Verification:** The single most important capability to improve is the rigorous verification of proposed solutions against the schedules of all participants.  A schedule verification module must be the priority.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement the Dedicated Schedule Verification Module:** Develop a separate Python module or function that receives a proposed meeting time, the schedule of all participants (ideally represented as data structures like lists of time intervals), and the meeting duration as inputs. This module should meticulously compare the proposed time against each participant's schedule, returning a boolean value (`True` if valid, `False` if a conflict exists).\n    * **Prioritize code efficiency:** Schedule checks are at the core, so optimize for speed.\n    * **Consider a time range representation:** Convert schedules into a suitable data structure such as a list of time ranges.\n2.  **Refactor the Code to Use this Module:**  Modify the main scheduling logic to incorporate this module *before* returning the proposed time. The system should *not* output a time until this module confirms its validity.\n3.  **Create Unit Tests for the Schedule Verification Module:** Develop comprehensive unit tests for the new module.  These tests should cover various scenarios, including:\n    *   No conflicts\n    *   Partial conflicts (overlaps)\n    *   Edge-case conflicts (meeting starts or ends exactly at the beginning/end of a blocked slot)\n    *   Multiple participants with different schedules\n4.  **Augment Few-Shot Examples with Explicit Verification Steps:** Modify the existing few-shot examples to explicitly demonstrate how to verify the proposed time against the schedules of all participants, including examples with conflicts. The examples should *show* the system performing the verification steps.\n5.  **Implement a \"Preference Score\" system:** Represent all preferences numerically. The verification step should also take the preferences and adjust the 'validity' score accordingly. This could be used later to select the optimal time slot if more than one is valid.\n6.  **Add more detailed debugging logs:** The logs should provide insights into each step, including schedule checks for each participant, earliest availability calculations, and preference handling. This will help diagnose issues faster.\n\n## CAPABILITY TREND\n\nBased on the provided information, the system's capabilities are currently **stable, but inadequate**.  The consistent output format is a positive sign, but the low accuracy indicates a fundamental problem. Improving solution verification is crucial for driving an upward trend.\n",
+      "improvement_focus": "solution_verification",
+      "strengths": [],
+      "weaknesses": [],
       "improvement_suggestions": [],
-      "runtime_errors": [
-        "JSONDecodeError: Expecting value: line 1 column 1 (char 0)**"
-      ]
+      "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\n\nThe primary runtime error observed across all samples is:\n\n*   **JSONDecodeError: Expecting value: line 1 column 1 (char 0)**\n\nThis error indicates that the system is attempting to parse a JSON string, but the string is empty or doesn't contain valid JSON data. This suggests that the LLM is not generating valid JSON, or that the component responsible for generating the JSON output is failing to produce any output at all.\n\n## STRENGTHS\n\n*   The system is designed to handle complex scheduling scenarios with multiple participants and constraints.\n*   The system attempts to provide a structured output (JSON) for easier parsing and processing, even if it fails in some cases.\n*   The prompt includes examples to guide the LLM.\n\n## WEAKNESSES\n\n*   The system consistently fails to extract valid constraints, resulting in a JSONDecodeError.\n*   The reliance on JSON parsing makes the system brittle, as any deviation from the expected JSON format leads to a complete failure.\n*   The error message \"Could not extract valid constraints\" is not informative enough for debugging and doesn't pinpoint the source of the problem.\n\n## CRITICAL BOTTLENECKS\n\n1.  **LLM's inability to consistently generate valid JSON for constraint extraction.** This leads to a cascade of failures as downstream components cannot process the empty or invalid JSON.\n2.  **Lack of robust error handling for invalid JSON outputs.** The system fails to gracefully handle the JSONDecodeError and doesn't attempt to recover or provide a more informative error message.\n\n## ERROR PATTERNS\n\n*   All error cases exhibit the same JSONDecodeError during constraint extraction. This suggests a systemic issue with the prompt, LLM configuration, or the parsing logic.\n*   The system consistently fails to extract constraints, even when the problem description is relatively straightforward. This indicates a potential misunderstanding of the task or an inability to handle the complexity of the input format.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the **failure of the LLM to consistently generate valid JSON for constraint extraction.** This invalid output prevents the system from progressing to the scheduling stage and results in a complete failure.\n\n## IMPROVEMENT AREAS\n\n*   **Information Extraction:** The system needs a more reliable method for extracting scheduling constraints from the input text.\n*   **Constraint Handling:** The system needs to be able to handle missing or invalid constraints more gracefully. It should not crash due to a parsing error.\n*   **Error Handling:** Improve error handling to provide more specific and actionable error messages. Instead of a generic \"Could not extract valid constraints,\" provide details about the specific parsing error and the problematic input.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Revise the prompt to explicitly instruct the LLM to output valid JSON.** Include more examples and clearly define the expected JSON structure. Consider using a more robust and less error-prone format, such as a list of key-value pairs.\n2.  **Implement a verification step to check the validity of the generated JSON.** If the JSON is invalid, retry with a slightly modified prompt or use a different approach for constraint extraction.\n3.  **Move away from strict JSON parsing to more robust information extraction methods.** Consider using regular expressions or other techniques to extract the necessary information directly from the text.\n4.  **Implement fallback mechanisms for constraint extraction.** If the primary method fails, try a simpler approach or use a default set of constraints.\n5.  **Add logging and debugging information to the constraint extraction component.** This will help to identify the specific causes of the JSONDecodeError and other parsing errors.\n6.  **Implement a timeout mechanism for LLM calls.** If the LLM takes too long to respond, assume that there is an error and retry or use a different approach.\n7.  **Reduce the complexity of the prompt and input format.** Simplify the problem description and use a more structured format for the input data.\n\n## CAPABILITY MAPPING\n\n*   **Sample 0:** information\\_extraction, constraint\\_handling\n*   **Sample 1:** information\\_extraction, constraint\\_handling\n*   **Sample 2:** information\\_extraction, constraint\\_handling\n*   **Sample 3:** information\\_extraction, constraint\\_handling\n*   **Sample 4:** information\\_extraction, constraint\\_handling\n*   **Sample 5:** information\\_extraction, constraint\\_handling\n*   **Sample 6:** information\\_extraction, constraint\\_handling\n*   **Sample 7:** information\\_extraction, constraint\\_handling\n*   **Sample 8:** information\\_extraction, constraint\\_handling\n*   **Sample 9:** information\\_extraction, constraint\\_handling\n",
-    "capability_report_text": "Okay, I will provide a thorough capability assessment of the AI system based on the provided performance summary, error analysis report, sample execution outputs, and the prompt instructions.\n\n## EXECUTION ANALYSIS\n\nThe raw execution outputs clearly show that the system is consistently failing at the first step: extracting and validating constraints. The error message \"Expecting value: line 1 column 1 (char 0)\" indicates that the LLM is returning an empty string or a non-JSON string where valid JSON is expected. The consistent failure across all samples highlights a fundamental problem in either the prompt design or the LLM's ability to follow the instructions. This suggests that the reliance on JSON is a flawed approach, at least in its current implementation.\n\n## CAPABILITY ASSESSMENT\n\nThe system currently has extremely limited capabilities. While the design aims for complex scheduling, the inability to extract constraints renders it completely non-functional. The system can be said to have successfully *attempted* to implement a scheduling solution, but the core dependency of JSON output has not succeeded in any case.\n\n## KEY STRENGTHS\n\n*   **Ambitious Design:** The system attempts to address a complex real-world problem (scheduling with constraints).\n*   **Structured Output Goal:** The intention to use JSON for structured output is good in principle (for downstream processing), but needs a better approach.\n*   **Example-Based Prompting:** The use of examples in the prompt is a valid strategy.\n\n## KEY WEAKNESSES\n\n*   **Complete Failure in Constraint Extraction:** The system *always* fails to extract constraints, making it unusable.\n*   **Brittle JSON Dependency:** The system's reliance on perfect JSON output is a major point of failure.\n*   **Inadequate Error Handling:** The error messages are generic and do not provide enough information for debugging.\n*   **Over-Reliance on LLM**: Relies too much on a single LLM call instead of breaking the problem into smaller, verifiable steps.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Extraction**, specifically extracting the constraints from the input text. This is the critical bottleneck that prevents the entire system from functioning. The goal should be to reliably extract constraint information from the input text, even if it isn't perfectly formatted.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Move Away from Strict JSON Output:** Abandon the requirement for the LLM to output *only* JSON. Instead, instruct the LLM to extract constraints in a more natural language format or a simpler format like a comma-separated list, followed by Python code to parse this into structured variables. This drastically reduces the likelihood of complete failure due to JSON parsing errors.\n\n2.  **Implement a Multi-Stage Information Extraction Process:**\n    *   **Stage 1: Constraint Identification:** First, instruct the LLM to simply identify the sentences in the input that contain constraints.\n    *   **Stage 2: Constraint Extraction:** Then, instruct it to extract the specific constraints from those sentences. This simplifies the task and makes it more manageable for the LLM.\n\n3.  **Refine the Prompt with Negative Examples:** Include examples of *incorrect* JSON output (or other formats) and explicitly instruct the LLM to avoid these patterns. This can help to guide the LLM towards the desired output format.\n\n4.  **Implement a Robust Parsing Function with Fallbacks:**\n    *   Write Python code to parse the LLM's output.\n    *   Use regular expressions or string manipulation to extract the constraint information, even if the format isn't perfect.\n    *   Provide default constraints if the extraction fails completely.\n\n5.  **Improve Error Handling with Specific Messages:** Replace the generic \"Could not extract valid constraints\" message with more informative messages that indicate the specific parsing error and the problematic input.\n\n6.  **Limit LLM complexity by splitting into separate calls**: Remove the large prompt and split it into separate steps with separate calls to the LLM to improve reliability.\n\n7.  **Implement a Multi-Agent Approach**: Create a specialized agent for constraint extraction and another for solution generation, with a verifier agent to check that the constraints extracted are valid.\n\n8.  **Test the Extraction Logic Thoroughly**: Create a dedicated test suite with a variety of input examples (including edge cases) to ensure that the constraint extraction logic is robust.\n\n## CAPABILITY TREND\n\nCurrently, the capability trend is **Stable (at zero)**. The system consistently fails to perform the core task of constraint extraction. It needs significant modifications to become functional.\n\nBy implementing these actionable recommendations, the next iteration should see a marked improvement in the system's ability to extract constraints and, consequently, its overall performance. The key is to move away from the brittle JSON dependency and adopt a more robust and flexible approach to information extraction.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\n\nNo explicit runtime errors (e.g., JSONDecodeError, TypeError) were found in the provided error cases. The errors seem to stem from incorrect reasoning and constraint handling rather than technical execution failures.\n\n## STRENGTHS\n\n1.  **Consistent Output Format:** The system consistently provides an answer in the requested format (\"Here is the proposed time: ...\").\n2.  **Basic Constraint Awareness:** The system appears to understand the time constraints (9:00 to 17:00) and the duration of the meetings.\n\n## WEAKNESSES\n\n1.  **Inaccurate Constraint Handling:** The system frequently fails to correctly incorporate the existing schedules of all participants, leading to proposed meeting times that conflict with those schedules.\n2.  **Preference Neglect:** The system doesn't reliably consider preferences, such as the preference not to meet on a certain day.\n3.  **Earliest Availability Calculation Error:** In at least one instance, the system incorrectly determines the earliest available time slot, violating the \"earliest availability\" constraint.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Erroneous Schedule Evaluation:** The most critical bottleneck is the system's inability to accurately determine valid time slots by comparing candidate meeting times with the complex, multi-person schedules. This points to a flaw in the information extraction or constraint handling stage.\n2.  **Inconsistent Constraint Satisfaction:** Even when individual constraints are considered, their integration and consistent application across all participants and days proves to be unreliable.\n\n## ERROR PATTERNS\n\n1.  **Off-by-One Errors:** The system sometimes proposes times that are very close to blocked times, suggesting a minor error in schedule comparison.\n2.  **Day/Time Mix-ups:** The system frequently proposes the wrong day or a completely invalid time, indicating a more fundamental misunderstanding of the schedule data.\n3.  **Ignoring Preferences:** The system regularly fails to accommodate preferences given in the prompts (e.g. \"Barbara would rather not meet on Tuesday\"). This might indicate a priority issue.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's **inability to reliably verify generated solutions against the provided schedules of all participants.** The system might extract the schedules correctly but fails in the crucial step of confirming the proposed time works for *everyone*. It seems the system either misses certain conflicts or does not fully integrate the constraints in its solution verification step.\n\n## IMPROVEMENT AREAS\n\n1.  **Solution Verification:** The solution verification process needs significant strengthening to ensure that every proposed time slot is rigorously checked against the schedules of all participants.\n2.  **Constraint Prioritization:** The system should be improved to handle preferences reliably, potentially by assigning different weights or priorities to various constraints.\n3.  **Information Extraction:** While not explicitly throwing errors, the information extraction could be improved to ensure more robust handling of time intervals and days, preventing simple misinterpretations.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a dedicated schedule verification module:** This module should take the proposed time, participant schedules, and meeting duration as input and return a boolean indicating whether the time slot is valid. This module should meticulously check for conflicts and strictly adhere to all stated constraints. It should be separated from the solution generation to ensure more modular and robust verification.\n2.  **Develop a more robust constraint handling system:** This could involve representing schedules as data structures (e.g., lists of time intervals) and using algorithms to efficiently check for overlaps.\n3.  **Implement a multi-stage approach with explicit reasoning:** The system could first identify all possible time slots, then filter them based on constraints, and finally select the best option based on preferences. Each stage should have its verification.\n4.  **Incorporate more test cases with varying complexity:** Include test cases with more participants, longer schedules, and conflicting preferences to further stress-test the system and identify weaknesses.\n5.  **Refine Few-Shot Examples:** Ensure the few-shot examples demonstrate complex constraint handling, including negative constraints (participants unavailable) and preferences, to guide the LLM's reasoning.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** constraint\\_handling, solution\\_verification\n*   **Sample ID 1:** constraint\\_handling, solution\\_verification, decision\\_making\n*   **Sample ID 4:** constraint\\_handling, solution\\_verification\n*   **Sample ID 6:** constraint\\_handling, solution\\_verification, decision\\_making\n*   **Sample ID 7:** constraint\\_handling, solution\\_verification\n*   **Sample ID 9:** constraint\\_handling, solution\\_verification\n",
+    "capability_report_text": "Okay, here's the capability assessment of the AI system, based on the performance summary, error analysis report, sample execution outputs, and your instructions:\n\n## EXECUTION ANALYSIS\n\nThe sample execution outputs confirm several observations from the error analysis:\n\n*   **Consistent Formatting:** The outputs adhere to the \"ANSWER\\_START...ANSWER\\_END\" format consistently, which confirms the reported strength.\n*   **Incorrect Times:** Without knowing the specific problem context, it's impossible to definitively say the proposed times are incorrect from these snippets alone, but the low overall accuracy (40%) and high error rate (60%) strongly suggest this is the case. The consistency of the output format makes it easier to programmatically test the validity of a given solution.\n*   **Limited Detail:** The outputs only provide the proposed time, which makes it difficult to directly assess the reasoning process or constraint handling.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a rudimentary ability to schedule meetings within a given time window. However, its primary limitation lies in the unreliable integration of individual schedules and preferences. While the output format is consistent, the actual times proposed are frequently invalid due to conflicts and ignored preferences. The system possesses a basic understanding of time-related constraints but lacks the sophistication needed to navigate real-world scheduling complexities.\n\n## KEY STRENGTHS\n\n*   **Consistent Output Formatting:**  Maintain this, as it simplifies programmatic evaluation and integration.\n*   **Basic Time Constraint Awareness:** The system does understand the concept of time ranges and meeting durations. Build on this.\n\n## KEY WEAKNESSES\n\n*   **Inaccurate Schedule Evaluation/Solution Verification:** This is the single biggest problem. The system fails to reliably confirm whether a proposed time slot is truly free for all participants given their existing schedules.\n*   **Preference Handling:** The system does not consistently consider stated preferences.\n*   **Erroneous Earliest Availability Calculation:** Incorrectly identifying the earliest available time is a crucial flaw that prevents effective scheduling.\n\n## IMPROVEMENT FOCUS\n\n**Solution Verification:** The single most important capability to improve is the rigorous verification of proposed solutions against the schedules of all participants.  A schedule verification module must be the priority.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement the Dedicated Schedule Verification Module:** Develop a separate Python module or function that receives a proposed meeting time, the schedule of all participants (ideally represented as data structures like lists of time intervals), and the meeting duration as inputs. This module should meticulously compare the proposed time against each participant's schedule, returning a boolean value (`True` if valid, `False` if a conflict exists).\n    * **Prioritize code efficiency:** Schedule checks are at the core, so optimize for speed.\n    * **Consider a time range representation:** Convert schedules into a suitable data structure such as a list of time ranges.\n2.  **Refactor the Code to Use this Module:**  Modify the main scheduling logic to incorporate this module *before* returning the proposed time. The system should *not* output a time until this module confirms its validity.\n3.  **Create Unit Tests for the Schedule Verification Module:** Develop comprehensive unit tests for the new module.  These tests should cover various scenarios, including:\n    *   No conflicts\n    *   Partial conflicts (overlaps)\n    *   Edge-case conflicts (meeting starts or ends exactly at the beginning/end of a blocked slot)\n    *   Multiple participants with different schedules\n4.  **Augment Few-Shot Examples with Explicit Verification Steps:** Modify the existing few-shot examples to explicitly demonstrate how to verify the proposed time against the schedules of all participants, including examples with conflicts. The examples should *show* the system performing the verification steps.\n5.  **Implement a \"Preference Score\" system:** Represent all preferences numerically. The verification step should also take the preferences and adjust the 'validity' score accordingly. This could be used later to select the optimal time slot if more than one is valid.\n6.  **Add more detailed debugging logs:** The logs should provide insights into each step, including schedule checks for each participant, earliest availability calculations, and preference handling. This will help diagnose issues faster.\n\n## CAPABILITY TREND\n\nBased on the provided information, the system's capabilities are currently **stable, but inadequate**.  The consistent output format is a positive sign, but the low accuracy indicates a fundamental problem. Improving solution verification is crucial for driving an upward trend.\n"
   },
   "progressive_testing": null,
-  "execution_time": 86.10949325561523,
+  "execution_time": 77.33203744888306,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

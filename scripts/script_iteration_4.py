@@ -1,6 +1,6 @@
 import os
-import re
 import json
+import re
 import math
 
 def call_llm(prompt, system_instruction=None):
@@ -32,129 +32,109 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_constraints_with_validation(question, max_attempts=3):
-    """Extracts constraints and validates them using a loop."""
-    system_instruction = "You are an expert at extracting and validating meeting constraints."
-    prompt = f"""
-    Extract meeting constraints from the question and VALIDATE the extracted constraints.
+def extract_and_verify_constraints(question, max_attempts=3):
+    """Extracts constraints and verifies them using a multi-stage approach."""
+    system_instruction = "You are an expert at extracting and verifying meeting constraints."
+    # Use LLM to extract constraints.
+    extraction_prompt = f"""
+    Extract the participants, duration, time constraints, existing schedules, and preferences from the following text. Present it in a key-value format.
 
     Example:
-    Question: Schedule a meeting for John and Mary for 30 minutes on Monday between 9am and 5pm. John is busy 10-11am, Mary is busy 2-3pm.
-    Output:
-    {{
-      "participants": ["John", "Mary"],
-      "duration": "30 minutes",
-      "day": "Monday",
-      "start_time": "9am",
-      "end_time": "5pm",
-      "John_schedule": ["10-11am"],
-      "Mary_schedule": ["2-3pm"],
-      "is_valid": true,
-      "validation_feedback": "All constraints are valid."
-    }}
+    Text: You need to schedule a meeting for John and Jennifer for half an hour between 9:00 and 17:00 on Monday. John has no meetings. Jennifer has meetings on Monday from 9:00-11:00.
+    Extraction:
+    participants: John, Jennifer
+    duration: 30 minutes
+    constraints: between 9:00 and 17:00 on Monday
+    schedules: John - None, Jennifer - Monday 9:00-11:00
+    preferences: None
 
-    Question: {question}
-    Output:
+    Text: {question}
+    Extraction:
     """
+    extracted_info = call_llm(extraction_prompt, system_instruction)
 
-    for attempt in range(max_attempts):
-        extracted_data = call_llm(prompt, system_instruction)
-        try:
-            data = json.loads(extracted_data)
-            # Validation step: Ask LLM to verify its own extracted data
-            verification_prompt = f"""
-            You extracted the following data:
-            {data}
-            From the question:
-            {question}
-            Is the extracted data valid (Yes/No)? Explain any issues.
-            """
-            verification_result = call_llm(verification_prompt, system_instruction)
-            if "Yes" in verification_result:
-                data["is_valid"] = True
-                data["validation_feedback"] = "Data is valid."
-                return data
-            else:
-                data["is_valid"] = False
-                data["validation_feedback"] = verification_result
-                #Refine data with feedback, but only if attempts are remaining
+    # Use LLM to verify the extracted constraints.
+    verification_prompt = f"""
+    Verify that the following extracted information contains all necessary components: participants, duration, constraints, schedules, and preferences. If something is missing or unclear, identify what it is.
+    Extracted Information:
+    {extracted_info}
 
-        except Exception as e:
-            print(f"Error extracting/validating constraints: {e}")
-            return {"is_valid": False, "validation_feedback": f"Error during processing: {e}"}
+    Example:
+    Extracted Information:
+    participants: John, Jennifer
+    duration: 
+    constraints: between 9:00 and 17:00 on Monday
+    schedules: John - None, Jennifer - Monday 9:00-11:00
+    preferences: None
+    Feedback: Missing duration.
 
-    return {"is_valid": False, "validation_feedback": "Could not extract valid constraints after multiple attempts."}
+    Validation:
+    """
+    verification_result = call_llm(verification_prompt, system_instruction)
 
-def generate_time_slots(constraints, max_slots=5):
-    """Generates a list of potential time slots using LLM."""
-    system_instruction = "You are an expert at generating potential meeting time slots based on given constraints."
-    prompt = f"""
-    Given the following constraints, generate a list of {max_slots} potential time slots. Provide times in format HH:MM-HH:MM.
+    #Retry logic to refine with feedback
+    if "Missing" in verification_result:
+      print(f"Retrying constraint extraction due to missing information: {verification_result}")
+      refinement_prompt = f"""
+        You extracted: {extracted_info}
+        However, the following information is missing: {verification_result}
+        Please extract all the constraints AGAIN:
+        Text: {question}
+      """
+      extracted_info = call_llm(refinement_prompt, system_instruction)
+
+    return extracted_info
+
+def generate_and_verify_schedule(constraints, max_attempts=3):
+    """Generates a meeting schedule and verifies that it satisfies the constraints."""
+    system_instruction = "You are an expert meeting scheduler."
+
+    # Use LLM to generate a meeting schedule.
+    schedule_generation_prompt = f"""
+    Given the extracted constraints, generate a meeting schedule.
+    Constraints: {constraints}
 
     Example:
     Constraints:
-    {{
-      "participants": ["John", "Mary"],
-      "duration": "30 minutes",
-      "day": "Monday",
-      "start_time": "9am",
-      "end_time": "5pm",
-      "John_schedule": ["10:00-11:00"],
-      "Mary_schedule": ["2:00-3:00"],
-      "is_valid": true
-    }}
-    Potential Time Slots: ["09:00-09:30", "09:30-10:00", "11:00-11:30", "11:30-12:00", "12:00-12:30"]
+    participants: John, Jennifer
+    duration: 30 minutes
+    constraints: between 9:00 and 17:00 on Monday
+    schedules: John - None, Jennifer - Monday 9:00-11:00
+    preferences: None
+    Proposed Schedule: Here is the proposed time: Monday, 13:00 - 13:30
+
+    Proposed Schedule:
+    """
+    proposed_schedule = call_llm(schedule_generation_prompt, system_instruction)
+
+    # Use LLM to verify that the schedule satisfies all constraints.
+    schedule_verification_prompt = f"""
+    You are given the extracted constraints and a proposed meeting schedule. Verify if the schedule satisfies all the constraints. Respond with VALID or INVALID with the reason.
 
     Constraints: {constraints}
-    Potential Time Slots:
-    """
-    return call_llm(prompt, system_instruction)
-
-def filter_time_slots(question, constraints, time_slots_str):
-    """Filters the generated time slots based on given constraints using LLM and provides one time."""
-    system_instruction = "You are an expert at filtering time slots and selecting ONE valid option."
-    prompt = f"""
-    Given the question, constraints, and potential time slots, filter the slots to suggest ONE valid meeting time.
+    Proposed Schedule: {proposed_schedule}
 
     Example:
-    Question: Schedule a meeting for John and Mary for 30 minutes on Monday between 9am and 5pm. John is busy 10-11am, Mary is busy 2-3pm.
     Constraints:
-    {{
-      "participants": ["John", "Mary"],
-      "duration": "30 minutes",
-      "day": "Monday",
-      "start_time": "9am",
-      "end_time": "5pm",
-      "John_schedule": ["10:00-11:00"],
-      "Mary_schedule": ["2:00-3:00"],
-      "is_valid": true
-    }}
-    Time Slots: ["09:00-09:30", "09:30-10:00", "11:00-11:30", "11:30-12:00", "12:00-12:30"]
-    Valid Meeting Time: Monday, 09:00-09:30
+    participants: John, Jennifer
+    duration: 30 minutes
+    constraints: between 9:00 and 17:00 on Monday
+    schedules: John - None, Jennifer - Monday 9:00-11:00
+    preferences: None
+    Proposed Schedule: Here is the proposed time: Monday, 13:00 - 13:30
+    Verification: VALID
 
-    Question: {question}
-    Constraints: {constraints}
-    Time Slots: {time_slots_str}
-    Valid Meeting Time:
+    Verification:
     """
-    return call_llm(prompt, system_instruction)
+    verification_result = call_llm(schedule_verification_prompt, system_instruction)
+
+    return proposed_schedule if "VALID" in verification_result else f"INVALID: {verification_result}"
 
 def main(question):
-    """Main function to orchestrate meeting scheduling."""
+    """Main function to process the question and return the answer."""
     try:
-        # 1. Extract constraints with validation
-        constraints_data = extract_constraints_with_validation(question)
-        if not constraints_data["is_valid"]:
-            return f"Error: Could not extract valid constraints. {constraints_data['validation_feedback']}"
-
-        # 2. Generate potential time slots
-        time_slots_str = generate_time_slots(json.dumps(constraints_data))
-
-        # 3. Filter and suggest ONE valid time
-        valid_meeting_time = filter_time_slots(question, json.dumps(constraints_data), time_slots_str)
-
-        return f"Here is the proposed time: {valid_meeting_time}"
-
+        constraints = extract_and_verify_constraints(question)
+        schedule = generate_and_verify_schedule(constraints)
+        return schedule
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return "Error processing the request."
+        return f"Error: {str(e)}"

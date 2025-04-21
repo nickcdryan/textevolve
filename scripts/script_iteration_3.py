@@ -1,6 +1,6 @@
 import os
-import re
 import json
+import re
 import math
 
 def call_llm(prompt, system_instruction=None):
@@ -32,106 +32,115 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_constraints_and_generate_options(question):
-    """Extracts constraints and generates potential time slots using LLM. Includes examples."""
-    system_instruction = "You are an expert meeting scheduler. Extract constraints AND generate potential time options. Return JSON."
+def extract_constraints(question, max_attempts=3):
+    """Extract constraints and schedules from the question using LLM, aiming for plain-text output."""
+    system_instruction = "You are an expert at extracting meeting constraints in a structured way."
+
     prompt = f"""
-    Given the meeting scheduling question, extract all constraints AND generate 3 potential meeting time options.
-    Present the output as a JSON object. Include extracted participants' schedules as well.
+    Extract the participants, duration, time constraints, and existing schedules from the given text.
+    Return the information in a plain text format, with each piece of information on a new line.
 
     Example:
-    Question: You need to schedule a meeting for John and Mary for half an hour between 9:00 to 17:00 on Monday. John is busy from 10:00-11:00, Mary is busy from 14:00-15:00.
-    Output:
-    {{
-      "participants": ["John", "Mary"],
-      "duration": "half an hour",
-      "day": "Monday",
-      "start_time": "9:00",
-      "end_time": "17:00",
-      "John_schedule": ["10:00-11:00"],
-      "Mary_schedule": ["14:00-15:00"],
-      "potential_times": ["9:00-9:30", "11:00-11:30", "16:00-16:30"]
-    }}
+    Text: You need to schedule a meeting for John and Jennifer for half an hour between 9:00 and 17:00 on Monday. John has no meetings. Jennifer has meetings on Monday from 9:00-11:00.
+    Extraction:
+    Participants: John, Jennifer
+    Duration: 30 minutes
+    Time Constraints: between 9:00 and 17:00 on Monday
+    Existing Schedules: John - None, Jennifer - Monday 9:00-11:00
 
-    Question: {question}
-    Output:
+    Text: You need to schedule a meeting for Patricia and Harold for half an hour on Monday. Patricia is busy 11:30-12:00. Harold is busy 9:30-10:30 and 11:30-12:00. Harold prefers not to meet after 14:00.
+    Extraction:
+    Participants: Patricia, Harold
+    Duration: 30 minutes
+    Time Constraints: Monday
+    Existing Schedules: Patricia - Monday 11:30-12:00, Harold - Monday 9:30-10:30, 11:30-12:00
+    Preferences: Harold - not after 14:00
+
+    Text: {question}
+    Extraction:
     """
-    return call_llm(prompt, system_instruction)
 
-def filter_and_verify_options(question, extracted_data_json):
-    """Filters options, verifies constraints, and provides feedback. Includes examples."""
-    system_instruction = "You are an expert at verifying meeting times. Filter options and provide validation feedback."
+    constraints = call_llm(prompt, system_instruction)
+    return constraints
+
+def schedule_meeting(constraints, max_attempts=3):
+    """Schedule the meeting based on the extracted constraints using LLM."""
+    system_instruction = "You are an expert at scheduling meetings, finding the best possible time."
+
     prompt = f"""
-    Given the question and extracted data, filter the potential meeting times to return the best SINGLE valid option.
-    Consider participant schedules and duration. If no valid time exists, respond with 'No valid time'.
+    Given the following constraints, find a suitable time slot and respond with the complete sentence.
 
-    Example:
-    Question: You need to schedule a meeting for John and Mary for half an hour between 9:00 to 17:00 on Monday. John is busy from 10:00-11:00, Mary is busy from 14:00-15:00.
-    Extracted Data:
-    {{
-      "participants": ["John", "Mary"],
-      "duration": "half an hour",
-      "day": "Monday",
-      "start_time": "9:00",
-      "end_time": "17:00",
-      "John_schedule": ["10:00-11:00"],
-      "Mary_schedule": ["14:00-15:00"],
-      "potential_times": ["9:00-9:30", "11:00-11:30", "16:00-16:30"]
-    }}
-    Valid Time: 9:00-9:30
+    Example 1:
+    Constraints:
+    Participants: John, Jennifer
+    Duration: 30 minutes
+    Time Constraints: between 9:00 and 17:00 on Monday
+    Existing Schedules: John - None, Jennifer - Monday 9:00-11:00
+    Proposed Time: Here is the proposed time: Monday, 13:00 - 13:30
 
-    Question: {question}
-    Extracted Data: {extracted_data_json}
-    Valid Time:
+    Example 2:
+    Constraints:
+    Participants: Patricia, Harold
+    Duration: 30 minutes
+    Time Constraints: Monday
+    Existing Schedules: Patricia - Monday 11:30-12:00, Harold - Monday 9:30-10:30, 11:30-12:00
+    Preferences: Harold - not after 14:00
+    Proposed Time: Here is the proposed time: Monday, 13:30 - 14:00
+
+    Constraints:
+    {constraints}
+    Proposed Time:
     """
-    return call_llm(prompt, system_instruction)
 
-def verify_extracted_data(question, extracted_data_json):
-    """Verifies the extracted data for correctness and completeness."""
-    system_instruction = "You are a meticulous data verifier. Check for accuracy and completeness."
+    schedule = call_llm(prompt, system_instruction)
+    return schedule
+
+def verify_schedule(constraints, schedule, max_attempts=3):
+    """Verify that the proposed schedule satisfies all constraints using LLM."""
+    system_instruction = "You are a meeting schedule verifier."
+
     prompt = f"""
-    You are an expert at verifying that extracted data matches the original question.
+    You are given extracted constraints and a proposed meeting schedule. Determine if the schedule satisfies all constraints.
+    Respond with VALID if the schedule is valid, or INVALID: [reason] if it is not.
 
-    Example:
-    Question: Schedule a meeting for John and Mary for 30 minutes on Monday between 9am and 5pm. John is busy 10-11am, Mary is busy 2-3pm.
-    Extracted Data:
-    {{
-      "participants": ["John", "Mary"],
-      "duration": "30 minutes",
-      "day": "Monday",
-      "start_time": "9am",
-      "end_time": "5pm",
-      "John_schedule": ["10-11am"],
-      "Mary_schedule": ["2-3pm"]
-    }}
-    Verification: Data is accurate and complete.
+    Example 1:
+    Constraints:
+    Participants: John, Jennifer
+    Duration: 30 minutes
+    Time Constraints: between 9:00 and 17:00 on Monday
+    Existing Schedules: John - None, Jennifer - Monday 9:00-11:00
+    Proposed Schedule: Here is the proposed time: Monday, 13:00 - 13:30
+    Verification: VALID
 
-    Question: {question}
-    Extracted Data: {extracted_data_json}
+    Example 2:
+    Constraints:
+    Participants: Patricia, Harold
+    Duration: 30 minutes
+    Time Constraints: Monday
+    Existing Schedules: Patricia - Monday 11:30-12:00, Harold - Monday 9:30-10:30, 11:30-12:00
+    Preferences: Harold - not after 14:00
+    Proposed Schedule: Here is the proposed time: Monday, 15:00 - 15:30
+    Verification: INVALID: Harold prefers not to meet after 14:00
+
+    Constraints:
+    {constraints}
+    Proposed Schedule: {schedule}
     Verification:
     """
-    return call_llm(prompt, system_instruction)
+
+    verification = call_llm(prompt, system_instruction)
+    return verification
 
 def main(question):
-    """Main function to schedule meetings with data extraction verification."""
+    """Main function to process the question and return the answer."""
     try:
-        # Extract constraints and generate options
-        extracted_data_json = extract_constraints_and_generate_options(question)
+        constraints = extract_constraints(question)
+        schedule = schedule_meeting(constraints)
+        verification = verify_schedule(constraints, schedule)
 
-        # Verify Extracted Data
-        verification_result = verify_extracted_data(question, extracted_data_json)
+        if "INVALID" in verification:
+            return f"Error: {verification}"
 
-        if "accurate and complete" not in verification_result.lower():
-            return "Error: Inaccurate data extraction."
-
-        # Filter and verify options
-        valid_time = filter_and_verify_options(question, extracted_data_json)
-
-        if "No valid time" not in valid_time:
-            return "Here is the proposed time: Monday, " + valid_time
-        else:
-            return "Could not find a valid meeting time."
-
+        return schedule
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return "Error processing the request."
+        return f"Error: {str(e)}"
