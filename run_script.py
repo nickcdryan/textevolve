@@ -162,35 +162,52 @@ def run_agent(iterations: int,
         # Sort by iteration number
         summaries.sort(key=lambda x: x.get("iteration", 0))
 
+        all_iteration_data = agent.get_all_iterations()
+
         # Print performance trend
         print("\nPerformance Trend:")
-        print(
-            f"{'Iteration':<10} {'Strategy':<12} {'Accuracy':<10} {'Batch':<5} {'Explore/Exploit':<15} {'Primary Issue'}"
-        )
-        print("-" * 80)
+        print(f"{'Iteration':<8} {'Strategy':<12} {'Batch Acc.':<12} {'Prog. Acc.':<16} {'Combined':<12} {'Batch Size':<10} {'Prog. Size':<10} {'Expl/Expt':<10} {'Primary Issue'}")
+        print("-" * 120)
 
         for summary in summaries:
             iteration = summary.get("iteration", "?")
             strategy = summary.get("strategy", "Unknown")
-            accuracy = summary.get("performance", {}).get("accuracy", 0) * 100
+            batch_accuracy = summary.get("performance", {}).get("accuracy", 0) * 100
             batch_size = summary.get("batch_size", 5)
             explore = summary.get("explore_rate", 0)
             exploit = summary.get("exploit_rate", 0)
             prog_accuracy = summary.get("progressive_accuracy", None)
+
+            # Get progressive testing sample count
+            prog_samples = 0
+            for it in all_iteration_data:
+                if it and it.get("iteration") == summary.get("iteration"):
+                    if "progressive_testing" in it and it["progressive_testing"]:
+                        prog_samples = it["progressive_testing"].get("total_examples", 0)
+                        break
+
             issue = summary.get("primary_issue", "None identified")
 
             # Truncate issue if too long
             if len(issue) > 30:
                 issue = issue[:27] + "..."
 
-            # Add indicator for progressive testing results
-            accuracy_str = f"{accuracy:<10.2f}%"
+            # Format progressive accuracy with sample count
             if prog_accuracy is not None:
-                accuracy_str = f"{accuracy:<4.2f}% ({prog_accuracy:.2f}%)"
+                prog_acc_str = f"{prog_accuracy*100:.2f}% ({prog_samples})"
+            else:
+                prog_acc_str = "N/A"
 
-            print(
-                f"{iteration:<10} {strategy:<12} {accuracy_str:<15} {batch_size:<5} {explore}/{exploit:<15} {issue}"
-            )
+            # Calculate combined accuracy - weighted by sample counts
+            combined_acc_str = "N/A"
+            if prog_accuracy is not None and batch_accuracy > 0:
+                # Correct weighted average calculation
+                total_correct = (batch_accuracy/100 * batch_size) + (prog_accuracy * prog_samples)
+                total_samples = batch_size + prog_samples
+                combined_acc = (total_correct / total_samples) * 100
+                combined_acc_str = f"{combined_acc:.2f}%"
+
+            print(f"{iteration:<8} {strategy:<12} {batch_accuracy:<12.2f}% {prog_acc_str:<16} {combined_acc_str:<12} {batch_size:<10} {prog_samples:<10} {explore}/{exploit:<10} {issue}")
 
     # Get best script info - with error handling
     try:
@@ -198,21 +215,35 @@ def run_agent(iterations: int,
         if best_script_info:
             print("\n=== Current Best Script ===")
             print(f"Iteration: {best_script_info.get('iteration')}")
-            print(
-                f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)"
-            )
+
+            # Report batch testing results
+            batch_acc = best_script_info.get('accuracy', 0)
+            batch_size = best_script_info.get('batch_size', 0)
+            print(f"Batch Accuracy: {batch_acc:.2f} (tested on {batch_size} examples)")
+
+            # Report progressive testing results if available
+            prog_acc = best_script_info.get('progressive_accuracy')
+            if prog_acc is not None:
+                prog_samples = best_script_info.get('progressive_samples', 0)
+                print(f"Progressive Accuracy: {prog_acc:.2f} (tested on {prog_samples} examples)")
+
+            # Report combined accuracy if available
+            combined_acc = best_script_info.get('combined_accuracy')
+            if combined_acc is not None:
+                total_samples = batch_size
+                if prog_acc is not None:
+                    total_samples += best_script_info.get('progressive_samples', 0)
+                print(f"Combined Accuracy: {combined_acc:.2f} (across all {total_samples} examples)")
+
             print(f"Path: {best_script_info.get('path')}")
             print(f"Approach: {best_script_info.get('approach')}")
             print(f"Rationale: {best_script_info.get('rationale')}")
-            print(
-                "\nTo validate this script on a specific range of examples, run:"
-            )
-            print(
-                f"python validate_script.py --script {best_script_info.get('path')} --start 900 --end 999"
-            )
+            print("\nTo validate this script on a specific range of examples, run:")
+            print(f"python validate_script.py --script {best_script_info.get('path')} --start 900 --end 999")
     except Exception as e:
         print(f"Error getting best script info: {e}")
         print("Could not determine best script due to an error.")
+
 
     # Final explore/exploit balance and batch size
     print(

@@ -2604,7 +2604,7 @@ except Exception as e:
     def get_best_script_info(self) -> Dict:
         """
         Get information about the best performing script, considering both 
-        accuracy and testing coverage
+        accuracy and testing coverage, with special emphasis on progressive testing results.
         """
         iterations = self.get_all_iterations()
         if not iterations:
@@ -2618,23 +2618,30 @@ except Exception as e:
 
             # Safely access nested data
             progressive_accuracy = None
+            progressive_samples = 0
             if "progressive_testing" in it and it["progressive_testing"]:
-                progressive_accuracy = it["progressive_testing"].get(
-                    "accuracy", None)
+                progressive_accuracy = it["progressive_testing"].get("accuracy", None)
+                progressive_samples = it["progressive_testing"].get("total_examples", 0)
+
+            # Calculate combined accuracy across both batch and progressive tests
+            combined_acc = None
+            if progressive_accuracy is not None:
+                batch_acc = it.get("performance", {}).get("accuracy", 0)
+                batch_size = it.get("batch_size", 5)
+                # Calculate weighted average based on sample counts
+                total_correct = (batch_acc * batch_size) + (progressive_accuracy * progressive_samples)
+                total_samples = batch_size + progressive_samples
+                combined_acc = total_correct / total_samples if total_samples > 0 else 0
 
             iteration_data.append({
-                "iteration":
-                it.get("iteration"),
-                "accuracy":
-                it.get("performance", {}).get("accuracy", 0),
-                "batch_size":
-                it.get("batch_size", 5),
-                "progressive_accuracy":
-                progressive_accuracy,
-                "approach":
-                it.get("approach_summary", "Unknown approach"),
-                "strategy":
-                it.get("strategy", "Unknown")
+                "iteration": it.get("iteration"),
+                "accuracy": it.get("performance", {}).get("accuracy", 0),
+                "batch_size": it.get("batch_size", 5),
+                "progressive_accuracy": progressive_accuracy,
+                "progressive_samples": progressive_samples,
+                "combined_accuracy": combined_acc,
+                "approach": it.get("approach_summary", "Unknown approach"),
+                "strategy": it.get("strategy", "Unknown")
             })
 
         if not iteration_data:
@@ -2643,6 +2650,9 @@ except Exception as e:
                 "iteration": 0,
                 "accuracy": 0,
                 "batch_size": 5,
+                "progressive_accuracy": None,
+                "progressive_samples": 0,
+                "combined_accuracy": 0,
                 "path": "No valid scripts available",
                 "approach": "No approaches tried yet",
                 "rationale": "No valid iterations completed"
@@ -2653,18 +2663,36 @@ except Exception as e:
 
         # Handle API rate limit issues - don't try to use LLM if we've hit limits
         try:
-            # Use LLM to determine best script
+            # Use LLM to determine best script with enhanced guidance about progressive testing
             prompt = f"""
             As an AI system, determine which iteration produced the best script.
 
             Here is data about all iterations:
             {json.dumps(iteration_data, indent=2)}
 
-            Consider both accuracy and testing coverage:
-            - A script tested on more examples may be more robust
-            - Recent iterations may reflect learned improvements
-            - Higher accuracy is generally better
-            - Scripts with good performance on progressive testing (across many examples) are particularly valuable
+            Consider multiple factors with the following priorities:
+            1. HIGHEST PRIORITY: Combined accuracy across all tested examples
+               - This is pre-calculated in "combined_accuracy" when available
+               - It represents performance across both batch and progressive tests
+               - This is the most reliable indicator of general performance
+
+            2. HIGH PRIORITY: Progressive testing performance
+               - "progressive_accuracy" is performance on previously seen examples
+               - Progressive testing covers more examples and is a better measure of generalization
+               - Scripts with high progressive accuracy have proven robustness
+
+            3. MEDIUM PRIORITY: Batch accuracy and testing coverage
+               - "accuracy" is performance on the current batch being tested
+               - "batch_size" indicates how many examples were in the current batch
+
+            4. LOW PRIORITY: Recency and approach diversity
+               - Recent iterations may reflect learned improvements
+               - Different strategies (exploration vs exploitation) have different goals
+
+            For your analysis:
+              * If multiple scripts have similar combined accuracy, prefer those with more total examples tested
+              * If only some scripts have progressive testing data, give them preference if their combined accuracy is reasonable
+              * Consider trends over multiple iterations - consistent improvement is valuable
 
             Return only a JSON object with:
             {{"best_iteration": <integer>, "rationale": "<brief explanation>"}}
@@ -2690,69 +2718,101 @@ except Exception as e:
                  if it.get("iteration") == best_iteration_number), None)
 
             if not best_iteration:
-                # Fallback: just get the highest accuracy
-                best_iteration = max(
-                    iterations,
-                    key=lambda x: x.get("performance", {}).get("accuracy", 0))
+                # Fallback: use combined accuracy method
+                raise Exception("Best iteration not found, using fallback method")
+
+            # Find progressive testing data in the best iteration
+            progressive_accuracy = None
+            progressive_samples = 0
+            if "progressive_testing" in best_iteration and best_iteration["progressive_testing"]:
+                progressive_accuracy = best_iteration["progressive_testing"].get("accuracy", None)
+                progressive_samples = best_iteration["progressive_testing"].get("total_examples", 0)
+
+            # Calculate combined accuracy
+            combined_acc = None
+            if progressive_accuracy is not None:
+                batch_acc = best_iteration.get("performance", {}).get("accuracy", 0)
+                batch_size = best_iteration.get("batch_size", 5)
+                # Calculate weighted average based on sample counts
+                total_correct = (batch_acc * batch_size) + (progressive_accuracy * progressive_samples)
+                total_samples = batch_size + progressive_samples
+                combined_acc = total_correct / total_samples if total_samples > 0 else 0
 
             return {
-                "iteration":
-                best_iteration.get("iteration"),
-                "accuracy":
-                best_iteration.get("performance", {}).get("accuracy", 0),
-                "batch_size":
-                best_iteration.get("batch_size", 5),
-                "path":
-                f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
-                "approach":
-                best_iteration.get("approach_summary", ""),
-                "rationale":
-                result.get("rationale", "Highest overall accuracy")
+                "iteration": best_iteration.get("iteration"),
+                "accuracy": best_iteration.get("performance", {}).get("accuracy", 0),
+                "batch_size": best_iteration.get("batch_size", 5),
+                "progressive_accuracy": progressive_accuracy,
+                "progressive_samples": progressive_samples,
+                "combined_accuracy": combined_acc,
+                "path": f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
+                "approach": best_iteration.get("approach_summary", ""),
+                "rationale": result.get("rationale", "Highest overall accuracy")
             }
         except Exception as e:
-            # Fallback method - don't use LLM, just pick highest accuracy
+            # Fallback method - use combined accuracy if available
             print(f"Error determining best script with LLM: {e}")
             print("Using fallback method to determine best script")
 
             try:
-                # Find the best iteration by accuracy
-                best_iteration = max(
-                    iterations,
-                    key=lambda x: x.get("performance", {}).get("accuracy", 0)
-                    if x else 0)
+                # Helper function to calculate combined accuracy
+                def combined_score(it):
+                    if not it:
+                        return 0
+
+                    batch_acc = it.get("performance", {}).get("accuracy", 0)
+                    batch_size = it.get("batch_size", 5)
+
+                    prog_testing = it.get("progressive_testing", {})
+                    if not prog_testing:
+                        return batch_acc
+
+                    prog_acc = prog_testing.get("accuracy", 0)
+                    prog_size = prog_testing.get("total_examples", 0)
+
+                    if prog_size > 0:
+                        # Calculate weighted accuracy based on sample counts
+                        total_correct = (batch_acc * batch_size) + (prog_acc * prog_size)
+                        total_samples = batch_size + prog_size
+                        return total_correct / total_samples
+                    else:
+                        return batch_acc
+
+                # Find the best iteration using the combined score
+                best_iteration = max(iterations, key=combined_score)
+
+                # Extract progressive testing data
+                progressive_accuracy = None
+                progressive_samples = 0
+                if "progressive_testing" in best_iteration and best_iteration["progressive_testing"]:
+                    progressive_accuracy = best_iteration["progressive_testing"].get("accuracy", None)
+                    progressive_samples = best_iteration["progressive_testing"].get("total_examples", 0)
+
+                # Calculate combined accuracy
+                combined_acc = combined_score(best_iteration)
 
                 return {
-                    "iteration":
-                    best_iteration.get("iteration"),
-                    "accuracy":
-                    best_iteration.get("performance", {}).get("accuracy", 0),
-                    "batch_size":
-                    best_iteration.get("batch_size", 5),
-                    "path":
-                    f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
-                    "approach":
-                    best_iteration.get("approach_summary", ""),
-                    "rationale":
-                    "Fallback selection based on highest accuracy"
+                    "iteration": best_iteration.get("iteration"),
+                    "accuracy": best_iteration.get("performance", {}).get("accuracy", 0),
+                    "batch_size": best_iteration.get("batch_size", 5),
+                    "progressive_accuracy": progressive_accuracy,
+                    "progressive_samples": progressive_samples,
+                    "combined_accuracy": combined_acc,
+                    "path": f"scripts/script_iteration_{best_iteration.get('iteration')}.py",
+                    "approach": best_iteration.get("approach_summary", ""),
+                    "rationale": "Selected based on combined accuracy across all tested examples"
                 }
             except Exception as e2:
                 print(f"Error with fallback method: {e2}")
                 # Ultra fallback - just return the first iteration
                 if iterations and iterations[0]:
                     return {
-                        "iteration":
-                        iterations[0].get("iteration", 0),
-                        "accuracy":
-                        iterations[0].get("performance",
-                                          {}).get("accuracy", 0),
-                        "batch_size":
-                        iterations[0].get("batch_size", 5),
-                        "path":
-                        f"scripts/script_iteration_{iterations[0].get('iteration', 0)}.py",
-                        "approach":
-                        iterations[0].get("approach_summary", ""),
-                        "rationale":
-                        "Ultra fallback - first available iteration"
+                        "iteration": iterations[0].get("iteration", 0),
+                        "accuracy": iterations[0].get("performance", {}).get("accuracy", 0),
+                        "batch_size": iterations[0].get("batch_size", 5),
+                        "path": f"scripts/script_iteration_{iterations[0].get('iteration', 0)}.py",
+                        "approach": iterations[0].get("approach_summary", ""),
+                        "rationale": "Ultra fallback - first available iteration"
                     }
                 else:
                     return {
@@ -2763,7 +2823,7 @@ except Exception as e:
                         "approach": "No approaches tried yet",
                         "rationale": "No valid iterations completed"
                     }
-
+    
     def run_progressive_testing(self,
                                 script: str,
                                 max_examples: int = 20) -> Dict:
@@ -3144,10 +3204,30 @@ except Exception as e:
             if best_script_info:
                 print("\n=== Current Best Script ===")
                 print(f"Iteration: {best_script_info.get('iteration')}")
-                print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
+
+                # Report batch testing results
+                batch_acc = best_script_info.get('accuracy', 0)
+                batch_size = best_script_info.get('batch_size', 0)
+                print(f"Batch Accuracy: {batch_acc:.2f} (tested on {batch_size} examples)")
+
+                # Report progressive testing results if available
+                prog_acc = best_script_info.get('progressive_accuracy')
+                if prog_acc is not None:
+                    prog_samples = best_script_info.get('progressive_samples', 0)
+                    print(f"Progressive Accuracy: {prog_acc:.2f} (tested on {prog_samples} examples)")
+
+                # Report combined accuracy if available
+                combined_acc = best_script_info.get('combined_accuracy')
+                if combined_acc is not None:
+                    total_samples = batch_size
+                    if prog_acc is not None:
+                        total_samples += best_script_info.get('progressive_samples', 0)
+                    print(f"Combined Accuracy: {combined_acc:.2f} (across all {total_samples} examples)")
+
                 print(f"Path: {best_script_info.get('path')}")
                 print(f"Approach: {best_script_info.get('approach')}")
                 print(f"Rationale: {best_script_info.get('rationale')}")
+
                 # Display capability assessment for the best script if available
                 if hasattr(self, 'capability_tracker') and capability_report:
                     print("\n  Capability Assessment:")
@@ -3163,7 +3243,7 @@ except Exception as e:
                         for weakness in capability_report.get("weaknesses", [])[:2]:
                             print(f"      - {weakness}")
         except Exception as e:
-            print(f"Error identifying best script: {str(e)}")
+            print(f"Error identifying best script: {e}")
             best_script_info = None
 
         # Prepare iteration data

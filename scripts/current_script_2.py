@@ -1,118 +1,13 @@
 import os
 import re
 import math
-
-def main(question):
-    """Main function to schedule meetings using a new LLM-driven approach."""
-    try:
-        # Step 1: Analyze the question and extract relevant information using LLM
-        analyzed_info = analyze_question(question)
-
-        # Step 2: Generate potential meeting times using LLM
-        potential_times = generate_potential_times(analyzed_info)
-
-        # Step 3: Validate each potential time against constraints
-        validated_times = validate_potential_times(potential_times, analyzed_info, question)
-
-        # Step 4: Select the best time from validated times
-        best_time = select_best_time(validated_times)
-
-        return best_time
-
-    except Exception as e:
-        return f"Error processing the request: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question using LLM to extract key information."""
-    system_instruction = "You are an expert at analyzing meeting scheduling questions."
-    prompt = f"""
-    Analyze the following question to extract key information such as participants, duration, days, and schedules.
-
-    Example 1:
-    Question: Schedule a meeting for John and Mary for 30 minutes on Monday. John is busy from 9-10, Mary is busy from 11-12.
-    Analysis: Participants: John, Mary; Duration: 30 minutes; Days: Monday; John's schedule: 9:00-10:00; Mary's schedule: 11:00-12:00.
-
-    Example 2:
-    Question: Schedule a meeting for Alice, Bob, and Charlie for 1 hour on Tuesday and Wednesday. Alice is busy from 14:00-15:00 on Tuesday, Bob is busy from 10:00-11:00 on Wednesday. Charlie is free.
-    Analysis: Participants: Alice, Bob, Charlie; Duration: 1 hour; Days: Tuesday, Wednesday; Alice's schedule (Tuesday): 14:00-15:00; Bob's schedule (Wednesday): 10:00-11:00; Charlie is free.
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_potential_times(analyzed_info):
-    """Generates potential meeting times using LLM based on the analyzed information."""
-    system_instruction = "You are an expert at generating potential meeting times."
-    prompt = f"""
-    Based on the analyzed information, generate 3 potential meeting times.
-
-    Example 1:
-    Analyzed Information: Participants: John, Mary; Duration: 30 minutes; Days: Monday; John's schedule: 9:00-10:00; Mary's schedule: 11:00-12:00.
-    Potential Times: Monday 10:00-10:30, Monday 14:00-14:30, Monday 15:00-15:30
-
-    Example 2:
-    Analyzed Information: Participants: Alice, Bob, Charlie; Duration: 1 hour; Days: Tuesday, Wednesday; Alice's schedule (Tuesday): 14:00-15:00; Bob's schedule (Wednesday): 10:00-11:00; Charlie is free.
-    Potential Times: Tuesday 10:00-11:00, Wednesday 11:00-12:00, Wednesday 14:00-15:00
-
-    Analyzed Information: {analyzed_info}
-    Potential Times:
-    """
-    return call_llm(prompt, system_instruction)
-
-def validate_potential_times(potential_times, analyzed_info, question):
-    """Validates each potential meeting time against the constraints using LLM."""
-    system_instruction = "You are an expert at validating potential meeting times against constraints."
-    prompt = f"""
-    For each potential meeting time, determine if it works for all participants based on their schedules extracted from the original question.
-    Respond as a list of tuples, where each tuple contains the potential time and a boolean indicating its validity (True if valid, False otherwise).
-    Format the response as plain text.
-
-    Example 1:
-    Question: Schedule a meeting for John and Mary for 30 minutes on Monday. John is busy from 9-10, Mary is busy from 11-12.
-    Potential Times: Monday 10:00-10:30, Monday 14:00-14:30, Monday 15:00-15:30
-    Validation: [("Monday 10:00-10:30", True), ("Monday 14:00-14:30", True), ("Monday 15:00-15:30", True)]
-
-    Example 2:
-    Question: Schedule a meeting for Alice, Bob, and Charlie for 1 hour on Tuesday and Wednesday. Alice is busy from 14:00-15:00 on Tuesday, Bob is busy from 10:00-11:00 on Wednesday. Charlie is free.
-    Potential Times: Tuesday 10:00-11:00, Wednesday 11:00-12:00, Wednesday 14:00-15:00
-    Validation: [("Tuesday 10:00-11:00", True), ("Wednesday 11:00-12:00", False), ("Wednesday 14:00-15:00", True)]
-
-    Question: {question}
-    Analyzed Information: {analyzed_info}
-    Potential Times: {potential_times}
-    Validation:
-    """
-    return call_llm(prompt, system_instruction)
-
-def select_best_time(validated_times):
-    """Selects the best meeting time from the validated times."""
-    try:
-        # Use regex to parse the LLM response
-        times = re.findall(r'\("([^"]*)", (True|False)\)', validated_times)
-        
-        # Convert string booleans to actual booleans
-        times = [(time, valid == "True") for time, valid in times]
-
-        # Filter out invalid times
-        valid_times = [time for time, valid in times if valid]
-
-        if valid_times:
-            # Select the first valid time
-            return f"Here is the proposed time: {valid_times[0]}"
-        else:
-            return "No suitable meeting time found."
-    except Exception as e:
-        print(f"Error parsing validated times: {e}")
-        return "Error: Could not determine a valid meeting time."
-    
+import json
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
     try:
         from google import genai
         from google.genai import types
-        import os
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
@@ -120,7 +15,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -135,4 +30,87 @@ def call_llm(prompt, system_instruction=None):
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
+
+def extract_scheduling_information(question):
+    """Extract scheduling information using LLM with examples."""
+    system_instruction = "You are an expert at extracting scheduling information."
+    prompt = f"""
+    Extract the following information from the scheduling request: participants, duration, date(s), time range, existing schedules, and preferences.
+
+    Example 1:
+    Question: Schedule a meeting for John and Mary for 30 minutes on Monday between 9am and 5pm. John is busy from 10am to 11am and Mary is busy from 2pm to 3pm.
+    Information: Participants: John, Mary; Duration: 30 minutes; Date: Monday; Time Range: 9am-5pm; John's Schedule: 10am-11am; Mary's Schedule: 2pm-3pm; Preferences: None
+
+    Example 2:
+    Question: You need to schedule a meeting for Nicholas, Sara, Helen, Brian, Nancy, Kelly and Judy for half an hour between the work hours of 9:00 to 17:00 on Monday. Nicholas is busy on Monday during 9:00 to 9:30, 11:00 to 11:30, 12:30 to 13:00, 15:30 to 16:00; Sara is busy on Monday during 10:00 to 10:30, 11:00 to 11:30; Helen is free the entire day. Brian is free the entire day. Nancy has blocked their calendar on Monday during 9:00 to 10:00, 11:00 to 14:00, 15:00 to 17:00; Kelly is busy on Monday during 10:00 to 11:30, 12:00 to 12:30, 13:30 to 14:00, 14:30 to 15:30, 16:30 to 17:00; Judy has blocked their calendar on Monday during 9:00 to 11:30, 12:00 to 12:30, 13:00 to 13:30, 14:30 to 17:00.
+    Information: Participants: Nicholas, Sara, Helen, Brian, Nancy, Kelly, Judy; Duration: half an hour; Date: Monday; Time Range: 9:00-17:00; Nicholas's Schedule: 9:00-9:30, 11:00-11:30, 12:30-13:00, 15:30-16:00; Sara's Schedule: 10:00-10:30, 11:00-11:30; Helen's Schedule: Free; Brian's Schedule: Free; Nancy's Schedule: 9:00-10:00, 11:00-14:00, 15:00-17:00; Kelly's Schedule: 10:00-11:30, 12:00-12:30, 13:30-14:00, 14:30-15:30, 16:30-17:00; Judy's Schedule: 9:00-11:30, 12:00-12:30, 13:00-13:30, 14:30-17:00; Preferences: None
+
+    Question: {question}
+    Information:
+    """
+    return call_llm(prompt, system_instruction)
+
+def find_best_time_slot(extracted_info):
+    """Find the best available time slot based on extracted information."""
+    system_instruction = "You are an expert at determining the best time slot for a meeting, considering all participants' schedules and preferences."
+    prompt = f"""
+    Given the following extracted scheduling information, determine the best available time slot.  Consider all participant schedules and any stated preferences to identify the optimal time. Return "No suitable time found" if no possibilities exist.
+
+    Example 1:
+    Information: Participants: John, Mary; Duration: 30 minutes; Date: Monday; Time Range: 9am-5pm; John's Schedule: 10am-11am; Mary's Schedule: 2pm-3pm; Preferences: None
+    Best Time Slot: Monday, 9:00-9:30
+
+    Example 2:
+    Information: Participants: Nicholas, Sara; Duration: half an hour; Date: Monday; Time Range: 9:00-17:00; Nicholas's Schedule: 9:00-9:30, 11:00-11:30; Sara's Schedule: 10:00-10:30, 11:00-11:30; Preferences: None
+    Best Time Slot: Monday, 9:30-10:00
+
+    Information: {extracted_info}
+    Best Time Slot:
+    """
+    return call_llm(prompt, system_instruction)
+
+def verify_time_slot(question, proposed_time):
+    """Verify that the proposed time slot is valid and adheres to all constraints."""
+    system_instruction = "You are an expert at verifying time slots against scheduling constraints."
+    prompt = f"""
+    Verify that the proposed time slot is valid for the given scheduling request. Check for conflicts with participant schedules, adherence to time range, and satisfaction of any preferences. If there are any issues, explain the error. Otherwise, return VALID.
+
+    Example 1:
+    Question: Schedule a meeting for John and Mary for 30 minutes on Monday between 9am and 5pm. John is busy from 10am to 11am and Mary is busy from 2pm to 3pm. Proposed Time: Monday, 10:30-11:00
+    Verification: VALID
+
+    Example 2:
+    Question: You need to schedule a meeting for Nicholas and Sara for half an hour between the work hours of 9:00 to 17:00 on Monday. Nicholas is busy on Monday during 9:00 to 9:30, 11:00 to 11:30; Sara is busy on Monday during 10:00 to 10:30, 11:00 to 11:30
+    Proposed Time: Monday, 11:00-11:30
+    Verification: Invalid, conflicts with Nicholas's and Sara's schedules.
+
+    Question: {question}
+    Proposed Time: {proposed_time}
+    Verification:
+    """
+    return call_llm(prompt, system_instruction)
+
+def format_answer(time_slot):
+    """Format the answer in a consistent way."""
+    return f"Here is the proposed time: {time_slot} "
+
+def main(question):
+    """Main function to schedule a meeting given the question."""
+    try:
+        # Extract scheduling information
+        extracted_info = extract_scheduling_information(question)
+
+        # Find the best time slot
+        best_time = find_best_time_slot(extracted_info)
+
+        # Verify the time slot
+        verification = verify_time_slot(question, best_time)
+
+        if "VALID" in verification:
+            return format_answer(best_time)
+        else:
+            return "Error: " + verification
+
+    except Exception as e:
         return f"Error: {str(e)}"

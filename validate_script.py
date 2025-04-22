@@ -35,13 +35,33 @@ def main():
         print(f"Error initializing agent system: {e}")
         sys.exit(1)
 
+    # In validate_script.py, update the section that prints best script info
     # If no script specified, print best script info
     if not args.script:
         best_script_info = agent.get_best_script_info()
         if best_script_info:
             print("\n=== Current Best Script ===")
             print(f"Iteration: {best_script_info.get('iteration')}")
-            print(f"Accuracy: {best_script_info.get('accuracy', 0):.2f} (tested on {best_script_info.get('batch_size', 0)} examples)")
+
+            # Report batch testing results
+            batch_acc = best_script_info.get('accuracy', 0)
+            batch_size = best_script_info.get('batch_size', 0)
+            print(f"Batch Accuracy: {batch_acc:.2f} (tested on {batch_size} examples)")
+
+            # Report progressive testing results if available
+            prog_acc = best_script_info.get('progressive_accuracy')
+            if prog_acc is not None:
+                prog_samples = best_script_info.get('progressive_samples', 0)
+                print(f"Progressive Accuracy: {prog_acc:.2f} (tested on {prog_samples} examples)")
+
+            # Report combined accuracy if available
+            combined_acc = best_script_info.get('combined_accuracy')
+            if combined_acc is not None:
+                total_samples = batch_size
+                if prog_acc is not None:
+                    total_samples += best_script_info.get('progressive_samples', 0)
+                print(f"Combined Accuracy: {combined_acc:.2f} (across all {total_samples} examples)")
+
             print(f"Path: {best_script_info.get('path')}")
             print(f"Approach: {best_script_info.get('approach')}")
             print(f"Rationale: {best_script_info.get('rationale')}")
