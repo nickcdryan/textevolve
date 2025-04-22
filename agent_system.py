@@ -1312,7 +1312,7 @@ class AgentSystem:
             # Exploration prompt - now including last_scripts_context
             prompt = f"""
             You are developing a Python script to solve problems using LLM reasoning capabilities.
-            You must generate a NEW approach that's different from previous approaches but informed by their successes and failures.
+            You must generate a NEW approach that's different from previous approaches but informed by their successes and failures. With this approach, you will have a specific NEW HYPOTHESIS or variable you are trying to test. Your goal is to see if this new approach works, and you must add verification and validation steps to deduce if this new change is helpful.
 
             Here are example problems from previously seen data:
             {json.dumps(example_problems, indent=2)}
@@ -1332,7 +1332,7 @@ class AgentSystem:
             EXPLORATION GUIDANCE:
             1. Review the historical approaches, error patterns, and accumulated learnings carefully
             2. Review the FULL CODE of previous scripts to understand what has already been tried
-            3. Design a new approach that is DISTINCTLY DIFFERENT from previous attempts
+            3. Design a new approach that is DISTINCTLY DIFFERENT from previous attempts. This approach should have a specific NEW HYPOTHESIS or variable you are trying to test. 
             4. CRITICAL: Include EMBEDDED EXAMPLES directly within your LLM prompts
             5. For each key function, show a complete worked example, or include multiple examples, including:
                - Input example that resembles the dataset
@@ -1354,7 +1354,7 @@ class AgentSystem:
             {gemini_api_example}
 
             Since this is an EXPLORATION phase:
-            - Try a fundamentally different approach to reasoning about the problem
+            - Try a fundamentally different approach to reasoning about the problem. Test a NEW HYPOTHESIS or variable, and add verification steps to deduce if this new change is helpful.
             - THIS IS KEY: Break down the problem into new, distinct reasoning steps based on past performance before you start coding
             - For EACH key LLM prompt, include a relevant example with:
               * Sample input similar to the dataset
@@ -1452,7 +1452,7 @@ class AgentSystem:
                - Sample input that resembles the dataset
                - Step-by-step reasoning through the example
                - Properly formatted output
-            7. Focus on fixing specific issues identified in previous error analyses
+            7. Focus on fixing specific issues identified in previous error analyses. Create an explicit HYPOTHESIS for each targeted improvement, as well as a way to verify if it's successful.
             8. Enhance chain-of-thought reasoning and verification steps. Verification steps should be added to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
             9. Apply the key insights from ACCUMULATED LEARNINGS to enhance the approach
             10. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment
@@ -2240,6 +2240,8 @@ except Exception as e:
                - solution_generation: Generating valid potential solutions
                - solution_verification: Verifying solutions against constraints
                - decision_making: Making a final decision on the best solution
+
+            7. EVALUATE HYPOTHESIS: Was the hypothesis for this iteration correct? If not, what went wrong?
 
             FORMAT YOUR RESPONSE AS A STRUCTURED TEXT REPORT with the following sections:
 

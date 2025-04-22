@@ -1,11 +1,117 @@
 import os
 import re
+import math
+
+def main(question):
+    """Main function to schedule meetings using a new LLM-driven approach."""
+    try:
+        # Step 1: Analyze the question and extract relevant information using LLM
+        analyzed_info = analyze_question(question)
+
+        # Step 2: Generate potential meeting times using LLM
+        potential_times = generate_potential_times(analyzed_info)
+
+        # Step 3: Validate each potential time against constraints
+        validated_times = validate_potential_times(potential_times, analyzed_info, question)
+
+        # Step 4: Select the best time from validated times
+        best_time = select_best_time(validated_times)
+
+        return best_time
+
+    except Exception as e:
+        return f"Error processing the request: {str(e)}"
+
+def analyze_question(question):
+    """Analyzes the question using LLM to extract key information."""
+    system_instruction = "You are an expert at analyzing meeting scheduling questions."
+    prompt = f"""
+    Analyze the following question to extract key information such as participants, duration, days, and schedules.
+
+    Example 1:
+    Question: Schedule a meeting for John and Mary for 30 minutes on Monday. John is busy from 9-10, Mary is busy from 11-12.
+    Analysis: Participants: John, Mary; Duration: 30 minutes; Days: Monday; John's schedule: 9:00-10:00; Mary's schedule: 11:00-12:00.
+
+    Example 2:
+    Question: Schedule a meeting for Alice, Bob, and Charlie for 1 hour on Tuesday and Wednesday. Alice is busy from 14:00-15:00 on Tuesday, Bob is busy from 10:00-11:00 on Wednesday. Charlie is free.
+    Analysis: Participants: Alice, Bob, Charlie; Duration: 1 hour; Days: Tuesday, Wednesday; Alice's schedule (Tuesday): 14:00-15:00; Bob's schedule (Wednesday): 10:00-11:00; Charlie is free.
+
+    Question: {question}
+    Analysis:
+    """
+    return call_llm(prompt, system_instruction)
+
+def generate_potential_times(analyzed_info):
+    """Generates potential meeting times using LLM based on the analyzed information."""
+    system_instruction = "You are an expert at generating potential meeting times."
+    prompt = f"""
+    Based on the analyzed information, generate 3 potential meeting times.
+
+    Example 1:
+    Analyzed Information: Participants: John, Mary; Duration: 30 minutes; Days: Monday; John's schedule: 9:00-10:00; Mary's schedule: 11:00-12:00.
+    Potential Times: Monday 10:00-10:30, Monday 14:00-14:30, Monday 15:00-15:30
+
+    Example 2:
+    Analyzed Information: Participants: Alice, Bob, Charlie; Duration: 1 hour; Days: Tuesday, Wednesday; Alice's schedule (Tuesday): 14:00-15:00; Bob's schedule (Wednesday): 10:00-11:00; Charlie is free.
+    Potential Times: Tuesday 10:00-11:00, Wednesday 11:00-12:00, Wednesday 14:00-15:00
+
+    Analyzed Information: {analyzed_info}
+    Potential Times:
+    """
+    return call_llm(prompt, system_instruction)
+
+def validate_potential_times(potential_times, analyzed_info, question):
+    """Validates each potential meeting time against the constraints using LLM."""
+    system_instruction = "You are an expert at validating potential meeting times against constraints."
+    prompt = f"""
+    For each potential meeting time, determine if it works for all participants based on their schedules extracted from the original question.
+    Respond as a list of tuples, where each tuple contains the potential time and a boolean indicating its validity (True if valid, False otherwise).
+
+    Example 1:
+    Question: Schedule a meeting for John and Mary for 30 minutes on Monday. John is busy from 9-10, Mary is busy from 11-12.
+    Potential Times: Monday 10:00-10:30, Monday 14:00-14:30, Monday 15:00-15:30
+    Validation: [("Monday 10:00-10:30", True), ("Monday 14:00-14:30", True), ("Monday 15:00-15:30", True)]
+
+    Example 2:
+    Question: Schedule a meeting for Alice, Bob, and Charlie for 1 hour on Tuesday and Wednesday. Alice is busy from 14:00-15:00 on Tuesday, Bob is busy from 10:00-11:00 on Wednesday. Charlie is free.
+    Potential Times: Tuesday 10:00-11:00, Wednesday 11:00-12:00, Wednesday 14:00-15:00
+    Validation: [("Tuesday 10:00-11:00", True), ("Wednesday 11:00-12:00", False), ("Wednesday 14:00-15:00", True)]
+
+    Question: {question}
+    Analyzed Information: {analyzed_info}
+    Potential Times: {potential_times}
+    Validation:
+    """
+    return call_llm(prompt, system_instruction)
+
+def select_best_time(validated_times):
+    """Selects the best meeting time from the validated times."""
+    try:
+        # Attempt to parse the LLM response as a list of tuples
+        times = eval(validated_times)  # RISK: Use eval cautiously
+
+        # Filter out invalid times
+        valid_times = [time for time, valid in times if valid]
+
+        if valid_times:
+            # Select the first valid time
+            return f"Here is the proposed time: {valid_times[0]}"
+        else:
+            return "No suitable meeting time found."
+    except (SyntaxError, NameError) as e:
+        print(f"Error parsing validated times: {e}")
+        return "Error: Could not determine a valid meeting time."
+    except Exception as e:
+         print(f"Unexpected error selecting best time: {e}")
+         return "Error: An unexpected error occurred."
+    
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response"""
     try:
         from google import genai
         from google.genai import types
+        import os
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
@@ -13,7 +119,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -29,138 +135,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def main(question):
-    """Main function to schedule meetings based on constraints."""
-
-    # Step 1: Extract structured data from the question with embedded examples
-    def extract_meeting_data(question_text, max_attempts=3):
-        """Extracts key information from the question using examples and a validation loop."""
-        system_instruction = "You are an expert meeting data extractor. Extract key details."
-        prompt = f"""
-        Extract the following information from the text: participants, duration, days, work hours, existing schedules (for each participant), and any preferences.
-
-        Example 1:
-        Text: You need to schedule a meeting for Joyce, Christine and Alexander for half an hour between the work hours of 9:00 to 17:00 on Monday. Joyce has meetings on Monday during 11:00 to 11:30, 13:30 to 14:00, 14:30 to 16:30; Christine has no meetings the whole day. Alexander has meetings on Monday during 9:00 to 11:00, 12:00 to 12:30, 13:30 to 15:00, 15:30 to 16:00, 16:30 to 17:00; Christine can not meet on Monday before 12:00.
-        Extracted Data:
-        {{
-          "participants": ["Joyce", "Christine", "Alexander"],
-          "duration": "30 minutes",
-          "days": ["Monday"],
-          "work_hours": "9:00 to 17:00",
-          "Joyce_schedule": "Monday: 11:00-11:30, 13:30-14:00, 14:30-16:30",
-          "Christine_schedule": "Monday: None",
-          "Alexander_schedule": "Monday: 9:00-11:00, 12:00-12:30, 13:30-15:00, 15:30-16:00, 16:30-17:00",
-          "Christine_preference": "Not before 12:00 on Monday"
-        }}
-
-        Example 2:
-        Text: You need to schedule a meeting for Betty and Scott for half an hour between the work hours of 9:00 to 17:00 on either Monday, Tuesday, Wednesday or Thursday. Betty is busy on Monday during 10:00 to 10:30, 13:30 to 14:00, 15:00 to 15:30, 16:00 to 16:30, Tuesday during 9:00 to 9:30, 11:30 to 12:00, 12:30 to 13:00, 13:30 to 14:00, 16:30 to 17:00, Wednesday during 9:30 to 10:30, 13:00 to 13:30, 14:00 to 14:30, Thursday during 9:30 to 10:00, 11:30 to 12:00, 14:00 to 14:30, 15:00 to 15:30, 16:30 to 17:00; Scott is busy on Monday during 9:30 to 15:00, 15:30 to 16:00, 16:30 to 17:00, Tuesday during 9:00 to 9:30, 10:00-11:00, 11:30-12:00, 12:30-13:30, 14:00-15:00, 16:00-16:30, Wednesday during 9:30-12:30, 13:00-13:30, 14:00-14:30, 15:00-15:30, 16:00-16:30, Thursday during 9:00-9:30, 10:00-10:30, 11:00-12:00, 12:30-13:00, 15:00-16:00, 16:30-17:00; Betty can not meet on Monday. Tuesday. Thursday before 15:00. Scott would like to avoid more meetings on Wednesday.
-        Extracted Data:
-        {{
-          "participants": ["Betty", "Scott"],
-          "duration": "30 minutes",
-          "days": ["Monday", "Tuesday", "Wednesday", "Thursday"],
-          "work_hours": "9:00 to 17:00",
-          "Betty_schedule": "Monday: 10:00-10:30, 13:30-14:00, 15:00-15:30, 16:00-16:30; Tuesday: 9:00-9:30, 11:30-12:00, 12:30-13:00, 13:30-14:00, 16:30-17:00; Wednesday: 9:30-10:30, 13:00-13:30, 14:00-14:30; Thursday: 9:30-10:00, 11:30-12:00, 14:00-14:30, 15:00-15:30, 16:30-17:00",
-          "Scott_schedule": "Monday: 9:30-15:00, 15:30-16:00, 16:30-17:00; Tuesday: 9:00-9:30, 10:00-11:00, 11:30-12:00, 12:30-13:30, 14:00-15:00, 16:00-16:30; Wednesday: 9:30-12:30, 13:00-13:30, 14:00-14:30, 15:00-15:30, 16:00-16:30; Thursday: 9:00-9:30, 10:00-10:30, 11:00-12:00, 12:30-13:00, 15:00-16:00, 16:30-17:00",
-          "Betty_preference": "Not before 15:00 on Monday, Tuesday, Thursday",
-          "Scott_preference": "Avoid Wednesday"
-        }}
-        
-        Text: {question_text}
-        Extracted Data:
-        """
-        extracted_data = call_llm(prompt, system_instruction)
-
-        # Add verification to improve extraction accuracy
-        for attempt in range(max_attempts):
-            verification_prompt = f"""
-            You are a meticulous validator. Verify the extracted meeting data. Check if all information is complete and accurate.
-
-            Text: {question_text}
-            Extracted Data: {extracted_data}
-
-            Specifically check:
-            1. Are all participants included?
-            2. Is the meeting duration correct?
-            3. Are the available days correct?
-            4. Is the work hours information correct?
-            5. Are the schedules for each participant correct and complete?
-            6. Are any preferences correctly captured?
-
-            Example of good validation:
-            Extracted Data: {{"participants": ["Joyce"], "duration": "30 minutes", "days": ["Monday"], "work_hours": "9:00 to 17:00", "Joyce_schedule": "Monday: 11:00-11:30", "Joyce_preference": "None"}}
-            Validation: The extracted data is accurate and complete.
-
-            Example of bad validation:
-            Extracted Data: {{"participants": ["Joyce"], "duration": "30 minutes", "days": ["Monday"], "work_hours": "9:00 to 17:00", "Joyce_schedule": "Monday: None", "Joyce_preference": "None"}}
-            Validation: The extracted data is missing Joyce's schedule.
-
-            Provide the validation.
-            """
-            verification_result = call_llm(verification_prompt, system_instruction)
-            if "accurate and complete" in verification_result.lower():
-                break  # Exit the loop if the verification is successful
-            else:
-                # Refine the extraction based on feedback
-                prompt = f"""
-                You are an expert at refining data. Correct the extracted meeting data based on the following verification feedback:
-                {verification_result}
-
-                Original Text: {question_text}
-                Previous Extracted Data: {extracted_data}
-
-                Provide the corrected Extracted Data:
-                """
-                extracted_data = call_llm(prompt, system_instruction)
-        return extracted_data
-
-    extracted_data = extract_meeting_data(question)
-    print(f"Extracted Data: {extracted_data}")
-
-    # Step 2: Identify available time slots based on the extracted data
-    def find_available_slots(data):
-        """Finds available time slots with embedded examples."""
-        system_instruction = "You are an expert at finding available time slots."
-        prompt = f"""
-        Based on this extracted meeting data, identify available 30-minute time slots that work for all participants, considering work hours and preferences.
-
-        Example 1:
-        Extracted Data:
-        {{
-          "participants": ["Joyce", "Christine", "Alexander"],
-          "duration": "30 minutes",
-          "days": ["Monday"],
-          "work_hours": "9:00 to 17:00",
-          "Joyce_schedule": "Monday: 11:00-11:30, 13:30-14:00, 14:30-16:30",
-          "Christine_schedule": "Monday: None",
-          "Alexander_schedule": "Monday: 9:00-11:00, 12:00-12:30, 13:30-15:00, 15:30-16:00, 16:30-17:00",
-          "Christine_preference": "Not before 12:00 on Monday"
-        }}
-        Available Slots:
-        Monday: 12:30-13:00
-
-        Example 2:
-        Extracted Data:
-        {{
-          "participants": ["Betty", "Scott"],
-          "duration": "30 minutes",
-          "days": ["Monday", "Tuesday", "Wednesday", "Thursday"],
-          "work_hours": "9:00 to 17:00",
-          "Betty_schedule": "Monday: 10:00-10:30, 13:30-14:00, 15:00-15:30, 16:00-16:30; Tuesday: 9:00-9:30, 11:30-12:00, 12:30-13:00, 13:30-14:00, 16:30-17:00; Wednesday: 9:30-10:30, 13:00-13:30, 14:00-14:30; Thursday: 9:30-10:00, 11:30-12:00, 14:00-14:30, 15:00-15:30, 16:30-17:00",
-          "Scott_schedule": "Monday: 9:30-15:00, 15:30-16:00, 16:30-17:00; Tuesday: 9:00-9:30, 10:00-11:00, 11:30-12:00, 12:30-13:30, 14:00-15:00, 16:00-16:30; Wednesday: 9:30-12:30, 13:00-13:30, 14:00-14:30, 15:00-15:30, 16:00-16:30; Thursday: 9:00-9:30, 10:00-10:30, 11:00-12:00, 12:30-13:00, 15:00-16:00, 16:30-17:00",
-          "Betty_preference": "Not before 15:00 on Monday, Tuesday, Thursday",
-          "Scott_preference": "Avoid Wednesday"
-        }}
-        Available Slots:
-        Thursday: 16:00-16:30
-
-        Extracted Data: {data}
-        Available Slots:
-        """
-        return call_llm(prompt, system_instruction)
-
-    available_slots = find_available_slots(extracted_data)
-    print(f"Available Slots: {available_slots}")
-    return "Here is the proposed time: " + available_slots
