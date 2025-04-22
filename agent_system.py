@@ -1000,7 +1000,7 @@ class AgentSystem:
             improvement_focus = capability_report.get("improvement_focus")
             if capability_report:
                 capability_guidance = self._generate_capability_guidance(capability_report)
-                print(f"Focusing script improvement on: {improvement_focus.upper().replace('_', ' ') if improvement_focus else 'No specific focus'}")
+
 
         # ==== RETRIEVE LAST FIVE SCRIPTS FOR EXPLORATION CONTEXT ====
         last_scripts_context = ""
@@ -2405,24 +2405,20 @@ except Exception as e:
             print("Generated capability report text successfully")
 
             # Extract the improvement focus for the dictionary return
-            improvement_focus = "information_extraction"  # Default
-            if "## IMPROVEMENT FOCUS" in capability_report_text:
-                focus_section = capability_report_text.split("## IMPROVEMENT FOCUS")[1].split("##")[0].strip()
-                # Look for capability names in the focus section
-                for capability in ["information_extraction", "constraint_handling", "solution_generation", 
-                                  "solution_verification", "decision_making"]:
-                    if capability.replace("_", " ") in focus_section.lower():
-                        improvement_focus = capability
-                        break
+            improvement_suggestions = []
+            if "## IMPROVEMENT SUGGESTIONS" in capability_report_text:
+                improvement_section = capability_report_text.split("## IMPROVEMENT SUGGESTIONS")[1].split("##")[0].strip()
+                for line in improvement_section.split("\n"):
+                    if line.strip() and line.strip()[0] in ["-", "*", "•"]:
+                        improvement_suggestions.append(line.strip().lstrip("-*• "))
 
             # Create a structured capability report for the dictionary return
             capability_report = {
                 "text_report": capability_report_text,
-                "improvement_focus": improvement_focus,
                 "strengths": error_analysis.get("strengths", []),
                 "weaknesses": error_analysis.get("weaknesses", []),
                 "improvement_suggestions": error_analysis.get("improvement_suggestions", []),
-                "runtime_errors": error_analysis.get("runtime_errors", [])  # Include runtime errors
+                "runtime_errors": error_analysis.get("runtime_errors", [])
             }
 
         except Exception as e:
@@ -2468,13 +2464,10 @@ except Exception as e:
         weaknesses = capability_report.get("weaknesses", [])
         bottlenecks = capability_report.get("bottlenecks", [])
         improvement_suggestions = capability_report.get("improvement_suggestions", [])
-        improvement_focus = capability_report.get("improvement_focus", "")
 
         # Build guidance
         guidance = "SYSTEM ANALYSIS & GUIDANCE\n\n"
 
-        if improvement_focus:
-            guidance += f"PRIMARY FOCUS AREA: {improvement_focus.upper().replace('_', ' ')}\n\n"
 
         if weaknesses:
             guidance += "WEAKNESSES TO ADDRESS:\n"
@@ -2932,10 +2925,7 @@ except Exception as e:
             capability_report = self.capability_tracker.generate_report()
             if capability_report:
                 print("\n=== Current Capability Status ===")
-                # Display improvement focus
-                improvement_focus = capability_report.get("improvement_focus", "")
-                if improvement_focus:
-                    print(f"  Focus area: {improvement_focus.upper().replace('_', ' ')}")
+
                 # Display strengths and weaknesses...
                 if capability_report.get("strengths"):
                     print("\n  Strengths:")
@@ -2984,13 +2974,11 @@ except Exception as e:
 
         # Get capability insights
         capability_guidance = ""
-        improvement_focus = None
-        if hasattr(self, 'capability_tracker'):
-            capability_report = self.capability_tracker.generate_report()
-            improvement_focus = capability_report.get("improvement_focus", "")
+        if capability_report:
+            capability_guidance = self._generate_capability_guidance(capability_report)
+            print("Generated capability guidance based on performance analysis")
             if capability_report:
                 capability_guidance = self._generate_capability_guidance(capability_report)
-                print(f"Focusing script improvement on: {improvement_focus.upper().replace('_', ' ')}")
 
         # Generate script before getting any test samples - prevent data leakage
         script = self.generate_script_with_llm(is_exploration)
@@ -3344,7 +3332,7 @@ class CapabilityTracker:
 
         # Default to information extraction if nothing else is identified
         #return "no specific focus, refer to text reports"
-        return "information_extraction"
+        return ""
 
     def generate_report(self):
         """
@@ -3356,7 +3344,6 @@ class CapabilityTracker:
             "strengths": self.current_assessment.get("strengths", []),
             "weaknesses": self.current_assessment.get("weaknesses", []),
             "improvement_suggestions": self.current_assessment.get("improvement_suggestions", []),
-            "improvement_focus": self.get_improvement_focus()
         }
 
         # Add trend analysis if we have enough history
@@ -3364,7 +3351,7 @@ class CapabilityTracker:
             report["trend"] = self._analyze_trend()
         else:
             report["trend"] = "insufficient_data"
-
+            
         return report
 
     def _analyze_trend(self):
