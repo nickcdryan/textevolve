@@ -14,11 +14,12 @@ def reset_system(confirm=False):
     # Directories and files to reset
     archive_dir = Path("archive")
     scripts_dir = Path("scripts")
+    viz_dir = Path("viz")
     learnings_file = Path("learnings.txt")
 
     # Check if directories or learnings file exist
     if not archive_dir.exists() and not scripts_dir.exists(
-    ) and not learnings_file.exists():
+    ) and not learnings_file.exists() and not viz_dir.exists():
         print(
             "Nothing to reset - archive and scripts directories and learnings.txt don't exist."
         )
@@ -49,6 +50,14 @@ def reset_system(confirm=False):
         except Exception as e:
             print(f"Error deleting scripts directory: {e}")
 
+    # Delete viz directory and its contents
+    if viz_dir.exists():
+        try:
+            shutil.rmtree(viz_dir)
+            print(f"Deleted viz directory: {viz_dir}")
+        except Exception as e:
+            print(f"Error deleting viz directory: {e}")
+
     # Delete learnings file
     if learnings_file.exists():
         try:
@@ -61,7 +70,8 @@ def reset_system(confirm=False):
     try:
         archive_dir.mkdir(exist_ok=True)
         scripts_dir.mkdir(exist_ok=True)
-        print("Created fresh archive and scripts directories.")
+        viz_dir.mkdir(exist_ok=True)
+        print("Created fresh archive, viz, and scripts directories.")
     except Exception as e:
         print(f"Error creating directories: {e}")
 
