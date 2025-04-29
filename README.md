@@ -80,3 +80,170 @@ The system expects a JSON dataset with example keys following a pattern (e.g., "
   }
 }
 ```
+
+
+
+
+# Custom Dataset Loaders for Agentic Learning System
+
+This system now supports flexible dataset loading through a custom loader interface. Instead of hardcoding field names or making assumptions about dataset structure, the system now uses a modular loader approach that can handle various dataset formats.
+
+## Key Features
+
+- **Modular Dataset Loaders**: Separate the dataset loading logic from the core learning system
+- **ARC Dataset Support**: Built-in support for the ARC (Abstraction and Reasoning Corpus) format
+- **Optional Shuffling**: Control whether examples are shuffled or used in their original order
+- **Extensible Design**: Create custom loaders for your specific dataset formats
+
+## Available Dataset Loaders
+
+### 1. ARC Dataset Loader
+
+Designed for the ARC dataset format, handling both directory-based and single-file formats:
+
+```python
+from dataset_loader import ARCDatasetLoader
+
+# For a directory of ARC files
+loader = ARCDatasetLoader(
+    dataset_path="ARC_2024_Training/",
+    shuffle=True,
+    random_seed=42
+)
+
+# For a single ARC file
+loader = ARCDatasetLoader(
+    dataset_path="arc_problem.json",
+    shuffle=False
+)
+```
+
+### 2. Generic JSON Loader
+
+For JSON datasets with configurable field names:
+
+```python
+from dataset_loader import JSONDatasetLoader
+
+loader = JSONDatasetLoader(
+    dataset_path="dataset.json",
+    input_field="question",     # Name of input field
+    output_field="answer",      # Name of output field
+    example_prefix="example_",  # Optional prefix for example keys
+    shuffle=True
+)
+```
+
+### 3. Custom Loader
+
+For completely custom formats, you can provide your own loading functions:
+
+```python
+from dataset_loader import CustomDatasetLoader
+
+# Define your custom functions
+def load_my_examples(dataset_path):
+    # Your logic to load examples from the dataset
+    # Return a list of examples in any format
+    return examples
+
+def get_my_input(example):
+    # Extract input from your example format
+    return example["my_input_field"]
+
+def get_my_output(example):
+    # Extract output from your example format
+    return example["my_output_field"]
+
+# Create the custom loader
+loader = CustomDatasetLoader(
+    dataset_path="my_custom_dataset.xyz",
+    load_examples_fn=load_my_examples,
+    get_input_fn=get_my_input,
+    get_output_fn=get_my_output,
+    shuffle=True
+)
+```
+
+## Running the System
+
+### Using run_script.py
+
+The main script has been updated to support different loader types:
+
+```bash
+# For ARC dataset
+python run_script.py --iterations 5 --dataset ARC_2024_Training/ --loader arc
+
+# For a JSON dataset with custom fields
+python run_script.py --iterations 5 --dataset custom_data.json --loader json --input-field question --output-field answer
+
+# Disable shuffling
+python run_script.py --iterations 5 --dataset ARC_2024_Training/ --loader arc --no-shuffle
+```
+
+### Using a Custom Script
+
+For more control, you can create your own script and initialize the system directly:
+
+```python
+from dataset_loader import create_dataset_loader
+from agent_system import AgentSystem
+
+# Create your desired loader
+loader = create_dataset_loader(
+    "arc",
+    dataset_path="ARC_2024_Training/",
+    shuffle=True
+)
+
+# Initialize the agent system with the loader
+agent = AgentSystem(dataset_loader=loader)
+
+# Run iterations
+for i in range(5):
+    agent.run_iteration()
+```
+
+## Creating Your Own Loader
+
+To create a custom loader for a new dataset format, subclass `DatasetLoader` and implement the required methods:
+
+```python
+from dataset_loader import DatasetLoader
+
+class MySpecialDatasetLoader(DatasetLoader):
+    def _load_examples(self):
+        # Load examples from your dataset format
+        # Populate self.examples with your data
+
+    def get_example_input(self, example):
+        # Extract input from your example format
+        return example["my_input_field"]
+
+    def get_example_output(self, example):
+        # Extract output from your example format
+        return example["my_output_field"]
+```
+
+## Example for ARC Dataset
+
+A complete example for running with the ARC dataset is provided in `run_arc_example.py`:
+
+```bash
+python run_arc_example.py
+```
+
+This will:
+1. Load the ARC dataset from the "ARC_2024_Training/" directory
+2. Initialize the agent system
+3. Run 3 iterations to demonstrate the system
+4. Print information about the examples and results
+
+## Benefits of This Approach
+
+- **Modularity**: Dataset logic is separate from the core learning system
+- **Flexibility**: Support for various dataset formats without changing core code
+- **Extensibility**: Easy to add support for new dataset formats
+- **Control**: Fine-grained control over dataset loading and processing
+- **Simplicity**: No need to convert datasets to a specific format

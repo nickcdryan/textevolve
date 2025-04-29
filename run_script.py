@@ -1,135 +1,52 @@
 #!/usr/bin/env python
 """
-run.py - Main entry point for the Agentic Learning System
+run_script.py - Main entry point for the Agentic Learning System with custom dataset loaders
+
+python run_script.py --iterations 5 --dataset ARC_2024_Training/ --loader arc --no-shuffle
+
+python run_script.py --iterations 5 --dataset ARC_2024_Training/ --loader arc
 """
 
 import os
 import sys
 import json
-import random
 import argparse
 from pathlib import Path
 from typing import Dict, List, Any
 
 from agent_system import AgentSystem
+from dataset_loader import create_dataset_loader
 
-# Fixed random seed for reproducible dataset shuffling
+# Fixed random seed for reproducibility (if shuffling is enabled)
 RANDOM_SEED = 42
 
-
-def verify_dataset(dataset_path: str, example_prefix: str) -> bool:
-    """
-    Verify that the dataset exists and has the expected format.
-    """
-    if not os.path.exists(dataset_path):
-        print(f"Error: Dataset file {dataset_path} does not exist.")
-        return False
-
-    try:
-        with open(dataset_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-
-        # Check for expected fields in at least one example
-        example_key = f"{example_prefix}0"
-        if example_key not in data:
-            print(
-                f"Error: Expected to find key '{example_key}' in dataset, but it's missing."
-            )
-            return False
-
-        sample = data[example_key]
-        if "prompt_0shot" not in sample or "golden_plan" not in sample:
-            print(
-                "Error: Dataset examples should contain 'prompt_0shot' and 'golden_plan' fields."
-            )
-            return False
-
-        # Count examples
-        example_count = sum(1 for key in data
-                            if key.startswith(example_prefix))
-        print(
-            f"Dataset verification successful. Found {example_count} examples with required fields."
-        )
-        return True
-    except Exception as e:
-        print(f"Error verifying dataset: {e}")
-        return False
-
-
-def shuffle_dataset(dataset_path: str, example_prefix: str) -> str:
-    """
-    Shuffle the dataset examples using a fixed random seed.
-    Returns the path to the shuffled dataset file.
-    """
-    # Set fixed random seed for reproducibility
-    random.seed(RANDOM_SEED)
-
-    try:
-        # Load the original dataset
-        with open(dataset_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-
-        # Identify all example keys
-        example_keys = [
-            key for key in data.keys() if key.startswith(example_prefix)
-        ]
-
-        # Extract all examples
-        examples = [data[key] for key in example_keys]
-
-        # Shuffle the examples
-        random.shuffle(examples)
-
-        # Create a new dataset with shuffled examples
-        shuffled_data = {}
-        for i, example in enumerate(examples):
-            shuffled_data[f"{example_prefix}{i}"] = example
-
-        # Save the shuffled dataset
-        shuffled_path = f"shuffled_{dataset_path}"
-        with open(shuffled_path, 'w', encoding='utf-8') as f:
-            json.dump(shuffled_data, f, indent=2)
-
-        print(f"Dataset shuffled successfully. Saved to {shuffled_path}")
-        return shuffled_path
-
-    except Exception as e:
-        print(f"Error shuffling dataset: {e}")
-        print("Using original dataset instead.")
-        return dataset_path
-
-
-def run_agent(iterations: int,
-              dataset_path: str = "calendar_scheduling.json",
-              example_prefix: str = "calendar_scheduling_example_") -> None:
+def run_agent(iterations: int, loader_config: Dict) -> None:
     """
     Run the agent system for the specified number of iterations.
+
+    Args:
+        iterations: Number of iterations to run
+        loader_config: Configuration for dataset loader
     """
-    # Verify the dataset format
-    if not verify_dataset(dataset_path, example_prefix):
-        print(
-            "Dataset verification failed. Please check the format and try again."
-        )
-        sys.exit(1)
-
-    # Shuffle the dataset with fixed random seed
-    print(f"Shuffling dataset with random seed {RANDOM_SEED}...")
-    shuffled_dataset_path = shuffle_dataset(dataset_path, example_prefix)
-
-    # Initialize the agent system with the shuffled dataset
+    # Create the appropriate dataset loader
     try:
-        agent = AgentSystem(dataset_path=shuffled_dataset_path,
-                            example_prefix=example_prefix)
+        loader_type = loader_config.pop("loader_type")
+        dataset_loader = create_dataset_loader(loader_type, **loader_config)
+        print(f"Created {loader_type} dataset loader with {dataset_loader.get_total_count()} examples")
+
+        # Initialize the agent system with the dataset loader
+        agent = AgentSystem(dataset_loader=dataset_loader)
     except Exception as e:
-        print(f"Error initializing agent system: {e}")
+        print(f"Error initializing system: {e}")
         sys.exit(1)
 
     print("=" * 80)
     print("Agentic Learning System")
     print("=" * 80)
-    print(
-        f"Starting with explore/exploit balance: {agent.explore_rate}/{agent.exploit_rate}"
-    )
+    print(f"Dataset: {loader_config.get('dataset_path')}")
+    print(f"Loader type: {loader_type}")
+    print(f"Shuffle data: {loader_config.get('shuffle', True)}")
+    print(f"Starting with explore/exploit balance: {agent.explore_rate}/{agent.exploit_rate}")
     print(f"Starting batch size: {agent.current_batch_size}")
     print("-" * 80)
 
@@ -138,9 +55,7 @@ def run_agent(iterations: int,
         try:
             result = agent.run_iteration()
             if not result.get("success", True):
-                print(
-                    f"Iteration {i} failed: {result.get('error', 'Unknown error')}"
-                )
+                print(f"Iteration {i} failed: {result.get('error', 'Unknown error')}")
                 break
         except KeyboardInterrupt:
             print("\nProcess interrupted by user. Saving current state...")
@@ -239,11 +154,10 @@ def run_agent(iterations: int,
             print(f"Approach: {best_script_info.get('approach')}")
             print(f"Rationale: {best_script_info.get('rationale')}")
             print("\nTo validate this script on a specific range of examples, run:")
-            print(f"python validate_script.py --script {best_script_info.get('path')} --start 900 --end 999")
+            print(f"python validate_script.py --script {best_script_info.get('path')}")
     except Exception as e:
         print(f"Error getting best script info: {e}")
         print("Could not determine best script due to an error.")
-
 
     # Final explore/exploit balance and batch size
     print(
@@ -257,26 +171,58 @@ def run_agent(iterations: int,
 def parse_arguments():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Run the Agentic Learning System")
+        description="Run the Agentic Learning System with custom dataset loaders")
+
     parser.add_argument("--iterations",
                         "-i",
                         type=int,
                         default=5,
                         help="Number of iterations to run (default: 5)")
+
+    # Dataset configuration
     parser.add_argument(
         "--dataset",
         "-d",
         type=str,
-        default="calendar_scheduling.json",
-        help="Path to the dataset file (default: calendar_scheduling.json)")
+        default="dataset.json",
+        help="Path to the dataset file or directory (default: dataset.json)")
+
     parser.add_argument(
-        "--prefix",
+        "--loader",
+        "-l",
+        type=str,
+        choices=["arc", "json", "custom"],
+        default="arc",
+        help="Type of dataset loader to use (default: arc)")
+
+    # JSON loader options
+    parser.add_argument(
+        "--input-field",
+        "-if",
+        type=str,
+        default="input",
+        help="Field name for input data in JSON loader (default: input)")
+
+    parser.add_argument(
+        "--output-field",
+        "-of",
+        type=str,
+        default="output",
+        help="Field name for output data in JSON loader (default: output)")
+
+    parser.add_argument(
+        "--example-prefix",
         "-p",
         type=str,
-        default="calendar_scheduling_example_",
-        help=
-        "Prefix for example keys in the dataset (default: calendar_scheduling_example_)"
-    )
+        default="",
+        help="Prefix for example keys in JSON loader (default: none)")
+
+    # General options
+    parser.add_argument(
+        "--no-shuffle",
+        action="store_true",
+        help="Disable dataset shuffling (default: False)")
+
     parser.add_argument(
         "--seed",
         "-s",
@@ -286,22 +232,10 @@ def parse_arguments():
 
     return parser.parse_args()
 
-def set_random_seed(new_seed):
-    """Set the global random seed."""
-    global RANDOM_SEED
-    RANDOM_SEED = new_seed
-    print(f"Using random seed: {RANDOM_SEED}")
 
 if __name__ == "__main__":
-
     # Parse command-line arguments
     args = parse_arguments()
-
-    # Update the random seed if specified
-    if args.seed != RANDOM_SEED:
-
-        set_random_seed(args.seed)
-        print(f"Using custom random seed: {RANDOM_SEED}")
 
     # Check environment variables
     if not os.environ.get("GEMINI_API_KEY"):
@@ -312,5 +246,23 @@ if __name__ == "__main__":
         print("Example: export GEMINI_API_KEY=your_api_key_here")
         sys.exit(1)
 
+    # Create loader configuration
+    loader_config = {
+        "loader_type": args.loader,
+        "dataset_path": args.dataset,
+        "shuffle": not args.no_shuffle,
+        "random_seed": args.seed
+    }
+
+    # Add loader-specific parameters
+    if args.loader == "json":
+        loader_config.update({
+            "input_field": args.input_field,
+            "output_field": args.output_field
+        })
+
+        if args.example_prefix:
+            loader_config["example_prefix"] = args.example_prefix
+
     # Run the agent
-    run_agent(args.iterations, args.dataset, args.prefix)
+    run_agent(args.iterations, loader_config)

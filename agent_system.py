@@ -21,23 +21,30 @@ class AgentSystem:
     """
     Agentic Learning System that uses LLM reasoning to continuously improve its approach
     to solving dataset problems through iterative exploration and exploitation.
+    Now supports custom dataset loaders.
     """
 
-    def __init__(self,
-         dataset_path: str = "shuffled_calendar_scheduling.json",
-         example_prefix: str = "calendar_scheduling_example_"):
-        """Initialize the agent system"""
+    def __init__(self, dataset_loader=None):
+        """
+        Initialize the agent system with a dataset loader
+
+        Args:
+            dataset_loader: A DatasetLoader instance for loading and processing examples
+        """
         # Initialize configuration
         self.explore_rate = 60
         self.exploit_rate = 40
         self.force_exploitation_next = False
-        self.dataset_path = dataset_path
-        self.example_prefix = example_prefix
+
+        # Store the dataset loader
+        self.dataset_loader = dataset_loader
+        if not self.dataset_loader:
+            raise ValueError("A dataset loader must be provided")
 
         # Initialize batch size and tracking for seen examples
         self.current_batch_size = 5  # Start with a small batch
         self.seen_examples = set()
-        self.next_example_index = 0
+        self.examples_processed = 0
 
         # Ensure directories exist
         self.archive_dir = Path("archive")
@@ -67,15 +74,16 @@ class AgentSystem:
         if learnings:
             print(f"Loaded existing learnings: {len(learnings)} characters")
         else:
-            print(
-                "No existing learnings found. Will start accumulating learnings."
-            )
+            print("No existing learnings found. Will start accumulating learnings.")
 
         # ADDED: Reserve training examples to prevent data leakage
         self.mark_training_examples()
 
         # Load previous iterations if available
         self._load_previous_state()
+
+        # Initialize current iteration
+        self.current_iteration = 0
 
     def get_training_examples(self, count: int = 5) -> List[Dict]:
         """
@@ -86,47 +94,27 @@ class AgentSystem:
             count: Number of training examples to return
 
         Returns:
-            List of example dictionaries with prompt_0shot and golden_plan
+            List of example dictionaries with input and output fields
         """
-        # Load the entire dataset
-        dataset = self.load_dataset()
-        if not dataset:
+        # Get first 'count' examples from dataset and mark them as seen
+        if not self.dataset_loader:
             return []
 
-        # Create a deterministic set of training examples
-        # We'll use the first 'count' examples after shuffling with a fixed seed
-        # that's different from the main shuffle seed
-        training_seed = 12345  # Different from the main RANDOM_SEED
+        # Temporarily store original index to restore it after getting training examples
+        original_index = self.dataset_loader.current_index
+        self.dataset_loader.current_index = 0
 
-        # Save current random state
-        old_state = random.getstate()
+        # Get training examples
+        training_examples = self.dataset_loader.get_examples(count)
 
-        # Set seed for deterministic training examples
-        random.seed(training_seed)
+        # Mark these examples as seen
+        for i in range(count):
+            self.seen_examples.add(i)
 
-        all_examples = []
-        for key, value in dataset.items():
-            if key.startswith(self.example_prefix):
-                all_examples.append((key, value))
+        # Restore original index
+        self.dataset_loader.current_index = original_index
 
-        if not all_examples:
-            # Restore random state and return empty list
-            random.setstate(old_state)
-            return []
-
-        # Shuffle with fixed seed and take first 'count' examples
-        random.shuffle(all_examples)
-        training_examples = all_examples[:min(count, len(all_examples))]
-
-        # Reset the random seed back to previous state
-        random.setstate(old_state)
-
-        # Mark these examples as "seen" so they won't be used for testing
-        for key, _ in training_examples:
-            self.seen_examples.add(key)
-
-        # Return just the example data
-        return [example for _, example in training_examples]
+        return training_examples
 
     def mark_training_examples(self):
         """
@@ -138,6 +126,7 @@ class AgentSystem:
             # The training examples will be added to seen_examples
             training_examples = self.get_training_examples(5)  # Get 5 training examples
             print(f"Reserved {len(training_examples)} examples for initial training")
+
     
     def _load_system_prompt(self) -> str:
         """Load the system prompt from the system_prompt.md file"""
@@ -238,43 +227,64 @@ class AgentSystem:
             return {}
 
     def get_samples(self) -> Dict:
-        """Get samples from the dataset, rotating through examples sequentially"""
-        dataset = self.load_dataset()
-        if not dataset:
+        """
+        Get samples from the dataset loader for the current batch.
+        Uses universal field names (question/answer) for consistency.
+
+        Returns:
+            Dict containing:
+            - samples: List of sample dictionaries with question/answer/id fields
+            - new_examples_added: Count of new examples added
+            - total_seen_examples: Total count of seen examples
+        """
+        if not self.dataset_loader:
             return {
                 "samples": [],
                 "new_examples_added": 0,
                 "total_seen_examples": 0
             }
 
+        # Get current_batch_size examples
+        examples = self.dataset_loader.get_examples(self.current_batch_size)
+
+        # Convert to standardized format for system
         samples = []
         new_examples_added = 0
 
-        # Get current_batch_size samples
-        for i in range(self.current_batch_size):
-            example_key = f"{self.example_prefix}{self.next_example_index}"
+        for i, example in enumerate(examples):
+            # Get current example index
+            example_index = self.examples_processed + i
 
-            # Wrap around if we reach the end
-            if example_key not in dataset:
-                self.next_example_index = 0
-                example_key = f"{self.example_prefix}{self.next_example_index}"
+            # Track that we've seen this example
+            if example_index not in self.seen_examples:
+                self.seen_examples.add(example_index)
+                new_examples_added += 1
 
-            if example_key in dataset:
-                samples.append(dataset[example_key])
+            # Extract input and output
+            try:
+                example_input = self.dataset_loader.get_example_input(example)
+                example_output = self.dataset_loader.get_example_output(example)
 
-                # Track that we've seen this example
-                if example_key not in self.seen_examples:
-                    self.seen_examples.add(example_key)
-                    new_examples_added += 1
+                # Create standardized sample using universal field names
+                standardized_sample = {
+                    "question": example_input,  # Universal field name
+                    "answer": example_output,   # Universal field name
+                    "id": f"example_{example_index}"
+                }
 
-                self.next_example_index += 1
+                samples.append(standardized_sample)
+            except Exception as e:
+                print(f"Error processing example: {e}")
+
+        # Update the number of examples processed
+        self.examples_processed += len(samples)
 
         return {
             "samples": samples,
             "new_examples_added": new_examples_added,
             "total_seen_examples": len(self.seen_examples)
         }
-
+    
     def save_to_archive(self, data: Dict, filename: str) -> None:
         """Save data to the archive directory"""
         filepath = self.archive_dir / filename
@@ -873,13 +883,13 @@ class AgentSystem:
     def generate_script_with_llm(self, is_exploration: bool) -> str:
         """
         Use the LLM to generate a script to solve dataset problems.
-        Modified to prevent data leakage by using only previously seen examples.
+        Modified to work with dataset loader approach and use standard field names.
         """
         # Get previous iterations and summaries
         iterations = self.get_all_iterations()
         summaries = self.get_summaries()
 
-        # MODIFIED: Instead of getting current test samples, use examples from past iterations
+        # Instead of getting current test samples, use examples from past iterations
         example_problems = []
 
         if iterations:
@@ -893,19 +903,19 @@ class AgentSystem:
             for i, sample in enumerate(prev_samples[:3]):  # Limit to 3 examples
                 example_problems.append({
                     "id": i,
-                    "question": sample.get("prompt_0shot", ""),
-                    "answer": sample.get("golden_plan", "")
+                    "question": sample.get("question", ""),  # Use universal "question" field
+                    "answer": sample.get("answer", "")       # Use universal "answer" field
                 })
 
         # Handle cold start (first iteration)
         if not example_problems:
             # For initial training, get examples from a fixed training set
-            training_examples = self.get_training_examples(3)  # Using a helper method to get training examples
-            for i, sample in enumerate(training_examples):
+            training_examples = self.get_training_examples(3)
+            for i, example in enumerate(training_examples):
                 example_problems.append({
                     "id": i,
-                    "question": sample.get("prompt_0shot", ""),
-                    "answer": sample.get("golden_plan", "")
+                    "question": self.dataset_loader.get_example_input(example),
+                    "answer": self.dataset_loader.get_example_output(example)
                 })
 
         # ==== LOAD ACCUMULATED LEARNINGS ====
@@ -1050,7 +1060,7 @@ class AgentSystem:
 
         # ==== PREPARE CONTEXT ====
         # API usage example
-        gemini_api_example = 'def call_llm(prompt, system_instruction=None):\n    """Call the Gemini LLM with a prompt and return the response"""\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f"Error calling Gemini API: {str(e)}")\n        return f"Error: {str(e)}"'
+        gemini_api_example = 'def call_llm(prompt, system_instruction=None):\n    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f"Error calling Gemini API: {str(e)}")\n        return f"Error: {str(e)}"'
 
         # Example 1: General-purpose information extraction with embedded examples
         extraction_example = 'def extract_information_with_examples(text):\n    """Extract key information from the input text using embedded examples."""\n    system_instruction = "You are an information extraction specialist focusing on identifying key entities and relationships."\n    \n    prompt = f"""\n    Extract key information from this text. Focus on identifying all entities, relationships, and important attributes.\n    \n    Example usage:\n    \n    Input Text:\n    The company XYZ Corp reported quarterly earnings of $3.5 million, which represents a 12% increase from last year. The CEO, Jane Smith, attributed this growth to their new product line launched in March, which has already captured 8% of the market share. They expect to expand their operations to Europe by Q2 2023.\n    \n    Let\'s think step by step.\n    \n    The key entities are:\n    - XYZ Corp (company)\n    - Jane Smith (person, CEO)\n    - New product line (product)\n    \n    The key information points are:\n    - Financial: Quarterly earnings of $3.5 million\n    - Performance: 12% increase from previous year\n    - Product: New product line launched in March\n    - Market: 8% market share for new product\n    - Plans: Expansion to Europe by Q2 2023\n    \n    Extracted Information:\n    {{\n      "entities": [\n        {{"name": "XYZ Corp", "type": "company"}},\n        {{"name": "Jane Smith", "type": "person", "role": "CEO"}},\n        {{"name": "New product line", "type": "product", "launch_date": "March"}}\n      ],\n      "financial_data": {{\n        "quarterly_earnings": "$3.5 million",\n        "growth_rate": "12%"\n      }},\n      "market_data": {{\n        "product_market_share": "8%"\n      }},\n      "future_plans": [\n        {{"type": "expansion", "region": "Europe", "timeline": "Q2 2023"}}\n      ]\n    }}\n    \n    Now, extract information from this new text:\n    {text}\n    """\n    \n    return call_llm(prompt, system_instruction)'
@@ -1154,6 +1164,7 @@ class AgentSystem:
         4. Include examples with a range of complexity levels, rather than all similar examples
 
 
+
         VALIDATION AND VERIFICATION GUIDANCE:
         1. CRITICAL: Consider implementing validation loops for EACH key processing step, not just final outputs
         2. Design your system to detect, diagnose, and recover from specific errors. This will help future learnings
@@ -1162,7 +1173,7 @@ class AgentSystem:
            - Whether the output is logically consistent with the input
            - Whether all constraints are satisfied
         4. Add feedback loops that retry failures with specific feedback
-        5. Include diagnostic outputs that reveal exactly where failures occur
+        5. Include diagnostic outputs that reveal exactly where failures occur. Add print statements and intermediate outputs such that you can see them later to determine why things are going wrong.
         6. Include capability to trace through execution steps to identify failure points
 
         Example of pipeline without verification:
@@ -1718,7 +1729,7 @@ class AgentSystem:
             A repaired script
         """
         # Role-specific system instruction for the script repairer
-        repairer_system_instruction = f"{self.system_prompt}\n\nYou are a Script Repair Specialist. Your task is to analyze error outputs and fix scripts to make them execute correctly."
+        repairer_system_instruction = f"{self.system_prompt}\n\nYou are a Script Repair Specialist. Your task is to analyze error outputs and fix scripts to make them execute correctly. You ARE NOT to check if the answer is correct, only if the script ran successfully."
 
 
         prompt = f"""
@@ -1834,8 +1845,16 @@ class AgentSystem:
             print("No test examples available for script repair.")
             return script
 
-        test_question = test_examples[0].get("prompt_0shot", "")
-        print(f"Using test question for repair: {test_question[:50]}...")
+        # Get the question from the example
+        test_question_str = self.dataset_loader.get_example_input(test_examples[0])
+        print(f"Using test question for repair: {test_question_str[:50]}...")
+
+        # Create a properly formatted sample dictionary
+        test_sample = {
+            "question": test_question_str,
+            "answer": self.dataset_loader.get_example_output(test_examples[0]),
+            "id": "test_sample"
+        }
 
         current_script = script
         best_script = script
@@ -1843,7 +1862,7 @@ class AgentSystem:
 
         for attempt in range(max_attempts):
             # Try to execute the current script
-            result = self.execute_script(current_script, test_question)
+            result = self.execute_script(current_script, test_sample)
 
             # Get the output and answer
             output = result.get("output", "")
@@ -1904,7 +1923,7 @@ class AgentSystem:
 
             # Repair the script using LLM
             print(f"Repairing script with LLM based on error: {error[:100]}...")
-            current_script = self.repair_script_with_llm(current_script, test_question, output)
+            current_script = self.repair_script_with_llm(current_script, test_question_str, output)
 
             # Validate the script syntax
             try:
@@ -1919,21 +1938,32 @@ class AgentSystem:
         print(f"Script repair completed with best available version after {max_attempts} attempts.")
         return best_script
     
-    def execute_script(self, script: str, question: str) -> Dict:
+    def execute_script(self, script: str, sample: Dict) -> Dict:
         """
-        Execute the generated script on a question and return the result.
+        Execute the generated script on a sample and return the result.
         Uses automatic debugging if the script fails with specific errors.
+
+        Args:
+            script: The script content
+            sample: Sample data in standardized format (dict with 'question' and 'answer' keys)
+
+        Returns:
+            Dict with execution results
         """
         # Create a temporary script file
         script_path = self.scripts_dir / f"current_script_{self.current_iteration}.py"
         with open(script_path, 'w', encoding='utf-8') as f:
             f.write(script)
 
+        # Get the question string from the sample
+        question = sample.get("question", "")
+
         # Create a test harness for the script
         test_script = f"""
 import sys
 import traceback
 import os
+import json
 
 # Add the scripts directory to the path
 sys.path.append("{self.scripts_dir}")
@@ -1945,8 +1975,10 @@ try:
     # Import the script as a module
     from current_script_{self.current_iteration} import main
 
-    # Execute the main function with the question
+    # Execute the main function with the question string
     question = {repr(question)}
+
+    # Call the main function and get the answer
     answer = main(question)
 
     # Print the answer for capture
@@ -2038,7 +2070,7 @@ except Exception as e:
             "error": "Maximum debug attempts reached. Could not fix script.",
             "output": "Debug failure"
         }
-
+    
     def _debug_script(self, script_path: Path) -> bool:
         """
         Debug a script by checking for common issues and fixing them.
@@ -2134,8 +2166,7 @@ except Exception as e:
     def evaluate_with_llm(self, samples: List[Dict], results: List[Dict]) -> Dict:
         """
         Use the LLM to evaluate results and perform detailed error analysis.
-        Generates natural language analysis of strengths, weaknesses, and improvements.
-        Now includes raw execution outputs for better error diagnosis.
+        Modified to work with the standardized sample format and use universal field names.
         """
         evaluations = []
 
@@ -2147,15 +2178,15 @@ except Exception as e:
                     "sample_id": i,
                     "success": False,
                     "error": result.get("error", "Unknown error"),
-                    "output": result.get("output", "No output captured"),  # Include raw output for failed executions
+                    "output": result.get("output", "No output captured"),
                     "match": False,
-                    "capability_failures": ["execution"]  # Track execution failures
+                    "capability_failures": ["execution"]
                 })
                 continue
 
             # Compare with golden answer using LLM
             if not result.get("evaluation"):
-                golden_answer = sample.get("golden_plan", "").strip()
+                golden_answer = sample.get("answer", "").strip()  # Use universal "answer" field
                 system_answer = result.get("answer", "").strip()
                 evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
                 result["evaluation"] = evaluation
@@ -2168,8 +2199,8 @@ except Exception as e:
                     "sample_id": i,
                     "success": True,
                     "system_answer": result.get("answer", "").strip(),
-                    "golden_answer": sample.get("golden_plan", "").strip(),
-                    "output": result.get("output", "No output captured"),  # Include output even for successful runs
+                    "golden_answer": sample.get("answer", "").strip(),  # Use universal "answer" field
+                    "output": result.get("output", "No output captured"),
                     "match": True,
                     "evaluation": result.get("evaluation", {})
                 })
@@ -2179,11 +2210,11 @@ except Exception as e:
                     "sample_id": i,
                     "success": True,
                     "system_answer": result.get("answer", "").strip(),
-                    "golden_answer": sample.get("golden_plan", "").strip(),
-                    "output": result.get("output", "No output captured"),  # Include raw output for analysis
+                    "golden_answer": sample.get("answer", "").strip(),  # Use universal "answer" field
+                    "output": result.get("output", "No output captured"),
                     "match": False,
                     "evaluation": result.get("evaluation", {}),
-                    "capability_failures": []  # Placeholder, will be populated after error analysis
+                    "capability_failures": []
                 })
 
         # Calculate accuracy
@@ -2196,95 +2227,95 @@ except Exception as e:
                 sample = samples[i]
                 error_samples.append({
                     "sample_id": i,
-                    "question": sample.get("prompt_0shot", ""),
+                    "question": sample.get("question", ""),  # Use universal "question" field
                     "system_answer": eval_data.get("system_answer", ""),
                     "golden_answer": eval_data.get("golden_answer", ""),
                     "error_message": eval_data.get("error", ""),
-                    "output": eval_data.get("output", "No output captured"),  # Include raw output for error analysis
+                    "output": eval_data.get("output", "No output captured"),
                     "explanation": eval_data.get("evaluation", {}).get("explanation", "")
                 })
-
+    
         print(f"Found {len(error_samples)} error samples for analysis")
-
+    
         # NEW APPROACH: Generate a text-based capability report instead of trying to parse complex JSON
         capability_report_text = ""
         error_analysis_text = ""
-
+    
         if error_samples:
             # Modified system instruction for error analyzer that produces text instead of JSON
             error_analyzer_system_instruction = f"{self.system_prompt}\n\nYou are a Forensic Error Analyzer specializing in debugging complex reasoning systems. Your task is to perform deep, deliberate analysis of errors to identify specific failure points and propose targeted improvements."
-
+    
             # Modified prompt for LLM to generate a natural language analysis, now including raw outputs
             prompt = f"""
             Perform a thorough forensic analysis of these error cases in our AI problem-solving system.
-
+    
             For each error case, think step-by-step through what happened:
-
+    
             ERROR CASES:
             {json.dumps(error_samples, indent=2)}
-
+    
             ANALYSIS INSTRUCTIONS:
-            1. TRACE THE REASONING PATH: For each error case, reconstruct the likely reasoning path the system took. Where precisely did the reasoning go wrong?
-
+            1. TRACE THE REASONING PATH: For each error case, reconstruct the likely reasoning path the system took. Where precisely did the reasoning go wrong? In the future can you add print statements and intermediate outputs such that you can see them later to determine why things are going wrong?
+    
             2. IDENTIFY SPECIFIC FAILURE POINTS: What exact component, reasoning step, or assumption failed? Pay special attention to the 'output' field which contains the raw execution output with detailed information about errors and execution flow.
-
+    
             3. ANALYZE RAW OUTPUTS: Look for specific error patterns (like JSONDecodeError, TypeError, etc.) in the output field that may reveal implementation issues or runtime errors.
-
+    
             4. COMPARE WITH CORRECT SOLUTION: Analyze how the golden answer's reasoning differs from the system's approach.
-
+    
             5. FIND PATTERNS ACROSS ERRORS: Are there common failure modes or recurring issues?
-
+    
             6. MAP FAILURES TO SYSTEM CAPABILITIES: For each error, identify which of these capabilities failed:
                - information_extraction: Extracting relevant information from the problem statement
                - constraint_handling: Identifying and applying constraints correctly
                - solution_generation: Generating valid potential solutions
                - solution_verification: Verifying solutions against constraints
                - decision_making: Making a final decision on the best solution
-
+    
             7. EVALUATE HYPOTHESIS: Was the hypothesis for this iteration correct? If not, what went wrong?
-
+    
             FORMAT YOUR RESPONSE AS A STRUCTURED TEXT REPORT with the following sections:
-
+    
             ## RUNTIME ERRORS
             (Identify and categorize any error messages or exceptions found in the 'output' fields)
-
+    
             ## STRENGTHS
             (List 2-3 specific strengths of the current approach)
-
+    
             ## WEAKNESSES
             (List 2-3 specific weaknesses identified from error cases)
-
+    
             ## CRITICAL BOTTLENECKS
             (The 1-2 critical bottlenecks limiting performance)
-
+    
             ## ERROR PATTERNS
             (Recurring patterns across multiple errors)
-
+    
             ## PRIMARY ISSUE
             (The single most critical problem to fix - be very specific)
-
+    
             ## IMPROVEMENT AREAS
             (Specific capabilities that need the most improvement)
-
+    
             ## IMPROVEMENT SUGGESTIONS
             (Specific, actionable changes to fix the identified issues)
-
+    
             ## CAPABILITY MAPPING
             (For each sample with errors, list which capabilities failed)
-
+    
             BE EXTREMELY SPECIFIC IN YOUR ANALYSIS. If you see technical errors in the outputs (like JSONDecodeError or TypeError), highlight these explicitly and explain their implications.
             """
-
+    
             # Call LLM for detailed error analysis as text
             try:
                 error_analysis_text = self.call_llm(prompt, system_instruction=error_analyzer_system_instruction)
                 print("Generated error analysis text report")
-
+    
                 # Extract useful information for the dictionary return
                 error_analysis = {
                     "text_report": error_analysis_text
                 }
-
+    
                 # Try to extract basic structured information from the text report
                 if "## STRENGTHS" in error_analysis_text and "## WEAKNESSES" in error_analysis_text:
                     strengths = []
@@ -2292,47 +2323,47 @@ except Exception as e:
                     primary_issue = "See full text report"
                     improvement_suggestions = []
                     runtime_errors = []
-
+    
                     # Extract runtime errors section if it exists
                     if "## RUNTIME ERRORS" in error_analysis_text:
                         runtime_errors_section = error_analysis_text.split("## RUNTIME ERRORS")[1].split("##")[0].strip()
                         for line in runtime_errors_section.split("\n"):
                             if line.strip() and line.strip()[0] in ["-", "*", "•"]:
                                 runtime_errors.append(line.strip().lstrip("-*• "))
-
+    
                     # Very simple extraction - this won't be comprehensive but will give us something
                     strength_section = error_analysis_text.split("## STRENGTHS")[1].split("##")[0].strip()
                     for line in strength_section.split("\n"):
                         if line.strip() and line.strip()[0] in ["-", "*", "•"]:
                             strengths.append(line.strip().lstrip("-*• "))
-
+    
                     weakness_section = error_analysis_text.split("## WEAKNESSES")[1].split("##")[0].strip()
                     for line in weakness_section.split("\n"):
                         if line.strip() and line.strip()[0] in ["-", "*", "•"]:
                             weaknesses.append(line.strip().lstrip("-*• "))
-
+    
                     if "## PRIMARY ISSUE" in error_analysis_text:
                         primary_issue = error_analysis_text.split("## PRIMARY ISSUE")[1].split("##")[0].strip()
-
+    
                     if "## IMPROVEMENT SUGGESTIONS" in error_analysis_text:
                         improvement_section = error_analysis_text.split("## IMPROVEMENT SUGGESTIONS")[1].split("##")[0].strip()
                         for line in improvement_section.split("\n"):
                             if line.strip() and line.strip()[0] in ["-", "*", "•"]:
                                 improvement_suggestions.append(line.strip().lstrip("-*• "))
-
+    
                     error_analysis["strengths"] = strengths
                     error_analysis["weaknesses"] = weaknesses
                     error_analysis["primary_issue"] = primary_issue
                     error_analysis["improvement_suggestions"] = improvement_suggestions
                     error_analysis["runtime_errors"] = runtime_errors  # Add runtime errors to the analysis
-
+    
                 print("Successfully extracted information from text report")
-
+    
             except Exception as e:
                 print(f"Error generating error analysis text: {str(e)}")
                 import traceback
                 traceback.print_exc()
-
+    
                 error_analysis_text = f"Error analysis failed: {str(e)}"
                 error_analysis = {
                     "text_report": error_analysis_text,
@@ -2351,59 +2382,59 @@ except Exception as e:
                 "primary_issue": "No issues identified",
                 "improvement_suggestions": []
             }
-
+    
         # Generate a capability report text, now including raw outputs
         try:
             # Define a system instruction for the capability reporter
             capability_reporter_system_instruction = f"{self.system_prompt}\n\nYou are a System Capability Analyst who specializes in providing actionable insights for improving AI systems."
-
+    
             # Collect all outputs for analysis
             all_outputs = [eval_data.get("output", "No output captured") for eval_data in evaluations]
             sample_outputs = all_outputs[:3]  # Take a sample of outputs for the prompt
-
+    
             capability_prompt = f"""
             Generate a comprehensive capability report for our AI system based on its performance.
-
+    
             PERFORMANCE SUMMARY:
             - Accuracy: {accuracy:.2f} ({correct_count}/{len(samples)})
             - Error samples: {len(error_samples)}/{len(samples)}
-
+    
             ERROR ANALYSIS REPORT:
             {error_analysis_text}
-
+    
             SAMPLE EXECUTION OUTPUTS:
             {json.dumps(sample_outputs, indent=2)}
-
+    
             Please provide a thorough capability assessment that includes:
-
+    
             ## EXECUTION ANALYSIS
             (Analysis of the raw execution outputs, including any errors or issues observed)
-
+    
             ## CAPABILITY ASSESSMENT
             (Overall assessment of the system's capabilities)
-
+    
             ## KEY STRENGTHS
             (The most important strengths to maintain)
-
+    
             ## KEY WEAKNESSES
             (The most critical weaknesses to address)
-
+    
             ## IMPROVEMENT FOCUS
             (The single most important capability to focus on improving)
-
+    
             ## ACTIONABLE RECOMMENDATIONS
             (Specific changes to implement in the next iteration)
-
+    
             ## CAPABILITY TREND
             (Assessment of whether capabilities are improving, declining, or stable)
-
+    
             Your assessment should be specific, actionable, and focused on concrete improvements.
             Pay particular attention to any patterns in the execution outputs that might reveal issues with the implementation.
             """
-
+    
             capability_report_text = self.call_llm(capability_prompt, system_instruction=capability_reporter_system_instruction)
             print("Generated capability report text successfully")
-
+    
             # Extract the improvement focus for the dictionary return
             improvement_suggestions = []
             if "## IMPROVEMENT SUGGESTIONS" in capability_report_text:
@@ -2411,7 +2442,7 @@ except Exception as e:
                 for line in improvement_section.split("\n"):
                     if line.strip() and line.strip()[0] in ["-", "*", "•"]:
                         improvement_suggestions.append(line.strip().lstrip("-*• "))
-
+    
             # Create a structured capability report for the dictionary return
             capability_report = {
                 "text_report": capability_report_text,
@@ -2420,12 +2451,12 @@ except Exception as e:
                 "improvement_suggestions": error_analysis.get("improvement_suggestions", []),
                 "runtime_errors": error_analysis.get("runtime_errors", [])
             }
-
+    
         except Exception as e:
             print(f"Error generating capability report: {str(e)}")
             import traceback
             traceback.print_exc()
-
+    
             capability_report_text = f"Capability report generation failed: {str(e)}"
             capability_report = {
                 "text_report": capability_report_text,
@@ -2824,29 +2855,31 @@ except Exception as e:
                         "rationale": "No valid iterations completed"
                     }
     
-    def run_progressive_testing(self,
-                                script: str,
-                                max_examples: int = 20) -> Dict:
+    def run_progressive_testing(self, script: str, max_examples: int = 20) -> Dict:
         """Run progressive testing on seen examples, up to a maximum limit"""
         # Load the dataset
-        dataset = self.load_dataset()
+        if not hasattr(self, 'dataset_loader') or not self.dataset_loader:
+            return {"success": False, "error": "No dataset loader available"}
 
         # Get all seen examples
         all_samples = []
-        for example_key in self.seen_examples:
-            if example_key in dataset:
-                all_samples.append(dataset[example_key])
+        for example_index in self.seen_examples:
+            # Get sample at this index
+            try:
+                examples = self.dataset_loader.get_examples(1)
+                if examples:
+                    all_samples.append(examples[0])
+            except Exception as e:
+                print(f"Error retrieving example {example_index}: {e}")
+                continue
 
         if not all_samples:
             return {"success": False, "error": "No examples seen yet"}
 
         # Limit to max_examples (most recent)
-        samples = all_samples[-max_examples:] if len(
-            all_samples) > max_examples else all_samples
+        samples = all_samples[-max_examples:] if len(all_samples) > max_examples else all_samples
 
-        print(
-            f"Running progressive testing on {len(samples)} seen examples (out of {len(all_samples)} total seen)..."
-        )
+        print(f"Running progressive testing on {len(samples)} seen examples (out of {len(all_samples)} total seen)...")
 
         # Execute script on selected samples
         results = []
@@ -2854,17 +2887,16 @@ except Exception as e:
             if i % 5 == 0:  # Status update every 5 samples
                 print(f"  Processing sample {i+1}/{len(samples)}...")
 
-            question = sample.get("prompt_0shot", "")
-            result = self.execute_script(script, question)
+            # Execute the script with the full sample
+            result = self.execute_script(script, sample)
 
             # Evaluate the result if successful
             if result.get("success"):
-                golden_answer = sample.get("golden_plan", "")
+                golden_answer = self.dataset_loader.get_example_output(sample)  # This already uses the universal interface
                 system_answer = result.get("answer", "")
 
                 # Use LLM-based evaluation
-                evaluation = self.evaluate_answer_with_llm(
-                    system_answer, golden_answer)
+                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
 
                 result["evaluation"] = evaluation
                 result["match"] = evaluation.get("match", False)
@@ -2886,9 +2918,9 @@ except Exception as e:
         }
 
     def validate_script(self,
-                        script_path: str = None,
-                        start_index: int = 0,
-                        end_index: int = 999) -> Dict:
+        script_path: str = None,
+        start_index: int = 0,
+        end_index: int = 999) -> Dict:
         """Test a script on a specified range of examples"""
         # If no script path provided, use the best script
         if not script_path:
@@ -2896,71 +2928,69 @@ except Exception as e:
             if not best_info:
                 return {"success": False, "error": "No scripts available"}
             script_path = best_info.get("path")
-
+    
         # Load the script
         try:
             with open(script_path, 'r') as f:
                 script = f.read()
         except Exception as e:
             return {
-                "success": False,
-                "error": f"Error loading script: {str(e)}"
+            "success": False,
+            "error": f"Error loading script: {str(e)}"
             }
-
-        # Load the dataset
-        dataset = self.load_dataset()
-
+        
+        # Instead of loading the dataset directly, use the dataset loader
+        if not hasattr(self, 'dataset_loader') or not self.dataset_loader:
+            return {"success": False, "error": "No dataset loader available"}
+    
         # Get examples in the specified range
         samples = []
-        for i in range(start_index, end_index + 1):
-            example_key = f"{self.example_prefix}{i}"
-            if example_key in dataset:
-                samples.append({
-                    "key": example_key,
-                    "data": dataset[example_key]
-                })
-
+        current_index = 0
+    
+        # This is a simple approach - in a real implementation, you might want to
+        # implement more sophisticated indexing in your dataset loader
+        while current_index <= end_index and len(samples) < (end_index - start_index + 1):
+            examples = self.dataset_loader.get_examples(1)
+            if examples and current_index >= start_index:
+                samples.append(examples[0])
+            current_index += 1
+    
         if not samples:
             return {
-                "success": False,
-                "error":
-                f"No examples found in range {start_index}-{end_index}"
+            "success": False,
+            "error": f"No examples found in range {start_index}-{end_index}"
             }
-
-        print(
-            f"Validating script on {len(samples)} examples from range {start_index}-{end_index}..."
-        )
-
+    
+        print(f"Validating script on {len(samples)} examples from range {start_index}-{end_index}...")
+    
         # Execute script on all samples
         results = []
         for i, sample in enumerate(samples):
             if i % 10 == 0:  # Status update every 10 samples
                 print(f"  Processing sample {i+1}/{len(samples)}...")
 
-            question = sample["data"].get("prompt_0shot", "")
+            question = self.dataset_loader.get_example_input(sample)
             result = self.execute_script(script, question)
 
             # Evaluate the result if successful
             if result.get("success"):
-                golden_answer = sample["data"].get("golden_plan", "")
+                golden_answer = self.dataset_loader.get_example_output(sample)
                 system_answer = result.get("answer", "")
 
                 # Use LLM-based evaluation
-                evaluation = self.evaluate_answer_with_llm(
-                    system_answer, golden_answer)
+                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
 
                 result["evaluation"] = evaluation
                 result["match"] = evaluation.get("match", False)
             else:
                 result["match"] = False
 
-            results.append({"key": sample["key"], "result": result})
-
+            results.append({"key": sample.get("id", f"example_{i}"), "result": result})
+    
         # Calculate overall statistics
-        successful_runs = sum(1 for r in results
-                              if r["result"].get("success", False))
+        successful_runs = sum(1 for r in results if r["result"].get("success", False))
         matches = sum(1 for r in results if r["result"].get("match", False))
-
+    
         return {
             "script_path": script_path,
             "total_examples": len(samples),
@@ -3029,7 +3059,7 @@ except Exception as e:
         strategy = "Exploration" if is_exploration else "Exploitation"
         print(f"Strategy for this iteration: {strategy}")
 
-        # MODIFIED: Generate script using LLM BEFORE getting test samples
+        # Generate script using LLM BEFORE getting test samples
         print("Generating script with LLM...")
 
         # Get capability insights
@@ -3066,19 +3096,23 @@ except Exception as e:
 
         print(f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)")
 
+        print ("SAMPLES", samples)
         # Execute script on samples
         print("Executing script on samples...")
         results = []
         for i, sample in enumerate(samples):
             print(f"  Processing sample {i+1}/{len(samples)}...")
-            question = sample.get("prompt_0shot", "")
-            result = self.execute_script(script, question)
+            #print ("***/nSAMPLE/n****", sample)
+            # Execute the script with the full sample dictionary
+            result = self.execute_script(script, sample)
 
             if result.get("success"):
                 print(f"    Result: {result.get('answer')}")
                 # Evaluate with LLM
-                golden_answer = sample.get("golden_plan", "")
+                golden_answer = sample.get("answer", "")  # Use universal "answer" field
+                print ("GOLDEN", golden_answer)
                 system_answer = result.get("answer", "")
+
                 try:
                     evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
                     result["evaluation"] = evaluation
@@ -3103,8 +3137,6 @@ except Exception as e:
                 result["match"] = False
 
             results.append(result)
-
-        # Rest of function remains the same...
 
         # Calculate basic performance metrics
         successful_runs = sum(1 for r in results if r.get("success", False))
@@ -3172,7 +3204,7 @@ except Exception as e:
                     prog_matches = progressive_testing_results.get("matches", 0)
                     prog_total = progressive_testing_results.get("total_examples", 0)
                     print(f"Progressive testing results: {prog_accuracy:.2f} accuracy " + 
-                          f"({prog_matches}/{prog_total} correct)")
+                            f"({prog_matches}/{prog_total} correct)")
             except Exception as e:
                 print(f"Error in progressive testing: {str(e)}")
                 progressive_testing_results = None
@@ -3301,7 +3333,6 @@ except Exception as e:
         # Update batch size for next iteration
         self.current_batch_size = new_batch_size
 
-
         # Generate execution flow visualization
         print("\nGenerating execution flow visualization...")
         script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
@@ -3314,7 +3345,6 @@ except Exception as e:
             print("Visualization saved!")
         except Exception as e:
             print(f"Error generating visualization: {e}")
-        
 
         # Increment iteration counter
         self.current_iteration += 1
@@ -3328,10 +3358,7 @@ except Exception as e:
         except Exception as e:
             print(f"Error updating learnings: {e}")
 
-
-
         return iteration_data
-        
 
 class CapabilityTracker:
     """
