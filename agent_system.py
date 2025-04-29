@@ -42,7 +42,7 @@ class AgentSystem:
             raise ValueError("A dataset loader must be provided")
 
         # Initialize batch size and tracking for seen examples
-        self.current_batch_size = 5  # Start with a small batch
+        self.current_batch_size = 3  # Start with a small batch
         self.seen_examples = set()
         self.examples_processed = 0
 
@@ -79,11 +79,13 @@ class AgentSystem:
         # ADDED: Reserve training examples to prevent data leakage
         self.mark_training_examples()
 
+        # Initialize current iteration
+        self.current_iteration = 0
+
         # Load previous iterations if available
         self._load_previous_state()
 
-        # Initialize current iteration
-        self.current_iteration = 0
+
 
     def get_training_examples(self, count: int = 5) -> List[Dict]:
         """
@@ -100,8 +102,10 @@ class AgentSystem:
         if not self.dataset_loader:
             return []
 
-        # Temporarily store original index to restore it after getting training examples
-        original_index = self.dataset_loader.current_index
+        # Save original index (though we won't restore it in most cases)
+        original_index = self.dataset_loader.current_index 
+
+        # Start from beginning for training examples
         self.dataset_loader.current_index = 0
 
         # Get training examples
@@ -111,8 +115,17 @@ class AgentSystem:
         for i in range(count):
             self.seen_examples.add(i)
 
-        # Restore original index
-        self.dataset_loader.current_index = original_index
+        # Update dataset position to continue after the training examples
+        # Instead of going back to the original index
+        self.dataset_loader.current_index = count
+
+        # Update the next example index to continue after training examples
+        if hasattr(self, 'next_example_index'):
+            self.next_example_index = max(self.next_example_index, count)
+        else:
+            self.next_example_index = count
+
+        print(f"Reserved {len(training_examples)} examples for training, next example will be {self.dataset_loader.current_index}")
 
         return training_examples
 
@@ -125,7 +138,12 @@ class AgentSystem:
         if not self.seen_examples:
             # The training examples will be added to seen_examples
             training_examples = self.get_training_examples(5)  # Get 5 training examples
+
+            # Update examples processed to include training examples
+            self.examples_processed = len(training_examples)
+
             print(f"Reserved {len(training_examples)} examples for initial training")
+            print(f"Total examples seen: {len(self.seen_examples)}")
 
     
     def _load_system_prompt(self) -> str:
@@ -149,8 +167,15 @@ class AgentSystem:
         summaries = self.get_summaries()
         iterations = self.get_all_iterations()
 
-        # Determine the next iteration number
+        # Add debugging to verify what's being loaded
+        print(f"Loading previous state... Found {len(summaries)} summaries and {len(iterations)} iteration files")
+
+        # First check if we have summaries
         if summaries:
+            # Verify summaries have the expected content for debugging
+            iteration_nums = [s.get("iteration") for s in summaries]
+            print(f"Summary iteration numbers: {iteration_nums}")
+
             # Sort by iteration number to find the highest
             sorted_summaries = sorted(summaries,
                                       key=lambda x: x.get("iteration", 0),
@@ -174,33 +199,52 @@ class AgentSystem:
                 f"explore/exploit: {self.explore_rate}/{self.exploit_rate}, " +
                 f"batch size: {self.current_batch_size}")
 
+            # CRITICAL FIX: Always include the 5 training examples
+            for i in range(5):
+                self.seen_examples.add(i)
+
+            # Track total examples seen so far (starting after training examples)
+            total_examples_seen = 5  # Start with the training examples
+
             # Reconstruct set of seen examples
             for iteration in iterations:
                 if iteration and "sample_count" in iteration:
-                    # Each iteration represents sample_count examples starting from some index
-                    iter_num = iteration.get("iteration", 0)
+                    # Each iteration represents sample_count examples
                     sample_count = iteration.get("sample_count", 0)
 
-                    # Calculate the approximate range of examples this iteration would have seen
-                    for i in range(iter_num * sample_count,
-                                   (iter_num + 1) * sample_count):
-                        self.seen_examples.add(f"{self.example_prefix}{i}")
+                    # Add the examples this iteration would have seen
+                    # Starting from the current total (which includes training examples)
+                    for i in range(total_examples_seen, total_examples_seen + sample_count):
+                        self.seen_examples.add(i)
+
+                    # Update the total examples seen
+                    total_examples_seen += sample_count
+
+                    # Also update our internal examples_processed counter
+                    self.examples_processed = total_examples_seen
 
             # Set next example index to after the last seen example
-            # This is approximate but better than starting from 0 again
-            last_seen_index = max([
-                int(ex.replace(self.example_prefix, ""))
-                for ex in self.seen_examples
-                if ex.startswith(self.example_prefix)
-            ] or [0])
-            self.next_example_index = last_seen_index + 1
+            self.next_example_index = total_examples_seen
 
             print(
                 f"Loaded {len(self.seen_examples)} seen examples, next example index: {self.next_example_index}"
             )
-        else:
-            self.current_iteration = 0
 
+            # After calculating next_example_index
+            if hasattr(self, 'next_example_index') and self.dataset_loader:
+                self.dataset_loader.current_index = self.next_example_index
+                print(f"Updated dataset loader to start at example index {self.next_example_index}")
+        else:
+            # Double-check iterations as a backup in case summaries.json is missing
+            if iterations:
+                # Get the highest iteration number from iteration files
+                highest_iter = max([it.get("iteration", 0) for it in iterations if it])
+                self.current_iteration = highest_iter + 1
+                print(f"No summaries found, but found iteration files. Setting next iteration to {self.current_iteration}")
+            else:
+                self.current_iteration = 0
+                print("No previous state found. Starting from iteration 0.")
+    
     def call_llm(self, prompt: str, system_instruction: str = None) -> str:
         """Call the Gemini LLM with a prompt and return the response"""
         try:
@@ -269,7 +313,9 @@ class AgentSystem:
                 standardized_sample = {
                     "question": example_input,  # Universal field name
                     "answer": example_output,   # Universal field name
-                    "id": f"example_{example_index}"
+                    "id": f"example_{example_index}",
+                    "meta": example.get("meta", {})
+
                 }
 
                 samples.append(standardized_sample)
@@ -312,26 +358,35 @@ class AgentSystem:
         """Get all iteration summaries"""
         summary_file = self.archive_dir / "summaries.json"
         if not summary_file.exists():
+            print(f"Warning: Summaries file {summary_file} does not exist")
             return []
 
-        with open(summary_file, 'r', encoding='utf-8') as file:
-            return json.load(file)
+        try:
+            with open(summary_file, 'r', encoding='utf-8') as file:
+                summaries = json.load(file)
+                print(f"Successfully loaded {len(summaries)} summaries from {summary_file}")
+                return summaries
+        except Exception as e:
+            print(f"Error loading summaries file: {e}")
+            return []
 
     def update_summaries(self, new_summary: Dict) -> None:
         """Add a new summary to the summaries file"""
-
         # Add capability data to summary
         if hasattr(self, 'capability_tracker'):
             new_summary[
-                "capability_report"] = self.capability_tracker.generate_report(
-                )
+                "capability_report"] = self.capability_tracker.generate_report()
 
         summaries = self.get_summaries()
         summaries.append(new_summary)
 
-        with open(self.archive_dir / "summaries.json", 'w',
-                  encoding='utf-8') as file:
-            json.dump(summaries, file, indent=2)
+        summary_file = self.archive_dir / "summaries.json"
+        try:
+            with open(summary_file, 'w', encoding='utf-8') as file:
+                json.dump(summaries, file, indent=2)
+            print(f"Successfully updated summaries file with iteration {new_summary.get('iteration')}")
+        except Exception as e:
+            print(f"Error updating summaries file: {e}")
 
     def adjust_batch_size_with_llm(self, performance: Dict) -> Tuple[int, str]:
         """Use LLM to determine appropriate batch size based on performance"""
@@ -391,11 +446,11 @@ class AgentSystem:
         3. Need for more diverse examples
 
         Rules:
-        - Batch size should be between 5 and 15
+        - Batch size should be between 3 and 10
         - Increase batch size when performance is stable and good. For example, if every script tested on batches of 5 has been 100% accurate, then we cannot differentiate between them and tell how good they are relative to one another. In this case, you would increase the batch size to 10. 
-        - Decrease batch size if performance is consistently poor. For example, if every script tested on batches of 10 has been 0% accurate, then we are simply wasting compute, and it would be sufficient to just test on the minimum batch size. In this case you would decrease the batch size to 5.
+        - Decrease batch size if performance is consistently poor. For example, if every script tested on batches of 10 has been 0% accurate, then we are simply wasting compute and data examples, and it would be sufficient to just test on the minimum batch size. In this case you would decrease the batch size to 5.
         - Keep batch size stable when exploring new approaches
-        - Batch size should only be increased when the current batch size is performing well and we want to test more diverse examples
+        - Remember: batch size should ONLY be increased when the current batch size is performing well and we want to test more diverse examples
 
         Return only a JSON object with:
         {{"new_batch_size": <integer>, "rationale": "<brief explanation>"}}
@@ -419,7 +474,7 @@ class AgentSystem:
                 result.get("new_batch_size", self.current_batch_size))
 
             # Ensure batch size is within reasonable limits
-            new_batch_size = max(5, min(15, new_batch_size))
+            new_batch_size = max(3, min(10, new_batch_size))
 
             return new_batch_size, result.get("rationale",
                                               "No rationale provided")
@@ -1756,8 +1811,10 @@ class AgentSystem:
         Return ONLY the complete fixed script without explanations.
 
         If there are JSON errors, you should attempt to remove calls like json.loads() to explicitly read the output of one LLM call as strict json data. JSON formatting is good to use to structure information as inputs and outputs, but attempting to have functions process JSON data explicitly with strict built-in functionality is error prone due to formatting issues and additional text that appears as documentation, reasoning, or comments when generated by an LLM. When passing data from one LLM call into another another LLM call, it best to process the inputs as plain text rather than trying to load it in strict json format.
-        """
 
+        Break it down, think step by step about how to analyze the error and fix the script. When you have an approach that works, return ONLY the complete fixed script without explanations.
+        """
+        
         try:
             response = self.call_llm(prompt, system_instruction=repairer_system_instruction)
 
@@ -1827,8 +1884,8 @@ class AgentSystem:
 
     def attempt_script_repair(self, script: str, max_attempts: int = 3) -> str:
         """
-        Attempt to repair a script by testing it with a sample question and fixing errors.
-        Uses an LLM to determine if the output contains errors and logs errors to learnings.txt.
+        Attempt to repair a script by testing it with a fixed training example.
+        Uses an LLM to determine if the output contains errors.
 
         Args:
             script: The script to repair
@@ -1839,104 +1896,109 @@ class AgentSystem:
         """
         print("Attempting script repair and verification...")
 
-        # Get a test example from the reserved training examples
-        test_examples = self.get_training_examples(1)
-        if not test_examples:
-            print("No test examples available for script repair.")
-            return script
+        # Save current dataset position
+        original_index = self.dataset_loader.current_index
 
-        # Get the question from the example
-        test_question_str = self.dataset_loader.get_example_input(test_examples[0])
-        print(f"Using test question for repair: {test_question_str[:50]}...")
+        try:
+            # Temporarily set index to 0 to get the first training example
+            self.dataset_loader.current_index = 0
+            test_example = self.dataset_loader.get_examples(1)[0]
+            test_question_str = self.dataset_loader.get_example_input(test_example)
+            print(f"Using test question for repair: {test_question_str[:50]}...")
 
-        # Create a properly formatted sample dictionary
-        test_sample = {
-            "question": test_question_str,
-            "answer": self.dataset_loader.get_example_output(test_examples[0]),
-            "id": "test_sample"
-        }
+            # Create a properly formatted sample dictionary
+            test_sample = {
+                "question": test_question_str,
+                "answer": self.dataset_loader.get_example_output(test_example),
+                "id": "test_sample"
+            }
 
-        current_script = script
-        best_script = script
-        best_result = None
+            current_script = script
+            best_script = script
+            best_result = None
 
-        for attempt in range(max_attempts):
-            # Try to execute the current script
-            result = self.execute_script(current_script, test_sample)
+            for attempt in range(max_attempts):
+                # Try to execute the current script
+                result = self.execute_script(current_script, test_sample)
+    
+                # Get the output and answer
+                output = result.get("output", "")
+                answer = result.get("answer", "")
+    
+                # Check if the script execution succeeded
+                if result.get("success", False):
+                    # Use LLM to check if the output contains error messages
+                    has_error, error_description = self.check_output_for_errors(output, answer)
+    
+                    # If no errors detected, return this script
+                    if not has_error:
+                        print(f"Script passed verification on attempt {attempt + 1}!")
+                        print(f"LLM verdict: {error_description}")
+                        return current_script
+    
+                    print(f"LLM detected error in output: {error_description}")
+    
+                print(f"Repair attempt {attempt + 1}/{max_attempts} needed - script has errors.")
+    
+                # Save the best result so far (prioritize scripts that at least executed partially)
+                if best_result is None or (
+                    result.get("success", False) and 
+                    (not best_result.get("success", False) or
+                     ("error" not in answer.lower() and "error" in best_result.get("answer", "").lower()))
+                ):
+                    best_script = current_script
+                    best_result = result
+    
+                # Extract error information
+                error = result.get("error", "Unknown error")
+    
+                # If LLM detected an error, use that description
+                if result.get("success", False) and locals().get('error_description'):
+                    error = error_description
+    
+                # Log the error to learnings.txt
+                # Get a small snippet from the script (focus on main function if possible)
+                script_snippet = ""
+                if "def main" in current_script:
+                    lines = current_script.split('\n')
+                    main_line = next((i for i, line in enumerate(lines) if "def main" in line), -1)
+                    if main_line >= 0:
+                        start_line = max(0, main_line - 2)
+                        end_line = min(len(lines), main_line + 8)
+                        script_snippet = '\n'.join(lines[start_line:end_line])
+    
+                # Log the error
+                self.log_script_error_to_learnings(
+                    f"Error detected during script repair (attempt {attempt+1}): {error}",
+                    script_snippet
+                )
+    
+                # Don't try to repair if this is the last attempt
+                if attempt >= max_attempts - 1:
+                    print("Maximum repair attempts reached, using best version.")
+                    break
+    
+                # Repair the script using LLM
+                print(f"Repairing script with LLM based on error: {error[:100]}...")
+                current_script = self.repair_script_with_llm(current_script, test_question_str, output)
+    
+                # Validate the script syntax
+                try:
+                    import ast
+                    ast.parse(current_script)
+                    print("Repaired script passed syntax check.")
+                except SyntaxError as e:
+                    print(f"Repaired script has syntax error: {e}")
+                    # Keep the previous best script if the repair introduced syntax errors
+                    current_script = best_script
+    
+            print(f"Script repair completed with best available version after {max_attempts} attempts.")
+            return best_script
 
-            # Get the output and answer
-            output = result.get("output", "")
-            answer = result.get("answer", "")
-
-            # Check if the script execution succeeded
-            if result.get("success", False):
-                # Use LLM to check if the output contains error messages
-                has_error, error_description = self.check_output_for_errors(output, answer)
-
-                # If no errors detected, return this script
-                if not has_error:
-                    print(f"Script passed verification on attempt {attempt + 1}!")
-                    print(f"LLM verdict: {error_description}")
-                    return current_script
-
-                print(f"LLM detected error in output: {error_description}")
-
-            print(f"Repair attempt {attempt + 1}/{max_attempts} needed - script has errors.")
-
-            # Save the best result so far (prioritize scripts that at least executed partially)
-            if best_result is None or (
-                result.get("success", False) and 
-                (not best_result.get("success", False) or
-                 ("error" not in answer.lower() and "error" in best_result.get("answer", "").lower()))
-            ):
-                best_script = current_script
-                best_result = result
-
-            # Extract error information
-            error = result.get("error", "Unknown error")
-
-            # If LLM detected an error, use that description
-            if result.get("success", False) and locals().get('error_description'):
-                error = error_description
-
-            # Log the error to learnings.txt
-            # Get a small snippet from the script (focus on main function if possible)
-            script_snippet = ""
-            if "def main" in current_script:
-                lines = current_script.split('\n')
-                main_line = next((i for i, line in enumerate(lines) if "def main" in line), -1)
-                if main_line >= 0:
-                    start_line = max(0, main_line - 2)
-                    end_line = min(len(lines), main_line + 8)
-                    script_snippet = '\n'.join(lines[start_line:end_line])
-
-            # Log the error
-            self.log_script_error_to_learnings(
-                f"Error detected during script repair (attempt {attempt+1}): {error}",
-                script_snippet
-            )
-
-            # Don't try to repair if this is the last attempt
-            if attempt >= max_attempts - 1:
-                print("Maximum repair attempts reached, using best version.")
-                break
-
-            # Repair the script using LLM
-            print(f"Repairing script with LLM based on error: {error[:100]}...")
-            current_script = self.repair_script_with_llm(current_script, test_question_str, output)
-
-            # Validate the script syntax
-            try:
-                import ast
-                ast.parse(current_script)
-                print("Repaired script passed syntax check.")
-            except SyntaxError as e:
-                print(f"Repaired script has syntax error: {e}")
-                # Keep the previous best script if the repair introduced syntax errors
-                current_script = best_script
-
-        print(f"Script repair completed with best available version after {max_attempts} attempts.")
-        return best_script
+        finally:
+            # Always restore original position, even if an error occurs
+            self.dataset_loader.current_index = original_index
+            print(f"Restored dataset position to {original_index}")
     
     def execute_script(self, script: str, sample: Dict) -> Dict:
         """
@@ -3002,6 +3064,8 @@ except Exception as e:
 
     def run_iteration(self) -> Dict:
         """Run a single iteration of the agent system with capability tracking"""
+
+        
         print(f"\n=== Starting Iteration {self.current_iteration} ===")
         print(f"Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}")
         print(f"Current batch size: {self.current_batch_size}")
@@ -3096,7 +3160,6 @@ except Exception as e:
 
         print(f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)")
 
-        print ("SAMPLES", samples)
         # Execute script on samples
         print("Executing script on samples...")
         results = []
@@ -3110,7 +3173,6 @@ except Exception as e:
                 print(f"    Result: {result.get('answer')}")
                 # Evaluate with LLM
                 golden_answer = sample.get("answer", "")  # Use universal "answer" field
-                print ("GOLDEN", golden_answer)
                 system_answer = result.get("answer", "")
 
                 try:
@@ -3290,6 +3352,8 @@ except Exception as e:
             "approach_summary": approach_summary,
             "sample_count": len(samples),
             "samples": samples,  # Add the original samples
+            "samples_metadata": [sample.get("meta", {}) for sample in samples],
+            "example_indices": list(range(self.examples_processed - len(samples), self.examples_processed)),
             "results": results,
             "performance": evaluation,
             "progressive_testing": progressive_testing_results,

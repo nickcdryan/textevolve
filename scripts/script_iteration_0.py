@@ -1,7 +1,124 @@
 import os
 import re
-import math
 
+def main(question):
+    """
+    Main function to solve the grid transformation task.
+    Uses a combination of LLM reasoning and pattern recognition.
+    """
+    try:
+        return solve_grid_transformation(question)
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def solve_grid_transformation(question):
+    """
+    Solves the grid transformation problem by analyzing training examples and applying the learned pattern to the test input.
+    Uses multiple LLM calls with embedded examples for robust reasoning and transformation.
+    """
+
+    # Step 1: Extract training examples and test input using LLM with multiple examples
+    example_extraction_prompt = f"""
+    Extract the training examples and test input from the following problem description.
+
+    Example 1:
+    Problem Description:
+    Training Examples:
+    [{{\"input\":[[1,2],[3,4]],\"output\":[[5,6],[7,8]]}}]
+    Test Input:
+    [[9,10],[11,12]]
+    Extracted Data:
+    {{
+      "training_examples": "[{{\\"input\\":[[1,2],[3,4]],\\"output\\":[[5,6],[7,8]]}}]",
+      "test_input": "[[9,10],[11,12]]"
+    }}
+
+    Example 2:
+    Problem Description:
+    Training Examples:
+    [{{\"input\":[[0,1],[1,0]],\"output\":[[2,3],[3,2]]}}, {{\"input\":[[1,1],[0,0]],\"output\":[[3,3],[2,2]]}}]
+    Test Input:
+    [[0,0],[1,1]]
+    Extracted Data:
+    {{
+      "training_examples": "[{{\\"input\\":[[0,1],[1,0]],\\"output\\":[[2,3],[3,2]]}}, {{\"input\":[[1,1],[0,0]],\\"output\\":[[3,3],[2,2]]}}]",
+      "test_input": "[[0,0],[1,1]]"
+    }}
+
+    Problem Description:
+    {question}
+    Extracted Data:
+    """
+    extracted_data_str = call_llm(example_extraction_prompt, "You are an expert at extracting data from text, focusing on the provided format.")
+    try:
+        extracted_data = eval(extracted_data_str) # Avoid json.loads
+        training_examples = extracted_data["training_examples"]
+        test_input = extracted_data["test_input"]
+    except Exception as e:
+        return f"Error extracting data: {str(e)}"
+
+    # Step 2: Analyze the training examples to identify the transformation pattern using LLM with multiple examples
+    pattern_analysis_prompt = f"""
+    Analyze the training examples to identify the transformation pattern.
+
+    Example 1:
+    Training Examples:
+    [{{\"input\":[[1,2],[3,4]],\"output\":[[5,6],[7,8]]}}]
+    Transformation Pattern:
+    Each element in the input grid is increased by 4 to obtain the corresponding element in the output grid.
+
+    Example 2:
+    Training Examples:
+    [{{\"input\":[[0,1],[1,0]],\"output\":[[2,3],[3,2]]}}, {{\"input\":[[1,1],[0,0]],\"output\":[[3,3],[2,2]]}}]
+    Transformation Pattern:
+    Each element in the input grid is increased by 2 to obtain the corresponding element in the output grid.
+
+    Training Examples:
+    {training_examples}
+    Transformation Pattern:
+    """
+    transformation_pattern = call_llm(pattern_analysis_prompt, "You are an expert at analyzing patterns in data transformations.")
+
+    # Step 3: Apply the transformation pattern to the test input using LLM
+    application_prompt = f"""
+    Apply the following transformation pattern to the test input.
+
+    Transformation Pattern:
+    {transformation_pattern}
+    Test Input:
+    {test_input}
+
+    Provide the transformed output grid in the same format as the input grid.
+
+    Example:
+    Transformation Pattern:
+    Each element in the input grid is increased by 4 to obtain the corresponding element in the output grid.
+    Test Input:
+    [[9,10],[11,12]]
+    Transformed Output:
+    [[13,14],[15,16]]
+    """
+    transformed_output = call_llm(application_prompt, "You are an expert at applying transformation patterns to data.")
+
+    # Step 4: Validate the output and handle potential errors
+    validation_prompt = f"""
+    Validate if the transformed output is in the correct format.
+    Transformed Output:
+    {transformed_output}
+
+    Example 1:
+    Valid Output: [[1,2],[3,4]]
+    Example 2:
+    Valid Output: [[5, 6, 7], [8, 9, 10]]
+
+    Check if the output is a valid 2D array and has the correct dimensions. If invalid, return "INVALID". If valid, return "VALID".
+    """
+    validation_result = call_llm(validation_prompt, "You are an expert at validating output formats.")
+
+    if "INVALID" in validation_result:
+        return "Error: Invalid output format."
+
+    return transformed_output
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
@@ -14,7 +131,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -29,120 +146,4 @@ def call_llm(prompt, system_instruction=None):
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
-        return f"Error: {str(e)}"
-
-def analyze_grid_transformation(question, max_attempts=3):
-    """Analyzes the grid transformation task and applies transformation logic."""
-
-    # Hypothesis: By analyzing training examples to identify key transformation rules (e.g., proximity to specific values), we can apply them to test inputs. This new approach focuses on identifying specific number proximity rules rather than a more generic structural approach. Also, uses iterative refinement with specific validators.
-
-    # Step 1: Extract training examples and test input using LLM
-    extraction_prompt = f"""
-    Extract training examples and test input from this grid transformation question.
-
-    Example Input:
-    Grid Transformation Task
-
-    Training Examples:
-    [
-        {{"input":[[0,0,0],[0,1,0],[0,0,0]],"output":[[1,1,1],[1,1,1],[1,1,1]]}},
-        {{"input":[[0,0,1],[0,0,0],[0,0,0]],"output":[[0,0,0],[0,0,0],[1,1,1]]}}
-    ]
-
-    Test Input:
-    [[0,0,0],[0,1,0],[0,0,1]]
-
-    Your Extraction:
-    """
-
-    extracted_content = call_llm(question + extraction_prompt, "You are an extraction specialist focusing on structured data.")
-
-    training_examples = extracted_content.split("Test Input:")[0].split("Training Examples:")[1].strip()
-    test_input = extracted_content.split("Test Input:")[1].strip()
-
-    # Step 2: LLM identifies transformation rules from training examples.
-
-    rule_identification_prompt = f"""
-    Identify the transformation rules from these training examples (as plain text) and test grid to transform to based on the transformation rules (using same grid format)
-    Training Examples:
-    {training_examples}
-
-    Test Grid:
-    {test_input}
-
-    Transformation Rules:
-    """
-
-    transformation_rules = call_llm(rule_identification_prompt, "You are an expert data scientist who specializes in identifying patterns")
-
-    # Step 3: Apply transformation rules to the test input and generate solution.
-
-    transformation_prompt = f"""
-    Apply the transformation rules in plain text to the test grid (using same grid format).
-
-    Test Grid:
-    {test_input}
-
-    Transformation Rules:
-    {transformation_rules}
-
-    Transformed Test Grid:
-    """
-    transformed_grid = call_llm(transformation_prompt, "You are an expert grid transformation specialist.")
-
-    # Verification step:
-    verification_prompt = f"""
-    Verify that the transformation correctly follows the transformation rules.
-
-    Original Test Grid:
-    {test_input}
-
-    Transformation Rules:
-    {transformation_rules}
-
-    Transformed Grid:
-    {transformed_grid}
-
-    Is the transformation valid? Respond with VALID or INVALID. If invalid, explain why.
-    """
-    verification_result = call_llm(verification_prompt, "You are a grid transformation validator.")
-
-    if "INVALID" in verification_result:
-        print("Transformation validation failed. Retrying with refined rules.")
-
-        refine_prompt = f"""
-        The previous transformation was found to be invalid with reason: {verification_result}
-
-        Based on that, refine the transformation rules to be less erroneous.
-
-        Original Test Grid:
-        {test_input}
-
-        Transformation Rules:
-        {transformation_rules}
-
-        Provide refined transformation rules:
-        """
-
-        refined_rules = call_llm(refine_prompt, "You are an expert in refining transformation rules to eliminate errors.")
-
-        transformation_prompt = f"""
-        Apply the transformation rules in plain text to the test grid (using same grid format).
-
-        Test Grid:
-        {test_input}
-
-        Transformation Rules:
-        {refined_rules}
-
-        Transformed Test Grid:
-        """
-        transformed_grid = call_llm(transformation_prompt, "You are an expert grid transformation specialist.")
-    return transformed_grid
-def main(question):
-    """Main function to process the question."""
-    try:
-        result = analyze_grid_transformation(question)
-        return result
-    except Exception as e:
         return f"Error: {str(e)}"
