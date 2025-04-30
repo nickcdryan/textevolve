@@ -249,7 +249,7 @@ class AgentSystem:
         """Call the Gemini LLM with a prompt and return the response"""
         try:
             # Use provided system instruction or default to the loaded system prompt
-            sys_instruction = system_instruction if system_instruction is not None else self.system_prompt
+            sys_instruction = system_instruction if system_instruction is not None else ""
 
             response = self.client.models.generate_content(
                 model="gemini-2.0-flash",
@@ -426,7 +426,7 @@ class AgentSystem:
             return default_response
 
         # Role-specific system instruction for batch size optimizer
-        batch_optimizer_system_instruction = f"{self.system_prompt}\n\nYou are a Batch Size Optimizer. Your task is to analyze performance trends and recommend the optimal batch size for testing, balancing between stability and throughput."
+        batch_optimizer_system_instruction = "You are a Batch Size Optimizer. Your task is to analyze performance trends and recommend the optimal batch size for testing, balancing between stability and throughput."
 
         prompt = f"""
         As an AI optimization system, you need to determine the appropriate batch size for testing.
@@ -513,7 +513,7 @@ class AgentSystem:
 
     def generate_batch_learnings(self, iteration_data: Dict) -> str:
         """Generate learnings from the current batch results with focus on dataset-specific insights"""
-        learnings_generator_system_instruction = f"{self.system_prompt}\n\nYou are a Knowledge Synthesizer. Your role is to extract concrete, dataset-specific insights from experiment results, focusing on patterns in the data, effective strategies for this specific task, and precise failure modes."
+        learnings_generator_system_instruction = "You are a Knowledge Synthesizer. Your role is to extract concrete, dataset-specific insights from experiment results, focusing on patterns in the data, effective strategies for this specific task, and precise failure modes."
 
         # Get full original samples from iteration_data
         samples = []
@@ -625,7 +625,7 @@ class AgentSystem:
     
     def synthesize_learnings(self, current_learnings: str, new_batch_learnings: str) -> str:
         """Synthesize existing learnings with new batch learnings, emphasizing dataset-specific insights"""
-        learnings_synthesizer_system_instruction = f"{self.system_prompt}\n\nYou are a Knowledge Integrator. Your role is to synthesize accumulated dataset-specific knowledge with new insights, creating an evolving experiment log that captures concrete patterns, strategies, and findings about this specific task."
+        learnings_synthesizer_system_instruction = "You are a Knowledge Integrator. Your role is to synthesize accumulated dataset-specific knowledge with new insights, creating an evolving experiment log that captures concrete patterns, strategies, and findings about this specific task."
 
         # Print length info for debugging
         print(f"Current learnings length: {len(current_learnings)}")
@@ -785,7 +785,7 @@ class AgentSystem:
             }
 
         # Role-specific system instruction for strategy optimizer
-        strategy_optimizer_system_instruction = f"{self.system_prompt}\n\nYou are a Strategy Optimizer. Your role is to analyze performance patterns and determine the optimal balance between exploration (trying new approaches) and exploitation (refining successful approaches)."
+        strategy_optimizer_system_instruction = "You are a Strategy Optimizer. Your role is to analyze performance patterns and determine the optimal balance between exploration (trying new approaches) and exploitation (refining successful approaches)."
 
         # Create prompt for LLM to reason about explore/exploit adjustment
         prompt = f"""
@@ -1378,7 +1378,22 @@ class AgentSystem:
             # Exploration prompt - now including last_scripts_context
             prompt = f"""
             You are developing a Python script to solve problems using LLM reasoning capabilities.
-            You must generate a NEW approach that's different from previous approaches but informed by their successes and failures. With this approach, you will have a specific NEW HYPOTHESIS or variable you are trying to test. Your goal is to see if this new approach works, and you must add verification and validation steps to deduce if this new change is helpful.
+            You are in the EXPLORATION PHASE. You must generate a NEW approach that's different from previous approaches but informed by their successes and failures. With this approach, you will have a specific NEW HYPOTHESIS or variable you are trying to test. Your goal is to see if this new approach works, and you must add verification and validation steps to deduce if this new change is helpful. You may also test RADICAL NEW APPROACHES that are substantially different from previous approaches. 
+            
+            You should try NEW THINGS:
+            
+            Break down the problem into smaller pieces
+            Think CREATIVELY about how to solve your problem if other approaches aren't working
+            Transform data into different formats to see if it helps
+
+            # YOUR TASK
+            You are deeply familiar with prompting techniques and the agent works from the literature. 
+            Your goal is to maximize the specified performance metrics by proposing interestingly new agents.
+            Observe the past discovered agents and scripts carefully and think about what insights, lessons, or stepping stones can be learned from them.
+            Be creative when thinking about the next interesting agent to try. You are encouraged to draw inspiration from related agent papers or academic papers from other research areas.
+            Use the knowledge from the archive and inspiration from academic literature to propose the next interesting agentic system design.
+            THINK OUTSIDE THE BOX.
+            
 
             Here are example problems from previously seen data:
             {json.dumps(example_problems, indent=2)}
@@ -1416,7 +1431,7 @@ class AgentSystem:
                - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
                - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
 
-            Here's how to call the Gemini API:
+            Here's how to call the Gemini API. Use this example without modification and don't invent configuration options:
             {gemini_api_example}
 
             Since this is an EXPLORATION phase:
@@ -1543,7 +1558,7 @@ class AgentSystem:
             - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
             - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for refinement with feedback
 
-            Here's how to call the Gemini API:
+            Here's how to call the Gemini API. Use this example without modification and don't invent configuration options:
             {gemini_api_example}
 
             Since this is an EXPLOITATION phase:
@@ -1784,7 +1799,7 @@ class AgentSystem:
             A repaired script
         """
         # Role-specific system instruction for the script repairer
-        repairer_system_instruction = f"{self.system_prompt}\n\nYou are a Script Repair Specialist. Your task is to analyze error outputs and fix scripts to make them execute correctly. You ARE NOT to check if the answer is correct, only if the script ran successfully."
+        repairer_system_instruction = "You are a Script Repair Specialist. Your task is to analyze error outputs and fix scripts to make them execute correctly. You ARE NOT to check if the answer is correct, only if the script ran successfully."
 
 
         prompt = f"""
@@ -2282,30 +2297,41 @@ except Exception as e:
         # Calculate accuracy
         accuracy = correct_count / len(samples) if samples else 0
 
-        # For deeper analysis, use LLM to analyze error patterns
         error_samples = []
+        success_samples = []  # NEW: Collect successful examples
+
         for i, eval_data in enumerate(evaluations):
+            sample = samples[i]
             if not eval_data.get("match"):
-                sample = samples[i]
+                # [Existing error collection code]
                 error_samples.append({
                     "sample_id": i,
-                    "question": sample.get("question", ""),  # Use universal "question" field
+                    "question": sample.get("question", ""),
                     "system_answer": eval_data.get("system_answer", ""),
                     "golden_answer": eval_data.get("golden_answer", ""),
                     "error_message": eval_data.get("error", ""),
                     "output": eval_data.get("output", "No output captured"),
                     "explanation": eval_data.get("evaluation", {}).get("explanation", "")
                 })
+            else:  # NEW: Collection of successful examples
+                success_samples.append({
+                    "sample_id": i,
+                    "question": sample.get("question", ""),
+                    "system_answer": eval_data.get("system_answer", ""),
+                    "golden_answer": eval_data.get("golden_answer", ""),
+                    "output": eval_data.get("output", "No output captured"),
+                    "explanation": eval_data.get("evaluation", {}).get("explanation", "")
+                })
     
-        print(f"Found {len(error_samples)} error samples for analysis")
+        print(f"Found {len(error_samples)} error samples and {len(success_samples)} success samples for analysis")
     
         # NEW APPROACH: Generate a text-based capability report instead of trying to parse complex JSON
         capability_report_text = ""
         error_analysis_text = ""
     
-        if error_samples:
+        if error_samples or success_samples: # do it regardless
             # Modified system instruction for error analyzer that produces text instead of JSON
-            error_analyzer_system_instruction = f"{self.system_prompt}\n\nYou are a Forensic Error Analyzer specializing in debugging complex reasoning systems. Your task is to perform deep, deliberate analysis of errors to identify specific failure points and propose targeted improvements."
+            error_analyzer_system_instruction = "You are a Forensic Error Analyzer specializing in debugging complex reasoning systems. Your task is to perform deep, deliberate analysis of errors and successes in past performance to identify specific failure points, successful strategies, and propose targeted improvements."
     
             # Modified prompt for LLM to generate a natural language analysis, now including raw outputs
             prompt = f"""
@@ -2315,8 +2341,14 @@ except Exception as e:
     
             ERROR CASES:
             {json.dumps(error_samples, indent=2)}
+
+            SUCCESS CASES:
+            {json.dumps(success_samples, indent=2)} 
     
             ANALYSIS INSTRUCTIONS:
+
+            SUCCESS PATTERNS: Analyze what led to correct answers. What reasoning steps, approaches, or techniques were effective? What can we learn from these successes and apply to future iterations or refine for future iterations?
+            
             1. TRACE THE REASONING PATH: For each error case, reconstruct the likely reasoning path the system took. Where precisely did the reasoning go wrong? In the future can you add print statements and intermediate outputs such that you can see them later to determine why things are going wrong?
     
             2. IDENTIFY SPECIFIC FAILURE POINTS: What exact component, reasoning step, or assumption failed? Pay special attention to the 'output' field which contains the raw execution output with detailed information about errors and execution flow.
@@ -2448,7 +2480,7 @@ except Exception as e:
         # Generate a capability report text, now including raw outputs
         try:
             # Define a system instruction for the capability reporter
-            capability_reporter_system_instruction = f"{self.system_prompt}\n\nYou are a System Capability Analyst who specializes in providing actionable insights for improving AI systems."
+            capability_reporter_system_instruction = "You are a System Capability Analyst who specializes in providing actionable insights for improving AI systems."
     
             # Collect all outputs for analysis
             all_outputs = [eval_data.get("output", "No output captured") for eval_data in evaluations]
@@ -2611,7 +2643,7 @@ except Exception as e:
         """Use LLM to determine if answers are semantically equivalent"""
 
         # Role-specific system instruction for the evaluator
-        evaluator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as an Answer Evaluator. Your task is to determine if two answers convey the same meaning, even if they are worded differently."
+        evaluator_system_instruction = "You are now acting as an Answer Evaluator. Your task is to determine if two answers convey the same meaning, even if they are worded differently."
 
         prompt = f"""
         You're evaluating two answers to determine if they convey the same information.
@@ -2665,7 +2697,7 @@ except Exception as e:
         Use the LLM to generate a brief summary of the approach used in the script.
         """
         # Role-specific system instruction for approach summarizer
-        summarizer_system_instruction = f"{self.system_prompt}\n\nYou are an Approach Summarizer. Your task is to analyze code and provide concise explanations of the techniques and methods used."
+        summarizer_system_instruction = "You are an Approach Summarizer. Your task is to analyze code and provide concise explanations of the techniques and methods used."
 
         prompt = f"""
         You're given a Python script that processes input and generates output using LLM-driven techniques.
@@ -2752,7 +2784,7 @@ except Exception as e:
             }
 
         # Role-specific system instruction for script evaluator
-        script_evaluator_system_instruction = f"{self.system_prompt}\n\nYou are a Script Evaluator. Your task is to analyze performance metrics of different script iterations and determine which one represents the best overall approach."
+        script_evaluator_system_instruction = "You are a Script Evaluator. Your task is to analyze performance metrics of different script iterations and determine which one represents the best overall approach."
 
         # Handle API rate limit issues - don't try to use LLM if we've hit limits
         try:
