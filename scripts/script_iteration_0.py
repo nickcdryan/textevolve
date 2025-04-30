@@ -1,91 +1,86 @@
 import os
 import re
+import math
 
 def main(question):
     """
-    Transforms a grid based on patterns in training examples, leveraging LLMs for reasoning and pattern recognition.
+    Solve grid transformation tasks by analyzing training examples and applying the learned pattern to the test input.
+    Leverages LLM for pattern recognition and transformation.
     """
-    # Step 1: Extract the training examples and test input from the question.
-    training_examples, test_input = extract_training_and_test(question)
+    try:
+        # Step 1: Analyze and extract the transformation pattern with multiple examples
+        pattern_analysis_result = analyze_transformation_pattern(question)
+        if "Error" in pattern_analysis_result:
+            return f"Pattern analysis failed: {pattern_analysis_result}"
 
-    # Step 2: Analyze the training examples to infer the transformation pattern.
-    pattern = analyze_transformation_pattern(training_examples)
+        # Step 2: Apply the pattern to the test input
+        transformation_result = apply_transformation(question, pattern_analysis_result)
+        if "Error" in transformation_result:
+            return f"Transformation failed: {transformation_result}"
 
-    # Step 3: Apply the transformation pattern to the test input to generate the output.
-    output = apply_transformation(test_input, pattern)
+        return transformation_result  # Already formatted as a string
 
-    return output
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
 
-def extract_training_and_test(question):
-    """Extracts training examples and test input from the question using LLM reasoning."""
-
-    system_instruction = "You are an expert at extracting relevant information from a text."
+def analyze_transformation_pattern(question):
+    """Analyze training examples to extract the transformation pattern."""
+    system_instruction = "You are an expert pattern analyst who extracts transformation rules from grid examples."
     prompt = f"""
-    Extract the training examples and test input from the following question.
+    Analyze the training examples to identify the transformation pattern.
+    Provide a description of the pattern that can be used to transform the test input.
 
     Example 1:
-    Question: Grid Transformation Task\n\nTraining Examples:\n[{{\"input\":[[0,7,7],[7,7,7],[0,7,7]],\"output\":[[0,0,0,0,7,7,0,7,7],[0,0,0,7,7,7,7,7,7],[0,0,0,0,7,7,0,7,7],[0,7,7,0,7,7,0,7,7],[7,7,7,7,7,7,7,7,7],[0,7,7,0,7,7,0,7,7],[0,0,0,0,7,7,0,7,7],[0,0,0,7,7,7,7,7,7],[0,0,0,0,7,7,0,7,7]]}}]\n\nTest Input:\n[[7,0,7],[7,0,7],[7,7,0]]
-    Training Examples: [{{\"input\":[[0,7,7],[7,7,7],[0,7,7]],\"output\":[[0,0,0,0,7,7,0,7,7],[0,0,0,7,7,7,7,7,7],[0,0,0,0,7,7,0,7,7],[0,7,7,0,7,7,0,7,7],[7,7,7,7,7,7,7,7,7],[0,7,7,0,7,7,0,7,7],[0,0,0,0,7,7,0,7,7],[0,0,0,7,7,7,7,7,7],[0,0,0,0,7,7,0,7,7]]}}]
-    Test Input: [[7,0,7],[7,0,7],[7,7,0]]
-
-    Example 2:
-    Question: Grid Transformation Task\n\nTraining Examples:\n[{{\"input\":[[0,0],[0,1]],\"output\":[[0,0,0,0],[0,1,0,1]]}}]\n\nTest Input:\n[[1,1],[0,0]]
-    Training Examples: [{{\"input\":[[0,0],[0,1]],\"output\":[[0,0,0,0],[0,1,0,1]]}}]
-    Test Input: [[1,1],[0,0]]
-
-    Question: {question}
     Training Examples:
-    Test Input:
-    """
-
-    response = call_llm(prompt, system_instruction)
-    training_examples = re.search(r"Training Examples:\s*(.*)\n", response).group(1)
-    test_input = re.search(r"Test Input:\s*(.*)", response).group(1)
-
-    return training_examples, test_input
-
-def analyze_transformation_pattern(training_examples_str):
-    """Analyzes the training examples to determine the transformation pattern using LLM reasoning."""
-    system_instruction = "You are an AI that identifies patterns between input and output grids."
-    prompt = f"""
-    Analyze the following training examples and describe the transformation pattern.
-
-    Example 1:
-    Training Examples: [{{"input":[[0,7,7],[7,7,7],[0,7,7]],"output":[[0,0,0,0,7,7,0,7,7],[0,0,0,7,7,7,7,7,7],[0,0,0,0,7,7,0,7,7],[0,7,7,0,7,7,0,7,7],[7,7,7,7,7,7,7,7,7],[0,7,7,0,7,7,0,7,7],[0,0,0,0,7,7,0,7,7],[0,0,0,7,7,7,7,7,7],[0,0,0,0,7,7,0,7,7]]}}]
-    Pattern: The pattern is to expand the 3x3 grid to a 9x9 grid by repeating rows and columns.
+    [
+        {{"input": [[0, 1], [1, 0]], "output": [[1, 0], [0, 1]]}},
+        {{"input": [[2, 3], [3, 2]], "output": [[3, 2], [2, 3]]}}
+    ]
+    Test Input: [[4,5],[5,4]]
+    Pattern: The transformation transposes the input grid.
 
     Example 2:
-    Training Examples: [{{"input":[[0,0],[0,1]],"output":[[0,0,0,0],[0,1,0,1]]}}]
-    Pattern: The pattern is to expand the 2x2 grid to a 2x4 grid by repeating columns.
+    Training Examples:
+    [
+        {{"input": [[1, 2], [3, 4]], "output": [[2, 4], [1, 3]]}},
+        {{"input": [[5, 6], [7, 8]], "output": [[6, 8], [5, 7]]}}
+    ]
+    Test Input: [[9,10],[11,12]]
+    Pattern: The transformation swaps the first row with the second row and applies an offset.
 
-    Training Examples: {training_examples_str}
+    Training Examples:
+    {question}
     Pattern:
     """
-    pattern = call_llm(prompt, system_instruction)
-    return pattern
 
-def apply_transformation(test_input_str, pattern):
-    """Applies the transformation pattern to the test input, leveraging LLM for reasoning."""
-    system_instruction = "You are an AI that applies patterns to transform grid data."
+    return call_llm(prompt, system_instruction)
+
+def apply_transformation(question, pattern_description):
+    """Apply the extracted transformation pattern to the test input."""
+    system_instruction = "You are an expert transformer who transforms grids based on given patterns."
     prompt = f"""
-    Apply the following pattern to the given test input.
+    Apply the transformation pattern to the test input and provide the transformed grid as a string.
+    
+    Example Input:
+    Training Examples:
+    [
+        {{"input": [[0, 1], [1, 0]], "output": [[1, 0], [0, 1]]}}
+    ]
+    Test Input: [[4,5],[5,4]]
+    Pattern: The transformation transposes the input grid.
+    Transformed Grid: [[5, 4], [4, 5]]
 
-    Example 1:
-    Pattern: The pattern is to expand the 3x3 grid to a 9x9 grid by repeating rows and columns.
-    Test Input: [[7,0,7],[7,0,7],[7,7,0]]
-    Transformed Output: [[7,0,7,0,0,0,7,0,7],[7,0,7,0,0,0,7,0,7],[7,7,0,0,0,0,7,7,0],[7,0,7,0,0,0,7,0,7],[7,0,7,0,0,0,7,0,7],[7,7,0,0,0,0,7,7,0],[7,0,7,7,0,7,0,0,0],[7,0,7,7,0,7,0,0,0],[7,7,0,7,7,0,0,0,0]]
-
-    Example 2:
-    Pattern: The pattern is to expand the 2x2 grid to a 2x4 grid by repeating columns.
-    Test Input: [[1,1],[0,0]]
-    Transformed Output: [[1,1,1,1],[0,0,0,0]]
-
-    Pattern: {pattern}
-    Test Input: {test_input_str}
-    Transformed Output:
+    
+    Training Examples:
+    {question}
+    Test Input:
+    {question}
+    Pattern: {pattern_description}
+    Transformed Grid:
     """
-    transformed_output = call_llm(prompt, system_instruction)
-    return transformed_output
+
+    return call_llm(prompt, system_instruction)
+
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:

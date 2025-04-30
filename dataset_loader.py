@@ -103,10 +103,25 @@ class DatasetLoader:
 
 
 class ARCDatasetLoader(DatasetLoader):
-    """Loader for ARC datasets, ensuring standard field names"""
+    """Loader for ARC datasets, ensuring standard field names with improved formatting"""
+
+    def _format_grid(self, grid):
+        """
+        Format a grid in a more visually readable way
+
+        Args:
+            grid: A 2D array (list of lists)
+
+        Returns:
+            A formatted string representation of the grid
+        """
+        formatted = []
+        for row in grid:
+            formatted.append("[" + ", ".join(str(cell) for cell in row) + "]")
+        return "[\n  " + "\n  ".join(formatted) + "\n]"
 
     def _load_examples(self):
-        """Load examples from ARC dataset directory or file with universal field names"""
+        """Load examples from ARC dataset directory or file with universal field names and improved formatting"""
         if os.path.isdir(self.dataset_path):
             # Directory of JSON files
             json_files = glob.glob(os.path.join(self.dataset_path, "*.json"))
@@ -129,27 +144,47 @@ class ARCDatasetLoader(DatasetLoader):
                         if train_examples and test_cases:
                             test_case = test_cases[0]  # Usually there's just one test case
 
-                            # Format as compact JSON (just 1-space indentation)
-                            train_examples_json = json.dumps(train_examples, separators=(',', ':'))
-                            test_input_json = json.dumps(test_case.get("input"), separators=(',', ':'))
-                            test_output_json = json.dumps(test_case.get("output"), separators=(',', ':'))
+                            # Format the main training example
+                            main_example = ""
+                            if train_examples:
+                                main_example = f"""Example 1:
+Input Grid:
+{self._format_grid(train_examples[0]['input'])}
 
-                            # Format as a simple string question
+Output Grid:
+{self._format_grid(train_examples[0]['output'])}"""
+
+                            # Format additional training examples
+                            additional_examples = ""
+                            for i, example in enumerate(train_examples[1:], 2):
+                                additional_examples += f"""
+Example {i}:
+Input Grid:
+{self._format_grid(example['input'])}
+
+Output Grid:
+{self._format_grid(example['output'])}"""
+
+                            # Format as a visually structured question
                             question_str = f"""Grid Transformation Task
 
-Training Examples:
-{train_examples_json}
+=== TRAINING EXAMPLES ===
 
-Test Input:
-{test_input_json}
+{main_example}{additional_examples}
+
+=== TEST INPUT ===
+{self._format_grid(test_case.get('input'))}
 
 Transform the test input according to the pattern shown in the training examples.
 """
+                            # For the answer, we'll keep the same format for consistency
+                            test_output_json = json.dumps(test_case.get("output"), separators=(',', ':'))
+
                             # Create the example with STANDARD field names
                             task_data = {
                                 "id": f"arc_{problem_id}",
                                 "question": question_str.strip(),  # Standard field: "question"
-                                "answer": test_output_json,       # Standard field: "answer"
+                                "answer": test_output_json,        # Standard field: "answer"
                                 "meta": {
                                     "source": "ARC",
                                     "filename": os.path.basename(file_path)
@@ -176,22 +211,42 @@ Transform the test input according to the pattern shown in the training examples
                     if train_examples and test_cases:
                         test_case = test_cases[0]  # Usually there's just one test case
 
-                        # Format as compact JSON
-                        train_examples_json = json.dumps(train_examples, separators=(',', ':'))
-                        test_input_json = json.dumps(test_case.get("input"), separators=(',', ':'))
-                        test_output_json = json.dumps(test_case.get("output"), separators=(',', ':'))
+                        # Format the main training example
+                        main_example = ""
+                        if train_examples:
+                            main_example = f"""Example 1:
+Input Grid:
+{self._format_grid(train_examples[0]['input'])}
 
-                        # Format as a simple string question
+Output Grid:
+{self._format_grid(train_examples[0]['output'])}"""
+
+                        # Format additional training examples
+                        additional_examples = ""
+                        for i, example in enumerate(train_examples[1:], 2):
+                            additional_examples += f"""
+Example {i}:
+Input Grid:
+{self._format_grid(example['input'])}
+
+Output Grid:
+{self._format_grid(example['output'])}"""
+
+                        # Format as a visually structured question
                         question_str = f"""Grid Transformation Task
 
-Training Examples:
-{train_examples_json}
+=== TRAINING EXAMPLES ===
 
-Test Input:
-{test_input_json}
+{main_example}{additional_examples}
+
+=== TEST INPUT ===
+{self._format_grid(test_case.get('input'))}
 
 Transform the test input according to the pattern shown in the training examples.
 """
+                        # For the answer, we'll keep the same format for consistency
+                        test_output_json = json.dumps(test_case.get("output"), separators=(',', ':'))
+
                         # Create the example with STANDARD field names
                         task_data = {
                             "id": f"arc_{problem_id}",

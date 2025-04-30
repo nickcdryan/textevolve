@@ -79,11 +79,17 @@ class AgentSystem:
         # ADDED: Reserve training examples to prevent data leakage
         self.mark_training_examples()
 
+
+
         # Initialize current iteration
         self.current_iteration = 0
 
         # Load previous iterations if available
         self._load_previous_state()
+
+        # analyze training examples and add to learnings if cold start
+        if self.current_iteration == 0:
+            self.analyze_dataset_with_llm()
 
 
 
@@ -144,6 +150,119 @@ class AgentSystem:
 
             print(f"Reserved {len(training_examples)} examples for initial training")
             print(f"Total examples seen: {len(self.seen_examples)}")
+
+
+    # Add this to the AgentSystem class
+    def analyze_dataset_with_llm(self):
+        """
+        Perform an initial analysis of the dataset to understand patterns,
+        structures, and potential approaches before any problem-solving.
+        Adds insights to the learnings.txt file.
+        """
+        print("Performing initial dataset analysis with LLM...")
+
+        # Get training examples - these are already set aside for learning
+        # We're not using examples that would be used for testing later
+
+        # Don't mess with the dataset loader's current index
+
+        try: 
+            original_index = self.dataset_loader.current_index
+            self.dataset_loader.current_index = 0
+            
+            training_examples = self.get_training_examples(5)
+    
+            if not training_examples or len(training_examples) == 0:
+                print("Warning: No training examples available for analysis.")
+                return
+    
+            # Format examples for LLM analysis
+            formatted_examples = []
+            for i, example in enumerate(training_examples):
+                formatted_examples.append({
+                    "id": f"example_{i}",
+                    "question": self.dataset_loader.get_example_input(example),
+                    "answer": self.dataset_loader.get_example_output(example)
+                })
+
+        finally:
+            self.dataset_loader.current_index = original_index
+
+        # Create a system instruction for the data analyzer
+        data_analyzer_system_instruction = "You are a Data Pattern Analyst specialized in identifying patterns, structures, and challenges in datasets. Your goal is to provide deep insights and creative strategies for approaching problems."
+
+        # Build the prompt for dataset analysis
+        prompt = f"""
+        You're analyzing a new dataset to identify patterns, structures, and potential problem-solving approaches.
+
+        Here are some representative examples from the dataset:
+
+        {json.dumps(formatted_examples, indent=2)}
+
+        Think deeply about these examples and provide a comprehensive analysis with the following sections:
+
+        ## DATASET CHARACTERISTICS
+        - What patterns do you observe in the questions?
+        - What patterns do you observe in the answers?
+        - What is the structure and format of both inputs and outputs?
+        - What domain knowledge might be required?
+
+        ## DATA CHALLENGES
+        - What makes these problems difficult?
+        - What potential edge cases or complexities should be considered?
+        - What types of reasoning are required to solve these problems?
+
+        ## POTENTIAL APPROACHES
+        - What solution strategies might work well for this type of problem?
+        - What decomposition of the problem would be most effective?
+        - What validation techniques would help ensure correct solutions?
+        - How would you handle unusual or edge cases?
+
+        ## CREATIVE INSIGHTS
+        - What non-obvious patterns or shortcuts might exist?
+        - What unique perspectives might help solve these problems?
+        - What analogies to other problem domains might be useful?
+
+        ## IMPLEMENTATION RECOMMENDATIONS
+        - What verification steps would be crucial?
+        - What intermediate steps or representations would be helpful?
+        - Assuming you will work mostly with text as inputs and outputs, what specific techniques would be most effective? Remember, overreliance on JSON parsing and complex code generation often leads to errors and low performance. Instead, focus on leveraging the LLM's natural reasoning abilities.
+
+        Be specific and concrete in your analysis. Focus on actionable insights that would help develop effective solutions.
+        """
+
+        # Call LLM to analyze the dataset
+        try:
+            dataset_analysis = self.call_llm(prompt, system_instruction=data_analyzer_system_instruction)
+            print("Dataset analysis complete, adding to learnings.txt")
+
+            # Format the analysis for learnings.txt
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            formatted_analysis = f"""
+    === INITIAL DATASET ANALYSIS [{timestamp}] ===
+
+    {dataset_analysis}
+
+    === END INITIAL DATASET ANALYSIS ===
+
+    """
+            print (formatted_analysis)
+            # Load existing learnings (if any)
+            current_learnings = self._load_learnings()
+
+            # Add analysis at the beginning of learnings.txt
+            updated_learnings = formatted_analysis + current_learnings
+
+            # Save updated learnings
+            self._save_learnings(updated_learnings)
+
+            print(f"Added {len(dataset_analysis)} characters of dataset analysis to learnings.txt")
+            return dataset_analysis
+
+        except Exception as e:
+            print(f"Error analyzing dataset: {e}")
+            traceback.print_exc()
+            return None
 
     
     def _load_system_prompt(self) -> str:
@@ -965,7 +1084,7 @@ class AgentSystem:
         # Handle cold start (first iteration)
         if not example_problems:
             # For initial training, get examples from a fixed training set
-            training_examples = self.get_training_examples(3)
+            training_examples = self.get_training_examples(5)
             for i, example in enumerate(training_examples):
                 example_problems.append({
                     "id": i,
@@ -1170,7 +1289,8 @@ class AgentSystem:
         4. Structure your few-shot examples to demonstrate clear step-by-step reasoning
         5. Consider using both "easy" and "challenging" examples to help the LLM learn from contrasts
         6. The collection of examples should collectively cover all key aspects of the problem
-        7. When available, use examples from previous iterations that revealed specific strengths or weaknesses
+        7. When available, use examples from previous iterations that revealed specific strengths or weaknesses.
+        8. USE REAL EXAMPLES FROM THE DATASET WHERE POSSIBLE!!
 
         Example of poor single-example prompting:
         ```python
@@ -1212,6 +1332,37 @@ class AgentSystem:
             return call_llm(prompt)
         ```
 
+        === DIRECT LLM REASONING APPROACH ===
+
+        CRITICAL: Previous scripts have shown that complex code generation with JSON parsing and multi-step pipelines often 
+        leads to errors and low performance. Instead, focus on leveraging the LLM's natural reasoning abilities:
+
+        1. SIMPLIFY YOUR APPROACH:
+           - Minimize the number of processing steps - simpler is better
+           - Directly use LLM for pattern recognition rather than writing complex code
+           - Avoid trying to parse or manipulate JSON manually - pass it as text to the LLM
+
+        2. DIRECT TRANSFORMATION:
+           - Instead of trying to extract features and then apply them, use the LLM to do the transformation directly
+           - Use examples to teach the LLM the pattern, then have it apply that pattern to new inputs
+           - Avoid attempting to write complex algorithmic solutions when pattern recognition will work better
+
+        3. ROBUST ERROR HANDLING:
+           - Include multiple approaches in case one fails (direct approach + fallback approach)
+           - Use simple validation to check if outputs are in the expected format
+           - Include a last-resort approach that will always return something valid
+
+        4. AVOID COMMON PITFALLS:
+           - Do NOT attempt to use json.loads() or complex JSON parsing - it often fails
+           - Do NOT create overly complex Python pipelines that require perfect indentation
+           - Do NOT create functions that generate or execute dynamic code
+           - Do NOT create unnecessarily complex data transformations
+
+        5. SUCCESSFUL EXAMPLES:
+           - The most successful approaches have used direct pattern matching with multiple examples
+           - Scripts with simple validation and fallback approaches perform better
+           - Scripts with fewer processing steps have higher success rates
+        
         IMPLEMENTATION STRATEGIES:
         1. Maintain a "example bank" of successful and failed examples to select from
         2. Implement n-shot prompting with n=3 as default, but adapt based on performance
