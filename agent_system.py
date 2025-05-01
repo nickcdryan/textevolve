@@ -3281,7 +3281,7 @@ except Exception as e:
 
                 # Use LLM-based evaluation
                 evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
-
+                result["golden_answer"] = golden_answer
                 result["evaluation"] = evaluation
                 result["match"] = evaluation.get("match", False)
             else:
