@@ -2171,17 +2171,11 @@ class AgentSystem:
             self.dataset_loader.current_index = original_index
             print(f"Restored dataset position to {original_index}")
     
+
     def execute_script(self, script: str, sample: Dict) -> Dict:
         """
         Execute the generated script on a sample and return the result.
         Uses automatic debugging if the script fails with specific errors.
-
-        Args:
-            script: The script content
-            sample: Sample data in standardized format (dict with 'question' and 'answer' keys)
-
-        Returns:
-            Dict with execution results
         """
         # Create a temporary script file
         script_path = self.scripts_dir / f"current_script_{self.current_iteration}.py"
@@ -2190,14 +2184,20 @@ class AgentSystem:
 
         # Get the question string from the sample
         question = sample.get("question", "")
-        print ("QUESTION", question)
+        sample_id = sample.get("id", f"example_{self.current_iteration}")
 
-        # Create a test harness for the script
-        test_script = f"""
-import sys
+        # Set up trace file in the archive directory
+        trace_file = self.archive_dir / f"trace_iteration_{self.current_iteration}.jsonl"
+
+        # Create a test harness for the script with enhanced tracing
+        test_script = f"""import sys
 import traceback
 import os
 import json
+import datetime
+import inspect
+import functools
+import importlib.util
 
 # Add the scripts directory to the path
 sys.path.append("{self.scripts_dir}")
@@ -2205,15 +2205,128 @@ sys.path.append("{self.scripts_dir}")
 # Ensure the Gemini API key is available to the script
 os.environ["GEMINI_API_KEY"] = "{os.environ.get('GEMINI_API_KEY')}"
 
+# Configure tracing
+trace_file = "{trace_file}"
+os.makedirs(os.path.dirname(trace_file), exist_ok=True)
+
+# Trace entry for execution start
+with open(trace_file, 'a', encoding='utf-8') as f:
+    start_entry = {{
+        "timestamp": datetime.datetime.now().isoformat(),
+        "event": "execution_start",
+        "iteration": {self.current_iteration},
+        "sample_id": "{sample_id}",
+        "question": {repr(question)}
+    }}
+    f.write(json.dumps(start_entry) + "\\n")
+
+# More reliable method for getting caller information
+def get_real_caller():
+    #Get information about the caller, skipping intermediate functions like wrappers and decorators.
+    frames = inspect.stack()
+    # Skip first 2 frames (this function and immediate caller)
+    for frame_info in frames[2:]:
+        # Get the frame's module
+        frame_module = frame_info.frame.f_globals.get('__name__', '')
+        # If this frame is from our module (not from system libraries)
+        if frame_module == 'current_script_{self.current_iteration}':
+            # Check if it's not the call_llm function itself
+            if frame_info.function != 'call_llm' and 'wrapper' not in frame_info.function:
+                return {{
+                    "function": frame_info.function,
+                    "filename": frame_info.filename,
+                    "lineno": frame_info.lineno
+                }}
+    # Fallback if we can't find a suitable caller
+    return {{"function": "unknown", "filename": "unknown", "lineno": 0}}
+
+# Create a tracing decorator for call_llm
+def trace_call_llm(func):
+    @functools.wraps(func)
+    def wrapper(prompt, system_instruction=None):
+        # Get caller information using our improved method
+        caller_info = get_real_caller()
+
+        # Create trace entry with caller information
+        trace_entry = {{
+            "timestamp": datetime.datetime.now().isoformat(),
+            "event": "llm_call",
+            "iteration": {self.current_iteration},
+            "sample_id": "{sample_id}",
+            "function": "call_llm",
+            "caller": caller_info,
+            "input": {{
+                "prompt": prompt,
+                "system_instruction": system_instruction
+            }}
+        }}
+
+        # Call the original function
+        try:
+            result = func(prompt, system_instruction)
+
+            # Log successful response
+            trace_entry["output"] = result
+            trace_entry["status"] = "success"
+
+            with open(trace_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(trace_entry) + "\\n")
+
+            return result
+
+        except Exception as e:
+            # Log error
+            trace_entry["error"] = str(e)
+            trace_entry["status"] = "error"
+            trace_entry["traceback"] = traceback.format_exc()
+
+            with open(trace_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(trace_entry) + "\\n")
+
+            raise
+
+    return wrapper
+
 try:
     # Import the script as a module
-    from current_script_{self.current_iteration} import main
+    spec = importlib.util.spec_from_file_location(
+        "current_script_{self.current_iteration}", 
+        "{script_path}"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    # Patch call_llm function if it exists
+    if hasattr(module, 'call_llm'):
+        original_call_llm = module.call_llm
+        module.call_llm = trace_call_llm(original_call_llm)
+
+    # Also patch any other functions that might call LLM directly
+    for name, obj in inspect.getmembers(module):
+        if inspect.isfunction(obj) and obj.__module__ == module.__name__:
+            try:
+                source = inspect.getsource(obj)
+                if 'generate_content' in source and obj is not getattr(module, 'call_llm', None):
+                    setattr(module, name, trace_call_llm(obj))
+            except:
+                pass
 
     # Execute the main function with the question string
     question = {repr(question)}
 
     # Call the main function and get the answer
-    answer = main(question)
+    answer = module.main(question)
+
+    # Log execution completion
+    with open(trace_file, 'a', encoding='utf-8') as f:
+        end_entry = {{
+            "timestamp": datetime.datetime.now().isoformat(),
+            "event": "execution_complete",
+            "iteration": {self.current_iteration},
+            "sample_id": "{sample_id}",
+            "answer": str(answer)
+        }}
+        f.write(json.dumps(end_entry) + "\\n")
 
     # Print the answer for capture
     print("ANSWER_START")
@@ -2221,6 +2334,18 @@ try:
     print("ANSWER_END")
 
 except Exception as e:
+    # Log the error
+    with open(trace_file, 'a', encoding='utf-8') as f:
+        error_entry = {{
+            "timestamp": datetime.datetime.now().isoformat(),
+            "event": "execution_error",
+            "iteration": {self.current_iteration},
+            "sample_id": "{sample_id}",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }}
+        f.write(json.dumps(error_entry) + "\\n")
+
     print("ERROR_START")
     print(str(e))
     print(traceback.format_exc())
@@ -2231,9 +2356,11 @@ except Exception as e:
         with open(test_path, 'w', encoding='utf-8') as f:
             f.write(test_script)
 
-        # Execute the test script and capture output
+        # The rest of your function remains unchanged...
         debug_attempts = 0
         max_debug_attempts = 3
+
+        # Rest of the function as before...
 
         while debug_attempts <= max_debug_attempts:
             try:
@@ -2254,7 +2381,8 @@ except Exception as e:
                     return {
                         "success": True,
                         "answer": answer,
-                        "output": output
+                        "output": output,
+                        "trace_file": str(trace_file)  # Return trace file path
                     }
                 elif "ERROR_START" in output and "ERROR_END" in output:
                     error = output.split("ERROR_START")[1].split(
@@ -2265,7 +2393,8 @@ except Exception as e:
                         return {
                             "success": False,
                             "error": error,
-                            "output": output
+                            "output": output,
+                            "trace_file": str(trace_file)  # Return trace file path
                         }
 
                     # Try to debug the script
@@ -2283,26 +2412,30 @@ except Exception as e:
                     return {
                         "success": False,
                         "error": "Unknown execution error",
-                        "output": output
+                        "output": output,
+                        "trace_file": str(trace_file)  # Return trace file path
                     }
             except subprocess.TimeoutExpired:
                 return {
                     "success": False,
                     "error": "Script execution timed out (60 seconds)",
-                    "output": "Timeout"
+                    "output": "Timeout",
+                    "trace_file": str(trace_file)  # Return trace file path
                 }
             except Exception as e:
                 return {
                     "success": False,
                     "error": str(e),
-                    "output": traceback.format_exc()
+                    "output": traceback.format_exc(),
+                    "trace_file": str(trace_file)  # Return trace file path
                 }
 
         # If we get here, we've exhausted our debug attempts
         return {
             "success": False,
             "error": "Maximum debug attempts reached. Could not fix script.",
-            "output": "Debug failure"
+            "output": "Debug failure",
+            "trace_file": str(trace_file)  # Return trace file path
         }
     
     def _debug_script(self, script_path: Path) -> bool:
