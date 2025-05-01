@@ -206,6 +206,8 @@ class AgentSystem:
         - What patterns do you observe in the answers?
         - What is the structure and format of both inputs and outputs?
         - What domain knowledge might be required?
+        - Are all questions of the same type, or are there multiple types?
+        - Do all questions require the same type of reasoning?
 
         ## DATA CHALLENGES
         - What makes these problems difficult?
@@ -643,7 +645,8 @@ class AgentSystem:
         sample_questions = []
         for i in range(min(3, len(samples))):
             if i < len(samples):
-                sample_questions.append(samples[i].get("prompt_0shot", "N/A"))
+                # Use the universal "question" field instead of "prompt_0shot"
+                sample_questions.append(samples[i].get("question", "N/A"))
             else:
                 sample_questions.append("N/A")
 
@@ -669,8 +672,9 @@ class AgentSystem:
                 golden_answer = "N/A"
 
                 if i < len(samples):
-                    sample_question = samples[i].get("prompt_0shot", "N/A")
-                    golden_answer = samples[i].get("golden_plan", "N/A")
+                    # Use the universal "question" and "answer" fields
+                    sample_question = samples[i].get("question", "N/A")
+                    golden_answer = samples[i].get("answer", "N/A")
 
                 error_examples.append({
                     "question": sample_question,
@@ -1071,7 +1075,7 @@ class AgentSystem:
             prev_samples = []
             for iteration in sorted(iterations, key=lambda x: x.get('iteration', 0) if x else 0, reverse=True)[:3]:
                 if iteration and 'samples' in iteration:
-                    prev_samples.extend(iteration.get('samples', [])[:2])  # Get up to 2 from each recent iteration
+                    prev_samples.extend(iteration.get('samples', [])[:3])  # Get up to 3 from each recent iteration
 
             # Use these previous samples as examples
             for i, sample in enumerate(prev_samples[:3]):  # Limit to 3 examples
@@ -1670,6 +1674,7 @@ class AgentSystem:
 
             TOP PERFORMING APPROACHES TO BUILD UPON:
             {top_scripts_content}
+            {best_script_code}
 
             PREVIOUSLY ATTEMPTED VARIATIONS:
             {last_scripts_context}
@@ -2185,6 +2190,7 @@ class AgentSystem:
 
         # Get the question string from the sample
         question = sample.get("question", "")
+        print ("QUESTION", question)
 
         # Create a test harness for the script
         test_script = f"""
@@ -2805,7 +2811,7 @@ except Exception as e:
         Do these answers effectively communicate the same information, even if worded differently?
         Return only a JSON object with: {{"match": true/false, "confidence": 0-1, "explanation": "reason"}}
         """
-        print ("SYSTEM ANSWER: ....", system_answer[-200:])
+        print ("SYSTEM ANSWER: ....", system_answer[-300:])
         print ("GOLDEN ANSWER: ", golden_answer)
         try:
             response = self.call_llm(

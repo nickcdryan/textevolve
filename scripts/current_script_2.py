@@ -3,111 +3,49 @@ import re
 
 def main(question):
     """
-    Solve grid transformation tasks using a multi-stage LLM reasoning approach.
-
-    This approach uses a "Rule Generation and Application" strategy, where the LLM first attempts to generate the explicit transformation rule based on examples, and then applies the rule.
-    This is a fundamentally different approach that focuses on rule explainability and validation, addressing previous issues.
+    Transform a grid based on patterns in training examples using an LLM.
     """
-    try:
-        # Step 1: Extract training examples and test input from the question
-        training_examples, test_input = extract_input_data(question)
 
-        # Step 2: Generate transformation rule
-        transformation_rule = generate_transformation_rule(training_examples)
-
-        # Step 3: Apply transformation rule to test input
-        transformed_grid = apply_transformation_rule(test_input, transformation_rule)
-
-        # Step 4: Validate the transformation result
-        validation_result = validate_transformation(training_examples, test_input, transformed_grid)
-
-        return transformed_grid if validation_result == "VALID" else "INVALID TRANSFORMATION"
-
-    except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
-
-def extract_input_data(question):
-    """Extract training examples and test input from the question string."""
-    training_examples_match = re.search(r"Training Examples:\n(.*?)\n\nTest Input:", question, re.DOTALL)
-    test_input_match = re.search(r"Test Input:\n(.*?)\n", question, re.DOTALL)
-
-    if not training_examples_match or not test_input_match:
-        raise ValueError("Could not extract training examples or test input.")
-
-    training_examples = training_examples_match.group(1).strip()
-    test_input = test_input_match.group(1).strip()
-
-    return training_examples, test_input
-
-def generate_transformation_rule(training_examples):
-    """Generate transformation rule from training examples."""
-    system_instruction = "You are an expert at generating transformation rules from grid examples."
+    # Formulate the prompt with multiple examples to guide the LLM
     prompt = f"""
-    Analyze the training examples and generate a transformation rule that explains how the input grid is transformed into the output grid.
+    You are an expert grid transformer. Analyze the training examples below to
+    identify the transformation rule and apply it to the test input.
 
     Example 1:
-    Training Examples:
-    [
-        {{"input": [[1, 2], [3, 4]], "output": [[4, 3], [2, 1]]}}
-    ]
-    Transformation Rule: The transformation reflects the grid along both diagonals.
+    Input Grid:
+    [[0, 0, 8, 0, 0], [0, 0, 8, 0, 0], [8, 8, 8, 8, 8], [0, 0, 8, 2, 2], [0, 0, 8, 2, 2]]
+    Output Grid:
+    [[0, 0, 8, 0, 0], [0, 0, 8, 0, 0], [8, 8, 8, 8, 8], [0, 0, 8, 2, 2], [0, 0, 8, 2, 2]]
+    Reasoning: No transformation is apparent. The output is identical to the input.
 
     Example 2:
-    Training Examples:
-    [
-        {{"input": [[1, 0], [0, 1]], "output": [[0, 1], [1, 0]]}}
-    ]
-    Transformation Rule: The transformation swaps rows and columns of the input grid (transpose).
+    Input Grid:
+    [[0, 0, 1], [0, 5, 0], [1, 1, 1]]
+    Output Grid:
+    [[0, 0, 0], [0, 2, 0], [1, 1, 1]]
+    Reasoning: The '5' is replaced with a '2'. The rest of the grid is unchanged.
 
-    Training Examples:
-    {training_examples}
-    Transformation Rule:
-    """
+    Example 3:
+    Input Grid:
+    [[0, 0, 4], [0, 0, 4], [4, 4, 4]]
+    Output Grid:
+    [[0, 0, 4], [0, 0, 4], [4, 4, 4]]
+    Reasoning: No transformation is apparent. The output is identical to the input.
 
-    return call_llm(prompt, system_instruction)
+    Now, apply the transformation you identified in the examples to the test input:
+    Test Input:
+    {question}
 
-def apply_transformation_rule(test_input, transformation_rule):
-    """Apply transformation rule to test input."""
-    system_instruction = "You are an expert at applying transformation rules to grids."
-    prompt = f"""
-    Apply the transformation rule to the test input. Provide the transformed grid.
-
-    Example 1:
-    Transformation Rule: The transformation transposes the input grid.
-    Test Input: [[1, 2], [3, 4]]
-    Transformed Grid: [[1, 3], [2, 4]]
-
-    Transformation Rule: {transformation_rule}
-    Test Input: {test_input}
     Transformed Grid:
     """
-    return call_llm(prompt, system_instruction)
 
-def validate_transformation(training_examples, test_input, transformed_grid):
-    """Validate the transformation by checking if the rule would be applicable to previous training examples"""
-    system_instruction = "You are an expert at validating grid transformations."
-    prompt = f"""
-    Given training examples, test input and its transformation, validate if the applied transformation is correct.
-    Answer with "VALID" or "INVALID".
+    # Call the LLM to generate the transformed grid
+    transformed_grid = call_llm(prompt)
 
-    Example 1:
-    Training Examples:
-    [
-        {{"input": [[1, 2], [3, 4]], "output": [[4, 3], [2, 1]]}}
-    ]
-    Test Input: [[5, 6], [7, 8]]
-    Transformed Grid: [[8, 7], [6, 5]]
-    Validation: VALID
-
-    Training Examples: {training_examples}
-    Test Input: {test_input}
-    Transformed Grid: {transformed_grid}
-    Validation:
-    """
-    return call_llm(prompt, system_instruction)
+    return transformed_grid
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response."""
     try:
         from google import genai
         from google.genai import types

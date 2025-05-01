@@ -1,111 +1,48 @@
-import os
-import re
-import math
-
 def main(question):
-    """
-    Solve grid transformation tasks by analyzing training examples and applying the learned pattern to the test input.
-    Leverages LLM for pattern recognition and transformation.
-    """
+    """Transform the test input grid according to patterns shown in training examples, enhanced with multi-example prompting and validation."""
     try:
-        # Step 1: Analyze and extract the transformation pattern with multiple examples
-        pattern_analysis_result = analyze_transformation_pattern(question)
-        if "Error" in pattern_analysis_result:
-            return f"Pattern analysis failed: {pattern_analysis_result}"
+        # Enhanced prompt to extract transformation rule with multiple examples
+        prompt = f"""
+        You are an expert at identifying grid transformation rules from examples.
+        Analyze the training examples and describe the transformation rule in simple terms.
+        Then, apply this rule to the test input to generate the transformed grid.
 
-        # Step 2: Apply the pattern to the test input
-        transformation_result = apply_transformation(question, pattern_analysis_result)
-        if "Error" in transformation_result:
-            return f"Transformation failed: {transformation_result}"
+        Example 1:
+        Input Grid:
+        [[0, 7, 7], [7, 7, 7], [0, 7, 7]]
+        Output Grid:
+        [[0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7]]
+        Transformation Rule: Each original cell is expanded to a 3x3 block.
 
-        return transformation_result  # Already formatted as a string
+        Example 2:
+        Input Grid:
+        [[4, 0, 4], [0, 0, 0], [0, 4, 0]]
+        Output Grid:
+        [[4, 0, 4, 0, 0, 0, 4, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 4, 0, 0, 0, 0, 0, 4, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 4, 0, 4, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 4, 0, 0, 0, 0]]
+        Transformation Rule: Each original cell is expanded to a 3x3 block of the same value.
 
-    except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        Example 3:
+        Input Grid:
+        [[0, 0, 0], [0, 0, 2], [2, 0, 2]]
+        Output Grid:
+        [[0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 0, 0, 0, 0, 2, 0, 2], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0, 0, 0, 2], [2, 0, 2, 0, 0, 0, 2, 0, 2]]
+        Transformation Rule: Each original cell is expanded to a 3x3 block of the same value.
 
-def analyze_transformation_pattern(question):
-    """Analyze training examples to extract the transformation pattern."""
-    system_instruction = "You are an expert pattern analyst who extracts transformation rules from grid examples."
-    prompt = f"""
-    Analyze the training examples to identify the transformation pattern.
-    Provide a description of the pattern that can be used to transform the test input.
+        Question: {question}
 
-    Example 1:
-    Training Examples:
-    [
-        {{"input": [[0, 1], [1, 0]], "output": [[1, 0], [0, 1]]}},
-        {{"input": [[2, 3], [3, 2]], "output": [[3, 2], [2, 3]]}}
-    ]
-    Test Input: [[4,5],[5,4]]
-    Pattern: The transformation transposes the input grid.
+        Let's analyze the training examples and determine the transformation rule,
+        then apply it to the test input.
 
-    Example 2:
-    Training Examples:
-    [
-        {{"input": [[1, 2], [3, 4]], "output": [[2, 4], [1, 3]]}},
-        {{"input": [[5, 6], [7, 8]], "output": [[6, 8], [5, 7]]}}
-    ]
-    Test Input: [[9,10],[11,12]]
-    Pattern: The transformation swaps the first row with the second row and applies an offset.
+        Describe the transformation rule in one sentence. Then apply that rule to the test grid.
 
-    Training Examples:
-    {question}
-    Pattern:
-    """
+        """
+        result = call_llm(prompt, system_instruction="You are an expert grid transformer.")
 
-    return call_llm(prompt, system_instruction)
-
-def apply_transformation(question, pattern_description):
-    """Apply the extracted transformation pattern to the test input."""
-    system_instruction = "You are an expert transformer who transforms grids based on given patterns."
-    prompt = f"""
-    Apply the transformation pattern to the test input and provide the transformed grid as a string.
-    
-    Example Input:
-    Training Examples:
-    [
-        {{"input": [[0, 1], [1, 0]], "output": [[1, 0], [0, 1]]}}
-    ]
-    Test Input: [[4,5],[5,4]]
-    Pattern: The transformation transposes the input grid.
-    Transformed Grid: [[5, 4], [4, 5]]
-
-    
-    Training Examples:
-    {question}
-    Test Input:
-    {question}
-    Pattern: {pattern_description}
-    Transformed Grid:
-    """
-
-    return call_llm(prompt, system_instruction)
-
-def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
-    try:
-        from google import genai
-        from google.genai import types
-
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
-            )
+        # Implement a fallback mechanism in case of failure or unexpected output.
+        if result and "Transformation Rule:" in result:
+            return result.split("Transformation Rule:")[1].strip()
         else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
+            return "Failed to transform grid. Please check the input and try again."
 
-        return response.text
     except Exception as e:
-        print(f"Error calling Gemini API: {str(e)}")
-        return f"Error: {str(e)}"
+        return f"An error occurred: {str(e)}"
