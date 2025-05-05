@@ -1177,54 +1177,116 @@ class AgentSystem:
             "summaries_count": len(summaries)
         }
 
+    def _get_approach_history(self, max_approaches=5):
+        """
+        Get a comprehensive history of past approaches with the approach summary,
+        full script, trace insights, and error analysis.
+
+        Args:
+            max_approaches: Maximum number of past approaches to include
+
+        Returns:
+            Formatted string with comprehensive approach history
+        """
+        iterations = self.get_all_iterations()
+        if not iterations:
+            return "No previous approaches available."
+
+        # Sort iterations by most recent first
+        sorted_iterations = sorted(
+            iterations, 
+            key=lambda x: x.get('iteration', 0) if x and 'iteration' in x else 0, 
+            reverse=True
+        )
+
+        # Take only the requested number of approaches
+        approaches_to_show = sorted_iterations[:max_approaches]
+
+        # Format each approach
+        formatted_approaches = []
+        for approach in approaches_to_show:
+            if not approach:
+                continue
+
+            # Basic approach information
+            iteration_num = approach.get('iteration', 'unknown')
+            strategy = approach.get('strategy', 'unknown')
+            accuracy = approach.get('performance', {}).get('accuracy', 0)
+
+            # Get the approach summary directly
+            approach_summary = approach.get('approach_summary', 'No approach summary available.')
+
+            # Get the full script
+            script = approach.get('script', 'No script available.')
+
+            # Get trace insights directly from the iteration data
+            trace_insights = approach.get('trace_insights', 'No trace insights available.')
+
+            # Get the error analysis text report directly
+            error_analysis = approach.get('performance', {}).get('error_analysis', {}).get('text_report', 'No error analysis available.')
+
+            # Format the approach information
+            formatted_approach = f"""
+    === APPROACH #{iteration_num} ({strategy}, ACCURACY: {accuracy:.2f}) ===
+
+    APPROACH SUMMARY:
+    {approach_summary}
+
+    IMPLEMENTATION:
+    ```python
+    {script}
+    ```
+
+    TRACE INSIGHTS:
+    {trace_insights}
+
+    ERROR ANALYSIS:
+    {error_analysis}
+
+    ===
+    """
+            formatted_approaches.append(formatted_approach)
+
+        # Join all formatted approaches
+        return "\n".join(formatted_approaches)
+
     def _format_historical_context(self, historical_data, few_shot_examples):
-        """Format historical data into a context string."""
-        best_scripts = historical_data["best_scripts"]
-        approach_history = historical_data["approach_history"]
-        error_patterns = historical_data["error_patterns"]
-        primary_issues = historical_data["primary_issues"]
-        targeted_improvements = historical_data["targeted_improvements"]
+        """
+        Format historical data into a context string using the comprehensive approach.
+
+        Args:
+            historical_data: Dictionary with historical data
+            few_shot_examples: Few-shot examples string
+
+        Returns:
+            Formatted historical context string
+        """
+        # Get basic history information
         summaries_count = historical_data["summaries_count"]
-        trace_insights_context = historical_data["trace_insights_context"]
+        best_scripts = historical_data["best_scripts"]
 
         # Format best accuracy
         best_accuracy_str = f"{best_scripts[0].get('accuracy', 0):.2f} (iteration {best_scripts[0].get('iteration')})" if best_scripts else "None"
 
-        # Format JSON data for template
-        approach_history_json = json.dumps(approach_history[-10:] if len(approach_history) > 10 else approach_history, indent=2)
-        error_patterns_json = json.dumps(list(set(error_patterns[-10:] if len(error_patterns) > 10 else error_patterns)), indent=2)
-        primary_issues_json = json.dumps(primary_issues[-10:] if len(primary_issues) > 10 else primary_issues, indent=2)
-        targeted_improvements_json = json.dumps(list(set(targeted_improvements[-10:] if len(targeted_improvements) > 10 else targeted_improvements)), indent=2)
-
-        historical_context = f"""
+        # Create history summary header
+        header = f"""
         ITERATION HISTORY SUMMARY:
         - Total iterations completed: {summaries_count}
         - Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}
         - Best accuracy achieved: {best_accuracy_str}
-
-        APPROACH HISTORY (last {min(10, len(approach_history))} iterations):
-        {approach_history_json}
-
-        COMMON ERROR PATTERNS:
-        {error_patterns_json}
-
-        PRIMARY ISSUES (last {min(3, len(primary_issues))} iterations):
-        {primary_issues_json}
-
-        TARGETED IMPROVEMENTS:
-        {targeted_improvements_json}
         """
 
-        # Add trace insights from stored data
-        if trace_insights_context:
-            historical_context += f"\n\nEXECUTION TRACE ANALYSIS FROM PREVIOUS ITERATIONS:\n{trace_insights_context}\n"
+        # Get comprehensive approach history
+        approach_history = self._get_approach_history(max_approaches=5)
 
-        # Add few-shot examples to historical context
-        historical_context += f"\n\n{few_shot_examples}"
+        # Combine header, approach history, and examples
+        historical_context = f"{header}\n\nPREVIOUS APPROACHES:\n{approach_history}\n\n{few_shot_examples}"
+
+        # Add multi-example prompting guidance
         historical_context += "\n\n" + PromptTemplates.get_multi_example_prompting_guidance()
 
         return historical_context
-
+    
     def _get_last_scripts_context(self, iterations):
         """Get context of the last 5 scripts for exploration."""
         last_scripts_context = ""
@@ -1447,7 +1509,7 @@ class AgentSystem:
         Refactored to use helper methods for better organization and maintainability.
         """
         # Get example problems from previous iterations or training
-        example_problems = self._get_example_problems()
+        example_problems = self._get_example_problems(num_examples=3)
 
         # Load accumulated learnings
         accumulated_learnings = self._load_learnings()
@@ -1458,11 +1520,41 @@ class AgentSystem:
         few_shot_examples = ExampleSets.get_few_shot_examples_text()
 
         # Get historical analysis data
-        historical_data = self._get_historical_data()
-        iterations = historical_data["iterations"]
+        iterations = self.get_all_iterations()
+        summaries = self.get_summaries()
 
-        # Format the historical context
-        historical_context = self._format_historical_context(historical_data, few_shot_examples)
+        # Get best scripts
+        best_scripts = []
+        if iterations:
+            for iteration in sorted(
+                    iterations,
+                    key=lambda x: x.get('performance', {}).get('accuracy', 0),
+                    reverse=True)[:3]:
+                if iteration.get('script') and iteration.get(
+                        'performance', {}).get('accuracy', 0) > 0:
+                    best_scripts.append({
+                        "iteration": iteration.get('iteration'),
+                        "accuracy": iteration.get('performance', {}).get('accuracy', 0),
+                        "approach_summary": iteration.get('approach_summary', 'No summary available'),
+                        "performance": iteration.get('performance', {})
+                    })
+
+        # Format best accuracy
+        best_accuracy_str = f"{best_scripts[0].get('accuracy', 0):.2f} (iteration {best_scripts[0].get('iteration')})" if best_scripts else "None"
+
+        # Create comprehensive historical context with approaches
+        historical_context = f"""ITERATION HISTORY SUMMARY:
+    - Total iterations completed: {len(summaries)}
+    - Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}
+    - Best accuracy achieved: {best_accuracy_str}
+
+    PREVIOUS APPROACHES:
+    {self._get_approach_history(max_approaches=5)}
+    """
+
+        # Add few-shot examples to historical context
+        historical_context += f"\n\n{few_shot_examples}"
+        historical_context += "\n\n" + PromptTemplates.get_multi_example_prompting_guidance()
 
         # Get capability insights
         capability_report = None
@@ -1494,7 +1586,37 @@ class AgentSystem:
         # Build appropriate prompt based on strategy
         if is_exploration:
             # Get last scripts context for exploration
-            last_scripts_context = self._get_last_scripts_context(iterations)
+            last_scripts_context = ""
+            if iterations:
+                # Get the last 5 iterations, sorted by recency
+                sorted_iterations = sorted(iterations, key=lambda x: x.get('iteration', 0) if x and 'iteration' in x else 0, reverse=True)
+                last_scripts = []
+
+                for i, iteration in enumerate(sorted_iterations[:5]):
+                    if iteration and 'script' in iteration:
+                        iteration_num = iteration.get('iteration', 'unknown')
+                        accuracy = iteration.get('performance', {}).get('accuracy', 0)
+                        strategy = iteration.get('strategy', 'unknown')
+                        approach = iteration.get('approach_summary', 'No summary available')
+
+                        # For space management, limit script size if necessary
+                        script = iteration.get('script', '')
+
+                        last_scripts.append({
+                            "iteration": iteration_num,
+                            "accuracy": accuracy,
+                            "strategy": strategy,
+                            "approach": approach,
+                            "script": script
+                        })
+
+                # Generate the context with the scripts
+                if last_scripts:
+                    last_scripts_context = "\nPREVIOUSLY TRIED APPROACHES (LAST 5 SCRIPTS):\n"
+                    for script_info in last_scripts:
+                        last_scripts_context += f"\n=== SCRIPT FROM ITERATION {script_info['iteration']} ({script_info['strategy']}, ACCURACY: {script_info['accuracy']:.2f}) ===\n"
+                        last_scripts_context += f"Approach: {script_info['approach']}\n\n"
+                        last_scripts_context += f"```python\n{script_info['script']}\n```\n"
 
             # Build exploration prompt
             prompt = PromptTemplates.build_exploration_prompt(
@@ -1505,29 +1627,123 @@ class AgentSystem:
                 capability_context, 
                 gemini_api_example
             )
-            print ("\n\n\n\n\nPROMPT\n\n\n\n\n", prompt)
+            print (prompt)
         else:
             # Get exploitation-specific content
-            exploitation_content = self._get_exploitation_content(
-                iterations, 
-                historical_data["best_scripts"]
-            )
+            best_script_to_exploit = None
+            top_scripts_to_exploit = []
+
+            if best_scripts:
+                best_script_to_exploit = best_scripts[0]
+                for iteration in iterations:
+                    if iteration.get("iteration") == best_script_to_exploit.get("iteration"):
+                        best_script_to_exploit["script"] = iteration.get("script", "")
+                        break
+
+                # Get top performing scripts for exploitation instead of just the best one
+                # Get the top 2-3 performing scripts (depending on how many are available)
+                top_count = min(3, len(best_scripts))
+                for i in range(top_count):
+                    script_info = best_scripts[i]
+                    # Find the full script content
+                    for iteration in iterations:
+                        if iteration.get("iteration") == script_info.get("iteration"):
+                            script_info["script"] = iteration.get("script", "")
+                            break
+                    top_scripts_to_exploit.append(script_info)
+
+            # Format best script code
+            best_script_code = ""
+            if best_script_to_exploit and 'script' in best_script_to_exploit:
+                best_script_code = f"\nFULL SCRIPT TO REFINE:\n```python\n{best_script_to_exploit.get('script', '')}\n```"
+
+            # Generate content for multiple top scripts
+            top_scripts_content = ""
+            if top_scripts_to_exploit:
+                for i, script_info in enumerate(top_scripts_to_exploit):
+                    # Format the accuracy string
+                    accuracy_str = f"{script_info.get('accuracy', 0):.2f}"
+
+                    script_content = ""
+                    if 'script' in script_info:
+                        script_content = f"\n```python\n{script_info.get('script', '')}\n```"
+
+                    top_scripts_content += f"\nTOP PERFORMING APPROACH #{i+1}:\n"
+                    top_scripts_content += f"Iteration: {script_info.get('iteration', 'Unknown')}\n"
+                    top_scripts_content += f"Accuracy: {accuracy_str}\n"
+                    top_scripts_content += f"Approach Summary: {script_info.get('approach_summary', 'No summary available')}\n"
+
+                    # Only include full code for the best script to avoid making prompt too long
+                    if i == 0:  # Only for the top script
+                        top_scripts_content += f"\nFULL SCRIPT TO REFINE:{script_content}\n"
+                    else:  # For other scripts, mention they're available for reference
+                        top_scripts_content += f"\nKey approach aspects (full code available for reference)\n"
 
             # Build exploitation prompt
             prompt = PromptTemplates.build_exploitation_prompt(
                 example_problems, 
                 historical_context, 
-                exploitation_content["best_script_code"], 
-                exploitation_content["top_scripts_content"],
+                best_script_code, 
+                top_scripts_content,
                 learning_context, 
                 capability_context, 
                 gemini_api_example
             )
 
         # Generate and validate script
-        script = self._generate_validated_script(prompt, script_generator_system_instruction)
+        max_attempts = 3
+        attempts = 0
 
-        return script
+        while attempts < max_attempts:
+            attempts += 1
+
+            # Call LLM to generate script with the specific system instruction
+            response = self.call_llm(
+                prompt, system_instruction=script_generator_system_instruction)
+
+            # Extract code block from response
+            if "```python" in response:
+                script = response.split("```python")[1].split("```")[0].strip()
+            elif "```" in response:
+                script = response.split("```")[1].split("```")[0].strip()
+            else:
+                script = response.strip()
+
+            # Validate script syntax
+            try:
+                # Test if the script can be parsed
+                import ast
+                ast.parse(script)
+
+                # Script is syntactically valid
+                print(f"Generated valid script on attempt {attempts}")
+
+                # Save the script to a file
+                script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
+                with open(script_path, 'w', encoding='utf-8') as f:
+                    f.write(script)
+
+                return script
+
+            except SyntaxError as e:
+                print(
+                    f"Syntax error in generated script (attempt {attempts}/{max_attempts}): {e}"
+                )
+
+                if attempts >= max_attempts:
+                    print(
+                        "\n***\nFALLBACK: Maximum attempts reached. Using fallback script from library.\n***\n"
+                    )
+                    # Get fallback script from the library
+                    fallback_script = FallbackScripts.basic_fallback()
+                    script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
+                    with open(script_path, 'w', encoding='utf-8') as f:
+                        f.write(fallback_script)
+
+                    return fallback_script
+
+                # Try again with a more explicit instruction about the error
+                prompt = PromptTemplates.build_error_correction_prompt(str(e))
     
     def log_script_error_to_learnings(self, error_info: str, script_snippet):
         """
@@ -3013,7 +3229,7 @@ except Exception as e:
     def run_iteration(self) -> Dict:
         """Run a single iteration of the agent system with capability tracking"""
 
-        
+
         print(f"\n=== Starting Iteration {self.current_iteration} ===")
         print(f"Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}")
         print(f"Current batch size: {self.current_batch_size}")
@@ -3289,23 +3505,6 @@ except Exception as e:
             best_script_info = None
 
 
-        # ==== TRACE ANALYSIS ====
-        trace_insights = None
-        if hasattr(self, 'archive_dir'):
-            print("Analyzing execution traces...")
-            trace_analyzer = TraceAnalyzer(self.archive_dir)
-
-            # Analyze traces for this iteration
-            trace_insights = trace_analyzer.analyze_traces_with_llm(self.current_iteration)
-
-            if trace_insights and not trace_insights.startswith("Error"):
-                print("Successfully extracted trace insights")
-            else:
-                print("Failed to extract trace insights, using basic analysis")
-                # Fallback to basic trace summary
-                correct_traces, incorrect_traces = trace_analyzer.categorize_traces_by_correctness(self.current_iteration)
-                trace_insights = f"Basic Analysis: {len(correct_traces)} correct, {len(incorrect_traces)} failed"
-
         # Prepare iteration data
         iteration_data = {
             "iteration": self.current_iteration,
@@ -3324,13 +3523,7 @@ except Exception as e:
             "performance": evaluation,
             "progressive_testing": progressive_testing_results,
             "execution_time": time.time() - iteration_start_time,
-            "capability_report": capability_report,
-            "trace_insights": trace_insights,  # ADD THIS
-            "trace_analysis": {  # ADD THIS for structured data
-                "analyzed_at": datetime.datetime.now().isoformat(),
-                "insights": trace_insights,
-                "trace_file": f"trace_iteration_{self.current_iteration}.jsonl"
-            }
+            "capability_report": capability_report
         }
 
         # Create summary
@@ -3355,9 +3548,34 @@ except Exception as e:
             "capability_report": capability_report
         }
 
-        # Save to archive
+        # Save to archive and perform trace analysis - FIX TIMING ISSUES
         try:
+            # First save the iteration data to the archive
             self.save_to_archive(iteration_data, f"iteration_{self.current_iteration}.json")
+
+            # Add a small delay to ensure file is written completely before trace analysis
+            time.sleep(0.5)  # 500ms delay should be sufficient
+
+            # Then perform trace analysis
+            print("Analyzing execution traces...")
+            trace_analyzer = TraceAnalyzer(self.archive_dir)
+            trace_insights = trace_analyzer.analyze_traces_with_llm(self.current_iteration)
+
+            if trace_insights and not trace_insights.startswith("Error"):
+                print("Successfully extracted trace insights")
+                iteration_data["trace_insights"] = trace_insights
+                iteration_data["trace_analysis"] = {
+                    "analyzed_at": datetime.datetime.now().isoformat(),
+                    "insights": trace_insights,
+                    "trace_file": f"trace_iteration_{self.current_iteration}.jsonl"
+                }
+
+                # Update the archive with the insights
+                self.save_to_archive(iteration_data, f"iteration_{self.current_iteration}.json")
+            else:
+                print("Failed to extract trace insights")
+
+            # Then update summaries
             self.update_summaries(summary)
         except Exception as e:
             print(f"Error saving iteration data: {str(e)}")
@@ -3396,7 +3614,6 @@ except Exception as e:
 
         return iteration_data
 
-
 class TraceAnalyzer:
     def __init__(self, archive_dir):
         self.archive_dir = Path(archive_dir)
@@ -3424,164 +3641,586 @@ class TraceAnalyzer:
             return f"Error: {str(e)}"
 
     def parse_trace_file(self, iteration_number):
-        """Parse a trace file for a given iteration."""
+        """Parse a trace file for a given iteration with better error handling and diagnostics."""
         trace_file = self.archive_dir / f"trace_iteration_{iteration_number}.jsonl"
 
+        # Check if file exists and report diagnostic info
         if not trace_file.exists():
+            print(f"Trace file not found: {trace_file}")
             return []
 
+        # Check file size
+        file_size = os.path.getsize(trace_file)
+        if file_size == 0:
+            print(f"Trace file exists but is empty: {trace_file}")
+            return []
+
+        print(f"Parsing trace file: {trace_file} (size: {file_size} bytes)")
+
         events = []
-        with open(trace_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                try:
-                    events.append(json.loads(line))
-                except:
-                    continue
+        line_count = 0
+        error_count = 0
+
+        try:
+            with open(trace_file, 'r', encoding='utf-8') as f:
+                for line_number, line in enumerate(f, 1):
+                    line_count += 1
+                    line = line.strip()
+                    if not line:  # Skip empty lines
+                        continue
+
+                    try:
+                        event = json.loads(line)
+                        events.append(event)
+                    except json.JSONDecodeError as e:
+                        error_count += 1
+                        print(f"Error parsing JSON at line {line_number}: {e}")
+                        print(f"Line content: {line[:100]}...")
+
+                        # Try to salvage partial JSON
+                        if '{' in line and '}' in line:
+                            try:
+                                partial_json = line[line.find('{'):line.rfind('}')+1]
+                                event = json.loads(partial_json)
+                                events.append(event)
+                                print(f"Recovered partial JSON from line {line_number}")
+                            except:
+                                pass
+        except Exception as e:
+            print(f"Error reading trace file: {e}")
+
+        # Print summary statistics
+        print(f"Parsed {len(events)} events from {line_count} lines with {error_count} errors")
+
+        # Print event types summary
+        event_types = {}
+        sample_ids = set()
+
+        for event in events:
+            event_type = event.get('event', 'unknown')
+            event_types[event_type] = event_types.get(event_type, 0) + 1
+
+            # Collect unique sample IDs
+            sample_id = event.get('sample_id')
+            if sample_id:
+                sample_ids.add(sample_id)
+
+        print(f"Event types: {event_types}")
+        print(f"Sample IDs found in trace file: {sample_ids}")
+
         return events
 
     def get_iteration_data(self, iteration_number):
-        """Load iteration data from archive."""
+        """Load iteration data from archive with better diagnostics."""
         iteration_file = self.archive_dir / f"iteration_{iteration_number}.json"
 
         if not iteration_file.exists():
+            print(f"Iteration file not found: {iteration_file}")
             return None
 
-        with open(iteration_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(iteration_file, 'r', encoding='utf-8') as f:
+                iteration_data = json.load(f)
+
+                # Print diagnostic info
+                sample_count = len(iteration_data.get('samples', []))
+                result_count = len(iteration_data.get('results', []))
+                print(f"Loaded iteration {iteration_number} data with {sample_count} samples and {result_count} results")
+
+                # Print sample IDs
+                sample_ids = [sample.get('id', f"idx_{i}") for i, sample in enumerate(iteration_data.get('samples', []))]
+                print(f"Sample IDs in iteration data: {sample_ids}")
+
+                return iteration_data
+        except json.JSONDecodeError as e:
+            print(f"Error parsing iteration file {iteration_file}: {e}")
+            return None
+        except Exception as e:
+            print(f"Error loading iteration file {iteration_file}: {e}")
+            return None
 
     def categorize_traces_by_correctness(self, iteration_number):
-        """Categorize traces as correct or incorrect based on match results."""
+        """
+        Categorize traces as correct or incorrect based on match results.
+        Now with better error handling and more flexible ID matching strategies.
+        """
         iteration_data = self.get_iteration_data(iteration_number)
         if not iteration_data:
+            print(f"No iteration data found for iteration {iteration_number}")
             return [], []
 
         traces = self.parse_trace_file(iteration_number)
+        if not traces:
+            print(f"No trace events found for iteration {iteration_number}")
+            return [], []
+
         samples = iteration_data.get("samples", [])
         results = iteration_data.get("results", [])
 
-        correct_traces = []
-        incorrect_traces = []
+        # Ensure we have something to analyze
+        if not samples or not results:
+            print(f"No samples or results found for iteration {iteration_number}")
+            return [], []
 
-        # Create mapping of sample_id to traces
+        print(f"Categorizing traces for iteration {iteration_number}: {len(samples)} samples, {len(results)} results, {len(traces)} trace events")
+
+        # Group trace events by sample ID
         traces_by_sample = {}
+
+        # First collect all traces regardless of sample_id
+        all_traces = []
         for trace in traces:
-            sample_id = trace.get("sample_id")
-            if sample_id:
-                if sample_id not in traces_by_sample:
-                    traces_by_sample[sample_id] = []
-                traces_by_sample[sample_id].append(trace)
+            sample_id = trace.get("sample_id", "unknown")
+            if sample_id not in traces_by_sample:
+                traces_by_sample[sample_id] = []
+            traces_by_sample[sample_id].append(trace)
+            all_traces.append(trace)
 
-        # Map each sample to its result and categorize
-        for i, result in enumerate(results):
-            if i < len(samples):
-                sample = samples[i]
-                sample_id = sample.get("id", f"example_{i}")
-                sample_traces = traces_by_sample.get(sample_id, [])
+        # Debug output of grouped traces
+        print(f"Grouped trace events by sample ID: {list(traces_by_sample.keys())}")
 
-                trace_data = {
-                    "sample_id": sample_id,
-                    "question": sample.get("question", ""),
-                    "answer": sample.get("answer", ""),
-                    "system_answer": result.get("answer", ""),
-                    "match": result.get("match", False),
-                    "traces": sample_traces
-                }
+        # Handle special case: if there's only one sample and only "test_sample" traces
+        if len(samples) == 1 and "test_sample" in traces_by_sample:
+            print("Special case: Single sample with 'test_sample' traces")
+            sample = samples[0]
+            result = results[0]
 
-                if result.get("match", False):
-                    correct_traces.append(trace_data)
-                else:
-                    incorrect_traces.append(trace_data)
-
-        return correct_traces, incorrect_traces
-
-    def analyze_traces_with_llm(self, iteration_number):
-        """Use LLM to extract specific insights from execution traces."""
-        correct_traces, incorrect_traces = self.categorize_traces_by_correctness(iteration_number)
-
-        # Build a focused prompt for the LLM
-        trace_summary = {
-            "iteration": iteration_number,
-            "correct_count": len(correct_traces),
-            "incorrect_count": len(incorrect_traces),
-            "correct_samples": [],
-            "incorrect_samples": []
-        }
-
-        # Add detailed info for select traces
-        for trace in correct_traces[:2]:  # Top 2 correct
-            sample_info = {
-                "sample_id": trace['sample_id'],
-                "question_snippet": trace['question'][:200],
-                "answer": trace['answer'],
-                "llm_calls": []
-            }
-
-            for event in trace['traces']:
-                if event['event'] == 'llm_call':
-                    sample_info['llm_calls'].append({
-                        "caller": event['caller']['function'],
-                        "input_snippet": event['input']['prompt'][:300],
-                        "output_snippet": event['output'][:300]
-                    })
-
-            trace_summary['correct_samples'].append(sample_info)
-
-        for trace in incorrect_traces[:3]:  # Top 3 incorrect
-            sample_info = {
-                "sample_id": trace['sample_id'],
-                "question_snippet": trace['question'][:200],
-                "expected_answer": trace['answer'],
-                "actual_answer": trace['system_answer'],
+            trace_data = {
+                "sample_index": 0,
+                "sample_id": sample.get("id", ""),
+                "question": sample.get("question", ""),
+                "answer": sample.get("answer", ""),
+                "system_answer": result.get("answer", "") if result.get("success", False) else "ERROR: " + result.get("error", "Unknown error"),
+                "match": result.get("match", False),
+                "success": result.get("success", False),
+                "traces": traces_by_sample.get("test_sample", []),
                 "llm_calls": [],
                 "errors": []
             }
 
-            for event in trace['traces']:
-                if event['event'] == 'llm_call':
-                    sample_info['llm_calls'].append({
-                        "caller": event['caller']['function'],
-                        "input_snippet": event['input']['prompt'][:300],
-                        "output_snippet": event['output'][:300]
+            # Extract LLM calls and errors
+            for event in trace_data["traces"]:
+                if event.get("event") == "llm_call":
+                    try:
+                        trace_data["llm_calls"].append({
+                            "caller": event.get("caller", {}).get("function", "unknown"),
+                            "prompt": event.get("input", {}).get("prompt", ""),
+                            "system_instruction": event.get("input", {}).get("system_instruction", ""),
+                            "output": event.get("output", "")
+                        })
+                    except Exception as e:
+                        print(f"Error extracting LLM call data: {e}")
+                elif event.get("event") == "execution_error":
+                    trace_data["errors"].append({
+                        "error": event.get("error", ""),
+                        "traceback": event.get("traceback", "")
                     })
-                elif event['event'] == 'execution_error':
-                    sample_info['errors'].append(event['error'])
 
-            trace_summary['incorrect_samples'].append(sample_info)
+            # Categorize as correct or incorrect
+            if result.get("match", False):
+                print("Categorized as correct trace")
+                return [trace_data], []
+            else:
+                print("Categorized as incorrect trace")
+                return [], [trace_data]
 
-        # Use LLM to analyze
+        # Try to match traces with samples using various strategies
+        correct_traces = []
+        incorrect_traces = []
+
+        # Match samples with results and their traces
+        for i, (sample, result) in enumerate(zip(samples, results)):
+            # Try multiple ways of identifying the sample
+            sample_id = sample.get("id", "")
+            if not sample_id:
+                sample_id = f"example_{i}"
+
+            # Potential ID formats to check
+            potential_ids = [
+                sample_id,
+                f"example_{i}",
+                f"test_sample_{i}",
+                str(i)
+            ]
+
+            # Special case: if we have "test_sample", check if this is the first example
+            if i == 0:
+                potential_ids.append("test_sample")
+
+            # Get all trace events for this sample across all potential IDs
+            sample_traces = []
+            matched_id = None
+
+            for potential_id in potential_ids:
+                if potential_id in traces_by_sample:
+                    sample_traces.extend(traces_by_sample[potential_id])
+                    matched_id = potential_id
+                    break
+
+            # If we still don't have traces and this is our only sample, assign all traces
+            if not sample_traces and len(samples) == 1:
+                print(f"Assigning all traces to the single sample")
+                sample_traces = all_traces
+                matched_id = "all_traces"
+            # If we still don't have traces but we have a "test_sample" and multiple samples,
+            # try to divide those traces among the samples based on the event timestamp order
+            elif not sample_traces and "test_sample" in traces_by_sample and len(samples) > 1:
+                test_sample_traces = traces_by_sample["test_sample"]
+                # Divide traces evenly
+                traces_per_sample = len(test_sample_traces) // len(samples)
+                if traces_per_sample > 0:
+                    start_idx = i * traces_per_sample
+                    end_idx = start_idx + traces_per_sample
+                    if i == len(samples) - 1:  # Last sample gets remaining traces
+                        end_idx = len(test_sample_traces)
+                    sample_traces = test_sample_traces[start_idx:end_idx]
+                    matched_id = f"test_sample[{start_idx}:{end_idx}]"
+
+            if not sample_traces:
+                print(f"No traces found for sample {i} (ID: {sample_id}, tried: {potential_ids})")
+                continue
+
+            print(f"Found {len(sample_traces)} traces for sample {i} using ID: {matched_id}")
+
+            # Create a rich trace data object
+            trace_data = {
+                "sample_index": i,
+                "sample_id": sample_id,
+                "question": sample.get("question", ""),
+                "answer": sample.get("answer", ""),
+                "system_answer": result.get("answer", "") if result.get("success", False) else "ERROR: " + result.get("error", "Unknown error"),
+                "match": result.get("match", False),
+                "success": result.get("success", False),
+                "traces": sample_traces,
+                "llm_calls": [],
+                "errors": []
+            }
+
+            # Extract LLM calls and errors from trace events
+            for event in sample_traces:
+                if event.get("event") == "llm_call":
+                    try:
+                        trace_data["llm_calls"].append({
+                            "caller": event.get("caller", {}).get("function", "unknown"),
+                            "prompt": event.get("input", {}).get("prompt", ""),
+                            "system_instruction": event.get("input", {}).get("system_instruction", ""),
+                            "output": event.get("output", "")
+                        })
+                    except Exception as e:
+                        print(f"Error extracting LLM call data: {e}")
+                elif event.get("event") == "execution_error":
+                    trace_data["errors"].append({
+                        "error": event.get("error", ""),
+                        "traceback": event.get("traceback", "")
+                    })
+
+            # Categorize as correct or incorrect
+            if result.get("match", False):
+                correct_traces.append(trace_data)
+            else:
+                incorrect_traces.append(trace_data)
+
+        # If we still couldn't match any traces to samples, try one last fallback:
+        # Just divide all traces among all samples evenly
+        if not correct_traces and not incorrect_traces and all_traces:
+            print("Fallback: Dividing all traces among all samples")
+            traces_per_sample = len(all_traces) // len(samples)
+            if traces_per_sample > 0:
+                for i, (sample, result) in enumerate(zip(samples, results)):
+                    start_idx = i * traces_per_sample
+                    end_idx = start_idx + traces_per_sample
+                    if i == len(samples) - 1:  # Last sample gets remaining traces
+                        end_idx = len(all_traces)
+                    sample_traces = all_traces[start_idx:end_idx]
+
+                    trace_data = {
+                        "sample_index": i,
+                        "sample_id": sample.get("id", f"example_{i}"),
+                        "question": sample.get("question", ""),
+                        "answer": sample.get("answer", ""),
+                        "system_answer": result.get("answer", "") if result.get("success", False) else "ERROR: " + result.get("error", "Unknown error"),
+                        "match": result.get("match", False),
+                        "success": result.get("success", False),
+                        "traces": sample_traces,
+                        "llm_calls": [],
+                        "errors": []
+                    }
+
+                    # Extract LLM calls and errors
+                    for event in sample_traces:
+                        if event.get("event") == "llm_call":
+                            try:
+                                trace_data["llm_calls"].append({
+                                    "caller": event.get("caller", {}).get("function", "unknown"),
+                                    "prompt": event.get("input", {}).get("prompt", ""),
+                                    "system_instruction": event.get("input", {}).get("system_instruction", ""),
+                                    "output": event.get("output", "")
+                                })
+                            except Exception as e:
+                                print(f"Error extracting LLM call data: {e}")
+                        elif event.get("event") == "execution_error":
+                            trace_data["errors"].append({
+                                "error": event.get("error", ""),
+                                "traceback": event.get("traceback", "")
+                            })
+
+                    # Categorize as correct or incorrect
+                    if result.get("match", False):
+                        correct_traces.append(trace_data)
+                    else:
+                        incorrect_traces.append(trace_data)
+
+        print(f"Categorized into {len(correct_traces)} correct and {len(incorrect_traces)} incorrect traces")
+        return correct_traces, incorrect_traces
+
+    def analyze_traces_with_llm(self, iteration_number):
+        """
+        Use LLM to extract specific insights from execution traces with improved error handling
+        and fallback mechanisms.
+        """
+        print(f"Beginning trace analysis for iteration {iteration_number}")
+        correct_traces, incorrect_traces = self.categorize_traces_by_correctness(iteration_number)
+
+        # If we don't have any traces categorized, provide a helpful error message
+        if not correct_traces and not incorrect_traces:
+            print(f"Warning: No traces categorized for iteration {iteration_number}")
+            error_message = f"""
+            No usable traces found for iteration {iteration_number}.
+
+            This could be due to several issues:
+            1. The trace file may be missing or corrupted
+            2. The sample IDs in the trace file don't match those in the iteration data
+            3. The iteration may have failed completely with no execution
+
+            Please check:
+            - Whether the trace_iteration_{iteration_number}.jsonl file exists
+            - If samples were properly executed during this iteration
+            - If the test harness correctly recorded trace events
+            """
+            return error_message
+
+        # Get the full script for analysis
+        script = ""
+        iteration_data = self.get_iteration_data(iteration_number)
+        if iteration_data:
+            script = iteration_data.get("script", "")
+            if not script:
+                print("Warning: No script found in iteration data")
+
+        # Build trace summary with appropriate sampling to avoid oversized prompts
+        trace_summary = {
+            "iteration": iteration_number,
+            "correct_count": len(correct_traces),
+            "incorrect_count": len(incorrect_traces),
+            "script_excerpt": script[:2000] if len(script) > 2000 else script,
+            "correct_samples": [],
+            "incorrect_samples": []
+        }
+
+        # Add selected correct traces (limit to 2 for prompt size)
+        for trace in correct_traces[:2]:
+            formatted_llm_calls = []
+            for call in trace.get("llm_calls", [])[:3]:  # Limit to first 3 LLM calls
+                if call:
+                    formatted_llm_calls.append({
+                        "caller": call.get("caller", "unknown"),
+                        "prompt_excerpt": call.get("prompt", "")[:300] + "..." if len(call.get("prompt", "")) > 300 else call.get("prompt", ""),
+                        "output_excerpt": call.get("output", "")[:300] + "..." if len(call.get("output", "")) > 300 else call.get("output", "")
+                    })
+
+            sample_info = {
+                "index": trace.get("sample_index", -1),
+                "question_snippet": trace.get("question", "")[:200] + "..." if len(trace.get("question", "")) > 200 else trace.get("question", ""),
+                "expected_answer": trace.get("answer", "")[:100] + "..." if len(trace.get("answer", "")) > 100 else trace.get("answer", ""),
+                "system_answer": trace.get("system_answer", "")[:100] + "..." if len(trace.get("system_answer", "")) > 100 else trace.get("system_answer", ""),
+                "llm_calls": formatted_llm_calls
+            }
+            trace_summary["correct_samples"].append(sample_info)
+
+        # Add selected incorrect traces (limit to 3 for prompt size)
+        for trace in incorrect_traces[:3]:
+            formatted_llm_calls = []
+            for call in trace.get("llm_calls", [])[:3]:  # Limit to first 3 LLM calls
+                if call:
+                    formatted_llm_calls.append({
+                        "caller": call.get("caller", "unknown"),
+                        "prompt_excerpt": call.get("prompt", "")[:300] + "..." if len(call.get("prompt", "")) > 300 else call.get("prompt", ""),
+                        "output_excerpt": call.get("output", "")[:300] + "..." if len(call.get("output", "")) > 300 else call.get("output", "")
+                    })
+
+            # Format error messages
+            errors = []
+            for error in trace.get("errors", []):
+                error_msg = error.get("error", "")
+                errors.append(error_msg[:200] + "..." if len(error_msg) > 200 else error_msg)
+
+            sample_info = {
+                "index": trace.get("sample_index", -1),
+                "question_snippet": trace.get("question", "")[:200] + "..." if len(trace.get("question", "")) > 200 else trace.get("question", ""),
+                "expected_answer": trace.get("answer", "")[:100] + "..." if len(trace.get("answer", "")) > 100 else trace.get("answer", ""),
+                "system_answer": trace.get("system_answer", "")[:100] + "..." if len(trace.get("system_answer", "")) > 100 else trace.get("system_answer", ""),
+                "llm_calls": formatted_llm_calls,
+                "errors": errors
+            }
+            trace_summary["incorrect_samples"].append(sample_info)
+
+        # System instruction for trace analysis
+        system_instruction = """
+        You are an Expert Code Trace Analyzer specializing in debugging LLM-driven systems. 
+        Your expertise is in examining execution traces and connecting failures to specific 
+        code issues or prompt engineering problems. Focus on being extremely specific and actionable.
+        """
+
+        # Create focus prompt based on available data
+        if correct_traces and incorrect_traces:
+            # We have both correct and incorrect traces - focus on comparing them
+            focus_section = """
+            1. COMPARE SUCCESS VS FAILURE PATTERNS:
+                - What specific differences exist between successful and failed executions?
+                - Which prompt structures or function calls lead to success vs. failure?
+                - What code paths differ between successful and failed cases?
+            """
+        elif correct_traces:
+            # We only have correct traces - focus on what's working well
+            focus_section = """
+            1. SUCCESS PATTERN ANALYSIS:
+                - What specific code patterns are working correctly?
+                - Which prompt structures and LLM responses are effective?
+                - What makes these successful cases work well?
+            """
+        else:
+            # We only have incorrect traces - focus on failure analysis
+            focus_section = """
+            1. FAILURE PATTERN ANALYSIS:
+                - What specific code issues are causing failures?
+                - Which prompt structures or function calls are problematic?
+                - What exact lines or components need to be fixed?
+            """
+
+        # Create a highly focused prompt
         prompt = f"""
-Analyze these execution traces from iteration {iteration_number} and extract SPECIFIC, ACTIONABLE insights.
+        Perform a detailed analysis of execution traces from iteration {iteration_number}.
 
-TRACE DATA:
-{json.dumps(trace_summary, indent=2)}
+        SUMMARY:
+        - Correct examples: {len(correct_traces)}
+        - Incorrect examples: {len(incorrect_traces)}
 
-Please provide:
-1. SPECIFIC PATTERNS in successful executions (exact function calls, prompt structures, reasoning steps)
-2. PRECISE FAILURE POINTS in unsuccessful executions (where exactly did things go wrong?)
-3. CRITICAL DIFFERENCES between successful and failed approaches
-4. CONCRETE RECOMMENDATIONS for improvement (specific to the code/prompts observed)
+        CODE CONTEXT (excerpt):
+        ```python
+        {trace_summary['script_excerpt']}
+        ```
 
-Focus on:
-- Exact prompt structures that worked vs failed
-- Specific function call sequences that led to success
-- Precise points where execution diverged between success/failure
-- Particular error patterns and their root causes
-- Concrete code or prompt modifications needed
+        EXECUTION DATA:
+        {json.dumps(trace_summary, indent=2)}
 
-Be extremely specific - mention actual function names, quote prompt snippets, identify exact failure points.
-"""
+        ANALYSIS FOCUS:
+        {focus_section}
 
+        2. CODE-LEVEL ANALYSIS:
+           - Identify specific functions that succeeded or failed
+           - Point out exact code patterns that led to success or failure
+           - Find bugs or inefficiencies in the implementation
+
+        3. PROMPT ENGINEERING ANALYSIS:
+           - Analyze the prompts used in LLM calls
+           - Identify effective or problematic prompt elements
+           - Suggest specific prompt improvements
+
+        4. FAILURE POINT ISOLATION:
+           - For incorrect samples, pinpoint the exact step where execution failed
+           - Connect errors to specific code pathways
+           - Identify whether failures occurred in prompt construction, LLM response, or output processing
+
+        5. CONCRETE RECOMMENDATIONS:
+           - Suggest specific code changes (exact function names, logic adjustments)
+           - Provide precise prompt engineering improvements
+           - Recommend exact parsing or validation approaches
+
+        FORMAT YOUR RESPONSE AS:
+
+        ## EXECUTION PATTERN ANALYSIS
+        [Analysis of execution patterns]
+
+        ## SUCCESS FACTORS
+        [Specific elements leading to success]
+
+        ## FAILURE POINTS
+        [Exact points of failure with code references]
+
+        ## CODE-LEVEL RECOMMENDATIONS
+        [Specific code changes]
+
+        ## PROMPT ENGINEERING RECOMMENDATIONS
+        [Exact prompt improvements]
+
+        Be extremely specific - reference actual function names, quote problematic code or prompts, 
+        and suggest exact fixes.
+        """
+
+        # Call LLM for analysis with appropriate error handling
         try:
-            response = self.call_llm(
-                prompt, 
-                system_instruction="You are an expert at analyzing execution traces to identify specific patterns and failure points."
-            )
+            print("Sending trace data to LLM for analysis...")
+            response = self.call_llm(prompt, system_instruction=system_instruction)
+            print(f"Received trace analysis from LLM ({len(response)} chars)")
             return response
         except Exception as e:
-            return f"Error analyzing traces: {e}"
+            error_message = f"Error analyzing traces: {str(e)}"
+            print(error_message)
+
+            # Provide a fallback analysis if LLM call fails
+            if correct_traces or incorrect_traces:
+                fallback = self._generate_fallback_analysis(correct_traces, incorrect_traces)
+                return fallback
+            else:
+                return error_message
+
+    def _generate_fallback_analysis(self, correct_traces, incorrect_traces):
+        """Generate a basic analysis without using LLM if the LLM call fails."""
+        analysis = [
+            "## EXECUTION PATTERN ANALYSIS",
+            f"Found {len(correct_traces)} successful and {len(incorrect_traces)} failed executions."
+        ]
+
+        # Add success factors if we have successful traces
+        if correct_traces:
+            analysis.extend([
+                "",
+                "## SUCCESS FACTORS",
+                "The following executions completed successfully:"
+            ])
+
+            for i, trace in enumerate(correct_traces):
+                analysis.append(f"- Sample {trace.get('sample_index', i)}: {len(trace.get('llm_calls', []))} LLM calls")
+
+        # Add failure points if we have failed traces
+        if incorrect_traces:
+            analysis.extend([
+                "",
+                "## FAILURE POINTS",
+                "The following executions failed:"
+            ])
+
+            for i, trace in enumerate(incorrect_traces):
+                errors = [e.get('error', 'Unknown error') for e in trace.get('errors', [])]
+                error_summary = '; '.join(errors) if errors else 'No specific error recorded'
+                analysis.append(f"- Sample {trace.get('sample_index', i)}: {error_summary}")
+
+        # Add recommendations
+        analysis.extend([
+            "",
+            "## CODE-LEVEL RECOMMENDATIONS",
+            "- Add more detailed error handling and logging to identify specific failure points",
+            "- Consider adding validation steps to verify LLM outputs before processing them",
+            "",
+            "## PROMPT ENGINEERING RECOMMENDATIONS",
+            "- Review prompts for clarity and completeness",
+            "- Consider adding more examples to guide the LLM's responses"
+        ])
+
+        return "\n".join(analysis)
 
     def build_insight_based_context(self, iterations, max_iterations=3):
-        """Build context based on LLM-extracted insights from traces."""
+        """Build context based on insights from traces."""
         context_parts = []
         context_parts.append("=== EXECUTION TRACE INSIGHTS ===\n")
 
@@ -3600,7 +4239,7 @@ Be extremely specific - mention actual function names, quote prompt snippets, id
                 # Generate new insights
                 insights = self.analyze_traces_with_llm(iteration_number)
 
-                if insights and not insights.startswith("Error"):
+                if insights and not insights.startswith("Error") and not "No usable traces found" in insights:
                     context_parts.append(f"\n--- Iteration {iteration_number} Analysis ---")
                     context_parts.append(insights)
                 else:
@@ -3612,13 +4251,12 @@ Be extremely specific - mention actual function names, quote prompt snippets, id
                     if incorrect_traces:
                         context_parts.append("Common errors:")
                         for trace in incorrect_traces[:2]:
-                            for event in trace['traces']:
-                                if event['event'] == 'execution_error':
-                                    context_parts.append(f"  - {event['error'][:100]}...")
-                                    break
+                            errors = trace.get('errors', [])
+                            for error in errors:
+                                context_parts.append(f"  - {error.get('error', 'Unknown error')[:100]}...")
+                                break
 
         return "\n".join(context_parts)
-
 
 class CapabilityTracker:
     """
