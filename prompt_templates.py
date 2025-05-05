@@ -135,7 +135,7 @@ class PromptTemplates:
 
         prompt = f"""
         You are developing a Python script to solve problems using LLM reasoning capabilities.
-        You are in the EXPLORATION PHASE. You must generate a NEW approach that's different from previous approaches but informed by their successes and failures. With this approach, you will have a specific NEW HYPOTHESIS or variable you are trying to test. Your goal is to see if this new approach works, and you must add verification and validation steps to deduce if this new change is helpful. You may also test RADICAL NEW APPROACHES that are substantially different from previous approaches. 
+        You are in the EXPLORATION PHASE. You must generate a NEW approach that's different from previous approaches but informed by their successes and failures. With this approach, you will have a specific NEW HYPOTHESIS or variable you are trying to test. Your goal is to see if this new approach works, and you must add verification and validation steps to deduce if this new change is helpful. Carefully and fairly evaluate whether the hypothesis should be accepted, rejected, re-tested, or something else, making reference to specific outputs, reasoning steps, error messages, or other evidence from the exectuion. You may test RADICAL NEW APPROACHES that are substantially different from previous approaches. 
 
         You should try NEW THINGS:
 
@@ -170,7 +170,7 @@ class PromptTemplates:
         EXPLORATION GUIDANCE:
         1. Review the historical approaches, error patterns, and accumulated learnings carefully
         2. Review the FULL CODE of previous scripts to understand what has already been tried
-        3. Design a new approach that is DISTINCTLY DIFFERENT from previous attempts. This approach should have a specific NEW HYPOTHESIS or variable you are trying to test. 
+        3. Design a new approach that is DISTINCTLY DIFFERENT from previous attempts. This approach should have a specific NEW HYPOTHESIS or variable you are trying to test. Carefully and fairly evaluate whether the hypothesis should be accepted, rejected, re-tested, or something else, making reference to specific outputs, reasoning steps, error messages, or other evidence from the exectuion.
         4. CRITICAL: Include EMBEDDED EXAMPLES directly within your LLM prompts
         5. For each key function, show a complete worked example, or include multiple examples, including:
            - Input example that resembles the dataset
@@ -192,7 +192,7 @@ class PromptTemplates:
         {gemini_api_example}
 
         Since this is an EXPLORATION phase:
-        - Try a fundamentally different approach to reasoning about the problem. Test a NEW HYPOTHESIS or variable, and add verification steps to deduce if this new change is helpful.
+        - Try a fundamentally different approach to reasoning about the problem. Test a NEW HYPOTHESIS or variable, and add verification steps to deduce if this new change is helpful. Carefully and fairly evaluate whether the hypothesis should be accepted, rejected, re-tested, or something else, making reference to specific outputs, reasoning steps, error messages, or other evidence from the exectuion.
         - THIS IS KEY: Break down the problem into new, distinct reasoning steps based on past performance before you start coding
         - For EACH key LLM prompt, include a relevant example with:
           * Sample input similar to the dataset
@@ -260,7 +260,7 @@ class PromptTemplates:
            - Sample input that resembles the dataset
            - Step-by-step reasoning through the example
            - Properly formatted output
-        7. Focus on fixing specific issues identified in previous error analyses. Create an explicit HYPOTHESIS for each targeted improvement, as well as a way to verify if it's successful.
+        7. Focus on fixing specific issues identified in previous error analyses. Create an explicit HYPOTHESIS for each targeted improvement, as well as a way to verify if it's successful. Carefully and fairly evaluate whether the hypothesis should be accepted, rejected, re-tested, or something else, making reference to specific outputs, reasoning steps, error messages, or other evidence from the exectuion.
         8. Enhance chain-of-thought reasoning and verification steps. Verification steps should be added to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
         9. Apply the key insights from ACCUMULATED LEARNINGS to enhance the approach
         10. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment

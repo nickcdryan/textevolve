@@ -1373,33 +1373,23 @@ class AgentSystem:
                 prompt = PromptTemplates.build_error_correction_prompt(str(e))
 
 
-    def _get_example_problems(self):
+    def _get_example_problems(self, num_examples=3):
         """
         Get example problems from previous iterations or training set.
+        Uses cold start examples if it's the first iteration, 
+        otherwise randomly selects from past seen examples.
+
+        Args:
+            num_examples: Number of examples to return
 
         Returns:
             List of example problems with question, answer, and id fields.
         """
         example_problems = []
-        iterations = self.get_all_iterations()
 
-        if iterations:
-            # Collect samples from previous iterations
-            prev_samples = []
-            for iteration in sorted(iterations, key=lambda x: x.get('iteration', 0) if x else 0, reverse=True)[:3]:
-                if iteration and 'samples' in iteration:
-                    prev_samples.extend(iteration.get('samples', [])[:3])  # Get up to 3 from each recent iteration
-
-            # Use these previous samples as examples
-            for i, sample in enumerate(prev_samples[:3]):  # Limit to 3 examples
-                example_problems.append({
-                    "id": i,
-                    "question": sample.get("question", ""),  # Use universal "question" field
-                    "answer": sample.get("answer", "")       # Use universal "answer" field
-                })
-
-        # Handle cold start (first iteration)
-        if not example_problems:
+        # Cold start - use training examples for first iteration
+        if self.current_iteration == 0:
+            print("First iteration - using training examples")
             # For initial training, get examples from a fixed training set
             training_examples = self.get_training_examples(5)
             for i, example in enumerate(training_examples):
@@ -1408,9 +1398,49 @@ class AgentSystem:
                     "question": self.dataset_loader.get_example_input(example),
                     "answer": self.dataset_loader.get_example_output(example)
                 })
+            return example_problems[:num_examples]  # Return requested number of examples
 
-        return example_problems
+        # For subsequent iterations, collect all samples from previous iterations
+        iterations = self.get_all_iterations()
+        all_samples = []
 
+        # Gather all samples from all previous iterations
+        for iteration in iterations:
+            if iteration and 'samples' in iteration:
+                all_samples.extend(iteration.get('samples', []))
+
+        # If we have samples, randomly select from them
+        if all_samples:
+            # Shuffle the samples
+            import random
+            random.shuffle(all_samples)
+
+            # Select up to num_examples samples
+            selected_samples = all_samples[:num_examples] if len(all_samples) > num_examples else all_samples
+
+            # Format the selected samples
+            for i, sample in enumerate(selected_samples):
+                example_problems.append({
+                    "id": i,
+                    "question": sample.get("question", ""),  # Use universal "question" field
+                    "answer": sample.get("answer", "")       # Use universal "answer" field
+                })
+
+            print(f"Randomly selected {len(example_problems)} examples from {len(all_samples)} past samples")
+
+        # If we somehow have no previous samples (unlikely but possible), fall back to training examples
+        if not example_problems:
+            print(f"No previous samples found - falling back to training examples")
+            training_examples = self.get_training_examples(5)
+            for i, example in enumerate(training_examples):
+                example_problems.append({
+                    "id": i,
+                    "question": self.dataset_loader.get_example_input(example),
+                    "answer": self.dataset_loader.get_example_output(example)
+                })
+
+        return example_problems[:num_examples]  # Return requested number of examples
+    
     def generate_script_with_llm(self, is_exploration: bool) -> str:
         """
         Use the LLM to generate a script to solve dataset problems.
