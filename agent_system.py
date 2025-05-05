@@ -647,7 +647,7 @@ class AgentSystem:
         sample_questions = []
         for i in range(min(3, len(samples))):
             if i < len(samples):
-                # Use the universal "question" field instead of "prompt_0shot"
+                # Use the universal "question" field 
                 sample_questions.append(samples[i].get("question", "N/A"))
             else:
                 sample_questions.append("N/A")
@@ -786,63 +786,186 @@ class AgentSystem:
         
     
     def synthesize_learnings(self, current_learnings: str, new_batch_learnings: str) -> str:
-        """Synthesize existing learnings with new batch learnings, emphasizing dataset-specific insights"""
-        learnings_synthesizer_system_instruction = "You are a Knowledge Integrator. Your role is to synthesize accumulated dataset-specific knowledge with new insights, creating an evolving experiment log that captures concrete patterns, strategies, and findings about this specific task."
+        """Synthesize existing learnings with new batch learnings using a section-by-section approach"""
+        # Define the standard sections
+        sections = [
+            "1. DATASET PATTERNS & CHARACTERISTICS",
+            "2. EFFECTIVE TASK-SPECIFIC STRATEGIES",
+            "3. COMMON FAILURE MODES ON THIS DATASET",
+            "4. EXPERIMENT LOG & FINDINGS", 
+            "5. NEXT RESEARCH DIRECTIONS"
+        ]
 
-        # Print length info for debugging
-        print(f"Current learnings length: {len(current_learnings)}")
-        print(f"New batch learnings length: {len(new_batch_learnings)}")
+        # Parse the current learnings into sections
+        current_sections = {}
 
-        prompt = f"""
-        You are tasked with synthesizing existing knowledge with new learnings from our latest experiment on this dataset.
+        # Handle header/intro text
+        header = current_learnings
+        for i, section in enumerate(sections):
+            if section in current_learnings:
+                if i == 0:  # First section - extract header
+                    header = current_learnings.split(section)[0].strip()
 
-        EXISTING ACCUMULATED LEARNINGS:
-        {current_learnings}
+                # Extract section content
+                section_text = current_learnings.split(section)[1]
+                # If there's another section after this one, only grab until that section
+                if i < len(sections) - 1 and sections[i+1] in section_text:
+                    section_text = section_text.split(sections[i+1])[0].strip()
+                current_sections[section] = section_text.strip()
 
-        NEW LEARNINGS FROM LATEST BATCH:
-        {new_batch_learnings}
+        # Parse the new batch learnings to identify which sections have new content
+        new_sections = {}
+        for section in sections:
+            if section in new_batch_learnings:
+                section_text = new_batch_learnings.split(section)[1]
+                # If there's another section after this one, only grab until that section
+                next_sections = [s for s in sections if s in section_text]
+                if next_sections:
+                    section_text = section_text.split(next_sections[0])[0].strip()
+                new_sections[section] = section_text.strip()
 
-        Create an updated, synthesized version of our learnings that:
+        # Get current iteration number
+        current_iteration = self.current_iteration - 1  # Since we increment at the end of run_iteration
 
-        1. Maintains a comprehensive catalog of DATASET PATTERNS we've identified
-        2. Tracks the evolution of our understanding about what makes this specific task challenging
-        3. Documents concrete STRATEGIES that have proven effective or ineffective for this particular dataset
-        4. Creates a running EXPERIMENT LOG tracking our attempts and findings specific to this task
-        5. Prioritizes concrete, task-specific insights over general system design principles
+        # For each section, update if there's new content
+        updated_sections = {}
+        for section in sections:
+            if section not in new_sections:
+                # No new content for this section
+                updated_sections[section] = current_sections.get(section, "")
+                continue
 
-        The synthesized learnings should read like a detailed research log about THIS specific dataset and task, 
-        not a general guide to system design. Each section should include specific examples and concrete findings.
+            # Special handling for EXPERIMENT LOG & FINDINGS section
+            if section == "4. EXPERIMENT LOG & FINDINGS":
+                current_section_text = current_sections.get(section, "")
+                new_section_text = new_sections[section]
 
-        Organize the information into these sections:
+                # Check if the previous iteration is in the current content
+                prev_iteration_marker = f"**Iteration {current_iteration-1}:**"
+                iteration_missing = current_iteration > 1 and prev_iteration_marker not in current_section_text
 
-        1. DATASET PATTERNS & CHARACTERISTICS
-        2. EFFECTIVE TASK-SPECIFIC STRATEGIES
-        3. COMMON FAILURE MODES ON THIS DATASET
-        4. EXPERIMENT LOG & FINDINGS
-        5. NEXT RESEARCH DIRECTIONS
+                # Check combined length
+                combined_length = len(current_section_text) + len(new_section_text)
 
-        Your output will replace the current learnings file and serve as long-term memory for working specifically with this dataset.
+                # If too large or missing iterations, ask for condensed version
+                if combined_length > 30000 or iteration_missing:
+                    print(f"EXPERIMENT LOG section too large ({combined_length} chars) or missing iterations - condensing")
 
-        IMPORTANT: Preserve all concrete, specific insights from both the existing learnings and new batch. Don't lose valuable information. Preserve the details of runtime, execution, error, and processing problems so that we can learn from them in the future and DO NOT make the same mistakes again.
-        """
+                    prompt = f"""
+                    You are managing the EXPERIMENT LOG & FINDINGS section of our research document.
+                    This section has grown too large and needs condensing while preserving key information.
 
-        try:
-            print("Calling LLM to synthesize learnings...")
-            response = self.call_llm(
-                prompt,
-                system_instruction=learnings_synthesizer_system_instruction)
-            print(f"Received synthesized learnings: {len(response)} characters")
-            return response.strip()
-        except Exception as e:
-            error_message = f"Error synthesizing learnings: {str(e)}"
-            print(error_message)
-            traceback.print_exc()  # Print full traceback for better debugging
+                    CURRENT EXPERIMENT LOG:
+                    {current_section_text}
 
-            # Return a concatenated version as fallback
-            fallback = f"{current_learnings}\n\n=== NEWEST LEARNINGS (NOT SYNTHESIZED DUE TO ERROR) ===\n\n{new_batch_learnings}"
-            print(f"Using fallback concatenation: {len(fallback)} characters")
-            return fallback
+                    NEW EXPERIMENT FINDINGS (FOR ITERATION {current_iteration}):
+                    {new_section_text}
 
+                    Create a condensed version of the EXPERIMENT LOG that:
+                    1. PRESERVES ALL ITERATIONS - it's critical that ALL iterations have some representation
+                    2. Maintains MORE DETAIL for recent iterations ({max(0, current_iteration-5)}-{current_iteration})
+                    3. CONDENSES older iterations (0-{max(0, current_iteration-6)}) to just key findings and essential details
+                    4. Ensures each iteration is clearly marked with "**Iteration X:**" format
+                    5. Maintains the hierarchical bullet point structure
+
+                    You must include information about ALL iterations from 0 to {current_iteration}, with no gaps.
+                    Focus on reducing verbose descriptions of older iterations while preserving their key findings.
+
+                    Return ONLY the condensed experiment log section with no explanation.
+                    """
+
+                    try:
+                        updated_text = self.call_llm(
+                            prompt, 
+                            system_instruction="You are a Research Documentation Specialist who excels at preserving essential information while reducing verbosity."
+                        )
+
+                        # Verify all iterations are present by checking for markers
+                        all_iterations_present = True
+                        for i in range(current_iteration + 1):
+                            if f"**Iteration {i}:**" not in updated_text and f"* **Iteration {i}:**" not in updated_text:
+                                all_iterations_present = False
+                                print(f"Warning: Iteration {i} missing from condensed log")
+
+                        if all_iterations_present:
+                            updated_sections[section] = updated_text.strip()
+                        else:
+                            # If iterations are missing, append new content with a warning
+                            print("Some iterations missing - falling back to concatenation with warning")
+                            updated_sections[section] = current_section_text + "\n\n=== WARNING: EXPERIMENT LOG REACHED SIZE LIMIT ===\n" + \
+                                                     "Earlier iterations have been abbreviated to save space.\n\n" + \
+                                                     new_section_text
+                    except Exception as e:
+                        print(f"Error condensing experiment log: {e}")
+                        # Fallback to concatenation with warning
+                        updated_sections[section] = current_section_text + "\n\n=== WARNING: EXPERIMENT LOG REACHED SIZE LIMIT ===\n" + \
+                                                 "Consider manually condensing earlier iterations.\n\n" + \
+                                                 new_section_text
+                else:
+                    # Standard concatenation for experiment log if not too large
+                    updated_sections[section] = current_section_text + "\n\n" + new_section_text
+            else:
+                # For all other sections, use the original logic
+                if section in current_sections:
+                    current_section_text = current_sections[section]
+                    new_section_text = new_sections[section]
+
+                    # Check combined length
+                    combined_length = len(current_section_text) + len(new_section_text)
+                    if combined_length > 30000:  # Conservative character limit
+                        print(f"Section {section} too large ({combined_length} chars) - using simple append")
+                        updated_sections[section] = current_section_text + "\n\n=== NEW ADDITIONS ===\n\n" + new_section_text
+                        continue
+
+                    # Otherwise, synthesize this section
+                    try:
+                        print(f"Synthesizing section: {section}")
+                        prompt = f"""
+                        You are updating a specific section of our research learnings document about a Grid Transformation Task dataset.
+
+                        CURRENT CONTENT FOR SECTION "{section}":
+                        {current_section_text}
+
+                        NEW INSIGHTS FOR THIS SECTION:
+                        {new_section_text}
+
+                        Create an updated version of ONLY THIS SECTION that:
+                        1. Preserves all important information from both sources
+                        2. Eliminates redundancies
+                        3. Organizes related insights together
+                        4. Maintains the existing formatting style with bullet points
+
+                        Return ONLY the updated content for this section with no preamble or explanation.
+                        """
+
+                        updated_text = self.call_llm(
+                            prompt, 
+                            system_instruction="You are a Knowledge Integrator specializing in maintaining research documentation."
+                        )
+
+                        # Safety check
+                        if len(updated_text) < len(current_section_text) * 0.7:
+                            print(f"Warning: Updated section {section} suspiciously short - using concatenation")
+                            updated_sections[section] = current_section_text + "\n\n=== NEW ADDITIONS ===\n\n" + new_section_text
+                        else:
+                            updated_sections[section] = updated_text.strip()
+
+                    except Exception as e:
+                        print(f"Error synthesizing section {section}: {e}")
+                        # Fallback to concatenation
+                        updated_sections[section] = current_section_text + "\n\n=== NEW ADDITIONS ===\n\n" + new_section_text
+                else:
+                    # Section doesn't exist in current learnings, just use the new content
+                    updated_sections[section] = new_sections[section]
+
+        # Reassemble the document
+        updated_learnings = header + "\n\n"
+        for section in sections:
+            if section in updated_sections and updated_sections[section]:
+                updated_learnings += f"## {section}\n\n{updated_sections[section]}\n\n"
+
+        return updated_learnings.strip()
+    
     def update_learnings(self, iteration_data: Dict) -> None:
         """Update the learnings file with insights from the current iteration"""
         try:
@@ -4136,6 +4259,14 @@ class TraceAnalyzer:
            - Provide precise prompt engineering improvements
            - Recommend exact parsing or validation approaches
 
+        6. HIGH LEVEL INSIGHTS:
+           - Pretend you are a human expert reviewing the system's performance. You think qualitatively at a high level about the system's behavior and reasoning, focusing on making the system more intelligent and more capable, and analyzing failure points. For example, "this system doesn't seem to understand that what we really want is..."
+           - What is the system doing wrong that it could be doing better?
+           - What is the system doing right that it should continue to do?
+           - Based on wrong answers compared to the correct answers, outline the reasoning steps that would have gotten the correct answer.
+           - What patterns, techniques, or approaches would have gotten the correct answer?
+           - At a high level (not code) and based on this iteration, what specific things could be done to improve the system?
+
         FORMAT YOUR RESPONSE AS:
 
         ## EXECUTION PATTERN ANALYSIS
@@ -4152,6 +4283,9 @@ class TraceAnalyzer:
 
         ## PROMPT ENGINEERING RECOMMENDATIONS
         [Exact prompt improvements]
+
+        ## HIGH LEVEL INSIGHTS
+        [General human-like insights and suggestions]
 
         Be extremely specific - reference actual function names, quote problematic code or prompts, 
         and suggest exact fixes.

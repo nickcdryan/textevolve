@@ -260,7 +260,7 @@ class PromptTemplates:
            - Sample input that resembles the dataset
            - Step-by-step reasoning through the example
            - Properly formatted output
-        7. Focus on fixing specific issues identified in previous error analyses. Create an explicit HYPOTHESIS for each targeted improvement, as well as a way to verify if it's successful. Carefully and fairly evaluate whether the hypothesis should be accepted, rejected, re-tested, or something else, making reference to specific outputs, reasoning steps, error messages, or other evidence from the exectuion.
+        7. Focus on fixing specific issues identified in previous error analyses. Create an EXPLICIT HYPOTHESIS for each targeted improvement and state it, as well as a way to verify if it's successful. Carefully and fairly evaluate whether the hypothesis should be accepted, rejected, re-tested, or something else, making reference to specific outputs, reasoning steps, error messages, or other evidence from the exectuion.
         8. Enhance chain-of-thought reasoning and verification steps. Verification steps should be added to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
         9. Apply the key insights from ACCUMULATED LEARNINGS to enhance the approach
         10. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment
