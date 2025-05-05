@@ -2,78 +2,67 @@ import os
 import re
 import math
 
+# Hypothesis: Instead of attempting to decompose the problem into multiple LLM calls, can we create an effective "one-shot" approach
+# by providing highly detailed examples and leveraging in-context learning? Can we reduce the failure rate by minimizing the number of calls?
+# By including examples of the expected reasoning steps, can we guide the model to produce correct outputs and transformations?
+
 def main(question):
-    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
-    return solve_grid_transformation(question)
+    """Transforms a grid based on highly detailed examples, using a one-shot approach with LLM."""
+    try:
+        transformed_grid = transform_grid_with_detailed_examples(question)
+        return transformed_grid
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
 
-def solve_grid_transformation(problem_text, max_attempts=3):
-    """Solves the grid transformation problem by first extracting the transformation rule and then applying it."""
-
-    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids. You first EXPLAIN the rule before applying it."
-    
-    # STEP 1: Extract the transformation rule with examples
-    rule_extraction_prompt = f"""
-    You are tasked with identifying the transformation rule applied to grids. Study the examples carefully and explain the transformation logic in plain English.
+def transform_grid_with_detailed_examples(question, max_attempts=3):
+    """Transforms the grid using a one-shot approach with detailed examples."""
+    system_instruction = "You are an expert grid transformer. Follow the examples closely."
+    prompt = f"""
+    You are a grid transformation expert. Analyze the training examples and transform the test input accordingly.
+    Provide detailed reasoning steps before giving the final transformed grid.
+    The final answer MUST be a string representation of the grid, starting with '[[' and ending with ']]'.
 
     Example 1:
-    Input Grid:
-    [[1, 0], [0, 1]]
-    Output Grid:
-    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-    Explanation: Each element in the input grid becomes a diagonal in a larger grid. The new grid has the dimensions number of rows times number of columns of the input grid.
+    Input Grid: [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 7, 2, 7, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 7, 2, 7, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    Reasoning: The transformation appears to replace all '0' values surrounding each '2' or '7' value with the value of the '2' that is closest to each '0'
+    Output Grid: [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [2, 0, 7, 0, 2, 0, 0, 0, 0, 0, 0, 0], [0, 2, 7, 2, 0, 0, 0, 0, 0, 0, 0, 0], [7, 7, 2, 7, 7, 0, 0, 0, 0, 0, 0, 0], [0, 2, 7, 2, 0, 0, 0, 0, 0, 0, 0, 0], [2, 0, 7, 0, 2, 0, 2, 0, 7, 0, 2, 0], [0, 0, 0, 0, 0, 0, 0, 2, 7, 2, 0, 0], [0, 0, 0, 0, 0, 0, 7, 7, 2, 7, 7, 0], [0, 0, 0, 0, 0, 0, 0, 2, 7, 2, 0, 0], [0, 0, 0, 0, 0, 0, 2, 0, 7, 0, 2, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
 
     Example 2:
-    Input Grid:
-    [[2, 8], [8, 2]]
-    Output Grid:
-    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
-    Explanation: Each element is expanded to a 2x2 block with the element's value. The new grid has the dimensions number of rows times number of columns of the input grid.
+    Input Grid: [[0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    Reasoning: The transformation appears to replicate the '2' and '8' values across the grid. It appears to create repeating columns of 2 and 8.
+    Output Grid: [[0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0], [0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0], [0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0], [0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0], [0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0], [0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0], [0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0], [0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0], [0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0], [0, 0, 0, 0, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0, 2, 0, 8, 0]]
 
-    Example 3:
-    Input Grid:
-    [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
-    Output Grid:
-    [[1, 0, 1], [0, 0, 0], [1, 0, 1]]
-    Explanation: The input grid is overlaid onto a grid of zeros; the value of 1 replaces 0; the values of 0 remain as 0. If the value is zero, the cell remains zero, otherise the value in the input grid is copied to the output grid in that location.
-
-    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
-    Test Example:
-    {problem_text}
+    Now transform the input grid below, providing detailed reasoning first, and then the final grid string. The final grid string MUST start with '[[' and end with ']]':
+    {question}
     """
-    
-    # Attempt to extract the rule
-    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
 
-    # STEP 2: Apply the extracted rule to the test input with example application for consistency.
-    application_prompt = f"""
-    You have extracted this transformation rule:
-    {extracted_rule}
-
-    Now, apply this rule to the following test input grid:
-    {problem_text}
-
-    Example Application:
-    Extracted Rule: "Each element is expanded to a 2x2 block with the element's value."
-    Input Grid: [[1, 0], [0, 1]]
-    Transformed Grid: [[1, 1, 0, 0], [1, 1, 0, 0], [0, 0, 1, 1], [0, 0, 1, 1]]
-    
-    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
-    """
-    
-    # Attempt to generate the transformed grid
     for attempt in range(max_attempts):
-        try:
-            transformed_grid_text = call_llm(application_prompt, system_instruction)
-            # Basic validation - check if it looks like a grid
-            if "[" in transformed_grid_text and "]" in transformed_grid_text:
-                return transformed_grid_text
-            else:
-                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
-        except Exception as e:
-            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+        transformed_grid = call_llm(prompt, system_instruction)
+        # Validation using regex: Check for start and end characters.
+        if not (transformed_grid.startswith("[[") and transformed_grid.endswith("]]")):
+            print(f"Validation failed: Output does not start with '[[' and end with ']]'.")
+            continue
 
-    # Fallback approach if all attempts fail
-    return "[[0,0,0],[0,0,0],[0,0,0]]"
+        # Attempt minimal cleaning of extra characters outside the grid:
+        cleaned_grid = transformed_grid.split('[[', 1)[1].rsplit(']]', 1)[0]
+        # Ensure grid format is correct (replace spaces, check number format...)
+        cleaned_grid = '[[' + cleaned_grid.replace(" ", "") + ']]'
+
+        try:
+            #Attempt basic parsing to confirm it at least "looks" like data
+            grid_rows = cleaned_grid.strip("[]").split("],[")
+            #Minimal validation: are we getting at least rows of data back?
+            if len(grid_rows) > 0:
+                 return cleaned_grid
+            else:
+                 print(f"Transformed grid appears to be empty.")
+                 continue
+
+        except:
+            print(f"Transformed grid is not a valid format.")
+            continue # Try again
+
+    return "Failed to transform grid correctly after multiple attempts."
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""

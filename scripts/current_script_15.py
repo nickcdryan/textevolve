@@ -2,90 +2,113 @@ import os
 import re
 import math
 
-# This script takes a radically different approach: rather than focusing on explicit rule extraction,
-# it uses the LLM to perform iterative "hallucination" and refinement of the grid, based on overall patterns.
-# The hypothesis is that the LLM can, through iterative feedback, converge on a valid solution WITHOUT needing to
-# explicitly articulate the transformation rule. We will use the concept of LLM Self-Consistency (CoT-SC) to iteratively
-# refine the output by providing the previous outputs back as context.
+# Hypothesis: This exploration will implement a "Constraint-Based Transformation with Iterative Region Analysis" approach.
+# The LLM will identify "stable regions" (unchanged in training examples) and "transformation regions" (changed).
+# It will then generate constraints for the transformation based on the stable regions, and apply transformations only to the unstable regions.
+# Also, add verification steps to understand which parts are successful and where it is breaking.
 
 def main(question):
-    """Transforms a grid using LLM-driven iterative refinement, without explicit rule extraction."""
-    return solve_grid_transformation(question)
+    """Transforms a grid based on constraint-based transformation and region analysis."""
+    try:
+        # 1. Extract training examples and test input
+        training_examples, test_input = preprocess_question(question)
 
-def solve_grid_transformation(problem_text, max_attempts=5):
-    """Solves the grid transformation problem through iterative refinement and feedback."""
-    system_instruction = "You are an expert at grid transformation, able to refine and adjust your solution iteratively."
+        # 2. Identify stable and transformation regions
+        stable_regions, transformation_regions = analyze_regions(training_examples)
 
-    # STEP 1: Initial Grid Hallucination
-    initial_hallucination_prompt = f"""
-    You are presented with a grid transformation problem. Generate a possible transformed grid, based on your understanding of common grid patterns.
-    Assume a 3x3 grid output if you are unsure, but attempt to match output grid to input grid size.
+        # 3. Generate transformation constraints based on stable regions
+        transformation_constraints = generate_constraints(stable_regions)
 
-    Problem: {problem_text}
+        # 4. Apply transformations to transformation regions based on constraints
+        transformed_grid = apply_transformations(test_input, transformation_regions, transformation_constraints)
 
-    Example 1:
-    Problem: Input Grid: [[1, 0], [0, 1]] Output Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-    Hallucination: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+        return transformed_grid
 
-    Example 2:
-    Problem: Input Grid: [[2, 8], [8, 2]] Output Grid: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
-    Hallucination: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
 
-    Hallucination:
+def preprocess_question(question):
+    """Extract training examples and test input from the question string using regex."""
+    try:
+        training_examples_match = re.search(r"=== TRAINING EXAMPLES ===\n(.*?)\n=== TEST INPUT ===", question, re.DOTALL)
+        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
+
+        training_examples = training_examples_match.group(1).strip() if training_examples_match else ""
+        test_input = test_input_match.group(1).strip() if test_input_match else ""
+
+        return training_examples, test_input
+    except Exception as e:
+        return "", ""
+
+def analyze_regions(training_examples):
+    """Identifies stable and transformation regions in the training examples using LLM."""
+    system_instruction = "You are an expert in analyzing grid transformations to identify stable and transformation regions."
+    prompt = f"""
+    You are an expert in analyzing grid transformations to identify stable and transformation regions. Stable regions are areas of the grid that remain unchanged across all training examples, and transformation regions are areas that change.
+
+    Example:
+    Training Examples:
+    Input Grid: [[0, 1], [0, 0]]
+    Output Grid: [[0, 1], [1, 1]]
+    Stable Regions: [[0, 1]] (top row)
+    Transformation Regions: [[0, 0] -> [1, 1]] (bottom row)
+
+    Now, for this new task:
+    Training Examples:
+    {training_examples}
+    Stable Regions and Transformation Regions:
     """
+    regions_analysis = call_llm(prompt, system_instruction)
+    # Assuming the LLM provides structured output for stable and transformation regions.
+    return regions_analysis, regions_analysis  # Placeholder - needs actual parsing
 
-    current_grid = call_llm(initial_hallucination_prompt, system_instruction)
-    print(f"Initial hallucination: {current_grid}")
+def generate_constraints(stable_regions):
+    """Generates transformation constraints based on the stable regions using LLM."""
+    system_instruction = "You are an expert in generating transformation constraints based on stable regions in grid data."
+    prompt = f"""
+    You are an expert in generating transformation constraints based on stable regions in grid data. Transformation constraints are rules that must be followed when transforming the grid, based on the stable regions.
 
-    # STEP 2: Iterative Refinement and Feedback
-    for attempt in range(max_attempts):
-        refinement_prompt = f"""
-        You are tasked with refining the transformation for this grid-based problem.
-        Here is your previous attempt, along with the original problem. Carefully adjust your approach. Focus on spatial relationships and matching demonstrated patterns in the training examples.
-        Original Problem: {problem_text}
-        Previous Attempt: {current_grid}
+    Example:
+    Stable Regions: [[0, 1]] (top row)
+    Transformation Constraints: The top row must remain unchanged during the transformation.
 
-        Example 1:
-        Original Problem: Input Grid: [[1, 0], [0, 1]] Output Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-        Previous Attempt: [[1, 0], [0, 1]]
-        Refinement: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Now, for these stable regions:
+    {stable_regions}
+    Transformation Constraints:
+    """
+    transformation_constraints = call_llm(prompt, system_instruction)
+    return transformation_constraints
 
-        Example 2:
-        Original Problem: Input Grid: [[2, 8], [8, 2]] Output Grid: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
-        Previous Attempt: [[2, 8], [8, 2]]
-        Refinement: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+def apply_transformations(test_input, transformation_regions, transformation_constraints):
+    """Applies transformations to the transformation regions based on the constraints using LLM."""
+    system_instruction = "You are an expert in applying grid transformations based on transformation regions and constraints."
+    prompt = f"""
+    You are an expert in applying grid transformations based on transformation regions and constraints. Apply transformations to the transformation regions based on the transformation constraints, ensuring that the constraints are followed.
 
-        Refinement:
-        """
+    Example:
+    Test Input: [[0, 0], [0, 0]]
+    Transformation Regions: [[0, 0]] (bottom row)
+    Transformation Constraints: The top row must remain unchanged.
+    Transformed Grid: [[0, 0], [1, 1]]
 
-        current_grid = call_llm(refinement_prompt, system_instruction)
-        print(f"Refinement attempt {attempt + 1}: {current_grid}")
-
-        # Step 3: Answer Checker - validates if the answer is a valid transformed grid that fits the problem
-        answer_check_prompt = f"""
-        You need to validate if the given answer follows the rules of the grid-based transformation problem and can be taken as a valid answer.
-
-        Problem: {problem_text}
-        Proposed Solution: {current_grid}
-
-        If the answer is a transformed grid as the solution to the problem, respond with VALID
-        If the answer is not a valid grid solution to the problem, respond with INVALID
-
-        Validity:
-        """
-
-        validity = call_llm(answer_check_prompt, system_instruction)
-        if "VALID" in validity:
-            return current_grid
-
-    # If we've failed after max_attempts, return a default grid as a last resort.
-    return "[[0,0,0],[0,0,0],[0,0,0]]"
+    Now, for this new task:
+    Test Input:
+    {test_input}
+    Transformation Regions:
+    {transformation_regions}
+    Transformation Constraints:
+    {transformation_constraints}
+    Transformed Grid:
+    """
+    transformed_grid = call_llm(prompt, system_instruction)
+    return transformed_grid
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
+        import os
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))

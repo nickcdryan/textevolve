@@ -1,79 +1,120 @@
 import os
 import re
-import math
 
 def main(question):
-    """Transforms a grid based on patterns in training examples using LLM-driven analysis and coordinate-based transformation."""
-    return solve_grid_transformation(question)
+    """
+    Transform grids based on examples using an LLM with improved error handling, detailed logging,
+    and multi-example prompting.
+    """
 
-def solve_grid_transformation(problem_text, max_attempts=3):
-    """Solves the grid transformation problem by analyzing coordinate patterns and applying transformations."""
+    # Preprocess question to extract training examples and test input
+    training_examples, test_input = preprocess_question(question)
 
-    system_instruction = "You are an expert at identifying grid transformation patterns based on coordinate analysis. You analyze how element values CHANGE based on their ORIGINAL COORDINATES."
+    # Generate transformation rule using LLM
+    transformation_rule = generate_transformation_rule(training_examples)
 
-    # STEP 1: Analyze coordinate patterns with embedded examples
-    coordinate_analysis_prompt = f"""
-    You are tasked with identifying transformation rules based on the coordinates of grid elements. Analyze the input and output grids to determine how element values change as a function of their row and column indices.
+    # Apply transformation rule to the test input grid
+    transformed_grid = apply_transformation_rule(test_input, transformation_rule)
+
+    # Post-process the grid string to ensure correct formatting
+    final_output = post_process_grid(transformed_grid)
+
+    return final_output
+
+def preprocess_question(question):
+    """Extract training examples and test input from the question string using regex with better reliability."""
+    # Updated regex to capture training examples and test input with more flexibility
+    training_examples_match = re.search(r"=== TRAINING EXAMPLES ===\n(.*?)\n=== TEST INPUT ===", question, re.DOTALL)
+    test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform the test input", question, re.DOTALL)
+
+    training_examples = training_examples_match.group(1).strip() if training_examples_match else ""
+    test_input = test_input_match.group(1).strip() if test_input_match else ""
+
+    return training_examples, test_input
+
+def generate_transformation_rule(training_examples):
+    """Generate a transformation rule from training examples using the LLM with multi-example prompting."""
+    prompt = f"""
+    You are an expert in identifying grid transformation rules. Given the following training examples,
+    generate a concise transformation rule that accurately describes the pattern.
 
     Example 1:
-    Input Grid:
-    [[1, 0], [0, 1]]
-    Output Grid:
-    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-    Analysis: The element at (r, c) in the input grid is transformed to a diagonal line in the output grid. If input[r][c] == 1, then output[r+c][r+c] = 1. All other elements in the output grid are 0.
+    Input Grid: [[1, 0], [0, 1]]
+    Output Grid: [[0, 1], [1, 0]]
+    Rule: Mirror the grid along the diagonal.
 
     Example 2:
-    Input Grid:
-    [[2, 8], [8, 2]]
-    Output Grid:
-    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
-    Analysis: The element at (r, c) in the input grid is expanded to a 2x2 block in the output grid. output[2r:2r+2][2c:2c+2] = input[r][c].
-
-    Now, analyze the coordinate patterns in this example. Respond with ONLY the analysis:
-    Test Example:
-    {problem_text}
-    """
-
-    # Attempt to analyze coordinate patterns
-    coordinate_analysis = call_llm(coordinate_analysis_prompt, system_instruction)
-
-    # STEP 2: Apply the coordinate-based transformation with embedded examples
-    transformation_application_prompt = f"""
-    You have analyzed the coordinate patterns and determined this transformation rule:
-    {coordinate_analysis}
-
-    Now, apply this rule to the following test input grid:
-    {problem_text}
-
-    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
-
-    Example Application:
-    Analyzed Rule: The element at (r, c) becomes a 2x2 block with the element's value.
     Input Grid: [[1, 2], [3, 4]]
-    Transformed Grid: [[1, 1, 2, 2], [1, 1, 2, 2], [3, 3, 4, 4], [3, 3, 4, 4]]
+    Output Grid: [[2, 1], [4, 3]]
+    Rule: Swap the first and second elements in each row.
+
+    Example 3:
+    Input Grid: [[0, 0, 1], [0, 1, 0], [1, 0, 0]]
+    Output Grid: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    Rule: Mirror the grid along both diagonals.
+
+    Training Examples:
+    {training_examples}
+
+    Transformation Rule:
     """
+    # LLM call to generate the transformation rule
+    transformation_rule = call_llm(prompt, system_instruction="You are a transformation rule generator.")
 
-    # Attempt to generate the transformed grid
-    transformed_grid_text = call_llm(transformation_application_prompt, system_instruction)
+    return transformation_rule
 
-    # STEP 3: Validation - check for format
-    if "[" in transformed_grid_text and "]" in transformed_grid_text:
-        return transformed_grid_text
-    else:
-        return "[[0,0,0],[0,0,0],[0,0,0]]"
+def apply_transformation_rule(test_input, transformation_rule):
+    """Apply the transformation rule to the test input grid using the LLM."""
+    prompt = f"""
+    You are an expert in applying grid transformation rules. Given the following test input grid
+    and transformation rule, apply the rule to the grid and return the transformed grid.
 
+    Example:
+    Test Input Grid: [[1, 2], [3, 4]]
+    Transformation Rule: Swap the first and second elements in each row.
+    Transformed Grid: [[2, 1], [4, 3]]
+
+    Test Input Grid:
+    {test_input}
+    Transformation Rule:
+    {transformation_rule}
+
+    Transformed Grid:
+    """
+    # LLM call to apply the transformation rule
+    transformed_grid = call_llm(prompt, system_instruction="You are a grid transformation expert.")
+
+    return transformed_grid
+
+def post_process_grid(grid_string):
+    """Post-process the grid string to ensure correct formatting with improved robustness."""
+    # Remove any leading/trailing whitespace
+    grid_string = grid_string.strip()
+    # Remove any extra square brackets
+    grid_string = grid_string.replace(' ', '')
+
+    # Ensure that the result starts with '[[' and ends with ']]'
+    if not grid_string.startswith('[['):
+        grid_string = '[[' + grid_string
+    if not grid_string.endswith(']]'):
+        grid_string = grid_string + ']]'
+
+    return grid_string
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
+        import os
 
+        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
+        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),

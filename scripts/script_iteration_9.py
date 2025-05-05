@@ -2,80 +2,141 @@ import os
 import re
 import math
 
+# Hypothesis: This exploration will focus on a "Decomposed Spatial Analysis with Targeted Transformations" approach.
+# Instead of directly translating the entire grid or generating rules, we decompose the problem into:
+# 1. Identifying key spatial features in the input grid (locations of unique numbers, symmetry, etc.)
+# 2. Analyzing how these features change between input and output examples.
+# 3. Based on these changes, applying targeted transformations to the test input, focusing on preserving or modifying these identified features.
+#
+# This approach is designed to address the limitations of previous attempts by explicitly focusing on spatial reasoning and feature-based transformation,
+# rather than relying solely on the LLM's ability to "guess" the correct transformation, or generating/executing code (which has proven brittle).
+# Also, we will use verification calls to verify the changes and what features are retained during transformation
+
 def main(question):
-    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
-    return solve_grid_transformation(question)
+    """Transforms a grid based on decomposed spatial analysis and targeted transformations."""
+    try:
+        # 1. Identify spatial features
+        spatial_features = identify_spatial_features(question)
 
-def solve_grid_transformation(problem_text, max_attempts=3):
-    """Solves the grid transformation problem by first extracting the transformation rule and then applying it."""
+        # 2. Analyze transformation patterns using identified features
+        transformation_patterns = analyze_transformation_patterns(question, spatial_features)
 
-    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids. You first EXPLAIN the rule before applying it."
-    
-    # STEP 1: Extract the transformation rule with embedded examples
-    rule_extraction_prompt = f"""
-    You are tasked with identifying the transformation rule applied to grids. Study the examples carefully and explain the transformation logic in plain English.
+        # 3. Apply targeted transformations to the test input based on analysis
+        transformed_grid = apply_targeted_transformations(question, transformation_patterns)
+
+        # Verify output
+        transformed_grid = verify_final_output(question, transformed_grid)
+
+        return transformed_grid
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
+
+def identify_spatial_features(question):
+    """Identifies key spatial features in the input grid."""
+    system_instruction = "You are an expert in identifying key spatial features in grid patterns, such as number locations and symmetries."
+    prompt = f"""
+    You are an expert in identifying key spatial features in grid patterns.
+    Given a question containing training examples and a test input, identify and extract key spatial features of the *input* grids:
 
     Example 1:
-    Input Grid:
-    [[1, 0], [0, 1]]
-    Output Grid:
-    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-    Explanation: Each element in the input grid becomes a diagonal in a larger grid. The original value becomes the element, the rest are zeros.
+    Input Grid: [[1, 2], [3, 4]]
+    Spatial Features:
+    {{
+      "unique_numbers": [1, 2, 3, 4],
+      "number_locations": {{1: [[0, 0]], 2: [[0, 1]], 3: [[1, 0]], 4: [[1, 1]]}},
+      "symmetry": "None"
+    }}
 
     Example 2:
-    Input Grid:
-    [[2, 8], [8, 2]]
-    Output Grid:
-    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
-    Explanation: Each element is expanded to a 2x2 block with the element's value. The value is simply repeated throughout the 2x2 block derived from the original value.
+    Input Grid: [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
+    Spatial Features:
+    {{
+      "unique_numbers": [0, 1],
+      "number_locations": {{0: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]], 1: [[0, 1], [1, 0], [1, 2], [2, 1]]}},
+      "symmetry": "Diagonal"
+    }}
 
-    Example 3:
-    Input Grid:
-    [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
-    Output Grid:
-    [[1, 0, 1], [0, 0, 0], [1, 0, 1]]
-    Explanation: The input grid is overlaid onto a grid of zeros; the value of 1 replaces 0; the values of 0 remain as 0. The input grid is essentially copied, and then the 0's from the original grid replace 1's in the final grid, or the 1's from the original grid replace 0's in the final grid.
-
-    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
-    Test Example:
-    {problem_text}
+    Now, for this new question, identify the spatial features of the *input* grids:
+    {question}
     """
-    
-    # Attempt to extract the rule
-    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+    return call_llm(prompt, system_instruction)
 
-    # STEP 2: Apply the extracted rule to the test input with embedded examples
-    application_prompt = f"""
-    You have extracted this transformation rule:
-    {extracted_rule}
+def analyze_transformation_patterns(question, spatial_features):
+    """Analyzes how spatial features change between input and output examples."""
+    system_instruction = "You are an expert in analyzing grid transformations and identifying patterns in how spatial features change."
+    prompt = f"""
+    You are an expert in analyzing grid transformations and identifying patterns in how spatial features change.
+    Given a question containing training examples and extracted spatial features, analyze how these features are transformed from the *input* to the *output* grids:
 
-    Now, apply this rule to the following test input grid:
-    {problem_text}
+    Example 1:
+    Input Grid: [[1, 2], [3, 4]]
+    Output Grid: [[2, 3], [4, 5]]
+    Spatial Features:
+    {{
+      "unique_numbers": [1, 2, 3, 4],
+      "number_locations": {{1: [[0, 0]], 2: [[0, 1]], 3: [[1, 0]], 4: [[1, 1]]}},
+      "symmetry": "None"
+    }}
+    Transformation Patterns:
+    "All numbers are incremented by 1. Symmetry remains None."
 
-    Example Transformation:
-    Extracted Rule: Each element in the input grid becomes a diagonal in a larger grid. The original value becomes the element, the rest are zeros.
-    Input Grid: [[1, 0], [0, 1]]
-    Transformed Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Example 2:
+    Input Grid: [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
+    Output Grid: [[1, 0, 1], [0, 1, 0], [1, 0, 1]]
+    Spatial Features:
+    {{
+      "unique_numbers": [0, 1],
+      "number_locations": {{0: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]], 1: [[0, 1], [1, 0], [1, 2], [2, 1]]}},
+      "symmetry": "Diagonal"
+    }}
+    Transformation Patterns:
+    "0s and 1s are swapped. Diagonal symmetry is maintained."
 
-    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+    Now, for this new question, analyze the transformation patterns based on the spatial features:
+    {question}
+    Spatial Features:
+    {spatial_features}
     """
-    
-    # Attempt to generate the transformed grid
-    for attempt in range(max_attempts):
-        try:
-            transformed_grid_text = call_llm(application_prompt, system_instruction)
-            # Basic validation - check if it looks like a grid
-            if "[" in transformed_grid_text and "]" in transformed_grid_text:
-                # Post processing to clean up LLM output, remove comments, etc.
-                cleaned_grid_text = transformed_grid_text.split("Test Example")[0].strip()
-                return cleaned_grid_text
-            else:
-                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
-        except Exception as e:
-            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+    return call_llm(prompt, system_instruction)
 
-    # Fallback approach if all attempts fail
-    return "[[0,0,0],[0,0,0],[0,0,0]]"
+def apply_targeted_transformations(question, transformation_patterns):
+    """Applies targeted transformations to the test input based on the analyzed patterns."""
+    system_instruction = "You are an expert in applying targeted transformations to grid inputs based on analyzed patterns."
+    prompt = f"""
+    You are an expert in applying targeted transformations to grid inputs based on analyzed patterns.
+    Given a question containing a test input and analyzed transformation patterns, apply these patterns to transform the input grid.
+    Return ONLY the transformed grid, WITHOUT any additional text or explanations.
+
+    Question: {question}
+    Transformation Patterns: {transformation_patterns}
+
+    Example of correctly formatted output, starting with '[[' and ending with ']]':
+    [[1, 2], [3, 4]]
+    Result:
+    [[2, 3], [4, 5]]
+
+    Now transform the test input. Your output *MUST* start with '[[' and end with ']]':
+    Transformed Grid:
+    """
+    transformed_grid = call_llm(prompt, system_instruction)
+    return transformed_grid
+
+def verify_final_output(question, transformed_grid):
+    """Verifies that the transformation maintains a specific output and keeps specified traits"""
+    system_instruction = "You are an expert grid output verifier. Your job is to confirm if the transformations were successful by confirming that it maintained a specific format"
+    prompt = f"""
+    You are an expert at confirming final results.
+    The main transformation should create an output that starts with '[[' and ends with ']]'. Is this the case?
+    Also check if a previous spatial feature, if it existed, is properly transferred into the solution
+
+    Transformed Grid: {transformed_grid}
+    Question: {question}
+
+    Answer:
+    """
+    is_formatted_correctly = call_llm(prompt, system_instruction)
+
+    return is_formatted_correctly
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -89,7 +150,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),

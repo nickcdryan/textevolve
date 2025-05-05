@@ -2,83 +2,125 @@ import os
 import re
 import math
 
-# This script takes a radically different approach. It focuses on using the LLM to perform iterative "self-correction" of the *entire* reasoning process, rather than individual steps.
-# The hypothesis is that by prompting the LLM to review its entire chain of thought from extraction to transformation and identifying inconsistencies, we can drive the LLM to fix its own errors.
-# We will prompt the LLM to review the entire history (problem, reasoning, output), then use this information to generate a new, corrected solution.
+# Hypothesis: This exploration will implement a "Transformation by Spatial Relation Encoding and Contextual Modification" approach.
+# This is a radically different approach. Instead of directly transforming the grid, we will:
+# 1. Encode the spatial relationships between key numbers within the grid.
+# 2. Use the LLM to understand and modify these spatial relationships based on training examples.
+# 3. Reconstruct the grid based on the modified spatial relationships.
+# The core idea is that the *relationships* between the numbers are more important than their absolute values.
 
 def main(question):
-    """Transforms a grid using LLM-driven iterative refinement of entire reasoning process."""
-    return solve_grid_transformation(question)
+    """Transforms a grid by encoding spatial relationships and applying contextual modifications."""
+    try:
+        # 1. Extract training examples and test input
+        training_examples, test_input = preprocess_question(question)
 
-def solve_grid_transformation(problem_text, max_attempts=3):
-    """Solves the grid transformation problem through iterative refinement of the entire reasoning chain and feedback."""
-    system_instruction = "You are an expert at grid transformation, able to identify and correct errors in your reasoning and solution iteratively."
+        # 2. Encode spatial relationships in the test input
+        spatial_encoding = encode_spatial_relationships(test_input)
 
-    # STEP 1: Initial Solution Generation - as before
-    initial_solution_prompt = f"""
-    You are presented with a grid transformation problem.
+        # 3. Apply contextual modifications to the spatial encoding based on training examples
+        modified_encoding = apply_contextual_modifications(spatial_encoding, training_examples)
 
-    Problem: {problem_text}
+        # 4. Reconstruct the grid from the modified spatial encoding
+        transformed_grid = reconstruct_grid(modified_encoding, test_input)
 
-    Example 1:
-    Problem: Input Grid: [[1, 0], [0, 1]] Output Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-    Solution: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+        return transformed_grid
 
-    Example 2:
-    Problem: Input Grid: [[2, 8], [8, 2]] Output Grid: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
-    Solution: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
 
-    Provide a solution to this new problem.
+def preprocess_question(question):
+    """Extract training examples and test input from the question string using regex."""
+    try:
+        training_examples_match = re.search(r"=== TRAINING EXAMPLES ===\n(.*?)\n=== TEST INPUT ===", question, re.DOTALL)
+        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
+
+        training_examples = training_examples_match.group(1).strip() if training_examples_match else ""
+        test_input = test_input_match.group(1).strip() if test_input_match else ""
+
+        return training_examples, test_input
+    except Exception as e:
+        return "", ""
+
+def encode_spatial_relationships(test_input):
+    """Encodes the spatial relationships between key numbers (e.g., 8s, 1s) in the test input using LLM."""
+    system_instruction = "You are an expert in encoding spatial relationships between numbers in a grid."
+    prompt = f"""
+    You are an expert in encoding spatial relationships between numbers in a grid. Given a test input grid, identify key numbers (e.g., 8, 1, etc.) and encode their spatial relationships (e.g., distance, direction, adjacency).
+
+    Example:
+    Test Input: [[0, 8, 0], [8, 0, 8], [0, 8, 0]]
+    Encoded Relationships:
+    {{
+      "8_center": (1,1),  # row, col
+      "8_north": (0,1),
+      "8_south": (2,1),
+      "8_west": (1,0),
+      "8_east": (1,2)
+    }}
+
+    Test Input:
+    {test_input}
+    Encoded Relationships:
     """
+    spatial_encoding = call_llm(prompt, system_instruction)
+    return spatial_encoding
 
-    current_solution = call_llm(initial_solution_prompt, system_instruction)
-    full_reasoning_chain = f"Problem: {problem_text}\nInitial Solution: {current_solution}"
+def apply_contextual_modifications(spatial_encoding, training_examples):
+    """Applies contextual modifications to the spatial encoding based on training examples using LLM."""
+    system_instruction = "You are an expert in applying contextual modifications to spatial encodings based on training examples."
+    prompt = f"""
+    You are an expert in applying contextual modifications to spatial encodings based on training examples. Given a spatial encoding and training examples, identify how the spatial relationships change between the input and output grids, and apply similar modifications to the given spatial encoding.
 
-    # STEP 2: Iterative Self-Correction with Reasoning Chain Review
-    for attempt in range(max_attempts):
-        review_prompt = f"""
-        You are an expert at reviewing your own work. You are given the FULL history of your attempt to solve a grid transformation problem.
-        Your task is to identify any errors in your reasoning or solution, and then generate a completely new, corrected solution.
+    Example:
+    Training Examples:
+    Input Grid: [[0, 8, 0], [8, 0, 8], [0, 8, 0]]
+    Output Grid: [[2, 8, 2], [8, 0, 8], [2, 8, 2]]
+    Spatial Encoding:
+    {{
+      "8_center": (1,1),
+      "8_north": (0,1),
+      "8_south": (2,1),
+      "8_west": (1,0),
+      "8_east": (1,2)
+    }}
+    Modified Encoding: The cells N, S, E, W of 8_center are now 2.
 
-        Full Reasoning Chain:
-        {full_reasoning_chain}
+    Training Examples:
+    {training_examples}
+    Spatial Encoding:
+    {spatial_encoding}
+    Modified Encoding:
+    """
+    modified_encoding = call_llm(prompt, system_instruction)
+    return modified_encoding
 
-        Example 1:
-        Full Reasoning Chain: Problem: Input [[1, 0], [0, 1]] Initial Solution: [[1, 0], [0, 0]]
-        Critique: The solution is WRONG. It only copied the first row. It should have created a diagonal pattern.
-        Corrected Solution: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+def reconstruct_grid(modified_encoding, test_input):
+    """Reconstructs the grid from the modified spatial encoding using LLM."""
+    system_instruction = "You are an expert in reconstructing grids from modified spatial encodings, ensuring proper format."
+    prompt = f"""
+    You are an expert in reconstructing grids from modified spatial encodings, ensuring proper format. Given a test input and a modified spatial encoding, reconstruct the output grid such that it aligns with the new encodings, and has proper double brackets for the grid object.
 
-        Example 2:
-        Full Reasoning Chain: Problem: Input [[2, 8], [8, 2]] Initial Solution: [[2, 8], [8, 2]]
-        Critique: The solution is WRONG. It only copied the input. Each element should have expanded to a 2x2 block.
-        Corrected Solution: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Example:
+    Test Input: [[0, 8, 0], [8, 0, 8], [0, 8, 0]]
+    Modified Encoding: The cells N, S, E, W of 8_center are now 2.
+    Reconstructed Grid: [[2, 8, 2], [8, 0, 8], [2, 8, 2]]
 
-        Critique your reasoning and provide a new, fully corrected solution:
-        """
-
-        corrected_response = call_llm(review_prompt, system_instruction)
-        # Split the response to keep full reasoning chain.
-        try:
-            critique = corrected_response.split("Corrected Solution:")[0]
-            current_solution = corrected_response.split("Corrected Solution:")[1]
-        except:
-            critique = corrected_response # If the model does not add "Corrected Solution:", it has just critiqued the response.
-            current_solution = current_solution # The model has only critiqued the response. Keep the same current solution.
-        
-        full_reasoning_chain += f"\nCritique (Attempt {attempt+1}): {critique}\nCorrected Solution (Attempt {attempt+1}): {current_solution}"
-        
-        #Basic check to prevent early break.
-        if "VALID" in current_solution:
-          return current_solution
-
-    # If we've failed after max_attempts, return a default grid as a last resort.
-    return "[[0,0,0],[0,0,0],[0,0,0]]"
+    Test Input:
+    {test_input}
+    Modified Encoding:
+    {modified_encoding}
+    Reconstructed Grid:
+    """
+    reconstructed_grid = call_llm(prompt, system_instruction)
+    return reconstructed_grid
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
+        import os
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))

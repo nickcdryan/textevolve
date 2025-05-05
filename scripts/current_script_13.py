@@ -2,103 +2,108 @@ import os
 import re
 import math
 
+# Hypothesis: This exploration will focus on a "Transformation by Feature Vector Analysis and Reconstruction" approach.
+# Instead of directly manipulating the grid or generating transformation rules, we will represent each grid as a feature vector,
+# analyze the relationship between the input and output feature vectors, and then reconstruct the output grid from a transformed feature vector.
+# This approach aims to abstract away from the specific grid structure and focus on higher-level relationships.
+# Also, this is an attempt to address the common failure modes of incorrect pattern identification and output formatting.
+
 def main(question):
-    """Transforms a grid based on patterns in training examples using LLM-driven iterative refinement with constraint validation."""
-    return solve_grid_transformation(question)
+    """Transforms a grid based on feature vector analysis and reconstruction."""
+    try:
+        # 1. Extract the training examples and test input
+        training_examples, test_input = preprocess_question(question)
 
-def solve_grid_transformation(problem_text, max_attempts=3):
-    """Solves the grid transformation problem through iterative rule extraction and application, validated against constraints."""
+        # 2. Analyze and transform feature vectors
+        transformed_feature_vector = analyze_and_transform_features(training_examples, test_input)
 
-    system_instruction = "You are an expert at identifying grid transformation patterns from examples, applying them to new grids, and validating the transformed grid against constraints."
+        # 3. Reconstruct the output grid from the transformed feature vector
+        reconstructed_grid = reconstruct_grid(transformed_feature_vector, test_input)
 
-    # STEP 1: Extract initial transformation rule with embedded examples
-    rule_extraction_prompt = f"""
-    You are tasked with identifying transformation rules applied to grids. Study the examples and explain the logic, focusing on spatial relationships and value transformations.
+        return reconstructed_grid
+
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
+
+def preprocess_question(question):
+    """Extract training examples and test input from the question string using regex."""
+    try:
+        training_examples_match = re.search(r"=== TRAINING EXAMPLES ===\n(.*?)\n=== TEST INPUT ===", question, re.DOTALL)
+        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
+
+        training_examples = training_examples_match.group(1).strip() if training_examples_match else ""
+        test_input = test_input_match.group(1).strip() if test_input_match else ""
+
+        return training_examples, test_input
+    except Exception as e:
+        return "", ""
+
+def analyze_and_transform_features(training_examples, test_input):
+    """Analyzes the training examples, transforms the features of the test input, and returns the transformed feature vector."""
+    system_instruction = "You are an expert in feature extraction and transformation for grid data."
+    prompt = f"""
+    You are an expert in feature extraction and transformation for grid data. Extract features from training examples, determine the transformation between input and output feature vectors, and apply that transformation to the test input's feature vector.
 
     Example 1:
-    Input Grid: [[1, 0], [0, 1]]
-    Output Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-    Explanation: Each element is expanded diagonally with the element's value.
+    Training Examples:
+    Input Grid: [[1, 2], [3, 4]]
+    Output Grid: [[2, 3], [4, 5]]
+    Test Input: [[5, 6], [7, 8]]
+    Feature Transformation: Increment each number in the feature vector by 1.
+    Transformed Feature Vector: [6, 7, 8, 9]
 
     Example 2:
-    Input Grid: [[2, 8], [8, 2]]
-    Output Grid: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
-    Explanation: Each element expands to a 2x2 block containing that element.
+    Training Examples:
+    Input Grid: [[1, 0], [0, 1]]
+    Output Grid: [[0, 1], [1, 0]]
+    Test Input: [[5, 0], [0, 5]]
+    Feature Transformation: Swap the positions of the "5" and "0".
+    Transformed Feature Vector: [0, 5, 5, 0]
 
-    Now, explain the transformation rule for this example: {problem_text}
+    Now, for this new task:
+    Training Examples:
+    {training_examples}
+    Test Input:
+    {test_input}
+    Feature Transformation and Transformed Feature Vector:
     """
+    transformed_feature_vector = call_llm(prompt, system_instruction)
+    return transformed_feature_vector
 
-    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+def reconstruct_grid(transformed_feature_vector, test_input):
+    """Reconstructs the output grid from the transformed feature vector, ensuring proper format."""
+    system_instruction = "You are an expert in reconstructing grid data from feature vectors."
+    prompt = f"""
+    You are an expert in reconstructing grid data from feature vectors, and output formatting.
+    Given a test input and a transformed feature vector, reconstruct the output grid.
+    Ensure the output is a string with proper double brackets, and the grid has the same dimensions as the test input.
 
-    # STEP 2: Apply and iteratively refine based on constraint verification
-    transformed_grid_text = ""
-    for attempt in range(max_attempts):
-        application_prompt = f"""
-        Transformation Rule: {extracted_rule}
-        Apply this rule to: {problem_text}
-        Output the transformed grid as a 2D array formatted as a string.
+    Example:
+    Test Input: [[5, 6], [7, 8]]
+    Transformed Feature Vector: [6, 7, 8, 9]
+    Reconstructed Grid: [[6, 7], [8, 9]]
 
-        Example:
-        Rule: Double each element
-        Input: [[1, 2], [3, 4]]
-        Output: [[2, 4], [6, 8]]
-        """
-
-        transformed_grid_text = call_llm(application_prompt, system_instruction)
-
-        # Verify constraints with examples
-        constraint_verification_prompt = f"""
-        Extracted Rule: {extracted_rule}
-        Original Grid: {problem_text}
-        Transformed Grid: {transformed_grid_text}
-
-        Example 1:
-        Rule: Each element is copied diagonally
-        Input: [[1,0],[0,1]]
-        Transformed: [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
-        Check if the Transformed grid follows the rule's spatial and value constraints. Output 'Yes' or 'No'. Output 'Invalid' if the output is unreadable.
-        Result: Yes
-
-        Example 2:
-        Rule: Each element doubles.
-        Input: [[1,2],[3,4]]
-        Transformed: [[1,2],[3,4]]
-        Check if the Transformed grid follows the rule's spatial and value constraints. Output 'Yes' or 'No'. Output 'Invalid' if the output is unreadable.
-        Result: No
-
-        Check if the Transformed Grid follows the rule's spatial and value constraints. Output 'Yes' or 'No'. Output 'Invalid' if the output is unreadable.
-        """
-
-        verification_result = call_llm(constraint_verification_prompt, system_instruction)
-
-        if "Yes" in verification_result and "[" in transformed_grid_text and "]" in transformed_grid_text:
-            return transformed_grid_text
-        else:
-            # Refine the extracted rule based on feedback
-            refinement_prompt = f"""
-            The transformation rule or generated grid failed validation. Review the original problem, extracted rule, and generated grid, then refine the rule.
-
-            Original Problem: {problem_text}
-            Extracted Rule: {extracted_rule}
-            Generated Grid: {transformed_grid_text}
-            Validation Result: {verification_result}
-
-            Provide a refined explanation of the rule focusing on spatial relationships, value transformations, constraints:
-            """
-
-            extracted_rule = call_llm(refinement_prompt, system_instruction)
-            print(f"Attempt {attempt+1} failed, refining rule: {extracted_rule}")
-
-    return "[[0,0,0],[0,0,0],[0,0,0]]" # Fallback after max attempts
+    Now, for this new task:
+    Test Input:
+    {test_input}
+    Transformed Feature Vector:
+    {transformed_feature_vector}
+    Reconstructed Grid:
+    """
+    reconstructed_grid = call_llm(prompt, system_instruction)
+    return reconstructed_grid
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
+        import os
 
+        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
+        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
                 model="gemini-2.0-flash",

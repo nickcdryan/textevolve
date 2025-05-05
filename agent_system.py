@@ -15,6 +15,8 @@ from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from google import genai
 from google.genai import types  # Added import for GenerateContentConfig
+from llm_example_library import ExampleSets, APIExamples, FallbackScripts
+from prompt_templates import PromptTemplates
 
 
 class AgentSystem:
@@ -1093,19 +1095,293 @@ class AgentSystem:
                 print("Fallback: Maintaining current explore/exploit balance.")
                 return self.explore_rate, self.exploit_rate
 
-    # Modify the generate_script_with_llm method in the AgentSystem class to include learnings
 
-    def generate_script_with_llm(self, is_exploration: bool) -> str:
-        """
-        Use the LLM to generate a script to solve dataset problems.
-        Modified to work with dataset loader approach and use standard field names.
-        """
-        # Get previous iterations and summaries
+
+
+
+    def _get_historical_data(self):
+        """Gather historical data for script generation."""
         iterations = self.get_all_iterations()
         summaries = self.get_summaries()
 
-        # Instead of getting current test samples, use examples from past iterations
+        # Get best scripts
+        best_scripts = []
+        if iterations:
+            for iteration in sorted(
+                    iterations,
+                    key=lambda x: x.get('performance', {}).get('accuracy', 0),
+                    reverse=True)[:3]:
+                if iteration.get('script') and iteration.get(
+                        'performance', {}).get('accuracy', 0) > 0:
+                    best_scripts.append({
+                        "iteration": iteration.get('iteration'),
+                        "accuracy": iteration.get('performance', {}).get('accuracy', 0),
+                        "approach_summary": iteration.get('approach_summary', 'No summary available'),
+                        "performance": iteration.get('performance', {})
+                    })
+
+        # Get approach history
+        approach_history = []
+        for summary in summaries:
+            approach_history.append({
+                "iteration": summary.get("iteration"),
+                "strategy": summary.get("strategy"),
+                "accuracy": summary.get("performance", {}).get("accuracy", 0),
+                "approach": summary.get("approach_summary", "No summary available")
+            })
+
+        # Aggregate error analyses
+        error_patterns = []
+        primary_issues = []
+        targeted_improvements = []
+
+        for iteration in iterations:
+            if not iteration:
+                continue
+
+            error_analysis = iteration.get("performance", {}).get("error_analysis", {})
+            if error_analysis.get("error_patterns"):
+                error_patterns.extend(error_analysis.get("error_patterns", []))
+            if error_analysis.get("primary_issue"):
+                primary_issues.append({
+                    "iteration": iteration.get("iteration"),
+                    "issue": error_analysis.get("primary_issue")
+                })
+            if error_analysis.get("targeted_improvements"):
+                targeted_improvements.extend(
+                    error_analysis.get("targeted_improvements", []))
+            elif error_analysis.get("improvement_suggestions"):
+                targeted_improvements.extend(
+                    error_analysis.get("improvement_suggestions", []))
+            elif error_analysis.get("recommendations"):
+                targeted_improvements.extend(
+                    error_analysis.get("recommendations", []))
+
+        # Format trace insights
+        trace_insights_context = ""
+        for iteration in iterations[-3:]:  # Last 3 iterations
+            if iteration and iteration.get("trace_insights"):
+                trace_insights_context += f"\n--- Iteration {iteration.get('iteration')} Trace Insights ---\n"
+                trace_insights_context += iteration.get("trace_insights", "")
+                trace_insights_context += "\n"
+
+        return {
+            "iterations": iterations,
+            "summaries": summaries,
+            "best_scripts": best_scripts, 
+            "approach_history": approach_history,
+            "error_patterns": error_patterns,
+            "primary_issues": primary_issues,
+            "targeted_improvements": targeted_improvements,
+            "trace_insights_context": trace_insights_context,
+            "summaries_count": len(summaries)
+        }
+
+    def _format_historical_context(self, historical_data, few_shot_examples):
+        """Format historical data into a context string."""
+        best_scripts = historical_data["best_scripts"]
+        approach_history = historical_data["approach_history"]
+        error_patterns = historical_data["error_patterns"]
+        primary_issues = historical_data["primary_issues"]
+        targeted_improvements = historical_data["targeted_improvements"]
+        summaries_count = historical_data["summaries_count"]
+        trace_insights_context = historical_data["trace_insights_context"]
+
+        # Format best accuracy
+        best_accuracy_str = f"{best_scripts[0].get('accuracy', 0):.2f} (iteration {best_scripts[0].get('iteration')})" if best_scripts else "None"
+
+        # Format JSON data for template
+        approach_history_json = json.dumps(approach_history[-10:] if len(approach_history) > 10 else approach_history, indent=2)
+        error_patterns_json = json.dumps(list(set(error_patterns[-10:] if len(error_patterns) > 10 else error_patterns)), indent=2)
+        primary_issues_json = json.dumps(primary_issues[-10:] if len(primary_issues) > 10 else primary_issues, indent=2)
+        targeted_improvements_json = json.dumps(list(set(targeted_improvements[-10:] if len(targeted_improvements) > 10 else targeted_improvements)), indent=2)
+
+        historical_context = f"""
+        ITERATION HISTORY SUMMARY:
+        - Total iterations completed: {summaries_count}
+        - Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}
+        - Best accuracy achieved: {best_accuracy_str}
+
+        APPROACH HISTORY (last {min(10, len(approach_history))} iterations):
+        {approach_history_json}
+
+        COMMON ERROR PATTERNS:
+        {error_patterns_json}
+
+        PRIMARY ISSUES (last {min(3, len(primary_issues))} iterations):
+        {primary_issues_json}
+
+        TARGETED IMPROVEMENTS:
+        {targeted_improvements_json}
+        """
+
+        # Add trace insights from stored data
+        if trace_insights_context:
+            historical_context += f"\n\nEXECUTION TRACE ANALYSIS FROM PREVIOUS ITERATIONS:\n{trace_insights_context}\n"
+
+        # Add few-shot examples to historical context
+        historical_context += f"\n\n{few_shot_examples}"
+        historical_context += "\n\n" + PromptTemplates.get_multi_example_prompting_guidance()
+
+        return historical_context
+
+    def _get_last_scripts_context(self, iterations):
+        """Get context of the last 5 scripts for exploration."""
+        last_scripts_context = ""
+        if not iterations:
+            return last_scripts_context
+
+        # Get the last 5 iterations, sorted by recency
+        sorted_iterations = sorted(iterations, key=lambda x: x.get('iteration', 0) if x and 'iteration' in x else 0, reverse=True)
+        last_scripts = []
+
+        for i, iteration in enumerate(sorted_iterations[:5]):
+            if iteration and 'script' in iteration:
+                iteration_num = iteration.get('iteration', 'unknown')
+                accuracy = iteration.get('performance', {}).get('accuracy', 0)
+                strategy = iteration.get('strategy', 'unknown')
+                approach = iteration.get('approach_summary', 'No summary available')
+
+                # For space management, limit script size if necessary
+                script = iteration.get('script', '')
+
+                last_scripts.append({
+                    "iteration": iteration_num,
+                    "accuracy": accuracy,
+                    "strategy": strategy,
+                    "approach": approach,
+                    "script": script
+                })
+
+        # Generate the context with the scripts
+        if last_scripts:
+            last_scripts_context = "\nPREVIOUSLY TRIED APPROACHES (LAST 5 SCRIPTS):\n"
+            for script_info in last_scripts:
+                last_scripts_context += f"\n=== SCRIPT FROM ITERATION {script_info['iteration']} ({script_info['strategy']}, ACCURACY: {script_info['accuracy']:.2f}) ===\n"
+                last_scripts_context += f"Approach: {script_info['approach']}\n\n"
+                last_scripts_context += f"```python\n{script_info['script']}\n```\n"
+
+        return last_scripts_context
+
+    def _get_exploitation_content(self, iterations, best_scripts):
+        """Get content specific to exploitation mode."""
+        # Handle best script and top scripts for exploitation
+        best_script_to_exploit = None
+        top_scripts_to_exploit = []
+        best_script_code = ""
+        top_scripts_content = ""
+
+        if best_scripts:
+            best_script_to_exploit = best_scripts[0]
+            for iteration in iterations:
+                if iteration.get("iteration") == best_script_to_exploit.get("iteration"):
+                    best_script_to_exploit["script"] = iteration.get("script", "")
+                    break
+
+            # Get top performing scripts for exploitation instead of just the best one
+            # Get the top 2-3 performing scripts (depending on how many are available)
+            top_count = min(3, len(best_scripts))
+            for i in range(top_count):
+                script_info = best_scripts[i]
+                # Find the full script content
+                for iteration in iterations:
+                    if iteration.get("iteration") == script_info.get("iteration"):
+                        script_info["script"] = iteration.get("script", "")
+                        break
+                top_scripts_to_exploit.append(script_info)
+
+        # Format best script code
+        if best_script_to_exploit and 'script' in best_script_to_exploit:
+            best_script_code = f"\nFULL SCRIPT TO REFINE:\n```python\n{best_script_to_exploit.get('script', '')}\n```"
+
+        # Generate content for multiple top scripts
+        if top_scripts_to_exploit:
+            for i, script_info in enumerate(top_scripts_to_exploit):
+                # Format the accuracy string
+                accuracy_str = f"{script_info.get('accuracy', 0):.2f}"
+
+                script_content = ""
+                if 'script' in script_info:
+                    script_content = f"\n```python\n{script_info.get('script', '')}\n```"
+
+                top_scripts_content += f"\nTOP PERFORMING APPROACH #{i+1}:\n"
+                top_scripts_content += f"Iteration: {script_info.get('iteration', 'Unknown')}\n"
+                top_scripts_content += f"Accuracy: {accuracy_str}\n"
+                top_scripts_content += f"Approach Summary: {script_info.get('approach_summary', 'No summary available')}\n"
+
+                # Only include full code for the best script to avoid making prompt too long
+                if i == 0:  # Only for the top script
+                    top_scripts_content += f"\nFULL SCRIPT TO REFINE:{script_content}\n"
+                else:  # For other scripts, mention they're available for reference
+                    top_scripts_content += f"\nKey approach aspects (full code available for reference)\n"
+
+        return {
+            "best_script_to_exploit": best_script_to_exploit,
+            "top_scripts_to_exploit": top_scripts_to_exploit,
+            "best_script_code": best_script_code,
+            "top_scripts_content": top_scripts_content
+        }
+
+    def _generate_validated_script(self, prompt, system_instruction):
+        """Generate a script with LLM and validate it."""
+        max_attempts = 3
+        attempts = 0
+
+        while attempts < max_attempts:
+            attempts += 1
+
+            # Call LLM to generate script
+            response = self.call_llm(prompt, system_instruction=system_instruction)
+
+            # Extract code block from response
+            if "```python" in response:
+                script = response.split("```python")[1].split("```")[0].strip()
+            elif "```" in response:
+                script = response.split("```")[1].split("```")[0].strip()
+            else:
+                script = response.strip()
+
+            # Validate script syntax
+            try:
+                # Test if the script can be parsed
+                import ast
+                ast.parse(script)
+
+                # Script is syntactically valid
+                print(f"Generated valid script on attempt {attempts}")
+
+                # Save the script to a file
+                script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
+                with open(script_path, 'w', encoding='utf-8') as f:
+                    f.write(script)
+
+                return script
+
+            except SyntaxError as e:
+                print(f"Syntax error in generated script (attempt {attempts}/{max_attempts}): {e}")
+
+                if attempts >= max_attempts:
+                    print("\n***\nFALLBACK: Maximum attempts reached. Using fallback script from library.\n***\n")
+                    # Get fallback script from the library
+                    fallback_script = FallbackScripts.basic_fallback()
+                    script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
+                    with open(script_path, 'w', encoding='utf-8') as f:
+                        f.write(fallback_script)
+                    return fallback_script
+
+                # Try again with a more explicit instruction about the error
+                prompt = PromptTemplates.build_error_correction_prompt(str(e))
+
+
+    def _get_example_problems(self):
+        """
+        Get example problems from previous iterations or training set.
+
+        Returns:
+            List of example problems with question, answer, and id fields.
+        """
         example_problems = []
+        iterations = self.get_all_iterations()
 
         if iterations:
             # Collect samples from previous iterations
@@ -1133,824 +1409,96 @@ class AgentSystem:
                     "answer": self.dataset_loader.get_example_output(example)
                 })
 
-        # ==== LOAD ACCUMULATED LEARNINGS ====
+        return example_problems
+
+    def generate_script_with_llm(self, is_exploration: bool) -> str:
+        """
+        Use the LLM to generate a script to solve dataset problems.
+        Refactored to use helper methods for better organization and maintainability.
+        """
+        # Get example problems from previous iterations or training
+        example_problems = self._get_example_problems()
+
+        # Load accumulated learnings
         accumulated_learnings = self._load_learnings()
 
-        # ==== HISTORICAL ANALYSIS ====
-        best_scripts = []
-        if iterations:
-            for iteration in sorted(
-                    iterations,
-                    key=lambda x: x.get('performance', {}).get('accuracy', 0),
-                    reverse=True)[:3]:
-                if iteration.get('script') and iteration.get(
-                        'performance', {}).get('accuracy', 0) > 0:
-                    best_scripts.append({
-                        "iteration":
-                        iteration.get('iteration'),
-                        "accuracy":
-                        iteration.get('performance', {}).get('accuracy', 0),
-                        "approach_summary":
-                        iteration.get('approach_summary',
-                                      'No summary available'),
-                        "performance":
-                        iteration.get('performance', {})
-                    })
+        # Get examples from the library
+        example_library = ExampleSets.get_standard_examples()
+        gemini_api_example = example_library["gemini_api_example"]
+        few_shot_examples = ExampleSets.get_few_shot_examples_text()
 
-        # Get top performing scripts for exploitation instead of just the best one
-        top_scripts_to_exploit = []
-        if not is_exploration and best_scripts:
-            # Get the top 2-3 performing scripts (depending on how many are available)
-            top_count = min(3, len(best_scripts))
-            for i in range(top_count):
-                script_info = best_scripts[i]
-                # Find the full script content
-                for iteration in iterations:
-                    if iteration.get("iteration") == script_info.get("iteration"):
-                        script_info["script"] = iteration.get("script", "")
-                        break
-                top_scripts_to_exploit.append(script_info)
+        # Get historical analysis data
+        historical_data = self._get_historical_data()
+        iterations = historical_data["iterations"]
 
-        # Collect approach history
-        approach_history = []
-        for summary in summaries:
-            approach_history.append({
-                "iteration":
-                summary.get("iteration"),
-                "strategy":
-                summary.get("strategy"),
-                "accuracy":
-                summary.get("performance", {}).get("accuracy", 0),
-                "approach":
-                summary.get("approach_summary", "No summary available")
-            })
-
-        # Aggregate error analyses
-        error_patterns = []
-        primary_issues = []
-        targeted_improvements = []
-
-        for iteration in iterations:
-            if not iteration:
-                continue
-
-            error_analysis = iteration.get("performance",
-                                           {}).get("error_analysis", {})
-            if error_analysis.get("error_patterns"):
-                error_patterns.extend(error_analysis.get("error_patterns", []))
-            if error_analysis.get("primary_issue"):
-                primary_issues.append({
-                    "iteration":
-                    iteration.get("iteration"),
-                    "issue":
-                    error_analysis.get("primary_issue")
-                })
-            if error_analysis.get("targeted_improvements"):
-                targeted_improvements.extend(
-                    error_analysis.get("targeted_improvements", []))
-            elif error_analysis.get("improvement_suggestions"):
-                targeted_improvements.extend(
-                    error_analysis.get("improvement_suggestions", []))
-            elif error_analysis.get("recommendations"):
-                targeted_improvements.extend(
-                    error_analysis.get("recommendations", []))
+        # Format the historical context
+        historical_context = self._format_historical_context(historical_data, few_shot_examples)
 
         # Get capability insights
         capability_report = None
-        improvement_focus = None
         capability_guidance = ""
-
         if hasattr(self, 'capability_tracker'):
             capability_report = self.capability_tracker.generate_report()
-            improvement_focus = capability_report.get("improvement_focus")
             if capability_report:
                 capability_guidance = self._generate_capability_guidance(capability_report)
 
-
-        # ==== RETRIEVE LAST FIVE SCRIPTS FOR EXPLORATION CONTEXT ====
-        last_scripts_context = ""
-        if is_exploration and iterations:
-            # Get the last 5 iterations, sorted by recency
-            sorted_iterations = sorted(iterations, key=lambda x: x.get('iteration', 0) if x and 'iteration' in x else 0, reverse=True)
-            last_scripts = []
-
-            for i, iteration in enumerate(sorted_iterations[:5]):
-                if iteration and 'script' in iteration:
-                    iteration_num = iteration.get('iteration', 'unknown')
-                    accuracy = iteration.get('performance', {}).get('accuracy', 0)
-                    strategy = iteration.get('strategy', 'unknown')
-                    approach = iteration.get('approach_summary', 'No summary available')
-
-                    # For space management, limit script size if necessary
-                    script = iteration.get('script', '')
-
-                    last_scripts.append({
-                        "iteration": iteration_num,
-                        "accuracy": accuracy,
-                        "strategy": strategy,
-                        "approach": approach,
-                        "script": script
-                    })
-
-            # Generate the context with the scripts
-            if last_scripts:
-                last_scripts_context = "\nPREVIOUSLY TRIED APPROACHES (LAST 5 SCRIPTS):\n"
-                for script_info in last_scripts:
-                    last_scripts_context += f"\n=== SCRIPT FROM ITERATION {script_info['iteration']} ({script_info['strategy']}, ACCURACY: {script_info['accuracy']:.2f}) ===\n"
-                    last_scripts_context += f"Approach: {script_info['approach']}\n\n"
-                    last_scripts_context += f"```python\n{script_info['script']}\n```\n"
-
-        # ==== DETERMINE STRATEGY ====
-        approach_type = "exploration" if is_exploration else "exploitation"
-        best_script_to_exploit = None
-
-        if not is_exploration and best_scripts:
-            best_script_to_exploit = best_scripts[0]
-            for iteration in iterations:
-                if iteration.get("iteration") == best_script_to_exploit.get(
-                        "iteration"):
-                    best_script_to_exploit["script"] = iteration.get(
-                        "script", "")
-                    break
-
-        # ==== PREPARE CONTEXT ====
-        # API usage example
-        gemini_api_example = 'def call_llm(prompt, system_instruction=None):\n    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f"Error calling Gemini API: {str(e)}")\n        return f"Error: {str(e)}"'
-
-        # Example 1: General-purpose information extraction with embedded examples
-        extraction_example = 'def extract_information_with_examples(text):\n    """Extract key information from the input text using embedded examples."""\n    system_instruction = "You are an information extraction specialist focusing on identifying key entities and relationships."\n    \n    prompt = f"""\n    Extract key information from this text. Focus on identifying all entities, relationships, and important attributes.\n    \n    Example usage:\n    \n    Input Text:\n    The company XYZ Corp reported quarterly earnings of $3.5 million, which represents a 12% increase from last year. The CEO, Jane Smith, attributed this growth to their new product line launched in March, which has already captured 8% of the market share. They expect to expand their operations to Europe by Q2 2023.\n    \n    Let\'s think step by step.\n    \n    The key entities are:\n    - XYZ Corp (company)\n    - Jane Smith (person, CEO)\n    - New product line (product)\n    \n    The key information points are:\n    - Financial: Quarterly earnings of $3.5 million\n    - Performance: 12% increase from previous year\n    - Product: New product line launched in March\n    - Market: 8% market share for new product\n    - Plans: Expansion to Europe by Q2 2023\n    \n    Extracted Information:\n    {{\n      "entities": [\n        {{"name": "XYZ Corp", "type": "company"}},\n        {{"name": "Jane Smith", "type": "person", "role": "CEO"}},\n        {{"name": "New product line", "type": "product", "launch_date": "March"}}\n      ],\n      "financial_data": {{\n        "quarterly_earnings": "$3.5 million",\n        "growth_rate": "12%"\n      }},\n      "market_data": {{\n        "product_market_share": "8%"\n      }},\n      "future_plans": [\n        {{"type": "expansion", "region": "Europe", "timeline": "Q2 2023"}}\n      ]\n    }}\n    \n    Now, extract information from this new text:\n    {text}\n    """\n    \n    return call_llm(prompt, system_instruction)'
-
-        # Example 2: General-purpose verification with embedded examples
-        verification_example = 'def verify_solution_with_examples(problem, proposed_solution):\n    """Verify if the proposed solution satisfies all requirements using embedded examples."""\n    system_instruction = "You are a critical evaluator who verifies if solutions correctly address problems."\n    \n    prompt = f"""\n    Verify if this proposed solution correctly addresses all aspects of the problem.\n    \n    Example usage:\n    \n    Problem:\n    Design a data structure that can efficiently perform the following operations:\n    1. Insert a value\n    2. Delete a value\n    3. Get a random value with equal probability for all stored values\n    All operations should have average time complexity of O(1).\n    \n    Proposed Solution:\n    I\'ll use a combination of a hashmap and an array. The hashmap will store the value as the key and its index in the array as the value. The array will store all the inserted values.\n    \n    For insert: Add the value to the end of the array and update the hashmap with the value and its index. O(1) time.\n    \n    For delete: Look up the index of the value in the hashmap, swap the value with the last element in the array, update the hashmap for the swapped element, remove the last element from the array, and remove the value from the hashmap. O(1) time.\n    \n    For get random: Generate a random index within the array\'s bounds and return the value at that index. O(1) time.\n    \n    Verification:\n    Let me check each requirement:\n    1. Insert operation: The solution adds the value to the end of the array and updates the hashmap with O(1) time complexity ✓\n    2. Delete operation: The solution uses the hashmap to find the index, then swaps with the last element and updates accordingly with O(1) time complexity ✓\n    3. Get random operation: The solution generates a random index within the array bounds with O(1) time complexity ✓\n    4. All operations have O(1) average time complexity ✓\n    \n    Result: VALID - The solution correctly addresses all requirements with the specified time complexity.\n    \n    Problem:\n    {problem}\n    \n    Proposed Solution:\n    {proposed_solution}\n    \n    Verification:\n    """\n    \n    return call_llm(prompt, system_instruction)'
-
-        # Example 3: Repeated validation with feedback loop
-        validation_loop_example = 'def solve_with_validation_loop(problem, max_attempts=3):\n    """Solve a problem with iterative refinement through validation feedback loop."""\n    system_instruction_solver = "You are an expert problem solver who creates detailed, correct solutions."\n    system_instruction_validator = "You are a critical validator who carefully checks solutions against all requirements."\n    \n    # Initial solution generation\n    solution_prompt = f"""\n    Provide a detailed solution to this problem. Be thorough and ensure you address all requirements.\n    \n    Problem:\n    {problem}\n    """\n    \n    solution = call_llm(solution_prompt, system_instruction_solver)\n    \n    # Validation loop\n    for attempt in range(max_attempts):\n        # Validate the current solution\n        validation_prompt = f"""\n        Carefully validate if this solution correctly addresses all aspects of the problem.\n        If the solution is valid, respond with "VALID: [brief reason]".\n        If the solution has any issues, respond with "INVALID: [detailed explanation of issues]".\n        \n        Problem:\n        {problem}\n        \n        Proposed Solution:\n        {solution}\n        """\n        \n        validation_result = call_llm(validation_prompt, system_instruction_validator)\n        \n        # Check if solution is valid\n        if validation_result.startswith("VALID:"):\n            return solution\n        \n        # If invalid, refine the solution\n        refined_prompt = f"""\n        Your previous solution to this problem has some issues that need to be addressed.\n        \n        Problem:\n        {problem}\n        \n        Your previous solution:\n        {solution}\n        \n        Validation feedback:\n        {validation_result}\n        \n        Please provide a completely revised solution that addresses all the issues mentioned.\n        """\n        \n        solution = call_llm(refined_prompt, system_instruction_solver)\n    \n    return solution'
-
-        # Example 4: Multi-perspective analysis with synthesis
-        multi_perspective_example = 'def multi_perspective_analysis(problem):\n    """Analyze a problem from multiple specialized perspectives and synthesize the insights."""\n    # Define specialized analysis functions\n    def analyze_factual_content(problem):\n        system_instruction = "You are a factual analyst who focuses on identifying key facts and data points."\n        prompt = f"""\n        Analyze this problem for factual content only. Identify explicit facts, constraints, and requirements.\n        \n        Problem:\n        {problem}\n        """\n        return call_llm(prompt, system_instruction)\n    \n    def analyze_structure(problem):\n        system_instruction = "You are a structural analyst who specializes in problem organization and patterns."\n        prompt = f"""\n        Analyze the structure of this problem. Identify its components, relationships, and patterns.\n        \n        Problem:\n        {problem}\n        """\n        return call_llm(prompt, system_instruction)\n    \n    # Execute parallel analyses\n    factual_analysis = analyze_factual_content(problem)\n    structural_analysis = analyze_structure(problem)\n    \n    # Synthesize the results\n    synthesis_prompt = f"""\n    Synthesize these two different analyses of the same problem into a comprehensive understanding.\n    \n    Factual Analysis:\n    {factual_analysis}\n    \n    Structural Analysis:\n    {structural_analysis}\n    \n    Provide a unified analysis that leverages both perspectives.\n    """\n    \n    return call_llm(synthesis_prompt, "You are an insight synthesizer who combines multiple analyses.")'
-
-        # Example 5: Best of n approach for solution selection
-        best_of_n_example = 'def best_of_n_approach(problem, n=3):\n    """Generate multiple solutions and select the best one based on a quality evaluation."""\n    system_instruction_solver = "You are an expert problem solver who provides detailed, correct solutions."\n    system_instruction_evaluator = "You are a quality evaluator who assesses solutions based on correctness, completeness, and clarity."\n    \n    # Generate n different solutions\n    solutions = []\n    for i in range(n):\n        diversity_factor = f"Solution approach {i+1}/{n}: Use a different perspective from previous solutions."\n        solution_prompt = f"""\n        Provide a detailed solution to this problem.\n        {diversity_factor if i > 0 else ""}\n        \n        Problem:\n        {problem}\n        """\n        \n        solutions.append(call_llm(solution_prompt, system_instruction_solver))\n    \n    # Evaluate each solution\n    evaluations = []\n    for i, solution in enumerate(solutions):\n        evaluation_prompt = f"""\n        Evaluate this solution on correctness, completeness, and clarity (1-10 scale).\n        \n        Problem:\n        {problem}\n        \n        Solution {i+1}:\n        {solution}\n        \n        Provide your evaluation as a JSON with scores and explanation.\n        """\n        \n        evaluations.append(call_llm(evaluation_prompt, system_instruction_evaluator))\n    \n    # Find the best solution\n    comparison_prompt = f"""\n    Compare these solutions and their evaluations. Select the best one.\n    \n    Problem:\n    {problem}\n    \n    {["Solution " + str(i+1) + ": " + solutions[i] + "\\n\\nEvaluation: " + evaluations[i] for i in range(n)]}\n    \n    Which solution is best? Respond with the solution number and explanation.\n    """\n    \n    best_solution_index = int(call_llm(comparison_prompt, "You are a solution selector.").split()[1]) - 1\n    return solutions[best_solution_index]'
-
-        # Example 6: ReAct pattern for interactive reasoning and action
-        react_example = 'def solve_with_react_pattern(problem):\n    """Solve problems through iterative Reasoning and Acting (ReAct) approach."""\n    system_instruction = "You are a problem-solving agent that follows the ReAct pattern: Reason about the current state, take an Action, observe the result, and repeat until reaching a solution."\n    \n    # Initialize ReAct process\n    prompt = f"""\n    Solve this problem using the ReAct pattern - alternate between Reasoning and Acting until you reach a final answer.\n    \n    Example usage:\n    \n    Problem: What is the capital of the country where the Great Barrier Reef is located, and what is the population of that capital?\n    \n    Thought 1: I need to determine which country the Great Barrier Reef is in, then find its capital, and finally the population of that capital.\n    Action 1: Search[Great Barrier Reef location]\n    Observation 1: The Great Barrier Reef is located off the coast of Queensland in northeastern Australia.\n    \n    Thought 2: Now I know the Great Barrier Reef is in Australia. I need to find Australia\'s capital city.\n    Action 2: Search[capital of Australia]\n    Observation 2: The capital of Australia is Canberra.\n    \n    Thought 3: Now I need to find the population of Canberra.\n    Action 3: Search[population of Canberra]\n    Observation 3: As of 2021, the population of Canberra is approximately 431,500.\n    \n    Thought 4: I have found all the required information. The capital of Australia (where the Great Barrier Reef is located) is Canberra, and its population is approximately 431,500.\n    Action 4: Finish[The capital of Australia is Canberra, with a population of approximately 431,500.]\n    \n    Now solve this new problem:\n    {problem}\n    \n    Start with Thought 1:\n    """\n    \n    # Initial reasoning and action planning\n    react_response = call_llm(prompt, system_instruction)\n    \n    # Extract the action from the response\n    action = extract_action(react_response)\n    \n    # Continue the ReAct loop until we reach a "Finish" action\n    while not action["type"] == "Finish":\n        # Perform the requested action and get an observation\n        if action["type"] == "Search":\n            observation = perform_search(action["query"])\n        elif action["type"] == "Calculate":\n            observation = perform_calculation(action["expression"])\n        elif action["type"] == "Lookup":\n            observation = perform_lookup(action["term"])\n        else:\n            observation = f"Unknown action type: {action[\'type\']}"\n        \n        # Continue the ReAct process with the new observation\n        continuation_prompt = f"""\n        {react_response}\n        Observation {action["step_number"]}: {observation}\n        \n        Continue with the next thought and action:\n        """\n        \n        # Get the next reasoning step and action\n        react_response += "\\n" + call_llm(continuation_prompt, system_instruction)\n        \n        # Extract the next action\n        action = extract_action(react_response)\n    \n    # Extract the final answer from the Finish action\n    final_answer = action["answer"]\n    return final_answer\n\ndef extract_action(text):\n    """Parse the ReAct response to extract the current action."""\n    # Find the last action in the text\n    action_matches = re.findall(r"Action (\d+): (\\w+)\\[(.*?)\\]", text)\n    if not action_matches:\n        return {"type": "Error", "step_number": 0, "query": "No action found"}\n    \n    # Get the most recent action\n    last_action = action_matches[-1]\n    step_number = int(last_action[0])\n    action_type = last_action[1]\n    action_content = last_action[2]\n    \n    # Handle different action types\n    if action_type == "Finish":\n        return {"type": "Finish", "step_number": step_number, "answer": action_content}\n    elif action_type in ["Search", "Lookup", "Calculate"]:\n        return {"type": action_type, "step_number": step_number, "query": action_content}\n    else:\n        return {"type": "Unknown", "step_number": step_number, "query": action_content}\n\ndef perform_search(query):\n    """Simulate a search action in the ReAct pattern."""\n    # In a real implementation, this would call an actual search API\n    return call_llm(f"Provide a factual answer about: {query}", "You are a helpful search engine that provides concise, factual information.")\n\ndef perform_calculation(expression):\n    """Perform a calculation action in the ReAct pattern."""\n    try:\n        # Safely evaluate the expression\n        result = eval(expression, {"__builtins__": {}}, {"math": math})\n        return f"The result is {result}"\n    except Exception as e:\n        return f"Error in calculation: {str(e)}"\n\ndef perform_lookup(term):\n    """Simulate a lookup action for specific information."""\n    # In a real implementation, this would query a knowledge base or database\n    return call_llm(f"Provide specific information about: {term}", "You are a knowledge base that provides specific factual information.")'
-
-        # Create few-shot examples context 
-        few_shot_examples = f"EXAMPLE OF EFFECTIVE LLM USAGE PATTERNS:\n\n```python\n{extraction_example}\n```\n\n```python\n{verification_example}\n```\n\n```python\n{validation_loop_example}\n```\n\n```python\n{multi_perspective_example}\n```\n\n```python\n{best_of_n_example}\n```\n\n```python\n{react_example}\n```"
-
-        # Historical context summary
-        best_accuracy_str = f"{best_scripts[0].get('accuracy', 0):.2f} (iteration {best_scripts[0].get('iteration')})" if best_scripts else "None"
-
-        historical_context = f"""
-        ITERATION HISTORY SUMMARY:
-        - Total iterations completed: {len(summaries)}
-        - Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}
-        - Best accuracy achieved: {best_accuracy_str}
-
-        APPROACH HISTORY (last {min(10, len(approach_history))} iterations):
-        {json.dumps(approach_history[-10:] if len(approach_history) > 10 else approach_history, indent=2)}
-
-        COMMON ERROR PATTERNS:
-        {json.dumps(list(set(error_patterns[-10:] if len(error_patterns) > 10 else error_patterns)), indent=2)}
-
-        PRIMARY ISSUES (last {min(3, len(primary_issues))} iterations):
-        {json.dumps(primary_issues[-10:] if len(primary_issues) > 10 else primary_issues, indent=2)}
-
-        TARGETED IMPROVEMENTS:
-        {json.dumps(list(set(targeted_improvements[-10:] if len(targeted_improvements) > 10 else targeted_improvements)), indent=2)}
-        """
-
-        # Add trace insights from stored data
-        trace_insights_context = ""
-        for iteration in iterations[-3:]:  # Last 3 iterations
-            if iteration and iteration.get("trace_insights"):
-                trace_insights_context += f"\n--- Iteration {iteration.get('iteration')} Trace Insights ---\n"
-                trace_insights_context += iteration.get("trace_insights", "")
-                trace_insights_context += "\n"
-
-        if trace_insights_context:
-            historical_context += f"\n\nEXECUTION TRACE ANALYSIS FROM PREVIOUS ITERATIONS:\n{trace_insights_context}\n"
-        
-        # Add the few-shot examples to the context
-        historical_context += f"\n\n{few_shot_examples}"
-
-        historical_context += """MULTI-EXAMPLE PROMPTING GUIDANCE:
-        1. CRITICAL: Use MULTIPLE examples (2-5) in EVERY LLM prompt, not just one
-        2. Vary the number of examples based on task complexity - more complex tasks need more examples
-        3. Select diverse examples that showcase different patterns and edge cases
-        4. Structure your few-shot examples to demonstrate clear step-by-step reasoning
-        5. Consider using both "easy" and "challenging" examples to help the LLM learn from contrasts
-        6. The collection of examples should collectively cover all key aspects of the problem
-        7. When available, use examples from previous iterations that revealed specific strengths or weaknesses.
-        8. USE REAL EXAMPLES FROM THE DATASET WHERE POSSIBLE!!
-
-        Example of poor single-example prompting:
-        ```python
-        def extract_entities(text):
-            prompt = f'''
-            Extract entities from this text.
-
-            Example:
-            Text: John will meet Mary at 3pm on Tuesday.
-            Entities: {{"people": ["John", "Mary"], "time": "3pm", "day": "Tuesday"}}
-
-            Text: {text}
-            Entities:
-            '''
-            return call_llm(prompt)
-        ```
-
-        Example of effective multi-example prompting:
-        ```python
-        def extract_entities(text):
-            prompt = f'''
-            Extract entities from this text.
-
-            Example 1:
-            Text: John will meet Mary at 3pm on Tuesday.
-            Entities: {{"people": ["John", "Mary"], "time": "3pm", "day": "Tuesday"}}
-
-            Example 2:
-            Text: The team needs to submit the report by Friday at noon.
-            Entities: {{"people": ["the team"], "time": "noon", "day": "Friday", "object": "report"}}
-
-            Example 3:
-            Text: Alex cannot attend the conference from Jan 3-5 due to prior commitments.
-            Entities: {{"people": ["Alex"], "event": "conference", "date_range": ["Jan 3-5"], "reason": "prior commitments"}}
-
-            Text: {text}
-            Entities:
-            '''
-            return call_llm(prompt)
-        ```
-
-        === DIRECT LLM REASONING APPROACH ===
-
-        CRITICAL: Previous scripts have shown that complex code generation with JSON parsing and multi-step pipelines often 
-        leads to errors and low performance. Instead, focus on leveraging the LLM's natural reasoning abilities:
-
-        1. SIMPLIFY YOUR APPROACH:
-           - Minimize the number of processing steps - simpler is better
-           - Directly use LLM for pattern recognition rather than writing complex code
-           - Avoid trying to parse or manipulate JSON manually - pass it as text to the LLM
-
-        2. DIRECT TRANSFORMATION:
-           - Instead of trying to extract features and then apply them, use the LLM to do the transformation directly
-           - Use examples to teach the LLM the pattern, then have it apply that pattern to new inputs
-           - Avoid attempting to write complex algorithmic solutions when pattern recognition will work better
-
-        3. ROBUST ERROR HANDLING:
-           - Include multiple approaches in case one fails (direct approach + fallback approach)
-           - Use simple validation to check if outputs are in the expected format
-           - Include a last-resort approach that will always return something valid
-
-        4. AVOID COMMON PITFALLS:
-           - Do NOT attempt to use json.loads() or complex JSON parsing - it often fails
-           - Do NOT create overly complex Python pipelines that require perfect indentation
-           - Do NOT create functions that generate or execute dynamic code
-           - Do NOT create unnecessarily complex data transformations
-
-        5. SUCCESSFUL EXAMPLES:
-           - The most successful approaches have used direct pattern matching with multiple examples
-           - Scripts with simple validation and fallback approaches perform better
-           - Scripts with fewer processing steps have higher success rates
-        
-        IMPLEMENTATION STRATEGIES:
-        1. Maintain a "example bank" of successful and failed examples to select from
-        2. Implement n-shot prompting with n=3 as default, but adapt based on performance
-        3. For complex tasks, use up to 5 examples; for simpler tasks, 2-3 may be sufficient
-        4. Include examples with a range of complexity levels, rather than all similar examples
-
-
-
-        VALIDATION AND VERIFICATION GUIDANCE:
-        1. CRITICAL: Consider implementing validation loops for EACH key processing step, not just final outputs
-        2. Design your system to detect, diagnose, and recover from specific errors. This will help future learnings
-        3. For every LLM extraction or generation, add a verification step that checks:
-           - Whether the output is well-formed and complete
-           - Whether the output is logically consistent with the input
-           - Whether all constraints are satisfied
-        4. Add feedback loops that retry failures with specific feedback
-        5. Include diagnostic outputs that reveal exactly where failures occur. Add print statements and intermediate outputs such that you can see them later to determine why things are going wrong.
-        6. Include capability to trace through execution steps to identify failure points
-
-        Example of pipeline without verification:
-        ```python
-        def process_question(question):
-            entities = extract_entities(question)
-            constraints = identify_constraints(question)
-            solution = generate_solution(entities, constraints)
-            return solution
-        ```
-
-        Example of robust pipeline with verification:
-        ```python
-        def process_question(question, max_attempts=3):
-            # Step 1: Extract entities with verification
-            entities_result = extract_entities_with_verification(question)
-            if not entities_result.get("is_valid"):
-                print(f"Entity extraction failed: {entities_result.get('validation_feedback')}")
-                return f"Error in entity extraction: {entities_result.get('validation_feedback')}"
-
-            # Step 2: Identify constraints with verification
-            constraints_result = identify_constraints_with_verification(question, entities_result["entities"])
-            if not constraints_result.get("is_valid"):
-                print(f"Constraint identification failed: {constraints_result.get('validation_feedback')}")
-                return f"Error in constraint identification: {constraints_result.get('validation_feedback')}"
-
-            # Step 3: Generate solution with verification
-            solution_result = generate_solution_with_verification(
-                question, 
-                entities_result["entities"], 
-                constraints_result["constraints"]
-            )
-            if not solution_result.get("is_valid"):
-                print(f"Solution generation failed: {solution_result.get('validation_feedback')}")
-                return f"Error in solution generation: {solution_result.get('validation_feedback')}"
-
-            return solution_result["solution"]
-
-        def extract_entities_with_verification(question, max_attempts=3):
-            #Extract entities and verify their validity with feedback loop.
-            system_instruction = "You are an expert at extracting and validating entities."
-
-            for attempt in range(max_attempts):
-                # First attempt at extraction
-                extraction_prompt = f'''
-                Extract key entities from this question. 
-                Return a JSON object with the extracted entities.
-
-                Example 1: [example with entities]
-                Example 2: [example with different entities]
-                Example 3: [example with complex entities]
-
-                Question: {question}
-                Extraction:
-                '''
-
-                extracted_data = call_llm(extraction_prompt, system_instruction)
-
-                try:
-                    # Parse the extraction
-                    data = json.loads(extracted_data)
-
-                    # Verification step
-                    verification_prompt = f'''
-                    Verify if these extracted entities are complete and correct:
-
-                    Question: {question}
-                    Extracted entities: {json.dumps(data, indent=2)}
-
-                    Check if:
-                    1. All relevant entities are extracted
-                    2. No irrelevant entities are included
-                    3. All entity values are correct
-
-                    Return a JSON with:
-                    {{
-                      "is_valid": true/false,
-                      "validation_feedback": "detailed explanation",
-                      "missing_entities": ["entity1", "entity2"],
-                      "incorrect_entities": ["entity3"]
-                    }}
-                    '''
-
-                    verification_result = call_llm(verification_prompt, system_instruction)
-                    verification_data = json.loads(verification_result)
-
-                    if verification_data.get("is_valid", False):
-                        data["is_valid"] = True
-                        data["validation_feedback"] = "All entities are valid."
-                        return data
-
-                    # If not valid and we have attempts left, refine with feedback
-                    if attempt < max_attempts - 1:
-                        feedback = verification_data.get("validation_feedback", "")
-                        print(f"Validation failed (attempt {attempt+1}/{max_attempts}): {feedback}")
-                        continue
-
-                    # If we're out of attempts, return the best we have with validation info
-                    data["is_valid"] = False
-                    data["validation_feedback"] = verification_data.get("validation_feedback", "Unknown validation error")
-                    return data
-
-                except Exception as e:
-                    print(f"Error in extraction/validation (attempt {attempt+1}/{max_attempts}): {str(e)}")
-                    if attempt >= max_attempts - 1:
-                        return {
-                            "is_valid": False,
-                            "validation_feedback": f"Error during processing: {str(e)}"
-                        }
-
-            return {
-                "is_valid": False,
-                "validation_feedback": "Failed to extract valid entities after multiple attempts."
-            }
-        ```
-
-        VALIDATION IMPLEMENTATION STRATEGIES:
-        1. Create detailed verification functions for each major processing step
-        2. Implement max_attempts limits on all retry loops (typically 3-5 attempts)
-        3. Pass specific feedback from verification to subsequent retry attempts
-        4. Log all verification failures to help identify systemic issues
-        5. Design fallback behaviors when verification repeatedly fails
-
-        """
-
-        # Add the accumulated learnings to the context
+        # Format contexts for templates
         learning_context = ""
         if accumulated_learnings:
             learning_context = f"""
-        ACCUMULATED LEARNINGS FROM PREVIOUS ITERATIONS:
-        {accumulated_learnings}
-        """
+            ACCUMULATED LEARNINGS FROM PREVIOUS ITERATIONS:
+            {accumulated_learnings}
+            """
 
-        # Add capability-specific guidance if available
         capability_context = ""
         if capability_guidance:
             capability_context = f"""
-        CAPABILITY ASSESSMENT & IMPROVEMENT GUIDANCE:
-        {capability_guidance}
-        """
+            CAPABILITY ASSESSMENT & IMPROVEMENT GUIDANCE:
+            {capability_guidance}
+            """
 
-        # Set specific system instruction for script generation
+        # Set approach type and system instruction
+        approach_type = "exploration" if is_exploration else "exploitation"
         script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {approach_type} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning, agentic LLM patterns, and python to solve the problem examples provided."
 
-        # Create appropriate prompt based on strategy
+        # Build appropriate prompt based on strategy
         if is_exploration:
-            # Exploration prompt - now including last_scripts_context
-            prompt = f"""
-            You are developing a Python script to solve problems using LLM reasoning capabilities.
-            You are in the EXPLORATION PHASE. You must generate a NEW approach that's different from previous approaches but informed by their successes and failures. With this approach, you will have a specific NEW HYPOTHESIS or variable you are trying to test. Your goal is to see if this new approach works, and you must add verification and validation steps to deduce if this new change is helpful. You may also test RADICAL NEW APPROACHES that are substantially different from previous approaches. 
-            
-            You should try NEW THINGS:
-            
-            Break down the problem into smaller pieces
-            Think CREATIVELY about how to solve your problem if other approaches aren't working
-            Transform data into different formats to see if it helps
+            # Get last scripts context for exploration
+            last_scripts_context = self._get_last_scripts_context(iterations)
 
-            # YOUR TASK
-            You are deeply familiar with prompting techniques and the agent works from the literature. 
-            Your goal is to maximize the specified performance metrics by proposing interestingly new agents.
-            Observe the past discovered agents and scripts carefully and think about what insights, lessons, or stepping stones can be learned from them.
-            Be creative when thinking about the next interesting agent to try. You are encouraged to draw inspiration from related agent papers or academic papers from other research areas.
-            Use the knowledge from the archive and inspiration from academic literature to propose the next interesting agentic system design.
-            THINK OUTSIDE THE BOX.
-            
-
-            Here are example problems from previously seen data:
-            {json.dumps(example_problems, indent=2)}
-
-            HISTORICAL CONTEXT:
-            {historical_context}
-
-            PREVIOUSLY TRIED APPROACHES (LAST 5 SCRIPTS). YOUR APPROACH MUST BE SUBSTANTIVELY DIFFERENT THAN THESE:
-            {last_scripts_context}
-
-            LEARNINGS FROM PREVIOUS ITERATIONS:
-            {learning_context}
-
-            CAPABILITY ASSESSMENT & IMPROVEMENT GUIDANCE:
-            {capability_context}
-
-            EXPLORATION GUIDANCE:
-            1. Review the historical approaches, error patterns, and accumulated learnings carefully
-            2. Review the FULL CODE of previous scripts to understand what has already been tried
-            3. Design a new approach that is DISTINCTLY DIFFERENT from previous attempts. This approach should have a specific NEW HYPOTHESIS or variable you are trying to test. 
-            4. CRITICAL: Include EMBEDDED EXAMPLES directly within your LLM prompts
-            5. For each key function, show a complete worked example, or include multiple examples, including:
-               - Input example that resembles the dataset
-               - Step-by-step reasoning through the example
-               - Properly formatted output
-            6. Apply the insights from the ACCUMULATED LEARNINGS section to avoid repeating past mistakes
-            7. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment
-            8. Consider implementing one or more of these LLM usage patterns:
-               - Repeated validation with feedback loops
-               - Multi-perspective analysis with synthesis
-               - Dynamic input-dependent routing with an orchestrator
-               - Hybrid approaches combining LLM with deterministic functions
-               - Best-of-n solution generation and selection
-               - ReAct pattern for interactive reasoning and action
-               - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
-               - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
-
-            Here's how to call the Gemini API. Use this example without modification and don't invent configuration options:
-            {gemini_api_example}
-
-            Since this is an EXPLORATION phase:
-            - Try a fundamentally different approach to reasoning about the problem. Test a NEW HYPOTHESIS or variable, and add verification steps to deduce if this new change is helpful.
-            - THIS IS KEY: Break down the problem into new, distinct reasoning steps based on past performance before you start coding
-            - For EACH key LLM prompt, include a relevant example with:
-              * Sample input similar to the dataset
-              * Expected reasoning steps
-              * Desired output format
-            - Apply a verifier call to different parts of the pipeline in order to understand what parts of the pipeline of calls is successful and where the system is breaking
-            - Pay special attention to addressing the primary issues from previous iterations
-            - Ensure your new approach addresses the weaknesses identified in the capability assessment
-
-            CRITICAL REQUIREMENTS:
-            1. The script MUST properly handle all string literals - be extremely careful with quotes and triple quotes
-            2. The script MUST NOT exceed 150 lines of code to prevent truncation
-            3. Include detailed comments explaining your reasoning approach
-            4. EVERY SINGLE LLM PROMPT must include at least one embedded example showing:
-               - Sample input with reasoning
-               - Desired output format
-            5. Make proper use of error handling
-            6. Implement robust capabilities to address the specific weaknesses identified in the capability assessment
-            7. Do NOT use json.loads() in the LLM calls to process input data. JSON formatting is good to use to structure information as inputs and outputs, but attempting to have functions process JSON data explicitly with strict built-in functionality is error prone due to formatting issues and additional text that appears as documentation, reasoning, or comments. When passing data into another LLM call, you can read it as plain text rather than trying to load it in strict json format, is the better approach.
-
-            Return a COMPLETE, RUNNABLE Python script that:
-            1. Has a main function that takes a question string as input and returns the answer string
-            2. Makes multiple LLM calls for different reasoning steps
-            3. Has proper error handling for API calls
-            4. Includes embedded examples in EVERY LLM prompt
-            5. Is COMPLETE - no missing code, no "..." placeholders
-            6. Closes all string literals properly
-
-            This should be FUNDAMENTALLY DIFFERENT from all previous approaches. Do not reuse the same overall structure.
-
-            BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
-            """
+            # Build exploration prompt
+            prompt = PromptTemplates.build_exploration_prompt(
+                example_problems, 
+                historical_context, 
+                last_scripts_context,
+                learning_context, 
+                capability_context, 
+                gemini_api_example
+            )
+            print ("\n\n\n\n\nPROMPT\n\n\n\n\n", prompt)
         else:
-            # Exploitation prompt
-            best_script_code = ""
-            if best_script_to_exploit and 'script' in best_script_to_exploit:
-                best_script_code = f"\nFULL SCRIPT TO REFINE:\n```python\n{best_script_to_exploit.get('script', '')}\n```"
+            # Get exploitation-specific content
+            exploitation_content = self._get_exploitation_content(
+                iterations, 
+                historical_data["best_scripts"]
+            )
 
-            # FIX: Properly handle the accuracy formatting
-            accuracy_str = ""
-            if best_script_to_exploit:
-                accuracy_value = best_script_to_exploit.get('accuracy', 0)
-                accuracy_str = f"{accuracy_value:.2f}"
-            else:
-                accuracy_str = "N/A"
+            # Build exploitation prompt
+            prompt = PromptTemplates.build_exploitation_prompt(
+                example_problems, 
+                historical_context, 
+                exploitation_content["best_script_code"], 
+                exploitation_content["top_scripts_content"],
+                learning_context, 
+                capability_context, 
+                gemini_api_example
+            )
 
-            # Generate content for multiple top scripts
-            top_scripts_content = ""
-            if top_scripts_to_exploit:
-                for i, script_info in enumerate(top_scripts_to_exploit):
-                    accuracy_value = script_info.get('accuracy', 0)
-                    accuracy_str = f"{accuracy_value:.2f}"
+        # Generate and validate script
+        script = self._generate_validated_script(prompt, script_generator_system_instruction)
 
-                    script_content = ""
-                    if 'script' in script_info:
-                        script_content = f"\n```python\n{script_info.get('script', '')}\n```"
-
-                    top_scripts_content += f"\nTOP PERFORMING APPROACH #{i+1}:\n"
-                    top_scripts_content += f"Iteration: {script_info.get('iteration', 'Unknown')}\n"
-                    top_scripts_content += f"Accuracy: {accuracy_str}\n"
-                    top_scripts_content += f"Approach Summary: {script_info.get('approach_summary', 'No summary available')}\n"
-
-                    # Only include full code for the best script to avoid making prompt too long
-                    if i == 0:  # Only for the top script
-                        top_scripts_content += f"\nFULL SCRIPT TO REFINE:{script_content}\n"
-                    else:  # For other scripts, mention they're available for reference
-                        top_scripts_content += f"\nKey approach aspects (full code available for reference)\n"
-
-            prompt = f"""
-            You are improving a Python script that solves problems from a dataset.
-            Your goal is to REFINE and ENHANCE the best performing approaches by combining their strengths and addressing specific weaknesses identified in error analysis.
-
-            Here are example problems from previously seen data:
-            {json.dumps(example_problems, indent=2)}
-
-            {historical_context}
-
-            {learning_context}
-
-            {capability_context}
-
-            TOP PERFORMING APPROACHES TO BUILD UPON:
-            {top_scripts_content}
-            {best_script_code}
-
-            PREVIOUSLY ATTEMPTED VARIATIONS:
-            {last_scripts_context}
-
-            EXPLOITATION GUIDANCE:
-            1. Review the error patterns, targeted improvements, and accumulated learnings carefully
-            2. CRITICAL: Break down the problem into distinct reasoning steps before modifying code
-            3. CRITICAL: Analyze the best scripts to identify which components are working well and which are failing. Focus your improvements on the weak points while preserving successful components.
-            4. Maintain the core successful elements of the best approaches
-            5. Consider how you can combine strengths from multiple top-performing approaches
-            6. CRITICAL: Add EMBEDDED EXAMPLES to EVERY LLM prompt that illustrate:
-               - Sample input that resembles the dataset
-               - Step-by-step reasoning through the example
-               - Properly formatted output
-            7. Focus on fixing specific issues identified in previous error analyses. Create an explicit HYPOTHESIS for each targeted improvement, as well as a way to verify if it's successful.
-            8. Enhance chain-of-thought reasoning and verification steps. Verification steps should be added to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
-            9. Apply the key insights from ACCUMULATED LEARNINGS to enhance the approach
-            10. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment
-
-            IMPROVEMENT STRATEGY:
-            Analyze why the top approaches succeeded where others failed. Identify the key differentiators and strengthen them further.
-
-            SYSTEMATIC ENHANCEMENT APPROACH:
-            1. First, identify which specific function or component is underperforming based on error analysis
-            2. Examine how error cases differ from successful cases
-            3. For each identified weakness, implement a targeted enhancement
-            4. Add additional verification steps around modified components
-            5. Consider how components interact - ensure improvements don't break successful parts
-
-            Consider enhancing the script with one or more of these patterns:
-            - Repeated validation with feedback loops
-            - Multi-perspective analysis with synthesis
-            - Dynamic input-dependent routing
-            - Hybrid approaches combining LLM with deterministic functions
-            - Best-of-n solution generation and selection
-            - ReAct pattern for interactive reasoning and action
-            - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
-            - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for refinement with feedback
-
-            Here's how to call the Gemini API. Use this example without modification and don't invent configuration options:
-            {gemini_api_example}
-
-            Since this is an EXPLOITATION phase:
-            - Build upon what's working well in the best approaches
-            - Consider creative combinations of successful techniques from different scripts
-            - Make TARGETED improvements to address specific error patterns
-            - For EACH key LLM prompt, include a relevant example with:
-              * Sample input similar to the dataset
-              * Expected reasoning steps
-              * Desired output format
-            - Apply the knowledge from our accumulated learnings
-            - Significantly enhance the script to address weaknesses identified in the capability assessment
-
-            CRITICAL REQUIREMENTS:
-            1. The script MUST properly handle all string literals - be extremely careful with quotes and triple quotes
-            2. The script MUST NOT exceed 150 lines of code to prevent truncation
-            3. Include detailed comments explaining your improvements
-            4. EVERY SINGLE LLM PROMPT must include at least one embedded example showing:
-               - Sample input with reasoning
-               - Desired output format
-            5. Make proper use of error handling
-            6. Implement robust capabilities to address the specific weaknesses identified in the capability assessment
-            7. Do NOT use json.loads() in the LLM calls to process input data. JSON formatting is good to use to structure information as inputs and outputs, but attempting to have functions process JSON data explicitly with strict built-in functionality is error prone due to formatting issues and additional text that appears as documentation, reasoning, or comments. When passing data into another LLM call, you can read it as plain text rather than trying to load it in strict json format, is the better approach.
-
-            Return a COMPLETE, RUNNABLE Python script that:
-            1. Has a main function that takes a question string as input and returns the answer string
-            2. Makes multiple LLM calls for different reasoning steps
-            3. Has proper error handling for API calls
-            4. Includes embedded examples in EVERY LLM prompt
-            5. Is COMPLETE - no missing code, no "..." placeholders
-            6. Closes all string literals properly
-
-            BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
-            """
-
-        # ==== GENERATE SCRIPT WITH VALIDATION ====
-        max_attempts = 3
-        attempts = 0
-
-        while attempts < max_attempts:
-            attempts += 1
-
-            # Call LLM to generate script with the specific system instruction
-            response = self.call_llm(
-                prompt, system_instruction=script_generator_system_instruction)
-
-            # Extract code block from response
-            if "```python" in response:
-                script = response.split("```python")[1].split("```")[0].strip()
-            elif "```" in response:
-                script = response.split("```")[1].split("```")[0].strip()
-            else:
-                script = response.strip()
-
-            # Validate script syntax
-            try:
-                # Test if the script can be parsed
-                import ast
-                ast.parse(script)
-
-                # Script is syntactically valid
-                print(f"Generated valid script on attempt {attempts}")
-
-                # Save the script to a file
-                script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
-                with open(script_path, 'w', encoding='utf-8') as f:
-                    f.write(script)
-
-                return script
-
-            except SyntaxError as e:
-                print(
-                    f"Syntax error in generated script (attempt {attempts}/{max_attempts}): {e}"
-                )
-
-                if attempts >= max_attempts:
-                    print(
-                        "\n***\nFALLBACK: Maximum attempts reached. Returning a simple fallback script.\n***\n"
-                    )
-                    # Create a simple fallback script with embedded examples
-                    fallback_script = """
-    import os
-    import json
-    from google import genai
-    from google.genai import types
-
-    def call_llm(prompt, system_instruction=None):
-        \"\"\"Call the Gemini LLM with a prompt and return the response\"\"\"
-        try:
-            # Initialize the Gemini client
-            client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-            # Call the API with system instruction if provided
-            if system_instruction:
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash", 
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction
-                    ),
-                    contents=prompt
-                )
-            else:
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=prompt
-                )
-
-            return response.text
-        except Exception as e:
-            print(f"Error calling Gemini API: {str(e)}")
-            return f"Error: {str(e)}"
-
-    def extract_information(text):
-        \"\"\"Extract key information from the input text\"\"\"
-        system_instruction = "You are an information extraction specialist."
-
-        prompt = f\"\"\"
-        Extract key information from this text. Focus on identifying important elements and relationships.
-
-        Example:
-        Input: The project must be completed by June 15th and requires collaboration between the engineering and design teams.
-        Output: {"deadline": "June 15th", "teams_involved": ["engineering", "design"], "requirement": "collaboration"}
-
-        Now extract information from this input:
-        {text}
-        \"\"\"
-
-        return call_llm(prompt, system_instruction)
-
-    def generate_solution(problem):
-        \"\"\"Generate a solution to the problem\"\"\"
-        system_instruction = "You are a problem-solving expert."
-
-        prompt = f\"\"\"
-        Generate a detailed solution for this problem:
-
-        Example:
-        Problem: Design a simple notification system that sends alerts when a temperature sensor exceeds 30°C.
-        Solution: Create a monitoring service that polls the temperature sensor every minute. When a reading exceeds 30°C, trigger the notification system to send an alert via email and SMS to registered users, including the current temperature value and timestamp.
-
-        Now solve this problem:
-        {problem}
-        \"\"\"
-
-        return call_llm(prompt, system_instruction)
-
-    def main(question):
-        \"\"\"Main function to solve problems\"\"\"
-        try:
-            # Step 1: Extract key information
-            information = extract_information(question)
-
-            # Step 2: Generate a solution
-            solution = generate_solution(question)
-
-            # Return the solution
-            return solution
-        except Exception as e:
-            print(f"Error in main: {str(e)}")
-            return "I couldn't generate a solution due to an error."
-    """
-                    script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
-                    with open(script_path, 'w', encoding='utf-8') as f:
-                        f.write(fallback_script)
-
-                    return fallback_script
-
-                # Try again with a more explicit instruction about the error
-                prompt = f"""
-                You need to generate a complete, syntactically valid Python script. Your previous attempt had the following syntax error:
-                {str(e)}
-
-                Please generate a new script paying special attention to:
-                1. Properly closing all string literals (quotes and triple quotes)
-                2. Properly closing all parentheses and braces
-                3. Keeping the script simple and short (under 150 lines)
-                4. Using only syntactically valid Python code
-                5. INCLUDING EMBEDDED EXAMPLES in all LLM prompts
-
-                Generate a complete, runnable Python script that:
-                1. Has a main function that takes a question string as input and returns the answer string
-                2. Makes multiple LLM calls for different reasoning steps using the Gemini API
-                3. Has proper error handling
-                4. Includes a concrete example in EACH LLM prompt
-
-                BE EXTREMELY CAREFUL WITH STRING LITERALS AND QUOTES!
-                """
-
+        return script
+    
     def log_script_error_to_learnings(self, error_info: str, script_snippet):
         """
         Add script errors to learnings.txt in a minimal way.
@@ -3746,7 +3294,7 @@ except Exception as e:
             "performance": evaluation,
             "progressive_testing": progressive_testing_results,
             "execution_time": time.time() - iteration_start_time,
-            "capability_report": capability_report
+            "capability_report": capability_report,
             "trace_insights": trace_insights,  # ADD THIS
             "trace_analysis": {  # ADD THIS for structured data
                 "analyzed_at": datetime.datetime.now().isoformat(),
