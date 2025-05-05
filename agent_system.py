@@ -1615,7 +1615,7 @@ class AgentSystem:
 
         # If we somehow have no previous samples (unlikely but possible), fall back to training examples
         if not example_problems:
-            print(f"No previous samples found - falling back to training examples")
+            print("No previous samples found - falling back to training examples")
             training_examples = self.get_training_examples(5)
             for i, example in enumerate(training_examples):
                 example_problems.append({
@@ -1713,6 +1713,24 @@ class AgentSystem:
             if iterations:
                 # Get the last 5 iterations, sorted by recency
                 sorted_iterations = sorted(iterations, key=lambda x: x.get('iteration', 0) if x and 'iteration' in x else 0, reverse=True)
+
+                # Add approach summaries to historical context
+                approach_summaries = "APPROACH SUMMARIES FROM PREVIOUS ITERATIONS:\n"
+                for i, iteration in enumerate(sorted_iterations[:15]):  # Use up to 15 most recent iterations
+                    if iteration:
+                        iteration_num = iteration.get('iteration', 'unknown')
+                        accuracy = iteration.get('performance', {}).get('accuracy', 0)
+                        strategy = iteration.get('strategy', 'unknown')
+                        approach_summary = iteration.get('approach_summary', 'No summary available')
+
+                        # Add to the summaries
+                        approach_summaries += f"Iteration {iteration_num} ({strategy}, Accuracy: {accuracy:.2f}): {approach_summary}\n"
+
+                # Add approach summaries to the beginning of historical context
+                historical_context = f"{approach_summaries}\n\n{historical_context}"
+
+
+                
                 last_scripts = []
 
                 for i, iteration in enumerate(sorted_iterations[:5]):
@@ -1745,7 +1763,7 @@ class AgentSystem:
             prompt = PromptTemplates.build_exploration_prompt(
                 example_problems, 
                 historical_context, 
-                last_scripts_context,
+                "", #last_scripts_context, # made redundnat by historical_context
                 learning_context, 
                 capability_context, 
                 gemini_api_example
@@ -1798,9 +1816,9 @@ class AgentSystem:
 
                     # Only include full code for the best script to avoid making prompt too long
                     if i == 0:  # Only for the top script
-                        top_scripts_content += f"\nFULL SCRIPT TO REFINE:{script_content}\n"
+                        top_scripts_content += "\nFULL SCRIPT TO REFINE:{script_content}\n"
                     else:  # For other scripts, mention they're available for reference
-                        top_scripts_content += f"\nKey approach aspects (full code available for reference)\n"
+                        top_scripts_content += "\nKey approach aspects (full code available for reference)\n"
 
             # Build exploitation prompt
             prompt = PromptTemplates.build_exploitation_prompt(
