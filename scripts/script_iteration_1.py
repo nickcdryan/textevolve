@@ -2,7 +2,7 @@ import os
 import re
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response.  DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
@@ -52,7 +52,7 @@ def main(question):
         if not input_grid_text:
             return "Error: Could not extract input grid."
 
-        # Extract training examples - attempt to get two, if availabe
+        # Extract training examples
         example1_start = question.find("Example 1:")
         example2_start = question.find("Example 2:")
         example_end = question.find("=== TEST INPUT ===")
@@ -65,48 +65,48 @@ def main(question):
            training_examples = "No training examples found"
            return "Error: No training examples found"
 
-
-        # 2. Infer transformation rule
+        # 2. Infer transformation rule with example
         rule_prompt = f"""
         You are an expert at identifying patterns in grid transformations.
 
         Here are examples of grid transformations:
         {training_examples}
 
-        Based on these examples, describe the transformation rule.
-        Consider patterns like:
-        - Expansion/contraction of the grid
-        - Value changes based on position
-        - Relationships between neighboring cells
+        Based on these examples, describe the transformation rule step by step. 
+        Consider patterns like expansion, value changes, relationships between cells.
+        Also, show exactly how to apply the rule to the Input Grid from Example 1.
 
         Example:
-        Input:
         Input Grid:
         [[1, 2], [3, 4]]
         Output Grid:
         [[2, 4], [6, 8]]
         Reasoning: Each cell is multiplied by 2.
-        Output: Each cell is multiplied by 2.
+        Application: Input [[1, 2], [3, 4]] becomes [[2, 4], [6, 8]]
 
-        What is the transformation rule?
+        What is the transformation rule and how do you apply it to the Example 1 input?
         """
         transformation_rule = call_llm(rule_prompt)
 
-        # 3. Apply the rule
+        # 3. Apply the rule with explicit steps
         apply_prompt = f"""
         You are an expert at applying grid transformation rules.
         Transformation Rule: {transformation_rule}
-        Apply this rule to the following input grid:
+        Apply this rule to the following input grid, showing each step explicitly:
         {input_grid_text}
 
         Example:
         Transformation Rule: Each cell is multiplied by 2.
         Input Grid:
         [[1, 2], [3, 4]]
+        Step 1: Multiply 1 by 2 to get 2.
+        Step 2: Multiply 2 by 2 to get 4.
+        Step 3: Multiply 3 by 2 to get 6.
+        Step 4: Multiply 4 by 2 to get 8.
         Output Grid:
         [[2, 4], [6, 8]]
 
-        Apply the rule and output the resulting grid.
+        Apply the rule and output the resulting grid, with explicit steps shown.
         """
         transformed_grid = call_llm(apply_prompt)
 
@@ -117,48 +117,30 @@ def main(question):
         Transformation Rule: {transformation_rule}
         Transformed Grid: {transformed_grid}
         Verify if the transformed grid follows the transformation rule based on training examples.
-        If the transformation looks good, say "VALID". Otherwise, if the resulting transformation is incorrect or doesn't follow the rule, say "INVALID".
+        Explain your reasoning. Output VALID or INVALID only.
+
         Example:
-        Question:
-        Grid Transformation Task
-
-        === TRAINING EXAMPLES ===
-
-        Example 1:
-        Input Grid:
-        [[1, 0], [0, 1]]
-
-        Output Grid:
-        [[2, 0], [0, 2]]
+        Question: Grid Transformation...
         Transformation Rule: Every 1 becomes 2
-
         Transformed Grid: [[2, 0], [0, 2]]
+        Reasoning: The transformed grid correctly implements the transformation rule on the input grid.
         Result: VALID
 
-        Question:
-        Grid Transformation Task
-
-        === TRAINING EXAMPLES ===
-
-        Example 1:
-        Input Grid:
-        [[1, 0], [0, 1]]
-
-        Output Grid:
-        [[2, 0], [0, 2]]
+        Question: Grid Transformation...
         Transformation Rule: Every 1 becomes 2
-
         Transformed Grid: [[2, 0], [0, 1]]
+        Reasoning: The transformed grid does not correctly implement the transformation rule on the input grid.
         Result: INVALID
 
-        Final Result: Is the grid valid or invalid?
+        Final Result: Is the grid VALID or INVALID?
         """
 
         verification_result = call_llm(verification_prompt)
+
         if "INVALID" in verification_result:
             return f"Error: Verification failed. The grid does not match transformation rule, result: {verification_result}"
         elif "VALID" not in verification_result:
-            return f"The grid transformation might be incorrect, result: {verification_result}"
+            return f"Error: The grid transformation might be incorrect, result: {verification_result}"
         else:
 
             # 5. Clean the output
@@ -168,7 +150,6 @@ def main(question):
                 return match.group(0)
             else:
                return transformed_grid
-
 
     except Exception as e:
         return f"Error: {str(e)}"

@@ -15,7 +15,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from google import genai
 from google.genai import types  # Added import for GenerateContentConfig
-from llm_example_library import ExampleSets, APIExamples, FallbackScripts
+from llm_example_library import PatternLibrary, APIExamples, FallbackScripts
 from prompt_templates import PromptTemplates
 
 
@@ -795,7 +795,7 @@ class AgentSystem:
             print(f"WARNING: Combined content approaching token limits ({len(current_learnings)} chars)")
 
             prompt = f"""
-            You must update this research document while maintaining its exact 5-section structure. Note that the document is approaching its maximum length, so you should try to synthesize both documents in a way that doesn't increase the total document length. It's OK to condense older information more than newer information, but try to include all the important findings over the course of all iterations.
+            You must update this research document while maintaining its exact 5-section structure. Note that the document is approaching its maximum length, so you should try to synthesize both documents in a way that doesn't increase the total document length. It's OK to condense information at this point, so you can reduce redundant points. Try to keep the experiment log and findings intact.
 
             CURRENT DOCUMENT:
             {current_learnings}
@@ -1556,11 +1556,8 @@ class AgentSystem:
 
         # Load accumulated learnings
         accumulated_learnings = self._load_learnings()
-
-        # Get examples from the library
-        example_library = ExampleSets.get_standard_examples()
-        gemini_api_example = example_library["gemini_api_example"]
-        few_shot_examples = ExampleSets.get_few_shot_examples_text()
+        gemini_api_example = APIExamples.gemini_api()
+        llm_patterns = PatternLibrary.get_patterns()  # Get all patterns
 
         # Get historical analysis data
         iterations = self.get_all_iterations()
@@ -1596,7 +1593,7 @@ class AgentSystem:
     """
 
         # Add few-shot examples to historical context
-        historical_context += f"\n\n{few_shot_examples}"
+        historical_context += f"\n\n"
         historical_context += "\n\n" + PromptTemplates.get_multi_example_prompting_guidance()
 
         # Get capability insights
@@ -1683,12 +1680,14 @@ class AgentSystem:
             prompt = PromptTemplates.build_exploration_prompt(
                 example_problems, 
                 historical_context, 
-                "", #last_scripts_context, # made redundnat by historical_context
+                llm_patterns, #last_scripts_context, # made redundnat by historical_context
                 learning_context, 
                 capability_context, 
                 gemini_api_example
             )
-            print (prompt)
+            prompt_path = self.scripts_dir / f"prompt_{self.current_iteration}.txt"
+            with open(prompt_path, 'w', encoding='utf-8') as f:
+                f.write(prompt)
         else:
             # Get exploitation-specific content
             best_script_to_exploit = None
@@ -1744,12 +1743,16 @@ class AgentSystem:
             prompt = PromptTemplates.build_exploitation_prompt(
                 example_problems, 
                 historical_context, 
+                llm_patterns,
                 best_script_code, 
                 top_scripts_content,
                 learning_context, 
                 capability_context, 
                 gemini_api_example
             )
+            prompt_path = self.scripts_dir / f"prompt_{self.current_iteration}.txt"
+            with open(prompt_path, 'w', encoding='utf-8') as f:
+                f.write(prompt)
 
         # Generate and validate script
         max_attempts = 3

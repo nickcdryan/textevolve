@@ -5,7 +5,7 @@ This module contains templates for prompts used in the agentic learning system.
 """
 
 import json
-from llm_example_library import ExampleSets
+
 
 class PromptTemplates:
     """Collection of prompt templates for different scenarios."""
@@ -62,7 +62,7 @@ class PromptTemplates:
         5. Include diagnostic outputs that reveal exactly where failures occur. Add print statements and intermediate outputs such that you can see them later to determine why things are going wrong.
         6. Include capability to trace through execution steps to identify failure points
 
-        """ + ExampleSets.get_implementation_patterns_text() + """
+        """ + """
 
         VALIDATION IMPLEMENTATION STRATEGIES:
         1. Create detailed verification functions for each major processing step
@@ -126,10 +126,10 @@ class PromptTemplates:
         7. When available, use examples from previous iterations that revealed specific strengths or weaknesses.
         8. USE REAL EXAMPLES FROM THE DATASET WHERE POSSIBLE!!
 
-        """ + ExampleSets.get_prompting_examples_text()
+        """ 
 
     @staticmethod
-    def build_exploration_prompt(example_problems, historical_context, last_scripts_context, 
+    def build_exploration_prompt(example_problems, historical_context, llm_patterns, 
                             learning_context, capability_context, gemini_api_example):
         """Build the prompt for exploration mode."""
 
@@ -152,14 +152,14 @@ class PromptTemplates:
         THINK OUTSIDE THE BOX.
 
 
-        Here are example problems from previously seen data:
+        Here are example problems from previously seen data. YOUR APPROACH MUST BE DIFFERENT THAN THESE:
         {json.dumps(example_problems, indent=2)}
 
-        HISTORICAL CONTEXT:
+        HISTORICAL CONTEXT. YOUR APPROACH MUST ALSO BE DIFFERENT THAN THESE:
         {historical_context}
 
-        PREVIOUSLY TRIED APPROACHES (LAST 5 SCRIPTS). YOUR APPROACH MUST BE SUBSTANTIVELY DIFFERENT THAN THESE:
-        {last_scripts_context}
+        LIBRARY OF PROMPTS, TECHNIQUES, STRATEGIES, AND PATTERNS:
+        {llm_patterns}
 
         LEARNINGS FROM PREVIOUS ITERATIONS:
         {learning_context}
@@ -188,7 +188,7 @@ class PromptTemplates:
            - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
            - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
 
-        Here's how to call the Gemini API. Use this example without modification and don't invent configuration options:
+        Here's how to call the Gemini API. ONLY call it in this format and DO NOT make up configuration options!:
         {gemini_api_example}
 
         Since this is an EXPLORATION phase:
@@ -229,7 +229,7 @@ class PromptTemplates:
         return prompt
 
     @staticmethod
-    def build_exploitation_prompt(example_problems, historical_context, best_script_code, top_scripts_content,
+    def build_exploitation_prompt(example_problems, historical_context, llm_patterns, best_script_code, top_scripts_content,
                               learning_context, capability_context, gemini_api_example):
         """Build the prompt for exploitation mode."""
 
@@ -242,6 +242,10 @@ class PromptTemplates:
 
         {historical_context}
 
+        LIBRARY OF PROMPTS, TECHNIQUES, STRATEGIES, AND PATTERNS:
+        {llm_patterns}
+
+        LEARNINGS FROM PREVIOUS ITERATIONS:
         {learning_context}
 
         {capability_context}
