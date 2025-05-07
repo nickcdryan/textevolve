@@ -148,8 +148,8 @@ class ARCDatasetLoader(DatasetLoader):
                             main_example = ""
                             if train_examples:
                                 main_example = f"""
-                                The following examples demonstrate a transformation rule. The numbers in the grids represent different colors, and the goal is to identify the visual pattern that transforms the input grid into the output grid.
-                                
+                                The following examples demonstrate a transformation rule. The numbers in the grids represent different colors, and your job is to identify the underlying pattern or rule and apply it to new test inputs.
+
                                 0: Black (sometimes interpreted as background/empty)
                                 1: Blue
                                 2: Red
@@ -160,8 +160,21 @@ class ARCDatasetLoader(DatasetLoader):
                                 7: Orange
                                 8: Cyan
                                 9: Purple
-                                
-                                
+
+
+                                These tasks involve abstract reasoning and visual pattern recognition operations such as:
+                                - Pattern recognition and completion
+                                - Object identification and manipulation
+                                - Spatial transformations (rotation, reflection, translation, movement, groupings, sizes, etc.)
+                                - Color/shape transformations
+                                - Counting and arithmetic operations
+                                - Boolean operations (AND, OR, XOR)
+
+                                First, analyze each example pair carefully and examine the similarities across different example pairs. Look for consistent rules across example pairs that transform each input into its corresponding output. Then apply the inferred rule to solve the test case.
+
+                                Explain your reasoning and describe the transformation rule you've identified. Lastly, provide the output grid.
+
+
                                 
                                 Example 1:
 Input Grid:
@@ -191,7 +204,7 @@ Output Grid:
 === TEST INPUT ===
 {self._format_grid(test_case.get('input'))}
 
-Transform the test input according to the pattern shown in the training examples.
+Transform the test input according to the pattern shown in the training examples. State the transformation rule explicitly and then provide the output grid.
 """
                             # For the answer, we'll keep the same format for consistency
                             test_output_json = json.dumps(test_case.get("output"), separators=(',', ':'))
@@ -258,7 +271,7 @@ Output Grid:
 === TEST INPUT ===
 {self._format_grid(test_case.get('input'))}
 
-Transform the test input according to the pattern shown in the training examples. State the transformation rule explicitly and then provide the output grid.
+Transform the test input according to the pattern shown in the training examples.
 """
                         # For the answer, we'll keep the same format for consistency
                         test_output_json = json.dumps(test_case.get("output"), separators=(',', ':'))
