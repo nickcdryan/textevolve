@@ -249,7 +249,7 @@ def multi_perspective_analysis(problem: str, perspectives: List[str] = None) -> 
     Problem: {problem}
 
     Perspectives:
-    {json.dumps([{p["perspective"]: p["analysis"]} for p in analyses], indent=2)}
+    {chr(10).join([f"{p['perspective'].capitalize()} Perspective:\n{p['analysis']}" for p in analyses])}
 
     Create a unified analysis that incorporates insights from all perspectives.
     """
@@ -328,7 +328,7 @@ def self_consistency_approach(problem: str, n_paths: int = 3) -> str:
 
     Problem: {problem}
 
-    {json.dumps([{f"Approach {a['path_index']+1}": a["reasoning"], "Answer": a["answer"]} for a in answers], indent=2)}
+    {chr(10).join([f"Approach {a['path_index']+1}:\nReasoning: {a['reasoning']}\nAnswer: {a['answer']}" for a in answers])}
 
     Which answer is most consistent across approaches? If there's disagreement, which reasoning path is most sound?
     Provide the final answer with explanation.
@@ -420,7 +420,7 @@ def best_of_n_approach(problem: str, n: int = 3) -> str:
 
     Problem: {problem}
 
-    {json.dumps([{f"Solution {i+1}": solutions[i], "Evaluation": evaluations[i]} for i in range(len(solutions))], indent=2)}
+    {chr(10).join([f"Solution {i+1}:\n{solutions[i]}\n\nEvaluation:\n{evaluations[i]}" for i in range(len(solutions))])}
 
     Which solution is the strongest overall? Explain your selection.
     """
@@ -905,7 +905,7 @@ def expert_panel(problem: str, experts: List[str] = None) -> str:
 
     Problem: {problem}
 
-    {json.dumps([{e["expert"]: e["analysis"]} for e in experts_insights], indent=2)}
+    {chr(10).join([f"{e['expert'].capitalize()}:\n{e['analysis']}" for e in experts_insights])}
 
     Simulate a discussion between these experts where they:
     1. Respond to each other's insights
@@ -1037,7 +1037,8 @@ def comprehensive_verification(solution: str, problem: str, test_cases: List[Dic
 
         Solution: {solution}
 
-        Test Cases: {json.dumps(test_cases, indent=2)}
+        Test Cases:
+        {chr(10).join([f"Test Case {i+1}:\nInput: {tc.get('input', 'N/A')}\nExpected: {tc.get('expected', 'N/A')}" for i, tc in enumerate(test_cases)])}
 
         Apply the solution to each test case and verify if it produces the expected result.
         """
@@ -1067,15 +1068,13 @@ def comprehensive_verification(solution: str, problem: str, test_cases: List[Dic
     summary_prompt = f"""
     Based on all verification results:
 
-    {json.dumps(verifications, indent=2)}
+    {chr(10).join([f"{v['method']}:\n{v['result']}" for v in verifications])}
 
     Is the solution fully verified? If not, what specific issues need to be addressed?
     Provide a comprehensive verification summary with specific recommendations for improvement.
     """
 
     return call_llm(summary_prompt, system_instruction)
-
-
 
 def dynamic_memory_pattern(problem: str, test_examples: List[Dict] = None, max_iterations: int = 3) -> str:
     """
@@ -1152,7 +1151,8 @@ def dynamic_memory_pattern(problem: str, test_examples: List[Dict] = None, max_i
 
         Problem: {problem}
         Solution: {solution}
-        Test examples: {json.dumps(test_examples, indent=2)}
+        Test examples:
+        {chr(10).join([f"Example {i+1}:\nInput: {ex.get('input', 'N/A')}\nExpected: {ex.get('expected', 'N/A')}" for i, ex in enumerate(test_examples)])}
 
         Rate this solution on:
         1. Correctness (1-10)
@@ -1218,7 +1218,8 @@ def dynamic_memory_pattern(problem: str, test_examples: List[Dict] = None, max_i
 
             Problem: {problem}
             Solution: {refined}
-            Test examples: {json.dumps(test_examples, indent=2)}
+            Test examples:
+            {chr(10).join([f"Example {i+1}:\nInput: {ex.get('input', 'N/A')}\nExpected: {ex.get('expected', 'N/A')}" for i, ex in enumerate(test_examples)])}
 
             Rate this solution on:
             1. Correctness (1-10)
@@ -1260,14 +1261,7 @@ def dynamic_memory_pattern(problem: str, test_examples: List[Dict] = None, max_i
 
     Problem: {problem}
 
-    Approach 1 (score {top_solutions[0]['score']}/10):
-    {top_solutions[0]['solution']}
-
-    Approach 2 (score {top_solutions[1]['score']}/10):
-    {top_solutions[1]['solution']}
-
-    Approach 3 (score {top_solutions[2]['score']}/10):
-    {top_solutions[2]['solution']}
+    {chr(10).join([f"Approach {i+1} (score {s['score']}/10):\n{s['solution']}" for i, s in enumerate(top_solutions)])}
 
     Example of good synthesis:
     Problem: Design an algorithm to find duplicates in an array.
@@ -1368,8 +1362,6 @@ def pattern_usage_example() -> str:
     """
 
     return call_llm(prompt, system_instruction)
-
-
 
 def usage_example() -> str:
     """
@@ -1642,8 +1634,6 @@ def usage_example() -> str:
 
     return call_llm(prompt, system_instruction)
 
-
-
 def test_time_training(problem_with_examples: str, max_iterations: int = 5) -> str:
     """
     Implement test-time training pattern: develop a hypothesis, test it on training examples,
@@ -1662,101 +1652,72 @@ def test_time_training(problem_with_examples: str, max_iterations: int = 5) -> s
 
     {problem_with_examples}
 
-    Organize your response as a JSON object with these fields:
-    - "training_examples": Array of objects with "input" and "output" fields
-    - "test_case": Object with an "input" field (and no output)
-    - "domain": String describing the type of problem (e.g., "sequence", "grid_transformation", "word_pattern")
+    Format your response as follows:
+
+    TRAINING_EXAMPLES:
+    Example 1:
+    Input: [first training input]
+    Output: [first training output]
+
+    Example 2:
+    Input: [second training input]
+    Output: [second training output]
+
+    [Continue for all training examples]
+
+    TEST_CASE:
+    Input: [test input]
+
+    DOMAIN:
+    [problem domain]
 
     Be precise and comprehensive in extracting all information.
     """
 
     extraction_response = call_llm(extraction_prompt, system_instruction)
 
-    # Try to parse the JSON response
-    try:
-        # Basic handling to extract JSON if embedded in text
-        if '{' in extraction_response and '}' in extraction_response:
-            json_str = extraction_response[extraction_response.find('{'):extraction_response.rfind('}')+1]
-            examples_data = json.loads(json_str)
-        else:
-            examples_data = json.loads(extraction_response)
-    except:
-        # Fallback to a more structured prompt if JSON parsing fails
-        structured_prompt = f"""
-        I need to extract training examples and the test case from this problem.
+    # Parse the structured response
+    training_examples = []
+    test_case = {}
+    domain = "unknown"
 
-        {problem_with_examples}
+    # Extract training examples
+    if "TRAINING_EXAMPLES:" in extraction_response:
+        training_section = extraction_response.split("TRAINING_EXAMPLES:")[1].split("TEST_CASE:")[0].strip()
+        example_blocks = re.split(r'\n\s*\n', training_section)
 
-        Please format your response EXACTLY as follows (replace the placeholder values with actual data):
+        for block in example_blocks:
+            if not block.strip():
+                continue
 
-        TRAINING_EXAMPLES_START
-        Input 1: [first training input]
-        Output 1: [first training output]
+            input_match = re.search(r'Input: (.*?)(?:\n|$)', block)
+            output_match = re.search(r'Output: (.*?)(?:\n|$)', block)
 
-        Input 2: [second training input]
-        Output 2: [second training output]
+            if input_match and output_match:
+                training_examples.append({
+                    "input": input_match.group(1).strip(),
+                    "output": output_match.group(1).strip()
+                })
 
-        [Continue for all training examples]
-        TRAINING_EXAMPLES_END
+    # Extract test case
+    if "TEST_CASE:" in extraction_response:
+        test_section = extraction_response.split("TEST_CASE:")[1].split("DOMAIN:")[0].strip()
+        input_match = re.search(r'Input: (.*?)(?:\n|$)', test_section)
 
-        TEST_CASE_START
-        Input: [test input]
-        TEST_CASE_END
+        if input_match:
+            test_case = {"input": input_match.group(1).strip()}
 
-        DOMAIN_START
-        [problem domain]
-        DOMAIN_END
-        """
-
-        structured_response = call_llm(structured_prompt, system_instruction)
-
-        # Parse the structured response
-        training_examples = []
-        test_case = {}
-        domain = "unknown"
-
-        # Extract training examples
-        if "TRAINING_EXAMPLES_START" in structured_response and "TRAINING_EXAMPLES_END" in structured_response:
-            training_section = structured_response.split("TRAINING_EXAMPLES_START")[1].split("TRAINING_EXAMPLES_END")[0].strip()
-            example_blocks = re.split(r'\n\s*\n', training_section)
-
-            for block in example_blocks:
-                if not block.strip():
-                    continue
-
-                input_match = re.search(r'Input \d+: (.*?)(?:\n|$)', block)
-                output_match = re.search(r'Output \d+: (.*?)(?:\n|$)', block)
-
-                if input_match and output_match:
-                    training_examples.append({
-                        "input": input_match.group(1).strip(),
-                        "output": output_match.group(1).strip()
-                    })
-
-        # Extract test case
-        if "TEST_CASE_START" in structured_response and "TEST_CASE_END" in structured_response:
-            test_section = structured_response.split("TEST_CASE_START")[1].split("TEST_CASE_END")[0].strip()
-            input_match = re.search(r'Input: (.*?)(?:\n|$)', test_section)
-
-            if input_match:
-                test_case = {"input": input_match.group(1).strip()}
-
-        # Extract domain
-        if "DOMAIN_START" in structured_response and "DOMAIN_END" in structured_response:
-            domain = structured_response.split("DOMAIN_START")[1].split("DOMAIN_END")[0].strip()
-
-        examples_data = {
-            "training_examples": training_examples,
-            "test_case": test_case,
-            "domain": domain
-        }
+    # Extract domain
+    if "DOMAIN:" in extraction_response:
+        domain = extraction_response.split("DOMAIN:")[1].strip()
 
     # Generate initial hypothesis based on only the first example
     first_example_prompt = f"""
     Examine this SINGLE training example and formulate an initial hypothesis about the pattern:
 
     Example:
-    {json.dumps(examples_data["training_examples"][0], indent=2)}
+    Input: {training_examples[0]['input']}
+    Output: {training_examples[0]['output']}
 
     Based ONLY on this example, what rule or pattern might explain it?
     Provide a detailed hypothesis about the transformation from input to output.
@@ -1777,18 +1738,24 @@ def test_time_training(problem_with_examples: str, max_iterations: int = 5) -> s
         {current_hypothesis}
 
         Training Examples:
-        {json.dumps(examples_data["training_examples"], indent=2)}
+        {chr(10).join([f"Example {i+1}:\nInput: {ex['input']}\nOutput: {ex['output']}" for i, ex in enumerate(training_examples)])}
 
         Example of thorough testing:
 
         Hypothesis: In the sequence, each number is doubled to get the next number.
 
         Training Examples:
-        [
-          {{"input": "2, 4, 8, 16", "output": "32"}},
-          {{"input": "5, 25, 125, 625", "output": "3125"}},
-          {{"input": "1, 1, 1, 1", "output": "1"}}
-        ]
+        Example 1:
+        Input: 2, 4, 8, 16
+        Output: 32
+
+        Example 2:
+        Input: 5, 25, 125, 625
+        Output: 3125
+
+        Example 3:
+        Input: 1, 1, 1, 1
+        Output: 1
 
         Testing on Example 1: "2, 4, 8, 16" → expected "32"
         Analysis: If we double the last number: 16 × 2 = 32
@@ -1860,7 +1827,7 @@ def test_time_training(problem_with_examples: str, max_iterations: int = 5) -> s
         After multiple iterations, we need a final refined hypothesis that best explains all training examples:
 
         Training Examples:
-        {json.dumps(examples_data["training_examples"], indent=2)}
+        {chr(10).join([f"Example {i+1}:\nInput: {ex['input']}\nOutput: {ex['output']}" for i, ex in enumerate(training_examples)])}
 
         Current Hypothesis:
         {current_hypothesis}
@@ -1884,7 +1851,7 @@ def test_time_training(problem_with_examples: str, max_iterations: int = 5) -> s
     {current_hypothesis}
 
     Test Case:
-    {json.dumps(examples_data["test_case"], indent=2)}
+    Input: {test_case['input']}
 
     Example of detailed application:
 
