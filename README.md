@@ -2,6 +2,8 @@
 
 This system uses LLM-driven reasoning to iteratively improve its approach to solving problems from a dataset. It employs a dynamic exploration/exploitation strategy and adapts its testing approach based on performance.
 
+python run_script.py  --dataset ARC_2024_Training/ --loader arc --no-shuffle --iterations 5
+
 ## Key Features
 
 ### 1. Example Rotation and Progressive Testing

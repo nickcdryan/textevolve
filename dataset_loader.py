@@ -148,7 +148,7 @@ class ARCDatasetLoader(DatasetLoader):
                             main_example = ""
                             if train_examples:
                                 main_example = f"""
-                                The following examples demonstrate a transformation rule. The numbers in the grids represent different colors, and your job is to identify the underlying pattern or rule and apply it to new test inputs.
+                                The following examples demonstrate a transformation rule. The numbers in the grids represent different colors, and your job is to identify the underlying abstract pattern or rule used across all training example pairs and apply it to new test input.
 
                                 0: Black (sometimes interpreted as background/empty)
                                 1: Blue
@@ -170,9 +170,9 @@ class ARCDatasetLoader(DatasetLoader):
                                 - Counting and arithmetic operations
                                 - Boolean operations (AND, OR, XOR)
 
-                                First, analyze each example pair carefully and examine the similarities across different example pairs. Look for consistent rules across example pairs that transform each input into its corresponding output. Then apply the inferred rule to solve the test case.
+                                First, analyze each example pair carefully and examine the similarities across different example pairs. Look for consistent abstract rules across example pairs that transform each input into its corresponding output. There is a single meta rule or meta transformation sequence that applies to all the example training pairs. Then apply the inferred rule to solve the test case.
 
-                                Explain your reasoning and describe the transformation rule you've identified. Lastly, provide the output grid.
+                                Explain your reasoning and describe the transformation rule you've identified. Lastly, you MUST provide the output grid as the test output.
 
 
                                 
