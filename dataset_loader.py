@@ -147,7 +147,23 @@ class ARCDatasetLoader(DatasetLoader):
                             # Format the main training example
                             main_example = ""
                             if train_examples:
-                                main_example = f"""Example 1:
+                                main_example = f"""
+                                The following examples demonstrate a transformation rule. The numbers in the grids represent different colors, and the goal is to identify the visual pattern that transforms the input grid into the output grid.
+                                
+                                0: Black (sometimes interpreted as background/empty)
+                                1: Blue
+                                2: Red
+                                3: Green
+                                4: Yellow
+                                5: Gray
+                                6: Pink
+                                7: Orange
+                                8: Cyan
+                                9: Purple
+                                
+                                
+                                
+                                Example 1:
 Input Grid:
 {self._format_grid(train_examples[0]['input'])}
 
@@ -242,7 +258,7 @@ Output Grid:
 === TEST INPUT ===
 {self._format_grid(test_case.get('input'))}
 
-Transform the test input according to the pattern shown in the training examples.
+Transform the test input according to the pattern shown in the training examples. State the transformation rule explicitly and then provide the output grid.
 """
                         # For the answer, we'll keep the same format for consistency
                         test_output_json = json.dumps(test_case.get("output"), separators=(',', ':'))

@@ -155,11 +155,13 @@ class PromptTemplates:
         Here are example problems from previously seen data. YOUR APPROACH MUST BE DIFFERENT THAN THESE:
         {json.dumps(example_problems, indent=2)}
 
-        HISTORICAL CONTEXT. YOUR APPROACH MUST ALSO BE DIFFERENT THAN THESE:
+        HISTORICAL CONTEXT. YOUR APPROACH MUST ALSO BE SUBSTANTIALLY DIFFERENT THAN THESE:
         {historical_context}
 
-        LIBRARY OF PROMPTS, TECHNIQUES, STRATEGIES, AND PATTERNS:
+        LIBRARY OF PROMPTS, TECHNIQUES, STRATEGIES, AND PATTERNS THAT HAVE PROVEN USEFUL. YOU MUST TRY NEW TECHNIQUES FROM HERE OUT:
         {llm_patterns}
+
+        REMEMBER, IF YOU HAVE NOT DONE SO YOU NEED TO TRY OUT SOME OF THE PATTERNS ABOVE
 
         LEARNINGS FROM PREVIOUS ITERATIONS:
         {learning_context}
@@ -221,7 +223,7 @@ class PromptTemplates:
         5. Is COMPLETE - no missing code, no "..." placeholders
         6. Closes all string literals properly
 
-        This should be FUNDAMENTALLY DIFFERENT from all previous approaches. Do not reuse the same overall structure.
+        This should be FUNDAMENTALLY DIFFERENT from all previous approaches. Do not reuse the same overall structure. MAKE THIS ITERATION SUBSTANTIALLY DIFFERENT IN AN INTERESTING WAY.
 
         BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
         """

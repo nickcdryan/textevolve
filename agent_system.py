@@ -906,11 +906,9 @@ class AgentSystem:
                 # Synthesize existing learnings with new batch learnings
                 print("Synthesizing existing learnings with new batch learnings...")
                 updated_learnings = self.synthesize_learnings(current_learnings, batch_learnings)
-                print(f"Synthesized learnings: {len(updated_learnings)} characters")
 
             # Save updated learnings
             self._save_learnings(updated_learnings)
-            print(f"Learnings saved successfully ({len(updated_learnings)} characters)")
 
         except Exception as e:
             print(f"Error updating learnings: {e}")
