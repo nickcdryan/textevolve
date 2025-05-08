@@ -746,15 +746,37 @@ class AgentSystem:
             print(error_message)
             return f"--- LEARNINGS FROM ITERATION {iteration_data.get('iteration')} ---\n{error_message}\n\n"
     
+
     def synthesize_learnings(self, current_learnings: str, new_batch_learnings: str) -> str:
-        """Synthesize existing learnings with new batch learnings, emphasizing dataset-specific insights"""
-        learnings_synthesizer_system_instruction = "You are a Knowledge Integrator. Your role is to synthesize accumulated dataset-specific knowledge with new insights, creating an evolving experiment log that captures concrete patterns, strategies, and findings about this specific task."
+        """
+        Synthesize existing learnings with new batch learnings, emphasizing dataset-specific insights.
+        Automatically condenses content when approaching token limits.
+        """
+        # Define character limit threshold (staying well under the 41,000 character limit)
+        CHARACTER_LIMIT_THRESHOLD = 40000
+
+        # Calculate current lengths
+        current_length = len(current_learnings)
+        new_length = len(new_batch_learnings)
+        combined_length = current_length + new_length
 
         # Print length info for debugging
-        print(f"Current learnings length: {len(current_learnings)}")
-        print(f"New batch learnings length: {len(new_batch_learnings)}")
+        print(f"Current learnings length: {current_length}")
+        print(f"New batch learnings length: {new_length}")
+        print(f"Combined length: {combined_length}")
 
-        prompt = f"""
+        # Determine if we need to condense content
+        approaching_limit = combined_length > CHARACTER_LIMIT_THRESHOLD
+
+        # Choose appropriate system instruction based on our needs
+        if approaching_limit:
+            system_instruction = "You are a Knowledge Condenser and Synthesizer. Your role is to extract and distill the most critical insights from accumulated knowledge and new findings, creating a concise yet comprehensive summary while staying within strict length constraints."
+            print(f"Approaching character limit ({combined_length}/{CHARACTER_LIMIT_THRESHOLD}). Activating condensing mode.")
+        else:
+            system_instruction = "You are a Knowledge Integrator. Your role is to synthesize accumulated dataset-specific knowledge with new insights, creating an evolving experiment log that captures concrete patterns, strategies, and findings about this specific task."
+
+        # Base prompt content
+        base_prompt = f"""
         You are tasked with synthesizing existing knowledge with new learnings from our latest experiment on this dataset.
 
         EXISTING ACCUMULATED LEARNINGS:
@@ -762,48 +784,126 @@ class AgentSystem:
 
         NEW LEARNINGS FROM LATEST BATCH:
         {new_batch_learnings}
+        """
 
-        Create an updated, synthesized version of our learnings that:
-
-        1. Maintains a comprehensive catalog of DATASET PATTERNS we've identified
-        2. Tracks the evolution of our understanding about what makes this specific task challenging
-        3. Documents concrete STRATEGIES that have proven effective or ineffective for this particular dataset
-        4. Creates a running EXPERIMENT LOG tracking our attempts and findings specific to this task
-        5. Prioritizes concrete, task-specific insights over general system design principles
-
-        The synthesized learnings should read like a detailed research log about THIS specific dataset and task, 
-        not a general guide to system design. Each section should include specific examples and concrete findings.
-
+        # Common synthesis instructions
+        synthesis_instructions = """
         Organize the information into these sections:
-
         1. DATASET PATTERNS & CHARACTERISTICS
         2. EFFECTIVE TASK-SPECIFIC STRATEGIES
         3. COMMON FAILURE MODES ON THIS DATASET
         4. EXPERIMENT LOG & FINDINGS
         5. NEXT RESEARCH DIRECTIONS
 
-        Your output will replace the current learnings file and serve as long-term memory for working specifically with this dataset.
+        The synthesized learnings should read like a detailed research log about THIS specific dataset and task, 
+        not a general guide to system design. Each section should include specific examples and concrete findings.
 
-        IMPORTANT: Preserve all concrete, specific insights from both the existing learnings and new batch. Don't lose valuable information. Preserve the details of runtime, execution, error, and processing problems so that we can learn from them in the future and DO NOT make the same mistakes again.
+        Your output will replace the current learnings file and serve as long-term memory for working specifically with this dataset.
         """
 
+        # Condensing-specific instructions when approaching limit
+        if approaching_limit:
+            condensing_instructions = f"""
+            CRITICAL: The combined length of existing learnings and new learnings is approaching our limit.
+
+            Your task is to CONDENSE and SYNTHESIZE this information while:
+            1. Preserving the most important and actionable insights
+            2. Eliminating redundancies and generalizing similar findings
+            3. Focusing on concrete patterns rather than general observations
+            4. Prioritizing recent findings while incorporating key historical insights
+            5. Keeping your output UNDER {CHARACTER_LIMIT_THRESHOLD} characters in total length
+
+            When condensing:
+            - Merge similar observations from different iterations
+            - Remove lengthy examples that illustrate the same point
+            - Summarize detailed error descriptions while preserving their core lessons
+            - Focus on patterns and trends rather than isolated incidents
+            - Retain specific error details only when they reveal unique insights
+
+            Create an updated, condensed version of our learnings that:
+            1. Maintains the most important DATASET PATTERNS we've identified
+            2. Preserves our critical understanding about what makes this specific task challenging
+            3. Retains the most effective STRATEGIES and important failure modes
+            4. Summarizes the EXPERIMENT LOG to highlight key findings
+            5. Prioritizes concrete, task-specific insights over general principles
+
+            IMPORTANT: Your response MUST be shorter than {CHARACTER_LIMIT_THRESHOLD} characters while preserving the most critical information.
+            """
+
+            prompt = base_prompt + condensing_instructions + synthesis_instructions
+        else:
+            # Standard synthesis instructions when not approaching limit
+            standard_instructions = """
+            Create an updated, synthesized version of our learnings that:
+            1. Maintains a comprehensive catalog of DATASET PATTERNS we've identified
+            2. Tracks the evolution of our understanding about what makes this specific task challenging
+            3. Documents concrete STRATEGIES that have proven effective or ineffective for this particular dataset
+            4. Creates a running EXPERIMENT LOG tracking our attempts and findings specific to this task
+            5. Prioritizes concrete, task-specific insights over general system design principles
+
+            IMPORTANT: Preserve all concrete, specific insights from both the existing learnings and new batch. Don't lose valuable information. Preserve the details of runtime, execution, error, and processing problems so that we can learn from them in the future and DO NOT make the same mistakes again.
+            """
+
+            prompt = base_prompt + standard_instructions + synthesis_instructions
+
         try:
-            print("Calling LLM to synthesize learnings...")
-            response = self.call_llm(
-                prompt,
-                system_instruction=learnings_synthesizer_system_instruction)
-            print(f"Received synthesized learnings: {len(response)} characters")
+            print(f"Calling LLM to {'condense and synthesize' if approaching_limit else 'synthesize'} learnings...")
+            response = self.call_llm(prompt, system_instruction=system_instruction)
+
+            response_length = len(response.strip())
+            print(f"Received synthesized learnings: {response_length} characters")
+
+            # Check if we're still close to the limit after synthesis
+            if approaching_limit and response_length > CHARACTER_LIMIT_THRESHOLD:
+                print(f"WARNING: Synthesized content ({response_length} chars) still exceeds threshold ({CHARACTER_LIMIT_THRESHOLD} chars)")
+
+                # If we're still over the limit, try one more time with stricter constraints
+                if response_length > CHARACTER_LIMIT_THRESHOLD:
+                    emergency_prompt = f"""
+                    EMERGENCY CONDENSING REQUIRED: The synthesized learnings are still too long at {response_length} characters.
+
+                    Please condense this content DRASTICALLY while preserving only the MOST CRITICAL insights:
+
+                    {response.strip()}
+
+                    Your output MUST be under {CHARACTER_LIMIT_THRESHOLD} characters. Be ruthless in removing less important details
+                    while maintaining the core patterns, key strategies, and critical failure modes.
+
+                    Focus only on the most important:
+                    1. DATASET PATTERNS & CHARACTERISTICS (most distinctive ones only)
+                    2. EFFECTIVE TASK-SPECIFIC STRATEGIES (only the proven ones)
+                    3. COMMON FAILURE MODES ON THIS DATASET (only the recurring ones)
+                    4. KEY FINDINGS (only the most significant discoveries)
+                    5. NEXT RESEARCH DIRECTIONS (only the most promising)
+
+                    MAXIMUM LENGTH: {CHARACTER_LIMIT_THRESHOLD} characters.
+                    """
+
+                    print("Attempting emergency condensing...")
+                    response = self.call_llm(
+                        emergency_prompt,
+                        system_instruction="You are an Emergency Content Condenser. Your task is to drastically reduce content length while preserving critical information."
+                    )
+                    print(f"Emergency condensing result: {len(response.strip())} characters")
+
             return response.strip()
+
         except Exception as e:
             error_message = f"Error synthesizing learnings: {str(e)}"
             print(error_message)
             traceback.print_exc()  # Print full traceback for better debugging
 
-            # Return a concatenated version as fallback
-            fallback = f"{current_learnings}\n\n=== NEWEST LEARNINGS (NOT SYNTHESIZED DUE TO ERROR) ===\n\n{new_batch_learnings}"
-            print(f"Using fallback concatenation: {len(fallback)} characters")
-            return fallback
-
+            # Return a condensed fallback if we're approaching the limit
+            if approaching_limit:
+                fallback = f"=== EMERGENCY TRUNCATED LEARNINGS ===\n\n{current_learnings[:20000]}\n\n=== NEWEST LEARNINGS (TRUNCATED) ===\n\n{new_batch_learnings[:5000]}"
+                print(f"Using emergency truncated fallback: {len(fallback)} characters")
+                return fallback
+            else:
+                # Standard fallback when not approaching limit
+                fallback = f"{current_learnings}\n\n=== NEWEST LEARNINGS (NOT SYNTHESIZED DUE TO ERROR) ===\n\n{new_batch_learnings}"
+                print(f"Using fallback concatenation: {len(fallback)} characters")
+                return fallback
+    
     def update_learnings(self, iteration_data: Dict) -> None:
         """Update the learnings file with insights from the current iteration"""
         try:
@@ -1356,11 +1456,11 @@ class AgentSystem:
 
         === DIRECT LLM REASONING APPROACH ===
 
-        CRITICAL: Previous scripts have shown that complex code generation with JSON parsing and multi-step pipelines often 
+        CRITICAL: Previous scripts have shown that complex JSON parsing often 
         leads to errors and low performance. Instead, focus on leveraging the LLM's natural reasoning abilities:
 
-        1. SIMPLIFY YOUR APPROACH:
-           - Minimize the number of processing steps - simpler is better
+        1. START SIMPLE, ADD COMPLEXITY OVER TIME:
+           - Begin with simple LLM techniques and then add more complex patterns and techniques
            - Directly use LLM for pattern recognition rather than writing complex code
            - Avoid trying to parse or manipulate JSON manually - pass it as text to the LLM
 
@@ -1383,13 +1483,10 @@ class AgentSystem:
         5. SUCCESSFUL EXAMPLES:
            - The most successful approaches have used direct pattern matching with multiple examples
            - Scripts with simple validation and fallback approaches perform better
-           - Scripts with fewer processing steps have higher success rates
         
         IMPLEMENTATION STRATEGIES:
         1. Maintain a "example bank" of successful and failed examples to select from
-        2. Implement n-shot prompting with n=3 as default, but adapt based on performance
-        3. For complex tasks, use up to 5 examples; for simpler tasks, 2-3 may be sufficient
-        4. Include examples with a range of complexity levels, rather than all similar examples
+        2. Implement n-shot prompting with n=3 as default, but adapt based on performance and experiment with n-shot prompting with n=0, n=1, n=4
 
 
 
