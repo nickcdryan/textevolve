@@ -1,85 +1,79 @@
+#!/usr/bin/env python
+"""
+Improved LLM-driven agent for solving grid transformation problems. This version focuses on 
+direct pattern matching, robust error handling, and minimal code.
+"""
 
-    import os
-    import json
-    from google import genai
-    from google.genai import types
+import os
+import re
+from typing import List, Dict, Any, Optional, Union
 
-    def call_llm(prompt, system_instruction=None):
-        """Call the Gemini LLM with a prompt and return the response"""
-        try:
-            # Initialize the Gemini client
-            client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+def call_llm(prompt, system_instruction=None):
+    """Call the Gemini LLM with a prompt and return the response.  """
+    try:
+        from google import genai
+        from google.genai import types
 
-            # Call the API with system instruction if provided
-            if system_instruction:
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash", 
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0)
-                    ),
-                    contents=prompt
-                )
-            else:
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    config=types.GenerateContentConfig(
-                        thinking_config=types.ThinkingConfig(thinking_budget=0)
-                    ),
-                    contents=prompt
-                )
+        # Initialize the Gemini client
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-            return response.text
-        except Exception as e:
-            print(f"Error calling Gemini API: {str(e)}")
-            return f"Error: {str(e)}"
+        # Call the API with system instruction if provided
+        if system_instruction:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
+            )
+        else:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
 
-    def extract_information(text):
-        """Extract key information from the input text"""
-        system_instruction = "You are an information extraction specialist."
+        return response.text
+    except Exception as e:
+        print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
 
-        prompt = f"""
-        Extract key information from this text. Focus on identifying important elements and relationships.
+def solve_grid_transformation(question: str) -> str:
+    """
+    Solve grid transformation problems using direct pattern matching with LLM.
+    """
+    # Simplified approach: Use the LLM to directly transform the input based on examples.
+    prompt = f"""
+    You are an expert at recognizing patterns in grid transformations. Given training examples
+    and a test input, transform the test input according to the learned pattern.
 
-        Example:
-        Input: The project must be completed by June 15th and requires collaboration between the engineering and design teams.
-        Output: {"deadline": "June 15th", "teams_involved": ["engineering", "design"], "requirement": "collaboration"}
+    Example 1:
+    Input Grid:
+    [[0, 7, 7], [7, 7, 7], [0, 7, 7]]
+    Output Grid:
+    [[0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7]]
 
-        Now extract information from this input:
-        {text}
-        """
+    Example 2:
+    Input Grid:
+    [[4, 0, 4], [0, 0, 0], [0, 4, 0]]
+    Output Grid:
+    [[4, 0, 4, 0, 0, 0, 4, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 4, 0, 0, 0, 0, 0, 4, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 4, 0, 4, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 4, 0, 0, 0, 0]]
 
-        return call_llm(prompt, system_instruction)
+    Given the training examples and the TEST INPUT below, transform the TEST INPUT according to the patterns observed in the examples. Return ONLY the transformed grid.
+    {question}
+    """
 
-    def generate_solution(problem):
-        """Generate a solution to the problem"""
-        system_instruction = "You are a problem-solving expert."
+    # Call the LLM
+    llm_output = call_llm(prompt)
 
-        prompt = f"""
-        Generate a detailed solution for this problem:
+    # Implement very basic validation
+    if "Error" in llm_output:
+        return "Error occurred during processing."
+    else:
+        return llm_output
 
-        Example:
-        Problem: Design a simple notification system that sends alerts when a temperature sensor exceeds 30°C.
-        Solution: Create a monitoring service that polls the temperature sensor every minute. When a reading exceeds 30°C, trigger the notification system to send an alert via email and SMS to registered users, including the current temperature value and timestamp.
-
-        Now solve this problem:
-        {problem}
-        """
-
-        return call_llm(prompt, system_instruction)
-
-    def main(question):
-        """Main function to solve problems"""
-        try:
-            # Step 1: Extract key information
-            information = extract_information(question)
-
-            # Step 2: Generate a solution
-            solution = generate_solution(question)
-
-            # Return the solution
-            return solution
-        except Exception as e:
-            print(f"Error in main: {str(e)}")
-            return "I couldn't generate a solution due to an error."
-    
+def main(question: str) -> str:
+    """
+    Main function to solve the grid transformation problem.
+    """
+    answer = solve_grid_transformation(question)
+    return answer
