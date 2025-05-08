@@ -1849,6 +1849,11 @@ class AgentSystem:
             BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
             """
 
+        # Write prompt to scripts/ directory
+        prompt_path = self.scripts_dir / f"prompt_{self.current_iteration}.txt"
+        with open(prompt_path, 'w', encoding='utf-8') as f:
+            f.write(prompt)
+        
         # ==== GENERATE SCRIPT WITH VALIDATION ====
         max_attempts = 3
         attempts = 0
