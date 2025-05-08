@@ -767,12 +767,7 @@ class AgentSystem:
         # Determine if we need to condense content
         approaching_limit = combined_length > CHARACTER_LIMIT_THRESHOLD
 
-        # Choose appropriate system instruction based on our needs
-        if approaching_limit:
-            system_instruction = "You are a Knowledge Condenser and Synthesizer. Your role is to extract and distill the most critical insights from accumulated knowledge and new findings, creating a concise yet comprehensive summary while staying within strict length constraints."
-            print(f"Approaching character limit ({combined_length}/{CHARACTER_LIMIT_THRESHOLD}). Activating condensing mode.")
-        else:
-            system_instruction = "You are a Knowledge Integrator. Your role is to synthesize accumulated dataset-specific knowledge with new insights, creating an evolving experiment log that captures concrete patterns, strategies, and findings about this specific task."
+        system_instruction = "You are a Knowledge Integrator. Your role is to synthesize accumulated dataset-specific knowledge with new insights, creating an evolving experiment log that captures concrete patterns, strategies, and findings about this specific task."
 
         # Base prompt content
         base_prompt = f"""
@@ -783,67 +778,44 @@ class AgentSystem:
 
         NEW LEARNINGS FROM LATEST BATCH:
         {new_batch_learnings}
-        """
+        
+        Create an updated, synthesized version of our learnings that:
 
-        # Common synthesis instructions
-        synthesis_instructions = """
+        1. Maintains a comprehensive catalog of DATASET PATTERNS we've identified
+        2. Tracks the evolution of our understanding about what makes this specific task challenging
+        3. Documents concrete STRATEGIES that have proven effective or ineffective for this particular dataset
+        4. Creates a running EXPERIMENT LOG tracking our attempts and findings specific to this task
+        5. Prioritizes concrete, task-specific insights over general system design principles
+
+        The synthesized learnings should read like a detailed research log about THIS specific dataset and task, 
+        not a general guide to system design. Each section should include specific examples and concrete findings.
+
         Organize the information into these sections:
+
         1. DATASET PATTERNS & CHARACTERISTICS
         2. EFFECTIVE TASK-SPECIFIC STRATEGIES
         3. COMMON FAILURE MODES ON THIS DATASET
         4. EXPERIMENT LOG & FINDINGS
         5. NEXT RESEARCH DIRECTIONS
 
-        The synthesized learnings should read like a detailed research log about THIS specific dataset and task, 
-        not a general guide to system design. Each section should include specific examples and concrete findings.
-
         Your output will replace the current learnings file and serve as long-term memory for working specifically with this dataset.
+
+        IMPORTANT: Preserve all concrete, specific insights from both the existing learnings and new batch. Don't lose valuable information. Preserve the details of runtime, execution, error, and processing problems so that we can learn from them in the future and DO NOT make the same mistakes again.
         """
 
         # Condensing-specific instructions when approaching limit
         if approaching_limit:
-            condensing_instructions = f"""
-            CRITICAL: The combined length of existing learnings and new learnings is approaching our limit.
+            condensing_instructions = """
+            CRITICAL: The system has just given a warning that number of tokens in our learnings document is at the document limit. The document can't hold more tokens.
 
-            Your task is to CONDENSE and SYNTHESIZE this information while:
-            1. Preserving the most important and actionable insights
-            2. Eliminating redundancies and generalizing similar findings
-            3. Focusing on concrete patterns rather than general observations
-            4. Prioritizing recent findings while incorporating key historical insights
-            5. Keeping your output UNDER {CHARACTER_LIMIT_THRESHOLD} characters in total length
+            With this in mind, make sure you synthesize the new learnings without adding to the overall length of the document.
 
-            When condensing:
-            - Merge similar observations from different iterations
-            - Remove lengthy examples that illustrate the same point
-            - Summarize detailed error descriptions while preserving their core lessons
-            - Focus on patterns and trends rather than isolated incidents
-            - Retain specific error details only when they reveal unique insights
-
-            Create an updated, condensed version of our learnings that:
-            1. Maintains the most important DATASET PATTERNS we've identified
-            2. Preserves our critical understanding about what makes this specific task challenging
-            3. Retains the most effective STRATEGIES and important failure modes
-            4. Summarizes the EXPERIMENT LOG to highlight key findings
-            5. Prioritizes concrete, task-specific insights over general principles
-
-            IMPORTANT: Your response MUST be shorter than {CHARACTER_LIMIT_THRESHOLD} characters while preserving the most critical information.
+            You should condense redundant parts of the document as needed.
             """
 
-            prompt = base_prompt + condensing_instructions + synthesis_instructions
+            prompt = base_prompt + condensing_instructions 
         else:
-            # Standard synthesis instructions when not approaching limit
-            standard_instructions = """
-            Create an updated, synthesized version of our learnings that:
-            1. Maintains a comprehensive catalog of DATASET PATTERNS we've identified
-            2. Tracks the evolution of our understanding about what makes this specific task challenging
-            3. Documents concrete STRATEGIES that have proven effective or ineffective for this particular dataset
-            4. Creates a running EXPERIMENT LOG tracking our attempts and findings specific to this task
-            5. Prioritizes concrete, task-specific insights over general system design principles
-
-            IMPORTANT: Preserve all concrete, specific insights from both the existing learnings and new batch. Don't lose valuable information. Preserve the details of runtime, execution, error, and processing problems so that we can learn from them in the future and DO NOT make the same mistakes again.
-            """
-
-            prompt = base_prompt + standard_instructions + synthesis_instructions
+            prompt = base_prompt
 
         try:
             print(f"Calling LLM to {'condense and synthesize' if approaching_limit else 'synthesize'} learnings...")
@@ -852,39 +824,6 @@ class AgentSystem:
             response_length = len(response.strip())
             print(f"Received synthesized learnings: {response_length} characters")
 
-            # Check if we're still close to the limit after synthesis
-            if approaching_limit and response_length > CHARACTER_LIMIT_THRESHOLD:
-                print(f"WARNING: Synthesized content ({response_length} chars) still exceeds threshold ({CHARACTER_LIMIT_THRESHOLD} chars)")
-
-                # If we're still over the limit, try one more time with stricter constraints
-                if response_length > CHARACTER_LIMIT_THRESHOLD:
-                    emergency_prompt = f"""
-                    EMERGENCY CONDENSING REQUIRED: The synthesized learnings are still too long at {response_length} characters.
-
-                    Please condense this content DRASTICALLY while preserving only the MOST CRITICAL insights:
-
-                    {response.strip()}
-
-                    Your output MUST be under {CHARACTER_LIMIT_THRESHOLD} characters. Be ruthless in removing less important details
-                    while maintaining the core patterns, key strategies, and critical failure modes.
-
-                    Focus only on the most important:
-                    1. DATASET PATTERNS & CHARACTERISTICS (most distinctive ones only)
-                    2. EFFECTIVE TASK-SPECIFIC STRATEGIES (only the proven ones)
-                    3. COMMON FAILURE MODES ON THIS DATASET (only the recurring ones)
-                    4. KEY FINDINGS (only the most significant discoveries)
-                    5. NEXT RESEARCH DIRECTIONS (only the most promising)
-
-                    MAXIMUM LENGTH: {CHARACTER_LIMIT_THRESHOLD} characters.
-                    """
-
-                    print("Attempting emergency condensing...")
-                    response = self.call_llm(
-                        emergency_prompt,
-                        system_instruction="You are an Emergency Content Condenser. Your task is to drastically reduce content length while preserving critical information."
-                    )
-                    print(f"Emergency condensing result: {len(response.strip())} characters")
-
             return response.strip()
 
         except Exception as e:
@@ -892,16 +831,10 @@ class AgentSystem:
             print(error_message)
             traceback.print_exc()  # Print full traceback for better debugging
 
-            # Return a condensed fallback if we're approaching the limit
-            if approaching_limit:
-                fallback = f"=== EMERGENCY TRUNCATED LEARNINGS ===\n\n{current_learnings[:20000]}\n\n=== NEWEST LEARNINGS (TRUNCATED) ===\n\n{new_batch_learnings[:5000]}"
-                print(f"Using emergency truncated fallback: {len(fallback)} characters")
-                return fallback
-            else:
-                # Standard fallback when not approaching limit
-                fallback = f"{current_learnings}\n\n=== NEWEST LEARNINGS (NOT SYNTHESIZED DUE TO ERROR) ===\n\n{new_batch_learnings}"
-                print(f"Using fallback concatenation: {len(fallback)} characters")
-                return fallback
+            fallback = f"{current_learnings}\n\n=== NEWEST LEARNINGS (NOT SYNTHESIZED DUE TO ERROR) ===\n\n{new_batch_learnings}"
+            print(f"Using fallback concatenation: {len(fallback)} characters")
+            return fallback
+
     
     def update_learnings(self, iteration_data: Dict) -> None:
         """Update the learnings file with insights from the current iteration"""
