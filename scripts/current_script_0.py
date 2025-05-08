@@ -1,15 +1,65 @@
-#!/usr/bin/env python
-"""
-Improved LLM-driven agent for solving grid transformation problems. This version focuses on 
-direct pattern matching, robust error handling, and minimal code.
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by inferring patterns from examples and applying them."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids."
+    
+    # Improved prompt with multiple examples and clear instructions
+    prompt = f"""
+    You are tasked with transforming a test input grid based on the patterns observed in the training examples. Study the examples carefully to infer the transformation logic.
+
+    Example 1:
+    Input Grid:
+    [[0, 7, 7], [7, 7, 7], [0, 7, 7]]
+    Output Grid:
+    [[0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7]]
+    Reasoning: The transformation expands the grid. Each original cell's value is used to populate a 3x3 block in the output.
+
+    Example 2:
+    Input Grid:
+    [[4, 0, 4], [0, 0, 0], [0, 4, 0]]
+    Output Grid:
+    [[4, 0, 4, 0, 0, 0, 4, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 4, 0, 0, 0, 0, 0, 4, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 4, 0, 4, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 4, 0, 0, 0, 0]]
+    Reasoning: The grid is expanded, and values are used to populate a 3x3 block based on the original cell's coordinates.
+
+    Example 3:
+    Input Grid:
+    [[0, 0, 0], [0, 0, 2], [2, 0, 2]]
+    Output Grid:
+    [[0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 0, 0, 0, 0, 2, 0, 2], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0, 0, 0, 2], [2, 0, 2, 0, 0, 0, 2, 0, 2]]
+    Reasoning: Similar expansion pattern, but with different original values and block placements.
+    
+    Now, transform this test input grid according to the patterns:
+    Test Input Grid:
+    {problem_text}
+    
+    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+    """
+    
+    # Attempt to generate the transformed grid
+    for attempt in range(max_attempts):
+        try:
+            transformed_grid_text = call_llm(prompt, system_instruction)
+            # Basic validation - check if it looks like a grid
+            if "[" in transformed_grid_text and "]" in transformed_grid_text:
+                return transformed_grid_text
+            else:
+                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+
+    # Fallback approach if all attempts fail
+    return "[[0,0,0],[0,0,0],[0,0,0]]"
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response.  """
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
@@ -36,44 +86,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def solve_grid_transformation(question: str) -> str:
-    """
-    Solve grid transformation problems using direct pattern matching with LLM.
-    """
-    # Simplified approach: Use the LLM to directly transform the input based on examples.
-    prompt = f"""
-    You are an expert at recognizing patterns in grid transformations. Given training examples
-    and a test input, transform the test input according to the learned pattern.
-
-    Example 1:
-    Input Grid:
-    [[0, 7, 7], [7, 7, 7], [0, 7, 7]]
-    Output Grid:
-    [[0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7]]
-
-    Example 2:
-    Input Grid:
-    [[4, 0, 4], [0, 0, 0], [0, 4, 0]]
-    Output Grid:
-    [[4, 0, 4, 0, 0, 0, 4, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 4, 0, 0, 0, 0, 0, 4, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 4, 0, 4, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 4, 0, 0, 0, 0]]
-
-    Given the training examples and the TEST INPUT below, transform the TEST INPUT according to the patterns observed in the examples. Return ONLY the transformed grid.
-    {question}
-    """
-
-    # Call the LLM
-    llm_output = call_llm(prompt)
-
-    # Implement very basic validation
-    if "Error" in llm_output:
-        return "Error occurred during processing."
-    else:
-        return llm_output
-
-def main(question: str) -> str:
-    """
-    Main function to solve the grid transformation problem.
-    """
-    answer = solve_grid_transformation(question)
-    return answer

@@ -1,14 +1,95 @@
-#!/usr/bin/env python
-"""This script explores a new approach to solving grid transformation problems.
-
-Hypothesis: By focusing on identifying minimal change regions and then interpolating patterns based on those regions, we can solve these problems with greater accuracy. This contrasts previous approaches that relied on global pattern matching or iterative refinement of a single rule.
-
-This approach leverages two distinct LLM agents: a Minimal Change Identifier and a Pattern Interpolator. It also includes a new verification step.
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven iterative refinement with constraint validation."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem through iterative rule extraction and application, validated against constraints."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns from examples, applying them to new grids, and validating the transformed grid against constraints."
+
+    # STEP 1: Extract initial transformation rule with embedded examples
+    rule_extraction_prompt = f"""
+    You are tasked with identifying transformation rules applied to grids. Study the examples and explain the logic, focusing on spatial relationships and value transformations.
+
+    Example 1:
+    Input Grid: [[1, 0], [0, 1]]
+    Output Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Explanation: Each element is expanded diagonally with the element's value.
+
+    Example 2:
+    Input Grid: [[2, 8], [8, 2]]
+    Output Grid: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Explanation: Each element expands to a 2x2 block containing that element.
+
+    Now, explain the transformation rule for this example: {problem_text}
+    """
+
+    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+
+    # STEP 2: Apply and iteratively refine based on constraint verification
+    transformed_grid_text = ""
+    for attempt in range(max_attempts):
+        application_prompt = f"""
+        Transformation Rule: {extracted_rule}
+        Apply this rule to: {problem_text}
+        Output the transformed grid as a 2D array formatted as a string.
+
+        Example:
+        Rule: Double each element
+        Input: [[1, 2], [3, 4]]
+        Output: [[2, 4], [6, 8]]
+        """
+
+        transformed_grid_text = call_llm(application_prompt, system_instruction)
+
+        # Verify constraints with examples
+        constraint_verification_prompt = f"""
+        Extracted Rule: {extracted_rule}
+        Original Grid: {problem_text}
+        Transformed Grid: {transformed_grid_text}
+
+        Example 1:
+        Rule: Each element is copied diagonally
+        Input: [[1,0],[0,1]]
+        Transformed: [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+        Check if the Transformed grid follows the rule's spatial and value constraints. Output 'Yes' or 'No'. Output 'Invalid' if the output is unreadable.
+        Result: Yes
+
+        Example 2:
+        Rule: Each element doubles.
+        Input: [[1,2],[3,4]]
+        Transformed: [[1,2],[3,4]]
+        Check if the Transformed grid follows the rule's spatial and value constraints. Output 'Yes' or 'No'. Output 'Invalid' if the output is unreadable.
+        Result: No
+
+        Check if the Transformed Grid follows the rule's spatial and value constraints. Output 'Yes' or 'No'. Output 'Invalid' if the output is unreadable.
+        """
+
+        verification_result = call_llm(constraint_verification_prompt, system_instruction)
+
+        if "Yes" in verification_result and "[" in transformed_grid_text and "]" in transformed_grid_text:
+            return transformed_grid_text
+        else:
+            # Refine the extracted rule based on feedback
+            refinement_prompt = f"""
+            The transformation rule or generated grid failed validation. Review the original problem, extracted rule, and generated grid, then refine the rule.
+
+            Original Problem: {problem_text}
+            Extracted Rule: {extracted_rule}
+            Generated Grid: {transformed_grid_text}
+            Validation Result: {verification_result}
+
+            Provide a refined explanation of the rule focusing on spatial relationships, value transformations, constraints:
+            """
+
+            extracted_rule = call_llm(refinement_prompt, system_instruction)
+            print(f"Attempt {attempt+1} failed, refining rule: {extracted_rule}")
+
+    return "[[0,0,0],[0,0,0],[0,0,0]]" # Fallback after max attempts
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response."""
@@ -36,98 +117,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def identify_minimal_change_regions(question: str) -> str:
-    """Identifies regions with minimal change between input and output grids."""
-    prompt = f"""You are a Minimal Change Identifier. Analyze the grid transformation question and identify regions where the transformation is minimal or non-existent. This is crucial for anchoring pattern interpolation.
-
-    Example:
-    question: === TRAINING EXAMPLES === Example 1: Input Grid: [[1, 2], [3, 4]] Output Grid: [[1, 3], [2, 4]] === TEST INPUT === [[5, 6], [7, 8]] Transform the test input.
-    Minimal Change Regions: The diagonal elements (top-left and bottom-right) remain unchanged.
-
-    question: {question}
-    Minimal Change Regions:"""
-    minimal_change = call_llm(prompt)
-    return minimal_change
-
-def interpolate_transformation_pattern(question: str, minimal_change: str) -> str:
-    """Interpolates the transformation pattern based on minimal change regions."""
-    prompt = f"""You are a Pattern Interpolator. Given the grid transformation question and the identified minimal change regions, interpolate the transformation pattern that explains the changes. Use minimal change regions as a stable base to infer changes elsewhere.
-
-    Example:
-    question: === TRAINING EXAMPLES === Example 1: Input Grid: [[1, 2], [3, 4]] Output Grid: [[1, 3], [2, 4]] === TEST INPUT === [[5, 6], [7, 8]] Transform the test input.
-    Minimal Change Regions: The diagonal elements (top-left and bottom-right) remain unchanged.
-    Transformation Pattern: The off-diagonal elements swap positions.
-
-    question: {question}
-    Minimal Change Regions: {minimal_change}
-    Transformation Pattern:"""
-    transformation_pattern = call_llm(prompt)
-    return transformation_pattern
-
-def apply_transformation(input_grid: str, transformation_pattern: str) -> str:
-    """Apply the interpolated transformation pattern to the input grid."""
-    prompt = f"""You are a Grid Transformer. Apply the transformation pattern to the input grid to generate the transformed grid.
-
-    Example:
-    input_grid: [[5, 6], [7, 8]]
-    transformation_pattern: The off-diagonal elements swap positions.
-    Transformed Grid: [[5, 7], [6, 8]]
-
-    input_grid: {input_grid}
-    transformation_pattern: {transformation_pattern}
-    Transformed Grid:"""
-    transformed_grid = call_llm(prompt)
-    return transformed_grid
-
-def verify_transformation(question: str, transformed_grid: str) -> str:
-    """Verifies that the transformation is valid by performing error analysis."""
-    prompt = f"""You are an expert grid transformation verifier. Verify that the new grid provided makes sense given the question.
-    Here is how it should perform, using the same question format:
-    Example of a valid transformation, with explanation.
-        question:
-            === TRAINING EXAMPLES ===
-            Example 1:
-                Input Grid: [[1, 2], [3, 4]]
-                Output Grid: [[2, 3], [4, 1]]
-            === TEST INPUT ===
-            [[5, 6], [7, 8]]
-            Transform the test input according to the pattern shown in the training examples.
-
-    transformation: [[6, 7], [8, 5]]
-    verified: CORRECT because numbers shift to the right.
-
-    question: {question}
-    transformation: {transformed_grid}
-    verified: 
-    """
-    verified = call_llm(prompt)
-    return verified
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    try:
-        # 1. Identify minimal change regions
-        minimal_change = identify_minimal_change_regions(question)
-
-        # 2. Interpolate transformation pattern
-        transformation_pattern = interpolate_transformation_pattern(question, minimal_change)
-
-        # 3. Extract the test input grid
-        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
-        if not test_input_match:
-            return "Error: Could not find TEST INPUT in the question."
-        input_grid = test_input_match.group(1).strip()
-
-        # 4. Apply the transformation
-        transformed_grid = apply_transformation(input_grid, transformation_pattern)
-
-        # 5. Verify
-        verified = verify_transformation(question, transformed_grid)
-
-        if "INCORRECT" in verified:
-            return f"Error: Transformation verification failed. {verified}"
-
-        return transformed_grid
-    except Exception as e:
-        return f"An error occurred: {e}"

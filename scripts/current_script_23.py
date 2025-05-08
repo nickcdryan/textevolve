@@ -1,20 +1,95 @@
-#!/usr/bin/env python
-"""
-Exploration: Meta-Reasoning with Iterative Pattern Refinement.
-Hypothesis: A meta-reasoning agent that iteratively analyzes and refines its understanding of patterns will improve performance.
-
-This approach differs significantly from previous ones by:
-1. Introducing a meta-reasoning layer that reflects on and improves the transformation rule.
-2. Breaking the problem into meta-analysis, rule application, and verification.
-3. Minimizing the use of code, and maximizing the use of LLMs.
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by first extracting the transformation rule and then applying it, with verification."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns and applying them. Explain the rule, verify its consistency, and then apply it."
+    
+    # STEP 1: Extract the transformation rule with examples
+    rule_extraction_prompt = f"""
+    You are tasked with identifying the transformation rule applied to grids. Study the examples and explain the logic in plain English.
+
+    Example 1:
+    Input Grid:
+    [[1, 0], [0, 1]]
+    Output Grid:
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Explanation: Each element becomes a diagonal in a larger grid.
+
+    Example 2:
+    Input Grid:
+    [[2, 8], [8, 2]]
+    Output Grid:
+    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Explanation: Each element is expanded to a 2x2 block.
+
+    Example 3:
+    Input Grid:
+    [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
+    Output Grid:
+    [[1, 0, 1], [0, 0, 0], [1, 0, 1]]
+    Explanation: Input overlaid onto zeros; 1 replaces 0, 0 remains as 0.
+
+    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
+    Test Example:
+    {problem_text}
+    """
+    
+    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+
+    # STEP 2: Verify the extracted rule against the examples
+    verification_prompt = f"""
+    You extracted this transformation rule:
+    {extracted_rule}
+
+    Verify if this rule is consistent with the following example:
+    {problem_text}
+
+    Does the extracted rule logically explain how the input transforms into the output grid? Answer 'YES' or 'NO'.
+    """
+    
+    verification_result = call_llm(verification_prompt, system_instruction)
+    if "NO" in verification_result:
+        print("Rule verification failed. Using fallback.")
+        extracted_rule = "Applying a default identity transformation."  # Simple fallback
+
+    # STEP 3: Apply the rule to the test input with examples
+    application_prompt = f"""
+    You have extracted this transformation rule:
+    {extracted_rule}
+
+    Example:
+    Input Grid: [[1, 2], [3, 4]]
+    Rule: Each number is replaced with its square
+    Output Grid: [[1, 4], [9, 16]]
+
+    Now, apply this rule to the following test input grid:
+    {problem_text}
+
+    Provide the transformed grid as a 2D array formatted as a string, WITHOUT additional explanations.
+    """
+    
+    for attempt in range(max_attempts):
+        try:
+            transformed_grid_text = call_llm(application_prompt, system_instruction)
+            if "[" in transformed_grid_text and "]" in transformed_grid_text:
+                return transformed_grid_text
+            else:
+                print(f"Attempt {attempt+1} failed: Output format incorrect. Retrying...")
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+
+    # Fallback approach
+    return "[[0,0,0],[0,0,0],[0,0,0]]"
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt."""
+    """Call the Gemini LLM with a prompt and return the response."""
     try:
         from google import genai
         from google.genai import types
@@ -39,75 +114,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def meta_analyze_patterns(question: str, max_attempts=3) -> str:
-    """Analyzes training examples and suggests a transformation pattern."""
-    prompt = f"""You are a meta-reasoning agent, skilled at understanding complex patterns.
-    Analyze the question and identify potential transformation patterns.
-
-    Example:
-    question: === TRAINING EXAMPLES === Example 1: Input Grid: [[1, 2], [3, 4]] Output Grid: [[4, 3], [2, 1]] === TEST INPUT === [[5, 6], [7, 8]] Transform the test input.
-    Transformation Patterns: The grid is flipped horizontally and vertically. Values are swapped across diagonals.
-
-    question: {question}
-    Transformation Patterns:"""
-    transformation_patterns = call_llm(prompt)
-    return transformation_patterns
-
-def apply_transformation(input_grid: str, transformation_patterns: str) -> str:
-    """Applies the transformation to the input grid."""
-    prompt = f"""You are a transformation agent, ready to apply patterns.
-    Apply the transformation patterns to the input grid.
-
-    Example:
-    input_grid: [[5, 6], [7, 8]]
-    transformation_patterns: The grid is flipped horizontally and vertically.
-    Transformed Grid: [[8, 7], [6, 5]]
-
-    input_grid: {input_grid}
-    transformation_patterns: {transformation_patterns}
-    Transformed Grid:"""
-    transformed_grid = call_llm(prompt)
-    return transformed_grid
-
-def verify_transformation(question: str, transformed_grid: str) -> str:
-    """Verifies if the transformation is correct."""
-    prompt = f"""You are a verification agent, making sure transformations are correct.
-    Verify if the transformation is correct based on the training examples in the question.
-
-    Example:
-    question: === TRAINING EXAMPLES === Example 1: Input Grid: [[1, 2], [3, 4]] Output Grid: [[2, 1], [4, 3]] === TEST INPUT === [[5, 6], [7, 8]] Transform the test input.
-    transformed_grid: [[6, 5], [8, 7]]
-    Is the transformation correct? Yes, the columns were swapped.
-
-    question: {question}
-    transformed_grid: {transformed_grid}
-    Is the transformation correct?"""
-    is_correct = call_llm(prompt)
-    return is_correct
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    try:
-        # 1. Extract the test input grid
-        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
-        if not test_input_match:
-            return "Error: Could not find TEST INPUT in the question."
-        input_grid = test_input_match.group(1).strip()
-
-        # 2. Meta-analyze patterns
-        transformation_patterns = meta_analyze_patterns(question)
-
-        # 3. Apply the transformation
-        transformed_grid = apply_transformation(input_grid, transformation_patterns)
-
-        # 4. Verify the transformation
-        is_correct = verify_transformation(question, transformed_grid)
-
-        if "No" in is_correct:
-            return "Transformation incorrect. Check the training examples"
-        else:
-            return transformed_grid
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred: {str(e)}"

@@ -1,23 +1,96 @@
-#!/usr/bin/env python
-"""
-This script improves grid transformation by:
-1. Enhancing rule extraction/refinement with multi-example prompts and feedback.
-2. Implementing a verification loop to ensure the refined rule is accurate.
-3. Adding detailed comments and error handling.
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+# This script takes a radically different approach: rather than focusing on explicit rule extraction,
+# it uses the LLM to perform iterative "hallucination" and refinement of the grid, based on overall patterns.
+# The hypothesis is that the LLM can, through iterative feedback, converge on a valid solution WITHOUT needing to
+# explicitly articulate the transformation rule. We will use the concept of LLM Self-Consistency (CoT-SC) to iteratively
+# refine the output by providing the previous outputs back as context.
+
+def main(question):
+    """Transforms a grid using LLM-driven iterative refinement, without explicit rule extraction."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=5):
+    """Solves the grid transformation problem through iterative refinement and feedback."""
+    system_instruction = "You are an expert at grid transformation, able to refine and adjust your solution iteratively."
+
+    # STEP 1: Initial Grid Hallucination
+    initial_hallucination_prompt = f"""
+    You are presented with a grid transformation problem. Generate a possible transformed grid, based on your understanding of common grid patterns.
+    Assume a 3x3 grid output if you are unsure, but attempt to match output grid to input grid size.
+
+    Problem: {problem_text}
+
+    Example 1:
+    Problem: Input Grid: [[1, 0], [0, 1]] Output Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Hallucination: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+    Example 2:
+    Problem: Input Grid: [[2, 8], [8, 2]] Output Grid: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Hallucination: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+
+    Hallucination:
+    """
+
+    current_grid = call_llm(initial_hallucination_prompt, system_instruction)
+    print(f"Initial hallucination: {current_grid}")
+
+    # STEP 2: Iterative Refinement and Feedback
+    for attempt in range(max_attempts):
+        refinement_prompt = f"""
+        You are tasked with refining the transformation for this grid-based problem.
+        Here is your previous attempt, along with the original problem. Carefully adjust your approach. Focus on spatial relationships and matching demonstrated patterns in the training examples.
+        Original Problem: {problem_text}
+        Previous Attempt: {current_grid}
+
+        Example 1:
+        Original Problem: Input Grid: [[1, 0], [0, 1]] Output Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+        Previous Attempt: [[1, 0], [0, 1]]
+        Refinement: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+        Example 2:
+        Original Problem: Input Grid: [[2, 8], [8, 2]] Output Grid: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+        Previous Attempt: [[2, 8], [8, 2]]
+        Refinement: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+
+        Refinement:
+        """
+
+        current_grid = call_llm(refinement_prompt, system_instruction)
+        print(f"Refinement attempt {attempt + 1}: {current_grid}")
+
+        # Step 3: Answer Checker - validates if the answer is a valid transformed grid that fits the problem
+        answer_check_prompt = f"""
+        You need to validate if the given answer follows the rules of the grid-based transformation problem and can be taken as a valid answer.
+
+        Problem: {problem_text}
+        Proposed Solution: {current_grid}
+
+        If the answer is a transformed grid as the solution to the problem, respond with VALID
+        If the answer is not a valid grid solution to the problem, respond with INVALID
+
+        Validity:
+        """
+
+        validity = call_llm(answer_check_prompt, system_instruction)
+        if "VALID" in validity:
+            return current_grid
+
+    # If we've failed after max_attempts, return a default grid as a last resort.
+    return "[[0,0,0],[0,0,0],[0,0,0]]"
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt. DO NOT modify."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
 
+        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
+        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
                 model="gemini-2.0-flash",
@@ -36,117 +109,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def rule_extraction(question: str) -> str:
-    """Extract a transformation rule in structured format using LLM reasoning."""
-    prompt = f"""
-    You are an expert grid transformation analyst. Extract transformation rules with detailed descriptions of input, operations, and output.
-    Example:
-    question:
-    === TRAINING EXAMPLES ===
-    Example 1:
-    Input Grid: [[1, 2], [3, 4]]
-    Output Grid: [[4, 3], [2, 1]]
-    Example 2:
-    Input Grid: [[5, 6], [7, 8]]
-    Output Grid: [[8, 7], [6, 5]]
-    === TEST INPUT ===
-    [[9, 10], [11, 12]]
-    Transform the test input according to the pattern shown in the training examples.
-
-    Extracted Rule:
-    {{
-      "description": "The input is a 2x2 matrix.",
-      "operations": "Flip horizontally and vertically. output[i][j] = input[1-i][1-j]",
-      "output_description": "Output is the input grid flipped."
-    }}
-
-    question: {question}
-    Extracted Rule:
-    """
-    extracted_rule = call_llm(prompt)
-    return extracted_rule
-
-def refine_rule(question: str, extracted_rule: str, max_attempts=3) -> str:
-    """Refine the extracted rule with a verification loop."""
-    refined_rule = extracted_rule
-    for attempt in range(max_attempts):
-        prompt = f"""
-        You are an expert grid transformation agent refining rules.
-
-        Question: {question}
-        Current Rule: {refined_rule}
-
-        Example of Refinement:
-        Question:
-        === TRAINING EXAMPLES ===
-        Example 1:
-        Input Grid: [[1, 2], [3, 4]]
-        Output Grid: [[4, 3], [2, 1]]
-        === TEST INPUT ===
-        [[5, 6], [7, 8]]
-        Transform the test input according to the pattern shown in the training examples.
-        Current Rule: {{"description": "2x2 matrix", "operations": "flip", "output_description": "flipped"}}
-        Refined Rule: {{"description": "2x2 matrix", "operations": "flip horizontally and vertically", "output_description": "flipped horizontally and vertically"}}
-
-        Refine the rule if incorrect, giving clear steps, but do NOT fix the output for the test example! Provide only a JSON rule.
-        """
-        new_refined_rule = call_llm(prompt)
-        # Verification step:
-        verification_prompt = f"""
-        You are an expert grid transformation verifier.
-        Verify the following refined rule against the original question.
-
-        Question: {question}
-        Refined Rule: {new_refined_rule}
-
-        Does this rule appear complete and correct? Answer "Yes" or "No", followed by an explanation.
-        """
-        verification = call_llm(verification_prompt)
-        if "Yes" in verification:
-            return new_refined_rule
-        else:
-            refined_rule = new_refined_rule # try again with the updated rule.
-    return refined_rule # Return the best effort after max attempts
-
-def apply_rule(input_grid: str, transformation_rule: str) -> str:
-    """Apply the refined transformation rule to the test input."""
-    prompt = f"""
-    You are an expert grid transformation agent.
-    Apply the following transformation rule to the input grid.
-
-    Input grid: {input_grid}
-    Transformation rule: {transformation_rule}
-
-    Example Application:
-    Transformation rule: {{"description": "2x2 matrix", "operations": "flip horizontally and vertically", "output_description": "flipped horizontally and vertically"}}
-    Input grid: [[5, 6], [7, 8]]
-    Output: [[8, 7], [6, 5]]
-
-    Apply the rule and return ONLY the transformed grid. Show your reasoning!
-    """
-    transformed_grid = call_llm(prompt)
-    return transformed_grid
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    try:
-        # 1. Extract the transformation rule
-        extracted_rule = rule_extraction(question)
-
-        # 2. Refine the transformation rule, to attempt to correct errors
-        refined_rule = refine_rule(question, extracted_rule)
-
-        # 3. Extract the test input grid
-        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
-        if not test_input_match:
-            return "Error: Could not find TEST INPUT in the question."
-        input_grid = test_input_match.group(1).strip()
-
-        # 4. Apply the refined transformation rule to the test input grid
-        transformed_grid = apply_rule(input_grid, refined_rule)
-
-        return transformed_grid
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred: {e}"

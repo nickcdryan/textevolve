@@ -1,33 +1,107 @@
-#!/usr/bin/env python
-"""
-Exploration: Iterative Pattern Identification and Verification with Dynamic Example Selection
-
-Hypothesis: Iteratively identifying and verifying transformation patterns, guided by a dynamic selection of relevant training examples, will improve grid transformation performance. This strategy aims to address the challenges of incorrect pattern deduction and limited generalization by focusing on robust pattern identification and validation before applying the transformation to the test input.
-
-This approach differs significantly from previous ones by:
-
-1.  Iterative Refinement of Transformation Patterns: Focuses on improving the accuracy of identified transformation patterns through iterative refinement and verification, rather than relying on a single extraction step.
-2.  Dynamic Selection of Relevant Training Examples: Selects relevant training examples based on similarity to the test input, enabling the system to focus on the most relevant information for the transformation.
-3.  Verification of Transformation Patterns: Verifies transformation patterns by applying them to training examples and comparing the results with the expected outputs.
-4.  Multi-Agent Orchestration: Uses multiple LLM agents with specialized roles, including a pattern identifier, a pattern verifier, and a transformation applier.
-
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition.
+    This approach leverages a "Transformation Decomposition and Value Prediction" strategy.
+    Hypothesis: Decomposing the transformation into smaller, predictable steps and focusing on value prediction will improve accuracy.
+    """
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by decomposing and predicting transformations."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns and applying them. Decompose the transformation and predict value changes."
+    
+    # STEP 1: Decompose the Transformation into steps - with examples!
+    decomposition_prompt = f"""
+    Decompose the grid transformation into a series of steps. Identify:
+    1. What aspects of the grid are changing (e.g., size, shape, values)?
+    2. What triggers each change (e.g., location, neighboring values)?
+    3. What are the individual operations to perform each change?
+
+    Example 1:
+    Problem: Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[[1, 0], [0, 1]]\n\nOutput Grid:\n[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]\n
+    Decomposition:
+    1. Grid size is increasing.
+    2. Original values are placed on the diagonal.
+    3. Non-diagonal values are filled with 0.
+
+    Example 2:
+    Problem: Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[[2, 8], [8, 2]]\n\nOutput Grid:\n[[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]\n
+    Decomposition:
+    1. Each element is expanding.
+    2. Each element becomes a 2x2 block.
+    3. The 2x2 block has the same value as the original element.
+
+    Problem: {problem_text}
+    Decomposition:
+    """
+    
+    # Attempt to decompose the transformation
+    extracted_decomposition = call_llm(decomposition_prompt, system_instruction)
+    print(f"Extracted Decomposition: {extracted_decomposition}") # Diagnostic
+
+    # STEP 2: Value Prediction - predict the value of a cell at a specific location. WITH EXAMPLES!
+    value_prediction_prompt = f"""
+    Given the transformation decomposition, predict the value of the cell at a specific location in the output grid. Show step-by-step reasoning.
+    Decomposition: {extracted_decomposition}
+    Test Input Grid: {problem_text}
+
+    Example:
+    Decomposition:
+    1. Grid size is increasing.
+    2. Original values are placed on the diagonal.
+    3. Non-diagonal values are filled with 0.
+    Input Grid: [[1, 0], [0, 1]]
+    Location: (0, 0)
+    Reasoning: (0,0) is a diagonal, therefore it should keep the original value from the source grid = 1.
+    Predicted Value: 1
+
+    Location: (0, 1)
+    Reasoning: (0,1) is NOT on the diagonal, therefore the value should be zero.
+    Predicted Value: 0
+
+    New Input:
+    Test Input Grid: [[2, 8], [8, 2]]
+    Location: (0, 0)
+    Reasoning: Each element is expanding to a 2x2 block. At (0,0), the value should be the same as the top left. Top left is 2, therefore output should be 2.
+    Predicted Value: 2
+
+    What is the predicted value for location (0, 0)? Explain your reasoning.
+    """
+    
+    #Attempt to predict the value
+    predicted_value = call_llm(value_prediction_prompt, system_instruction)
+    print(f"Predicted Value: {predicted_value}")
+
+    #STEP 3: Construct the Transformed Grid from Predicted Values (Rudimentary attempt)
+    try:
+       value = re.search(r"(\d+)", predicted_value).group(1) #extracts the numerical predicted value
+       transformed_grid_text = f"[[{value}]]"  #basic grid with one value
+    except:
+       transformed_grid_text = "[[0]]"
+    
+    #Basic validation to ensure output is not empty
+    if not transformed_grid_text:
+        transformed_grid_text = "[[0]]" #Fallback if extraction failed
+
+    return transformed_grid_text
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
 
+        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
+        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -43,124 +117,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def extract_training_and_test_data(question: str) -> Dict:
-    """Extracts training examples and test input from the question."""
-    prompt = f"""
-    You are an expert at extracting structured data. Extract training examples and the test input.
-
-    Example:
-    question: === TRAINING EXAMPLES === Example 1: Input Grid: [[1, 2], [3, 4]] Output Grid: [[4, 3], [2, 1]] === TEST INPUT === [[5, 6], [7, 8]] Transform the test input.
-    {{ "training_examples": [{{ "input": "[[1, 2], [3, 4]]", "output": "[[4, 3], [2, 1]]" }}], "test_input": "[[5, 6], [7, 8]]" }}
-
-    question: {question}
-    Extracted Data:
-    """
-    extracted_data = call_llm(prompt)
-    try:
-        # Avoid json.loads()
-        return eval(extracted_data)
-    except Exception as e:
-        print(f"Error parsing extracted data: {e}")
-        return {"training_examples": [], "test_input": ""}
-
-def select_relevant_examples(training_examples: List[Dict], test_input: str) -> List[Dict]:
-    """Selects the most relevant training examples based on similarity to the test input."""
-    prompt = f"""
-    You are an expert at selecting relevant training examples. Given the following training examples and test input, select the 2 most relevant examples based on structural similarity (grid size, density of non-zero elements).
-
-    Example:
-    training_examples: [{{ "input": "[[0, 0], [0, 1]]", "output": "[[1, 1], [1, 1]]" }}, {{ "input": "[[1, 1], [1, 0]]", "output": "[[0, 0], [0, 0]]" }}]
-    test_input: "[[0, 1], [0, 0]]"
-    Relevant Examples: [{{ "input": "[[0, 0], [0, 1]]", "output": "[[1, 1], [1, 1]]" }}, {{ "input": "[[1, 1], [1, 0]]", "output": "[[0, 0], [0, 0]]" }}]
-
-    training_examples: {training_examples}
-    test_input: {test_input}
-    Relevant Examples:
-    """
-    relevant_examples_str = call_llm(prompt)
-    try:
-        # Avoid json.loads()
-        relevant_examples = eval(relevant_examples_str)
-        return relevant_examples
-    except Exception as e:
-        print(f"Error parsing relevant examples: {e}")
-        return training_examples[:2] # Return first two if selection fails
-
-def identify_transformation_pattern(relevant_examples: List[Dict]) -> str:
-    """Identifies a transformation pattern from the relevant examples."""
-    prompt = f"""
-    You are an expert at identifying transformation patterns. Given the following relevant training examples, identify a general transformation pattern that explains all examples.
-
-    Example:
-    relevant_examples: [{{ "input": "[[1, 2], [3, 4]]", "output": "[[4, 3], [2, 1]]" }}]
-    Transformation Pattern: The grid is flipped horizontally and vertically.
-
-    relevant_examples: {relevant_examples}
-    Transformation Pattern:
-    """
-    transformation_pattern = call_llm(prompt)
-    return transformation_pattern
-
-def verify_transformation_pattern(transformation_pattern: str, training_examples: List[Dict]) -> str:
-    """Verifies the transformation pattern against the training examples."""
-    prompt = f"""
-    You are an expert at verifying transformation patterns. Given the following transformation pattern and training examples, verify if the pattern correctly transforms the input grids to the output grids.
-
-    Example:
-    transformation_pattern: The grid is flipped horizontally and vertically.
-    training_examples: [{{ "input": "[[1, 2], [3, 4]]", "output": "[[4, 3], [2, 1]]" }}]
-    Verification Result: The transformation pattern is correct.
-
-    transformation_pattern: {transformation_pattern}
-    training_examples: {training_examples}
-    Verification Result:
-    """
-    verification_result = call_llm(prompt)
-    return verification_result
-
-def apply_transformation(test_input: str, transformation_pattern: str) -> str:
-    """Applies the transformation pattern to the test input."""
-    prompt = f"""
-    You are an expert at applying transformation patterns. Apply the following transformation pattern to the test input.
-
-    Example:
-    transformation_pattern: The grid is flipped horizontally and vertically.
-    test_input: "[[5, 6], [7, 8]]"
-    Transformed Grid: [[8, 7], [6, 5]]
-
-    transformation_pattern: {transformation_pattern}
-    test_input: {test_input}
-    Transformed Grid:
-    """
-    transformed_grid = call_llm(prompt)
-    return transformed_grid
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    try:
-        # 1. Extract training examples and test input
-        extracted_data = extract_training_and_test_data(question)
-        training_examples = extracted_data["training_examples"]
-        test_input = extracted_data["test_input"]
-
-        # 2. Select relevant examples
-        relevant_examples = select_relevant_examples(training_examples, test_input)
-
-        # 3. Identify transformation pattern
-        transformation_pattern = identify_transformation_pattern(relevant_examples)
-
-        # 4. Verify transformation pattern
-        verification_result = verify_transformation_pattern(transformation_pattern, training_examples)
-
-        if "incorrect" in verification_result.lower():
-            return "Transformation pattern is incorrect. Check the training examples."
-
-        # 5. Apply the transformation pattern to the test input
-        transformed_grid = apply_transformation(test_input, transformation_pattern)
-
-        return transformed_grid
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred: {e}"

@@ -1,32 +1,113 @@
-#!/usr/bin/env python
-"""
-Exploration: Analogy-Based Grid Transformation with Dynamic Example Selection.
-
-Hypothesis: Leveraging an analogy-based approach with dynamic example selection will improve grid transformation performance.
-This approach will identify relevant training examples based on similarity to the test input and use them to guide the transformation process.
-
-This approach differs significantly from previous ones by:
-1. Using Analogy-Based Reasoning: Transform the grid not just by pattern matching, but by analogy to existing examples.
-2. Dynamic Example Selection: Select the most relevant training examples to use as "analogies" for the given test input.
-3. Focus on Structural Similarity: Prioritize structural characteristics of the grid (size, density, etc.) to guide example selection.
-4. Apply a similarity weighting between the top analogies, and apply the weighted transformation
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by first extracting the transformation rule and then applying it."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids. You first EXPLAIN the rule before applying it."
+    
+    # STEP 1: Extract the transformation rule
+    rule_extraction_prompt = f"""
+    You are tasked with identifying the transformation rule applied to grids. Study the examples carefully and explain the transformation logic in plain English.
+
+    Example 1:
+    Input Grid:
+    [[1, 0], [0, 1]]
+    Output Grid:
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Explanation: Each element in the input grid becomes a diagonal in a larger grid.
+
+    Example 2:
+    Input Grid:
+    [[2, 8], [8, 2]]
+    Output Grid:
+    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Explanation: Each element is expanded to a 2x2 block with the element's value.
+
+    Example 3:
+    Input Grid:
+    [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
+    Output Grid:
+    [[1, 0, 1], [0, 0, 0], [1, 0, 1]]
+    Explanation: The input grid is overlaid onto a grid of zeros; the value of 1 replaces 0; the values of 0 remain as 0.
+
+    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
+    Test Example:
+    {problem_text}
+    """
+    
+    # Attempt to extract the rule
+    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+
+    # STEP 2: Apply the extracted rule to the test input
+    application_prompt = f"""
+    You have extracted this transformation rule:
+    {extracted_rule}
+
+    Now, apply this rule to the following test input grid:
+    {problem_text}
+
+    Example 1:
+    Extracted Rule: Each element in the input grid becomes a diagonal in a larger grid.
+    Input Grid: [[1, 0], [0, 1]]
+    Transformed Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+    Example 2:
+    Extracted Rule: Each element is expanded to a 2x2 block with the element's value.
+    Input Grid: [[2, 8], [8, 2]]
+    Transformed Grid: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    
+    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+    """
+    
+    # Attempt to generate the transformed grid
+    for attempt in range(max_attempts):
+        try:
+            transformed_grid_text = call_llm(application_prompt, system_instruction)
+            # Basic validation - check if it looks like a grid
+            if "[" in transformed_grid_text and "]" in transformed_grid_text:
+
+                # Validate the format and content of the result
+                validation_prompt = f"""
+                You generated this transformed grid: {transformed_grid_text}
+                Original Input:{problem_text}
+
+                Is this valid 2D array? Are the values in the array valid numbers? Does the grid transformation reasonably align with the source input and examples provided.
+
+                Respond with ONLY "VALID" or "INVALID".
+                """
+                validation_result = call_llm(validation_prompt)
+
+                if "VALID" in validation_result:
+                    return transformed_grid_text
+                else:
+                    print(f"Attempt {attempt+1} failed: Output invalid. Retrying...")
+            else:
+                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+
+    # Fallback approach if all attempts fail
+    return "[[0,0,0],[0,0,0],[0,0,0]]"
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
 
+        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
+        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -42,93 +123,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def select_relevant_examples(question: str, num_examples: int = 2) -> str:
-    """Selects the most relevant training examples based on similarity to the test input."""
-    prompt = f"""
-    You are an expert at selecting relevant examples. Given the following question, select the {num_examples} most relevant training examples based on their structural similarity to the test input grid. Structural similarity includes grid size, density of non-zero elements, and general arrangement of elements.
-
-    Example:
-    question:
-    === TRAINING EXAMPLES ===
-    Example 1:
-    Input Grid: [[0, 0], [0, 1]]
-    Output Grid: [[1, 1], [1, 1]]
-    Example 2:
-    Input Grid: [[1, 1], [1, 0]]
-    Output Grid: [[0, 0], [0, 0]]
-    === TEST INPUT ===
-    [[0, 1], [0, 0]]
-    Transform the test input.
-
-    Relevant Examples: Examples 1 and 2 (both are 2x2 grids with a mix of 0 and 1 values).
-
-    question: {question}
-    Relevant Examples:
-    """
-    relevant_examples = call_llm(prompt)
-    return relevant_examples
-
-def analogy_based_transformation(question: str, relevant_examples: str) -> str:
-    """Transforms the test input based on analogies drawn from the relevant examples."""
-    prompt = f"""
-    You are an expert grid transformation agent. Given the question and the relevant examples, transform the test input based on analogies drawn from the examples. Weigh the transformations on the most relevant analogies.
-
-    Example:
-    question:
-    === TRAINING EXAMPLES ===
-    Example 1:
-    Input Grid: [[0, 0], [0, 1]]
-    Output Grid: [[1, 1], [1, 1]]
-    Example 2:
-    Input Grid: [[1, 1], [1, 0]]
-    Output Grid: [[0, 0], [0, 0]]
-    === TEST INPUT ===
-    [[0, 1], [0, 0]]
-    Transform the test input.
-
-    Relevant Examples: Examples 1 and 2
-
-    Transformed Grid: [[1, 0], [1, 0]] (Applying rule from Example 1 to row 0, Example 2 to row 1)
-
-    question: {question}
-    Relevant Examples: {relevant_examples}
-    Transformed Grid:
-    """
-    transformed_grid = call_llm(prompt)
-    return transformed_grid
-
-def verify_transformation(question: str, transformed_grid: str) -> str:
-    """Verify transformation is correct given training examples."""
-    prompt = f"""You are a verification agent, making sure transformations are correct.
-    Verify if the transformation is correct based on the training examples in the question.
-
-    Example:
-    question: === TRAINING EXAMPLES === Example 1: Input Grid: [[1, 2], [3, 4]] Output Grid: [[2, 1], [4, 3]] === TEST INPUT === [[5, 6], [7, 8]] Transform the test input.
-    transformed_grid: [[6, 5], [8, 7]]
-    Is the transformation correct? Yes, the columns were swapped.
-
-    question: {question}
-    transformed_grid: {transformed_grid}
-    Is the transformation correct?"""
-    is_correct = call_llm(prompt)
-    return is_correct
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    try:
-        # 1. Select relevant examples
-        relevant_examples = select_relevant_examples(question)
-
-        # 2. Apply analogy-based transformation
-        transformed_grid = analogy_based_transformation(question, relevant_examples)
-
-        # 3. Verify the transformation
-        is_correct = verify_transformation(question, transformed_grid)
-
-        if "No" in is_correct:
-            return "Transformation incorrect. Check the training examples"
-        else:
-            return transformed_grid
-    except Exception as e:
-        return f"An error occurred: {e}"

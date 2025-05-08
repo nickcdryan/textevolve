@@ -1,19 +1,104 @@
-#!/usr/bin/env python
-"""
-Exploration: Visual Pattern Completion with Decomposition and Rule-Based Refinement
-
-Hypothesis: Decomposing the grid transformation problem into stages of pattern identification,
-rule construction, and visual pattern completion, followed by rule-based refinement will improve
-performance. This leverages LLMs for complex pattern recognition, while implementing rule-based
-verification steps to improve the chance that the result follows the rules.
-
-The key change in this approach is the focus on visual pattern completion, instead of just code application,
-as well as manual data handling to avoid parsing errors.
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by first extracting the transformation rule and then applying it with verification."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids. You first EXPLAIN the rule before applying it, then VERIFY the transformed grid."
+    
+    # STEP 1: Extract the transformation rule
+    rule_extraction_prompt = f"""
+    You are tasked with identifying the transformation rule applied to grids. Study the examples carefully and explain the transformation logic in plain English.
+
+    Example 1:
+    Input Grid:
+    [[1, 0], [0, 1]]
+    Output Grid:
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Explanation: Each element in the input grid becomes a diagonal in a larger grid.
+
+    Example 2:
+    Input Grid:
+    [[2, 8], [8, 2]]
+    Output Grid:
+    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Explanation: Each element is expanded to a 2x2 block with the element's value.
+
+    Example 3:
+    Input Grid:
+    [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
+    Output Grid:
+    [[1, 0, 1], [0, 0, 0], [1, 0, 1]]
+    Explanation: The input grid is overlaid onto a grid of zeros; the value of 1 replaces 0; the values of 0 remain as 0.
+
+    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
+    Test Example:
+    {problem_text}
+    """
+    
+    # Attempt to extract the rule
+    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+
+    # STEP 2: Apply the extracted rule to the test input
+    application_prompt = f"""
+    You have extracted this transformation rule:
+    {extracted_rule}
+
+    Now, apply this rule to the following test input grid:
+    {problem_text}
+
+    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+
+    Example of applying the rule "Each element is expanded to a 2x2 block with the element's value":
+    Input Grid: [[1, 2], [3, 4]]
+    Transformed Grid: [[1, 1, 2, 2], [1, 1, 2, 2], [3, 3, 4, 4], [3, 3, 4, 4]]
+    """
+    
+    # Attempt to generate the transformed grid
+    for attempt in range(max_attempts):
+        try:
+            transformed_grid_text = call_llm(application_prompt, system_instruction)
+
+            # STEP 3: Verify the transformed grid
+            verification_prompt = f"""
+            You extracted this transformation rule:
+            {extracted_rule}
+            Applied it to the input grid:
+            {problem_text}
+            And generated this transformed grid:
+            {transformed_grid_text}
+
+            Is the transformed grid a CORRECT application of the transformation rule to the input grid? Explain your reasoning and then answer 'YES' or 'NO'.
+
+            Example of correct transformation:
+            Extracted Rule: Each element becomes a diagonal in a larger grid
+            Input Grid: [[1, 0], [0, 1]]
+            Transformed Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+            Verification: Correct, the rule has been correctly applied. YES
+
+            Now verify if this transformed grid is correct. Answer with 'YES' or 'NO' only after your reasoning:
+            """
+
+            verification_result = call_llm(verification_prompt, system_instruction)
+
+            if "YES" in verification_result: # Basic validation - check if it looks like a grid
+                if "[" in transformed_grid_text and "]" in transformed_grid_text:
+                    return transformed_grid_text
+                else:
+                    print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
+            else:
+                 print(f"Attempt {attempt+1} failed verification. Retrying...")
+
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+
+    # Fallback approach if all attempts fail
+    return "[[0,0,0],[0,0,0],[0,0,0]]"
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -43,82 +128,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def identify_patterns(question: str) -> str:
-    """Identifies visual patterns in the training examples."""
-    prompt = f"""
-    You are an expert visual pattern identifier. Look at the training examples in the question and identify any patterns.
-
-    Example:
-    question: === TRAINING EXAMPLES === Example 1: Input Grid: [[1, 2], [3, 4]] Output Grid: [[4, 3], [2, 1]] === TEST INPUT === [[5, 6], [7, 8]] Transform the test input.
-    Patterns: The grid values are reversed in both rows and columns.
-
-    question: {question}
-    Patterns:
-    """
-    return call_llm(prompt)
-
-def construct_transformation_rule(patterns: str) -> str:
-    """Constructs a rule based on visual patterns."""
-    prompt = f"""
-    You are an expert at creating transformation rules. Create a transformation rule based on the following visual patterns.
-
-    Example:
-    patterns: The grid values are reversed in both rows and columns.
-    Rule: Reverse the order of values in each row and each column.
-
-    patterns: {patterns}
-    Rule:
-    """
-    return call_llm(prompt)
-
-def visual_pattern_completion(test_input: str, rule: str) -> str:
-    """Applies visual pattern completion to the test input using the transformation rule."""
-    prompt = f"""
-    You are an expert at visual pattern completion. Complete the test input based on the rule.
-
-    Example:
-    test_input: [[5, 6], [7, 8]]
-    rule: Reverse the order of values in each row and each column.
-    Completed Grid: [[8, 7], [6, 5]]
-
-    test_input: {test_input}
-    rule: {rule}
-    Completed Grid:
-    """
-    return call_llm(prompt)
-
-def rule_based_refinement(completed_grid: str, rule: str) -> str:
-    """Refines completed grid based on manually implemented rule checks."""
-    # Manual validation to improve quality
-    try:
-        # Placeholder for manual rule checking
-        refined_grid = completed_grid # Start with raw LLM result. This can be converted later into a list to apply processing rules
-
-        return refined_grid
-
-    except Exception as e:
-        print(f"Rule-based refinement error: {e}")
-        return completed_grid
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    try:
-        # 1. Identify patterns
-        patterns = identify_patterns(question)
-
-        # 2. Construct rule
-        rule = construct_transformation_rule(patterns)
-
-        #Manually define the test input to bypass the parsing error
-        test_input = "[[8, 8, 8, 8, 8, 8, 1, 1, 1, 1, 1, 8, 8, 8, 8],[8, 8, 8, 8, 8, 8, 1, 8, 8, 8, 1, 8, 8, 8, 8],[8, 8, 8, 8, 8, 8, 1, 8, 8, 8, 1, 8, 8, 8, 8],[8, 8, 8, 8, 8, 8, 1, 1, 1, 1, 1, 8, 8, 8, 8],[8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]]"
-        # 3. Visual pattern completion
-        completed_grid = visual_pattern_completion(test_input, rule)
-
-        # 4. Rule-based refinement
-        refined_grid = rule_based_refinement(completed_grid, rule)
-
-        return refined_grid
-
-    except Exception as e:
-        return f"An error occurred: {e}"

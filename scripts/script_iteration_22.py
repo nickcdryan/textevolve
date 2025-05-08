@@ -1,29 +1,96 @@
-#!/usr/bin/env python
-"""This script explores a new approach to solving grid transformation problems by focusing on identifying "anchor" values and their influence on neighboring cells. The hypothesis is that transformations are driven by key "anchor" values, and their proximity determines how other cells change. A neighborhood influence propagation technique will be employed.
-
-This approach differs from previous ones by:
-
-1. Focusing on "anchor" values: The script will find key values that are most frequent in the training examples and apply a transformation based on what happens to their neighborhood
-2.  Influence Propagation: The script will find patterns between "anchor" values and how nearby cells change
-3. Applying neighborhood change based on influence: A process to extract the test matrix and transform the neighborhood with the identified influence propagations
-
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by first extracting the transformation rule and then applying it."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids. You first EXPLAIN the rule before applying it."
+    
+    # STEP 1: Extract the transformation rule with an example
+    rule_extraction_prompt = f"""
+    You are tasked with identifying the transformation rule applied to grids. Study the examples carefully and explain the transformation logic in plain English.
+
+    Example:
+    Input Grid:
+    [[1, 0], [0, 1]]
+    Output Grid:
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Explanation: Each element in the input grid becomes a diagonal in a larger grid.
+
+    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
+    Test Example:
+    {problem_text}
+    """
+    
+    # Attempt to extract the rule
+    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+    print(f"Extracted Rule: {extracted_rule}") #Diagnostic statement
+
+    # STEP 2: Verify the extracted rule's quality (is it understandable, not just gibberish)
+    rule_verification_prompt = f"""
+    You extracted this rule: {extracted_rule}
+    Is the extracted rule understandable in plain English? Does it describe the transformation in a clear way, or is it nonsensical?
+    Answer "Yes" or "No"
+    """
+    rule_is_valid = call_llm(rule_verification_prompt, system_instruction).startswith("Yes")
+    print(f"Rule Valid: {rule_is_valid}") #Diagnostic statement
+
+    if not rule_is_valid:
+        print("Extracted rule is not valid, using fallback.")
+        return "[[0,0,0],[0,0,0],[0,0,0]]" # Return default
+
+    # STEP 3: Apply the extracted rule to the test input - add a well formatted example for more consistent output
+    application_prompt = f"""
+    You have extracted this transformation rule:
+    {extracted_rule}
+
+    Example:
+    Input Grid:
+    [[1, 2], [3, 4]]
+    Extracted Rule: Each number is doubled
+    Transformed Grid:
+    [[2, 4], [6, 8]]
+
+    Now, apply this rule to the following test input grid:
+    {problem_text}
+
+    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+    """
+    
+    # Attempt to generate the transformed grid
+    for attempt in range(max_attempts):
+        try:
+            transformed_grid_text = call_llm(application_prompt, system_instruction)
+            print(f"Transformed Grid Text: {transformed_grid_text}") #Diagnostic statement
+            # Basic validation - check if it looks like a grid
+            if "[" in transformed_grid_text and "]" in transformed_grid_text:
+                return transformed_grid_text
+            else:
+                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+
+    # Fallback approach if all attempts fail
+    return "[[0,0,0],[0,0,0],[0,0,0]]"
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
 
+        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
+        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -39,76 +106,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def identify_anchor_values(question: str) -> str:
-    """Identifies anchor values from the training examples."""
-    prompt = f"""You are an expert in identifying key values in grid transformations.
-    Analyze the training examples in the following question to identify the most frequent values, or "anchor" values, that seem to drive the transformations.
-
-    Example:
-    question: === TRAINING EXAMPLES === Example 1: Input Grid: [[1, 2], [3, 4]] Output Grid: [[2, 3], [4, 1]] === TEST INPUT === [[5, 6], [7, 8]] Transform the test input.
-    Anchor Values: 1, 2, 3, 4 (all values appear to be equally important).
-
-	question: === TRAINING EXAMPLES === Example 1: Input Grid: [[0, 0], [0, 4]] Output Grid: [[4, 4], [4, 4]] === TEST INPUT === [[0, 0], [0, 0]] Transform the test input.
-    Anchor Values: 4 (4 seems to propagate).
-
-    question: {question}
-    Anchor Values:"""
-    anchor_values = call_llm(prompt)
-    return anchor_values
-
-def analyze_neighborhood_influence(question: str, anchor_values: str) -> str:
-    """Analyzes how anchor values influence their neighboring cells."""
-    prompt = f"""You are an expert at analyzing grid transformations.
-    Analyze the training examples in the following question and determine how the identified anchor values influence their neighboring cells in the output grid.
-
-    Example:
-    question: === TRAINING EXAMPLES === Example 1: Input Grid: [[0, 0], [0, 4]] Output Grid: [[4, 4], [4, 4]] === TEST INPUT === [[5, 6], [7, 8]] Transform the test input.
-    Anchor Values: 4
-    Neighborhood Influence: The value '4' seems to propagate to all neighboring cells, replacing their original values.
-
-    question: {question}
-    Anchor Values: {anchor_values}
-    Neighborhood Influence:"""
-    neighborhood_influence = call_llm(prompt)
-    return neighborhood_influence
-
-def transform_grid(input_grid: str, anchor_values: str, neighborhood_influence: str) -> str:
-    """Transforms the input grid based on anchor values and their neighborhood influence."""
-    prompt = f"""You are an expert in applying grid transformations.
-    Apply the transformation to the provided input grid, based on the anchor values and their influence on neighboring cells.
-
-    Example:
-    input_grid: [[5, 6], [7, 8]]
-    anchor_values: 8
-    neighborhood_influence: The value '8' seems to shift values left
-    Transformed Grid: [[6, 5], [8, 7]]
-
-    input_grid: {input_grid}
-    anchor_values: {anchor_values}
-    neighborhood_influence: {neighborhood_influence}
-    Transformed Grid:"""
-    transformed_grid = call_llm(prompt)
-    return transformed_grid
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    try:
-        # 1. Identify anchor values
-        anchor_values = identify_anchor_values(question)
-
-        # 2. Analyze neighborhood influence
-        neighborhood_influence = analyze_neighborhood_influence(question, anchor_values)
-
-        # 3. Extract the test input grid
-        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
-        if not test_input_match:
-            return "Error: Could not find TEST INPUT in the question."
-        input_grid = test_input_match.group(1).strip()
-
-        # 4. Transform the grid
-        transformed_grid = transform_grid(input_grid, anchor_values, neighborhood_influence)
-
-        return transformed_grid
-    except Exception as e:
-        return f"An error occurred: {e}"

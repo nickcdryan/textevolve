@@ -1,27 +1,83 @@
-#!/usr/bin/env python
-"""
-This script introduces a novel approach to solving grid transformation problems
-by focusing on identifying and applying local structural motifs. It is inspired by
-image processing techniques that look for recurring patterns to transform and clean up images.
-
-Hypothesis: Identifying repeating sub-structures ("motifs") in the input grid and mapping their
-transformation to the output grid can provide a robust way to generalize transformations, even
-with limited examples. This approach seeks to go beyond simple pattern matching by understanding
-the relationship between these motifs and their transformations.
-
-This script attempts a new approach:
-1. Motifs are recognized as repeating subgrids.
-2. The relationship between these motifs across training examples are analyzed to
-deduce transformations.
-3. A 'transformation' in this sense means the relationship between a subgrid and its new version in the ouptut grids.
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by first extracting the transformation rule and then applying it."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids. You first EXPLAIN the rule before applying it."
+    
+    # STEP 1: Extract the transformation rule with improved examples and clarity
+    rule_extraction_prompt = f"""
+    You are tasked with identifying the transformation rule applied to grids. Study the examples carefully and explain the transformation logic in plain English.
+
+    Example 1:
+    Input Grid:
+    [[1, 0], [0, 1]]
+    Output Grid:
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Explanation: Each element in the input grid becomes a diagonal in a larger grid. The '1' values are moved to create diagonals.
+
+    Example 2:
+    Input Grid:
+    [[2, 8], [8, 2]]
+    Output Grid:
+    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Explanation: Each element is expanded to a 2x2 block with the element's value. The element repeats to fill a 2x2 area.
+
+    Example 3:
+    Input Grid:
+    [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
+    Output Grid:
+    [[1, 0, 1], [0, 0, 0], [1, 0, 1]]
+    Explanation: The input grid is overlaid onto a grid of zeros; the value of 1 replaces 0; the values of 0 remain as 0. The '1' retains position, while 0's are eliminated.
+
+    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
+    Test Example:
+    {problem_text}
+    """
+    
+    # Attempt to extract the rule
+    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+
+    # STEP 2: Apply the extracted rule to the test input with improved prompting
+    application_prompt = f"""
+    You have extracted this transformation rule:
+    {extracted_rule}
+
+    Now, apply this rule to the following test input grid:
+    {problem_text}
+
+    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments. Be sure to use the correct brackets, commas and spaces.
+
+    Example of how to format output:
+    Input:
+    [[1,2],[3,4]]
+    Output:
+    [[1, 2], [3, 4]]
+    """
+    
+    # Attempt to generate the transformed grid
+    for attempt in range(max_attempts):
+        try:
+            transformed_grid_text = call_llm(application_prompt, system_instruction)
+            # Basic validation - check if it looks like a grid
+            if "[" in transformed_grid_text and "]" in transformed_grid_text:
+                return transformed_grid_text
+            else:
+                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+
+    # Fallback approach if all attempts fail
+    return "[[0,0,0],[0,0,0],[0,0,0]]"
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. """
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
@@ -48,113 +104,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def extract_motifs_and_transformations(question: str) -> str:
-    """Extract repeating motifs and their transformations from the training examples."""
-    prompt = f"""
-    You are an expert grid analyst. Your task is to identify repeating sub-structures ("motifs") within the training examples
-    and deduce how these motifs are transformed from the input grid to the output grid. Focus on recurring arrangements of
-    numbers.
-
-    Example:
-    Question:
-    === TRAINING EXAMPLES ===
-    Example 1:
-    Input Grid: [[1, 2, 1], [2, 1, 2], [1, 2, 1]]
-    Output Grid: [[2, 1, 2], [1, 2, 1], [2, 1, 2]]
-    Example 2:
-    Input Grid: [[3, 4, 3], [4, 3, 4], [3, 4, 3]]
-    Output Grid: [[4, 3, 4], [3, 4, 3], [4, 3, 4]]
-    === TEST INPUT ===
-    [[5, 6, 5], [6, 5, 6], [5, 6, 5]]
-
-    Analysis:
-    Motif: The alternating pattern [[A, B, A], [B, A, B], [A, B, A]] where A and B are distinct numbers.
-    Transformation: Swap the positions of A and B within the motif.
-
-    Question:
-    {question}
-
-    Identify repeating motifs and describe how they are transformed. Be concise and specific in your analysis.
-
-    """
-    analysis = call_llm(prompt)
-    return analysis
-
-def apply_motif_transformation(input_grid: str, motif_analysis: str) -> str:
-    """Apply the identified motif transformations to the test input grid."""
-    prompt = f"""
-    You are a skilled grid transformer. Given the input grid and the analysis of motifs and their transformations,
-    apply the transformations to generate the output grid.
-
-    Input Grid:
-    {input_grid}
-
-    Motif Analysis:
-    {motif_analysis}
-
-    Example:
-    Input Grid:
-    [[5, 6, 5], [6, 5, 6], [5, 6, 5]]
-    Motif Analysis:
-    Motif: The alternating pattern [[A, B, A], [B, A, B], [A, B, A]] where A and B are distinct numbers.
-    Transformation: Swap the positions of A and B within the motif.
-    Output Grid:
-    [[6, 5, 6], [5, 6, 5], [6, 5, 6]]
-
-    Based on the motif analysis, generate the transformed grid. Ensure the output grid is correctly formatted. Provide ONLY the grid.
-    """
-    output_grid = call_llm(prompt)
-    return output_grid
-
-def verify_output_format(output_grid: str) -> str:
-  """Verify the format of the output grid."""
-  prompt = f"""
-  You are an expert grid format verifier. Determine if the following output_grid is correctly formatted as a 2D list of integers.
-
-  Example of a correct grid:
-  output_grid: [[1, 2], [3, 4]]
-  verified: CORRECT
-
-  Here are examples of incorrect grids:
-  output_grid: [1, 2], [3, 4]
-  verified: INCORRECT
-
-  output_grid: "[[1, 2], [3, 4]]"
-  verified: INCORRECT
-
-  output_grid: [[1, 2], [3, 4]
-  verified: INCORRECT
-
-  Here's the input:
-  output_grid: {output_grid}
-  verified:
-  """
-  verified = call_llm(prompt)
-  return verified
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    try:
-        # 1. Extract the test input grid from the question
-        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
-        if not test_input_match:
-            return "Error: Could not find TEST INPUT in the question."
-        input_grid = test_input_match.group(1).strip()
-
-        # 2. Extract motifs and transformations
-        motif_analysis = extract_motifs_and_transformations(question)
-
-        # 3. Apply the transformations to the test input grid
-        output_grid = apply_motif_transformation(input_grid, motif_analysis)
-
-        # 4. Verify the format of the output grid
-        verified = verify_output_format(output_grid)
-
-        if "INCORRECT" in verified:
-          return f"Error: Output grid format is incorrect. {output_grid}"
-
-        return output_grid
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return "An unexpected error occurred."

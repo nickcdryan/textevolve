@@ -1,16 +1,90 @@
-#!/usr/bin/env python
-"""
-Refines iteration 9 and 15 to solve grid transformation problems through structured rule extraction, refinement, and application.
-Addresses primary failure modes: pattern extraction and generalization. Incorporates iterative refinement with specific feedback.
-Uses direct LLM reasoning approach to minimize parsing errors. Employs chain-of-thought reasoning and robust error handling.
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+# This script solves grid transformation problems using a novel "Meta-Pattern Extraction and Transformation" approach.
+# It hypothesizes that by first extracting general transformation meta-patterns (e.g., "replication," "reflection," "rotation")
+# and then applying more specific transformations within those meta-patterns, we can achieve better generalization.
+# Additionally, introduces a "transformation intent" step to clarify the goals of transformation.
+# The script uses multi-example prompting and includes validation steps at each stage.
+# This design prioritizes the LLM's reasoning capabilities for feature extraction and pattern recognition, minimizing code.
+
+def main(question):
+    """Transforms a grid based on extracted meta-patterns and intent."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by extracting meta-patterns and applying transformations."""
+
+    system_instruction = "You are an expert at identifying and applying grid transformation patterns. Focus on identifying high-level transformation meta-patterns before applying specific rules."
+
+    # STEP 1: Transformation Intent Extraction
+    intent_extraction_prompt = f"""
+    Analyze the grid transformation problem and identify the overall intent or goal of the transformation.
+
+    Example 1:
+    Problem: Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[[1, 0], [0, 1]]\n\nOutput Grid:\n[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]\n\n=== TEST INPUT ===\n[[2, 8], [8, 2]]\n
+    Transformation Intent: To expand the grid while preserving the diagonal elements.
+
+    Example 2:
+    Problem: Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[[2, 8], [8, 2]]\n\nOutput Grid:\n[[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]\n
+    Transformation Intent: To enlarge each cell in a 2x2 block.
+
+    Problem: {problem_text}
+    Transformation Intent:
+    """
+
+    transformation_intent = call_llm(intent_extraction_prompt, system_instruction)
+    print(f"Transformation Intent: {transformation_intent}")
+
+    # STEP 2: Meta-Pattern Extraction
+    meta_pattern_extraction_prompt = f"""
+    Identify the general meta-pattern used in the grid transformation, given the following intent: {transformation_intent}
+
+    Example 1:
+    Problem: Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[[1, 0], [0, 1]]\n\nOutput Grid:\n[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]\n
+    Transformation Intent: To expand the grid while preserving the diagonal elements.
+    Meta-Pattern: Expansion
+
+    Example 2:
+    Problem: Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[[2, 8], [8, 2]]\n\nOutput Grid:\n[[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]\n
+    Transformation Intent: To enlarge each cell in a 2x2 block.
+    Meta-Pattern: Replication
+
+    Problem: {problem_text}
+    Transformation Intent: {transformation_intent}
+    Meta-Pattern:
+    """
+
+    meta_pattern = call_llm(meta_pattern_extraction_prompt, system_instruction)
+    print(f"Meta-Pattern: {meta_pattern}")
+
+    # STEP 3: Transformation Application with Meta-Pattern Guidance
+    transformation_application_prompt = f"""
+    Apply the grid transformation to the following problem, guided by the identified meta-pattern: {meta_pattern} and transformation intent: {transformation_intent}
+
+    Example 1:
+    Problem: Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[[1, 0], [0, 1]]\n\nOutput Grid:\n[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]\n
+    Meta-Pattern: Expansion
+    Transformed Grid: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+    Example 2:
+    Problem: Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[[2, 8], [8, 2]]\n\nOutput Grid:\n[[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]\n
+    Meta-Pattern: Replication
+    Transformed Grid: [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+
+    Problem: {problem_text}
+    Meta-Pattern: {meta_pattern}
+    Transformed Grid:
+    """
+
+    transformed_grid_text = call_llm(transformation_application_prompt, system_instruction)
+    print(f"Transformed Grid: {transformed_grid_text}")
+
+    return transformed_grid_text
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response."""
     try:
         from google import genai
         from google.genai import types
@@ -37,99 +111,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def rule_extraction(question: str) -> str:
-    """
-    Extract a transformation rule in structured format using LLM reasoning.
-    Includes an example to guide the LLM.
-    """
-    prompt = f"""
-    You are an expert grid transformation expert. Analyze the provided question and extract the transformation rule.
-
-    Example:
-    question:
-    === TRAINING EXAMPLES ===
-    Example 1:
-    Input Grid: [[1, 2], [3, 4]]
-    Output Grid: [[4, 3], [2, 1]]
-    === TEST INPUT ===
-    [[5, 6], [7, 8]]
-    Transform the test input according to the pattern shown in the training examples.
-
-    Extracted Rule: The input grid is flipped horizontally and vertically. Specifically, output[0][0] = input[1][1], output[0][1] = input[1][0], output[1][0] = input[0][1], and output[1][1] = input[0][0].
-
-    question: {question}
-    Extracted Rule:
-    """
-    extracted_rule = call_llm(prompt)
-    return extracted_rule
-
-def refine_rule(question: str, extracted_rule: str) -> str:
-  """Refine the extracted rule, to attempt to correct errors. Includes example."""
-  prompt = f"""
-  You are an expert grid transformation agent. Refine the following extracted rule: {extracted_rule}
-
-  Example:
-    question:
-    === TRAINING EXAMPLES ===
-    Example 1:
-    Input Grid: [[1, 2], [3, 4]]
-    Output Grid: [[4, 3], [2, 1]]
-    === TEST INPUT ===
-    [[5, 6], [7, 8]]
-    Transform the test input according to the pattern shown in the training examples.
-
-  Extracted Rule: The input grid is flipped horizontally and vertically.
-  Refined Rule: The input grid is flipped horizontally and vertically. Specifically, output[0][0] = input[1][1], output[0][1] = input[1][0], output[1][0] = input[0][1], and output[1][1] = input[0][0].
-
-  Refine the rule based on the question: {question}. Return the refined rule.
-  """
-  refined_rule = call_llm(prompt)
-  return refined_rule
-
-def apply_rule(input_grid: str, transformation_rule: str) -> str:
-    """Apply the refined transformation rule to the test input. Includes example."""
-    prompt = f"""
-    You are an expert grid transformation agent. Apply the rule to the input_grid.
-
-    input_grid: {input_grid}
-    transformation_rule: {transformation_rule}
-
-    Example:
-    transformation_rule: The input grid is flipped horizontally and vertically. Specifically, output[0][0] = input[1][1], output[0][1] = input[1][0], output[1][0] = input[0][1], and output[1][1] = input[0][0].
-    input_grid: [[5, 6], [7, 8]]
-    Output: [[8, 7], [6, 5]]
-
-    Apply the rule to the grid and return the transformed grid. Provide ONLY the grid.
-    """
-    transformed_grid = call_llm(prompt)
-    return transformed_grid
-
-def main(question: str) -> str:
-    """Main function to solve the problem. Includes robust error handling."""
-    try:
-        # 1. Extract the transformation rule
-        extracted_rule = rule_extraction(question)
-        if "Error" in extracted_rule:
-            return f"Rule Extraction Error: {extracted_rule}"
-
-        # 2. Refine the transformation rule, to attempt to correct errors
-        refined_rule = refine_rule(question, extracted_rule)
-        if "Error" in refined_rule:
-            return f"Rule Refinement Error: {refined_rule}"
-
-        # 3. Extract the test input grid
-        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
-        if not test_input_match:
-            return "Error: Could not find TEST INPUT in the question."
-        input_grid = test_input_match.group(1).strip()
-
-        # 4. Apply the refined transformation rule to the test input grid
-        transformed_grid = apply_rule(input_grid, refined_rule)
-        if "Error" in transformed_grid:
-            return f"Rule Application Error: {transformed_grid}"
-
-        return transformed_grid
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred: {e}"

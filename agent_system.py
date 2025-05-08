@@ -746,7 +746,6 @@ class AgentSystem:
             print(error_message)
             return f"--- LEARNINGS FROM ITERATION {iteration_data.get('iteration')} ---\n{error_message}\n\n"
     
-
     def synthesize_learnings(self, current_learnings: str, new_batch_learnings: str) -> str:
         """
         Synthesize existing learnings with new batch learnings, emphasizing dataset-specific insights.
@@ -1158,20 +1157,6 @@ class AgentSystem:
 
     # Modify the generate_script_with_llm method in the AgentSystem class to include learnings
 
-    def _load_llm_techniques(self) -> str:
-        """Load LLM techniques from a Python file as text."""
-        techniques_path = Path("llm_techniques.py")
-        if not techniques_path.exists():
-            print(f"Warning: {techniques_path} not found. Using empty techniques.")
-            return ""
-
-        try:
-            with open(techniques_path, 'r', encoding='utf-8') as f:
-                return f.read().strip()
-        except Exception as e:
-            print(f"Error loading LLM techniques: {e}")
-            return ""
-
     def generate_script_with_llm(self, is_exploration: bool) -> str:
         """
         Use the LLM to generate a script to solve dataset problems.
@@ -1373,11 +1358,7 @@ class AgentSystem:
         react_example = 'def solve_with_react_pattern(problem):\n    """Solve problems through iterative Reasoning and Acting (ReAct) approach."""\n    system_instruction = "You are a problem-solving agent that follows the ReAct pattern: Reason about the current state, take an Action, observe the result, and repeat until reaching a solution."\n    \n    # Initialize ReAct process\n    prompt = f"""\n    Solve this problem using the ReAct pattern - alternate between Reasoning and Acting until you reach a final answer.\n    \n    Example usage:\n    \n    Problem: What is the capital of the country where the Great Barrier Reef is located, and what is the population of that capital?\n    \n    Thought 1: I need to determine which country the Great Barrier Reef is in, then find its capital, and finally the population of that capital.\n    Action 1: Search[Great Barrier Reef location]\n    Observation 1: The Great Barrier Reef is located off the coast of Queensland in northeastern Australia.\n    \n    Thought 2: Now I know the Great Barrier Reef is in Australia. I need to find Australia\'s capital city.\n    Action 2: Search[capital of Australia]\n    Observation 2: The capital of Australia is Canberra.\n    \n    Thought 3: Now I need to find the population of Canberra.\n    Action 3: Search[population of Canberra]\n    Observation 3: As of 2021, the population of Canberra is approximately 431,500.\n    \n    Thought 4: I have found all the required information. The capital of Australia (where the Great Barrier Reef is located) is Canberra, and its population is approximately 431,500.\n    Action 4: Finish[The capital of Australia is Canberra, with a population of approximately 431,500.]\n    \n    Now solve this new problem:\n    {problem}\n    \n    Start with Thought 1:\n    """\n    \n    # Initial reasoning and action planning\n    react_response = call_llm(prompt, system_instruction)\n    \n    # Extract the action from the response\n    action = extract_action(react_response)\n    \n    # Continue the ReAct loop until we reach a "Finish" action\n    while not action["type"] == "Finish":\n        # Perform the requested action and get an observation\n        if action["type"] == "Search":\n            observation = perform_search(action["query"])\n        elif action["type"] == "Calculate":\n            observation = perform_calculation(action["expression"])\n        elif action["type"] == "Lookup":\n            observation = perform_lookup(action["term"])\n        else:\n            observation = f"Unknown action type: {action[\'type\']}"\n        \n        # Continue the ReAct process with the new observation\n        continuation_prompt = f"""\n        {react_response}\n        Observation {action["step_number"]}: {observation}\n        \n        Continue with the next thought and action:\n        """\n        \n        # Get the next reasoning step and action\n        react_response += "\\n" + call_llm(continuation_prompt, system_instruction)\n        \n        # Extract the next action\n        action = extract_action(react_response)\n    \n    # Extract the final answer from the Finish action\n    final_answer = action["answer"]\n    return final_answer\n\ndef extract_action(text):\n    """Parse the ReAct response to extract the current action."""\n    # Find the last action in the text\n    action_matches = re.findall(r"Action (\d+): (\\w+)\\[(.*?)\\]", text)\n    if not action_matches:\n        return {"type": "Error", "step_number": 0, "query": "No action found"}\n    \n    # Get the most recent action\n    last_action = action_matches[-1]\n    step_number = int(last_action[0])\n    action_type = last_action[1]\n    action_content = last_action[2]\n    \n    # Handle different action types\n    if action_type == "Finish":\n        return {"type": "Finish", "step_number": step_number, "answer": action_content}\n    elif action_type in ["Search", "Lookup", "Calculate"]:\n        return {"type": action_type, "step_number": step_number, "query": action_content}\n    else:\n        return {"type": "Unknown", "step_number": step_number, "query": action_content}\n\ndef perform_search(query):\n    """Simulate a search action in the ReAct pattern."""\n    # In a real implementation, this would call an actual search API\n    return call_llm(f"Provide a factual answer about: {query}", "You are a helpful search engine that provides concise, factual information.")\n\ndef perform_calculation(expression):\n    """Perform a calculation action in the ReAct pattern."""\n    try:\n        # Safely evaluate the expression\n        result = eval(expression, {"__builtins__": {}}, {"math": math})\n        return f"The result is {result}"\n    except Exception as e:\n        return f"Error in calculation: {str(e)}"\n\ndef perform_lookup(term):\n    """Simulate a lookup action for specific information."""\n    # In a real implementation, this would query a knowledge base or database\n    return call_llm(f"Provide specific information about: {term}", "You are a knowledge base that provides specific factual information.")'
 
         # Create few-shot examples context 
-        # few_shot_examples = f"EXAMPLE OF EFFECTIVE LLM USAGE PATTERNS:\n\n```python\n{extraction_example}\n```\n\n```python\n{verification_example}\n```\n\n```python\n{validation_loop_example}\n```\n\n```python\n{multi_perspective_example}\n```\n\n```python\n{best_of_n_example}\n```\n\n```python\n{react_example}\n```"
-
-        # Load techniques as text
-        techniques_code = self._load_llm_techniques()
-        few_shot_examples = f"EXAMPLE OF EFFECTIVE LLM USAGE PATTERNS:\n\n```python\n{techniques_code}\n```"
+        few_shot_examples = f"EXAMPLE OF EFFECTIVE LLM USAGE PATTERNS:\n\n```python\n{extraction_example}\n```\n\n```python\n{verification_example}\n```\n\n```python\n{validation_loop_example}\n```\n\n```python\n{multi_perspective_example}\n```\n\n```python\n{best_of_n_example}\n```\n\n```python\n{react_example}\n```"
 
         # Historical context summary
         best_accuracy_str = f"{best_scripts[0].get('accuracy', 0):.2f} (iteration {best_scripts[0].get('iteration')})" if best_scripts else "None"
@@ -1456,11 +1437,11 @@ class AgentSystem:
 
         === DIRECT LLM REASONING APPROACH ===
 
-        CRITICAL: Previous scripts have shown that complex JSON parsing often 
+        CRITICAL: Previous scripts have shown that complex code generation with JSON parsing and multi-step pipelines often 
         leads to errors and low performance. Instead, focus on leveraging the LLM's natural reasoning abilities:
 
-        1. START SIMPLE, ADD COMPLEXITY OVER TIME:
-           - Begin with simple LLM techniques and then add more complex patterns and techniques
+        1. SIMPLIFY YOUR APPROACH:
+           - Minimize the number of processing steps - simpler is better
            - Directly use LLM for pattern recognition rather than writing complex code
            - Avoid trying to parse or manipulate JSON manually - pass it as text to the LLM
 
@@ -1483,10 +1464,13 @@ class AgentSystem:
         5. SUCCESSFUL EXAMPLES:
            - The most successful approaches have used direct pattern matching with multiple examples
            - Scripts with simple validation and fallback approaches perform better
+           - Scripts with fewer processing steps have higher success rates
         
         IMPLEMENTATION STRATEGIES:
         1. Maintain a "example bank" of successful and failed examples to select from
-        2. Implement n-shot prompting with n=3 as default, but adapt based on performance and experiment with n-shot prompting with n=0, n=1, n=4
+        2. Implement n-shot prompting with n=3 as default, but adapt based on performance
+        3. For complex tasks, use up to 5 examples; for simpler tasks, 2-3 may be sufficient
+        4. Include examples with a range of complexity levels, rather than all similar examples
 
 
 
@@ -1497,7 +1481,6 @@ class AgentSystem:
            - Whether the output is well-formed and complete
            - Whether the output is logically consistent with the input
            - Whether all constraints are satisfied
-           - If verification fails, send the output back into an earlier part of the pipeline with specific feedback from the error
         4. Add feedback loops that retry failures with specific feedback
         5. Include diagnostic outputs that reveal exactly where failures occur. Add print statements and intermediate outputs such that you can see them later to determine why things are going wrong.
         6. Include capability to trace through execution steps to identify failure points
@@ -1538,15 +1521,90 @@ class AgentSystem:
 
             return solution_result["solution"]
 
+        def extract_entities_with_verification(question, max_attempts=3):
+            #Extract entities and verify their validity with feedback loop.
+            system_instruction = "You are an expert at extracting and validating entities."
 
+            for attempt in range(max_attempts):
+                # First attempt at extraction
+                extraction_prompt = f'''
+                Extract key entities from this question. 
+                Return a JSON object with the extracted entities.
+
+                Example 1: [example with entities]
+                Example 2: [example with different entities]
+                Example 3: [example with complex entities]
+
+                Question: {question}
+                Extraction:
+                '''
+
+                extracted_data = call_llm(extraction_prompt, system_instruction)
+
+                try:
+                    # Parse the extraction
+                    data = json.loads(extracted_data)
+
+                    # Verification step
+                    verification_prompt = f'''
+                    Verify if these extracted entities are complete and correct:
+
+                    Question: {question}
+                    Extracted entities: {json.dumps(data, indent=2)}
+
+                    Check if:
+                    1. All relevant entities are extracted
+                    2. No irrelevant entities are included
+                    3. All entity values are correct
+
+                    Return a JSON with:
+                    {{
+                      "is_valid": true/false,
+                      "validation_feedback": "detailed explanation",
+                      "missing_entities": ["entity1", "entity2"],
+                      "incorrect_entities": ["entity3"]
+                    }}
+                    '''
+
+                    verification_result = call_llm(verification_prompt, system_instruction)
+                    verification_data = json.loads(verification_result)
+
+                    if verification_data.get("is_valid", False):
+                        data["is_valid"] = True
+                        data["validation_feedback"] = "All entities are valid."
+                        return data
+
+                    # If not valid and we have attempts left, refine with feedback
+                    if attempt < max_attempts - 1:
+                        feedback = verification_data.get("validation_feedback", "")
+                        print(f"Validation failed (attempt {attempt+1}/{max_attempts}): {feedback}")
+                        continue
+
+                    # If we're out of attempts, return the best we have with validation info
+                    data["is_valid"] = False
+                    data["validation_feedback"] = verification_data.get("validation_feedback", "Unknown validation error")
+                    return data
+
+                except Exception as e:
+                    print(f"Error in extraction/validation (attempt {attempt+1}/{max_attempts}): {str(e)}")
+                    if attempt >= max_attempts - 1:
+                        return {
+                            "is_valid": False,
+                            "validation_feedback": f"Error during processing: {str(e)}"
+                        }
+
+            return {
+                "is_valid": False,
+                "validation_feedback": "Failed to extract valid entities after multiple attempts."
+            }
+        ```
 
         VALIDATION IMPLEMENTATION STRATEGIES:
-        1. Create detailed verification functions for each major processing step: this will help us debug
+        1. Create detailed verification functions for each major processing step
         2. Implement max_attempts limits on all retry loops (typically 3-5 attempts)
         3. Pass specific feedback from verification to subsequent retry attempts
         4. Log all verification failures to help identify systemic issues
         5. Design fallback behaviors when verification repeatedly fails
-        6. Crucially, verification should be used to catch errors in the processing pipeline and feed them back into an earlier part of the pipeline for refinement with feedback for a set number of attempts. Verification for its own sake isn't very helpful, especially as the final step.
 
         """
 
@@ -1791,12 +1849,6 @@ class AgentSystem:
             BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
             """
 
-
-        # LOG THE PROMPT to the scripts folder
-        prompt_path = self.scripts_dir / f"prompt_{self.current_iteration}.txt"
-        with open(prompt_path, 'w', encoding='utf-8') as f:
-            f.write(prompt)
-        
         # ==== GENERATE SCRIPT WITH VALIDATION ====
         max_attempts = 3
         attempts = 0
@@ -2975,8 +3027,8 @@ except Exception as e:
 
         return guidance
     
-    def evaluate_answer_with_llm(self, system_answer: str,
-                                 golden_answer: str) -> Dict:
+
+    def evaluate_answer_with_llm(self, system_answer: str, golden_answer: str) -> Dict:
         """Use LLM to determine if answers are semantically equivalent"""
 
         # Role-specific system instruction for the evaluator
@@ -3029,7 +3081,7 @@ except Exception as e:
                 "explanation":
                 f"Fallback to exact match comparison due to error: {str(e)}"
             }
-
+    
     def generate_approach_summary(self, script: str) -> str:
         """
         Use the LLM to generate a brief summary of the approach used in the script.

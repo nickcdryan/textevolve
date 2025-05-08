@@ -1,23 +1,87 @@
-#!/usr/bin/env python
-"""
-This script introduces a novel approach to grid transformation problems by
-focusing on localized pattern analysis and cell-by-cell transformation.
-
-Hypothesis: By analyzing the neighborhood of each cell in the input grid
-and using the training examples to determine the corresponding output cell value,
-we can improve the accuracy of grid transformations. This approach attempts
-to mitigate the difficulty of extracting global transformation rules by
-focusing on local relationships and applying them systematically. This also
-includes a validation check partway through the pipeline to see if the transformation
-rule appears to be well-formed
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by first extracting the transformation rule and then applying it."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids. You first EXPLAIN the rule before applying it."
+    
+    # STEP 1: Extract the transformation rule
+    rule_extraction_prompt = f"""
+    You are tasked with identifying the transformation rule applied to grids. Study the examples carefully and explain the transformation logic in plain English.
+
+    Example 1:
+    Input Grid:
+    [[1, 0], [0, 1]]
+    Output Grid:
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Explanation: Each element in the input grid becomes a diagonal in a larger grid.
+
+    Example 2:
+    Input Grid:
+    [[2, 8], [8, 2]]
+    Output Grid:
+    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Explanation: Each element is expanded to a 2x2 block with the element's value.
+
+    Example 3:
+    Input Grid:
+    [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
+    Output Grid:
+    [[1, 0, 1], [0, 0, 0], [1, 0, 1]]
+    Explanation: The input grid is overlaid onto a grid of zeros; the value of 1 replaces 0; the values of 0 remain as 0.
+
+    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
+    Test Example:
+    {problem_text}
+    """
+    
+    # Attempt to extract the rule
+    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+
+    # STEP 2: Apply the extracted rule to the test input
+    application_prompt = f"""
+    You have extracted this transformation rule:
+    {extracted_rule}
+
+    Now, apply this rule to the following test input grid:
+    {problem_text}
+
+    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+    
+    Example 1:
+    Extracted Rule: The input grid becomes the output grid
+    Input Grid: [[1, 2], [3, 4]]
+    Transformed Grid: [[1, 2], [3, 4]]
+    
+    Example 2:
+    Extracted Rule: Each number shifts up one row with the top row wrapping to the bottom.
+    Input Grid: [[1, 2], [3, 4]]
+    Transformed Grid: [[3, 4], [1, 2]]
+    """
+    
+    # Attempt to generate the transformed grid
+    for attempt in range(max_attempts):
+        try:
+            transformed_grid_text = call_llm(application_prompt, system_instruction)
+            # Basic validation - check if it looks like a grid
+            if "[" in transformed_grid_text and "]" in transformed_grid_text:
+                return transformed_grid_text
+            else:
+                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+
+    # Fallback approach if all attempts fail
+    return "[[0,0,0],[0,0,0],[0,0,0]]"
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT modify this or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
@@ -44,121 +108,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def analyze_cell_transformation(question: str, row: int, col: int) -> str:
-    """
-    Analyze how a specific cell transforms based on its neighborhood and training examples.
-    """
-    prompt = f"""
-    You are a grid transformation expert. Analyze the transformation of a specific cell
-    in the input grid based on its neighborhood and the provided training examples.
-
-    Example:
-    Question:
-    === TRAINING EXAMPLES ===
-    Example 1:
-    Input Grid: [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-    Output Grid: [[2, 3, 4], [5, 6, 7], [8, 9, 1]]
-    === TEST INPUT ===
-    [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-    Analyze the transformation of cell (0, 0).
-
-    Analysis: The value 1 at cell (0, 0) in the input grid becomes 2 in the output grid.
-    This suggests a shift of the first row to the right, or that each number becomes its following number with 9 wrapping to 1.
-
-    Question:
-    {question}
-    Analyze the transformation of cell ({row}, {col}).
-    """
-    analysis = call_llm(prompt)
-    return analysis
-
-def apply_cell_transformation(question: str, row: int, col: int, analysis: str) -> str:
-    """
-    Apply the learned transformation to determine the output value of a specific cell.
-    """
-    prompt = f"""
-    You are a grid transformation expert. Given the analysis of cell transformation
-    and the question, determine the output value of a specific cell.
-
-    Question:
-    {question}
-    Analysis of cell ({row}, {col}):
-    {analysis}
-
-    What is the transformed value of cell ({row}, {col}) in the output grid?
-    Example:
-    Question:
-    === TRAINING EXAMPLES ===
-    Example 1:
-    Input Grid: [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-    Output Grid: [[2, 3, 4], [5, 6, 7], [8, 9, 1]]
-    === TEST INPUT ===
-    [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-    Analyze the transformation of cell (0, 0).
-
-    Analysis of cell (0, 0): The value 1 at cell (0, 0) in the input grid becomes 2 in the output grid.
-    This suggests each number becomes its following number with 9 wrapping to 1.
-    Output: 2
-    
-    Output:
-    """
-    output_value = call_llm(prompt)
-    return output_value
-
-def check_rule_well_formed(question: str) -> str:
-    """
-    Check to see that a rule is well-formed and self consistent.
-    """
-    prompt = f"""
-    You are a grid transformation expert.
-
-    Analyze the following question. Determine a well-formed rule from the 
-    training grids from the question. This includes identifying how the input
-    grids are transformed to output grids.
-    Provide a brief description of the transformation rule.
-    {question}
-    """
-    rule = call_llm(prompt)
-    return rule
-
-def solve_grid_transformation(question: str) -> str:
-    """
-    Solve the grid transformation problem by analyzing and transforming each cell individually.
-    """
-    test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
-    if not test_input_match:
-        return "Error: Could not find TEST INPUT in the question."
-    input_grid_str = test_input_match.group(1).strip()
-    input_grid = [list(map(int, re.findall(r'\d+', row))) for row in re.findall(r'\[.*?\]', input_grid_str)]
-    rows = len(input_grid)
-    cols = len(input_grid[0])
-
-    output_grid = []
-    for row in range(rows):
-        output_row = []
-        for col in range(cols):
-            # Analyze the transformation of the cell
-            analysis = analyze_cell_transformation(question, row, col)
-            # Apply the transformation to get the output value
-            output_value = apply_cell_transformation(question, row, col, analysis)
-            try:
-                output_row.append(int(output_value))
-            except ValueError:
-                print(f"Error: Could not convert '{output_value}' to integer. Returning error.")
-                return "Error: Invalid transformation."
-        output_grid.append(output_row)
-    return str(output_grid)
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    # Implement check rule well formed
-    well_formed = check_rule_well_formed(question)
-
-    if "Error" in well_formed:
-        return "Error: There is no valid rule extracted."
-    else:
-        print("Rule successfully extracted.")
-
-    answer = solve_grid_transformation(question)
-    return answer

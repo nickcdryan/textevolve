@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 21,
-        "sample_id": "example_72",
-        "question": '=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 1, 0, 0]\n  [0, 0, 5, 0, 0]\n  [5, 5, 5, 5, 5]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 5, 0, 0]\n  [5, 5, 1, 5, 5]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 1, 0, 1, 0]\n  [0, 5, 0, 5, 0]\n  [5, 5, 5, 5, 5]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 5, 0, 5, 0]\n  [5, 1, 5, 1, 5]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 1, 0, 0, 1]\n  [0, 5, 0, 0, 5]\n  [5, 5, 5, 5, 5]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 5, 0, 0, 5]\n  [5, 1, 5, 5, 1]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 1, 0, 1]\n  [0, 0, 5, 0, 5]\n  [5, 5, 5, 5, 5]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+        "sample_id": "arc_67a3c6ac",
+        "question": 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [6, 6, 6, 2]\n  [6, 1, 6, 2]\n  [7, 2, 7, 2]\n  [1, 7, 2, 2]\n]\n\nOutput Grid:\n[\n  [2, 6, 6, 6]\n  [2, 6, 1, 6]\n  [2, 7, 2, 7]\n  [2, 2, 7, 1]\n]\nExample 2:\nInput Grid:\n[\n  [7, 7, 7, 6, 6, 6, 2]\n  [6, 7, 1, 1, 7, 7, 1]\n  [7, 7, 2, 1, 2, 6, 6]\n  [2, 2, 7, 7, 7, 2, 2]\n  [7, 2, 7, 1, 2, 7, 2]\n  [6, 6, 6, 2, 2, 1, 1]\n  [6, 2, 6, 6, 6, 6, 6]\n]\n\nOutput Grid:\n[\n  [2, 6, 6, 6, 7, 7, 7]\n  [1, 7, 7, 1, 1, 7, 6]\n  [6, 6, 2, 1, 2, 7, 7]\n  [2, 2, 7, 7, 7, 2, 2]\n  [2, 7, 2, 1, 7, 2, 7]\n  [1, 1, 2, 2, 6, 6, 6]\n  [6, 6, 6, 6, 6, 2, 6]\n]\nExample 3:\nInput Grid:\n[\n  [1, 2, 7, 1, 1, 1]\n  [2, 1, 7, 7, 2, 6]\n  [2, 1, 2, 6, 2, 1]\n  [1, 2, 1, 7, 6, 2]\n  [2, 7, 1, 2, 7, 1]\n  [2, 1, 6, 2, 7, 7]\n]\n\nOutput Grid:\n[\n  [1, 1, 1, 7, 2, 1]\n  [6, 2, 7, 7, 1, 2]\n  [1, 2, 6, 2, 1, 2]\n  [2, 6, 7, 1, 2, 1]\n  [1, 7, 2, 1, 7, 2]\n  [7, 7, 2, 6, 1, 2]\n]\n\n=== TEST INPUT ===\n[\n  [7, 6, 1]\n  [6, 7, 6]\n  [6, 2, 2]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 21,
-            "sample_id": "example_72",
+            "sample_id": "arc_67a3c6ac",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = '=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 1, 0, 0]\n  [0, 0, 5, 0, 0]\n  [5, 5, 5, 5, 5]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 5, 0, 0]\n  [5, 5, 1, 5, 5]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 1, 0, 1, 0]\n  [0, 5, 0, 5, 0]\n  [5, 5, 5, 5, 5]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 5, 0, 5, 0]\n  [5, 1, 5, 1, 5]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 1, 0, 0, 1]\n  [0, 5, 0, 0, 5]\n  [5, 5, 5, 5, 5]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 5, 0, 0, 5]\n  [5, 1, 5, 5, 1]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 0, 1, 0, 1]\n  [0, 0, 5, 0, 5]\n  [5, 5, 5, 5, 5]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+    question = 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [6, 6, 6, 2]\n  [6, 1, 6, 2]\n  [7, 2, 7, 2]\n  [1, 7, 2, 2]\n]\n\nOutput Grid:\n[\n  [2, 6, 6, 6]\n  [2, 6, 1, 6]\n  [2, 7, 2, 7]\n  [2, 2, 7, 1]\n]\nExample 2:\nInput Grid:\n[\n  [7, 7, 7, 6, 6, 6, 2]\n  [6, 7, 1, 1, 7, 7, 1]\n  [7, 7, 2, 1, 2, 6, 6]\n  [2, 2, 7, 7, 7, 2, 2]\n  [7, 2, 7, 1, 2, 7, 2]\n  [6, 6, 6, 2, 2, 1, 1]\n  [6, 2, 6, 6, 6, 6, 6]\n]\n\nOutput Grid:\n[\n  [2, 6, 6, 6, 7, 7, 7]\n  [1, 7, 7, 1, 1, 7, 6]\n  [6, 6, 2, 1, 2, 7, 7]\n  [2, 2, 7, 7, 7, 2, 2]\n  [2, 7, 2, 1, 7, 2, 7]\n  [1, 1, 2, 2, 6, 6, 6]\n  [6, 6, 6, 6, 6, 2, 6]\n]\nExample 3:\nInput Grid:\n[\n  [1, 2, 7, 1, 1, 1]\n  [2, 1, 7, 7, 2, 6]\n  [2, 1, 2, 6, 2, 1]\n  [1, 2, 1, 7, 6, 2]\n  [2, 7, 1, 2, 7, 1]\n  [2, 1, 6, 2, 7, 7]\n]\n\nOutput Grid:\n[\n  [1, 1, 1, 7, 2, 1]\n  [6, 2, 7, 7, 1, 2]\n  [1, 2, 6, 2, 1, 2]\n  [2, 6, 7, 1, 2, 1]\n  [1, 7, 2, 1, 7, 2]\n  [7, 7, 2, 6, 1, 2]\n]\n\n=== TEST INPUT ===\n[\n  [7, 6, 1]\n  [6, 7, 6]\n  [6, 2, 2]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 21,
-            "sample_id": "example_72",
+            "sample_id": "arc_67a3c6ac",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 21,
-            "sample_id": "example_72",
+            "sample_id": "arc_67a3c6ac",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

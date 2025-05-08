@@ -1,20 +1,77 @@
-#!/usr/bin/env python
-"""
-This script implements a new approach to grid transformation problems. It leverages
-an LLM-driven rule extraction and application process with a focus on multi-example
-learning, explicit rule representation, and iterative refinement.
-
-Hypothesis: By explicitly representing the transformation rule extracted from training
-examples and iteratively refining it based on verification against additional examples,
-we can improve the accuracy and robustness of grid transformation.
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by first extracting the transformation rule and then applying it."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids. You first EXPLAIN the rule before applying it."
+    
+    # STEP 1: Extract the transformation rule
+    rule_extraction_prompt = f"""
+    You are tasked with identifying the transformation rule applied to grids. Study the examples carefully and explain the transformation logic in plain English.
+
+    Example 1:
+    Input Grid:
+    [[1, 0], [0, 1]]
+    Output Grid:
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Explanation: Each element in the input grid becomes a diagonal in a larger grid.
+
+    Example 2:
+    Input Grid:
+    [[2, 8], [8, 2]]
+    Output Grid:
+    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Explanation: Each element is expanded to a 2x2 block with the element's value.
+
+    Example 3:
+    Input Grid:
+    [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
+    Output Grid:
+    [[1, 0, 1], [0, 0, 0], [1, 0, 1]]
+    Explanation: The input grid is overlaid onto a grid of zeros; the value of 1 replaces 0; the values of 0 remain as 0.
+
+    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
+    Test Example:
+    {problem_text}
+    """
+    
+    # Attempt to extract the rule
+    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+
+    # STEP 2: Apply the extracted rule to the test input
+    application_prompt = f"""
+    You have extracted this transformation rule:
+    {extracted_rule}
+
+    Now, apply this rule to the following test input grid:
+    {problem_text}
+
+    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+    """
+    
+    # Attempt to generate the transformed grid
+    for attempt in range(max_attempts):
+        try:
+            transformed_grid_text = call_llm(application_prompt, system_instruction)
+            # Basic validation - check if it looks like a grid
+            if "[" in transformed_grid_text and "]" in transformed_grid_text:
+                return transformed_grid_text
+            else:
+                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+
+    # Fallback approach if all attempts fail
+    return "[[0,0,0],[0,0,0],[0,0,0]]"
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. """
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
@@ -41,113 +98,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def extract_transformation_rule(question: str) -> str:
-    """
-    Extract the transformation rule from the training examples using LLM.
-    """
-    prompt = f"""
-    You are an expert at identifying transformation rules in grid patterns.
-    Analyze the training examples below and describe the underlying transformation rule in plain English.
-
-    Example 1:
-    Input Grid: [[1, 2], [3, 4]]
-    Output Grid: [[1, 2, 1, 2], [3, 4, 3, 4], [1, 2, 1, 2], [3, 4, 3, 4]]
-    Transformation Rule: The input grid is repeated both horizontally and vertically to create a larger grid.
-
-    Example 2:
-    Input Grid: [[1, 0], [0, 1]]
-    Output Grid: [[0, 1], [1, 0]]
-    Transformation Rule: The input grid is flipped both vertically and horizontally.
-
-    Example 3:
-    Input Grid: [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
-    Output Grid: [[1, 1, 1], [1, 0, 1], [1, 1, 1]]
-    Transformation Rule: All cells become 1, except the center remains unchanged.
-
-    Analyze the training examples in this question and describe the transformation rule:
-    {question}
-    """
-    rule = call_llm(prompt)
-    return rule
-
-def apply_transformation_rule(rule: str, input_grid: str) -> str:
-    """
-    Apply the extracted transformation rule to the test input using LLM.
-    """
-    prompt = f"""
-    You are an expert at applying transformation rules to grid patterns.
-    Given the following input grid and transformation rule, generate the output grid.
-
-    Example 1:
-    Input Grid: [[1, 2], [3, 4]]
-    Transformation Rule: The input grid is repeated both horizontally and vertically to create a larger grid.
-    Output Grid: [[1, 2, 1, 2], [3, 4, 3, 4], [1, 2, 1, 2], [3, 4, 3, 4]]
-
-    Example 2:
-    Input Grid: [[1, 0], [0, 1]]
-    Transformation Rule: The input grid is flipped both vertically and horizontally.
-    Output Grid: [[0, 1], [1, 0]]
-
-    Input Grid: {input_grid}
-    Transformation Rule: {rule}
-    Generate the output grid:
-    """
-    output_grid = call_llm(prompt)
-    return output_grid
-
-def verify_output_grid(output_grid: str, rule: str, input_grid: str) -> bool:
-  """Verify the format of the output grid using LLM"""
-  prompt = f"""
-  You are an expert grid format verifier. Determine if the following output_grid is correctly formatted.
-
-  Here's an example:
-  output_grid: [[1, 2], [3, 4]]
-  verified: True
-
-  Here's an example of an incorrect grid:
-  output_grid: [1, 2], [3, 4]
-  verified: False
-
-  Here's another example of an incorrect grid:
-  output_grid: "[[1, 2], [3, 4]]"
-  verified: False
-
-  Here's another example of an incorrect grid:
-  output_grid: [[1, 2], [3, 4]
-  verified: False
-
-  Here's the input:
-  output_grid: {output_grid}
-  verified:
-  """
-  verified = call_llm(prompt)
-  return "True" in verified
-
-def main(question: str) -> str:
-    """
-    Main function to solve the grid transformation problem.
-    """
-    try:
-        # 1. Extract the transformation rule from the training examples
-        rule = extract_transformation_rule(question)
-
-        # 2. Extract the test input grid from the question
-        test_input_match = re.search(r"=== TEST INPUT ===\n(.*?)\nTransform", question, re.DOTALL)
-        if not test_input_match:
-            return "Error: Could not find TEST INPUT in the question."
-        input_grid = test_input_match.group(1).strip()
-
-        # 3. Apply the transformation rule to the test input
-        output_grid = apply_transformation_rule(rule, input_grid)
-
-        # 4. Basic validation to handle errors
-        if "Error" in output_grid:
-            return "Error occurred during grid transformation."
-        if not verify_output_grid(output_grid, rule, input_grid):
-            return "Error: Grid formatted incorrectly."
-
-        return output_grid
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return "An unexpected error occurred."

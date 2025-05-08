@@ -166,7 +166,7 @@ Output Grid:
 {self._format_grid(example['output'])}"""
 
                             # Format as a visually structured question
-                            question_str = f"""
+                            question_str = f"""Grid Transformation Task
 
 === TRAINING EXAMPLES ===
 
@@ -233,7 +233,7 @@ Output Grid:
 {self._format_grid(example['output'])}"""
 
                         # Format as a visually structured question
-                        question_str = f"""
+                        question_str = f"""Grid Transformation Task
 
 === TRAINING EXAMPLES ===
 

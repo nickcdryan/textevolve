@@ -1,30 +1,76 @@
-#!/usr/bin/env python
-"""
-This script introduces a new approach to solving grid transformation problems, focusing on
-context-based reasoning and adaptive example selection. The problem is framed as a contextual
-understanding and transformation task, where the LLM identifies the context, selects
-relevant examples, and applies transformations accordingly.
-
-Hypothesis: Context-based reasoning with adaptive example selection allows the LLM to better
-understand the underlying transformation logic and generalize to new inputs. Adaptive example
-selection helps mitigate the impact of noisy or irrelevant examples by focusing on the most
-relevant ones for a given context.
-"""
-
 import os
 import re
-from typing import List, Dict, Any, Optional, Union
+import math
+
+def main(question):
+    """Transforms a grid based on patterns in training examples using LLM-driven analysis and coordinate-based transformation."""
+    return solve_grid_transformation(question)
+
+def solve_grid_transformation(problem_text, max_attempts=3):
+    """Solves the grid transformation problem by analyzing coordinate patterns and applying transformations."""
+
+    system_instruction = "You are an expert at identifying grid transformation patterns based on coordinate analysis. You analyze how element values CHANGE based on their ORIGINAL COORDINATES."
+
+    # STEP 1: Analyze coordinate patterns with embedded examples
+    coordinate_analysis_prompt = f"""
+    You are tasked with identifying transformation rules based on the coordinates of grid elements. Analyze the input and output grids to determine how element values change as a function of their row and column indices.
+
+    Example 1:
+    Input Grid:
+    [[1, 0], [0, 1]]
+    Output Grid:
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    Analysis: The element at (r, c) in the input grid is transformed to a diagonal line in the output grid. If input[r][c] == 1, then output[r+c][r+c] = 1. All other elements in the output grid are 0.
+
+    Example 2:
+    Input Grid:
+    [[2, 8], [8, 2]]
+    Output Grid:
+    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
+    Analysis: The element at (r, c) in the input grid is expanded to a 2x2 block in the output grid. output[2r:2r+2][2c:2c+2] = input[r][c].
+
+    Now, analyze the coordinate patterns in this example. Respond with ONLY the analysis:
+    Test Example:
+    {problem_text}
+    """
+
+    # Attempt to analyze coordinate patterns
+    coordinate_analysis = call_llm(coordinate_analysis_prompt, system_instruction)
+
+    # STEP 2: Apply the coordinate-based transformation with embedded examples
+    transformation_application_prompt = f"""
+    You have analyzed the coordinate patterns and determined this transformation rule:
+    {coordinate_analysis}
+
+    Now, apply this rule to the following test input grid:
+    {problem_text}
+
+    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+
+    Example Application:
+    Analyzed Rule: The element at (r, c) becomes a 2x2 block with the element's value.
+    Input Grid: [[1, 2], [3, 4]]
+    Transformed Grid: [[1, 1, 2, 2], [1, 1, 2, 2], [3, 3, 4, 4], [3, 3, 4, 4]]
+    """
+
+    # Attempt to generate the transformed grid
+    transformed_grid_text = call_llm(transformation_application_prompt, system_instruction)
+
+    # STEP 3: Validation - check for format
+    if "[" in transformed_grid_text and "]" in transformed_grid_text:
+        return transformed_grid_text
+    else:
+        return "[[0,0,0],[0,0,0],[0,0,0]]"
+
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response."""
     try:
         from google import genai
         from google.genai import types
 
-        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
                 model="gemini-2.0-flash",
@@ -43,121 +89,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def identify_context(question: str) -> str:
-    """Identify the context of the grid transformation problem."""
-    prompt = f"""
-    You are an expert grid context identifier.
-    Identify the key context of this grid transformation question.
-    Example:
-    Question: === TRAINING EXAMPLES === ... The context is expansion of number in the location to the sides.
-    Question: {question}
-    Context:
-    """
-    return call_llm(prompt)
-
-def select_relevant_examples(question: str, context: str) -> List[str]:
-    """Select relevant examples based on the identified context."""
-    prompt = f"""
-    You are an expert example selector.
-    Given the question and context, select the 3 most relevant examples from the training examples.
-
-    Question: {question}
-    Context: {context}
-
-    Example:
-    Question: ... Transformation involves shifting right ... Example 1 is the only valid example to apply.
-
-    Relevant Examples: (List the numbers of the examples to apply)
-
-    """
-    return call_llm(prompt)
-
-def apply_transformation(question: str, relevant_examples: List[str]) -> str:
-    """Apply the transformation to the test input based on the selected examples."""
-    prompt = f"""
-    You are an expert grid transformer.
-    Given the question and relevant examples, apply the transformation to the test input.
-
-    Question: {question}
-    Relevant Examples: {relevant_examples}
-    Here is how it should perform, using the same question format:
-    Example:
-        Question:
-            === TRAINING EXAMPLES ===
-            Example 1:
-                Input Grid: [[1, 2], [3, 4]]
-                Output Grid: [[2, 3], [4, 1]]
-            === TEST INPUT ===
-            [[5, 6], [7, 8]]
-            Transform the test input according to the pattern shown in the training examples.
-
-    New Grid:
-    [[6, 7], [8, 5]]
-
-    Please apply the rule and return the NEW Extracted Grid.
-    """
-    new_grid = call_llm(prompt)
-    return new_grid
-
-def verify_grid(question: str, new_grid: str) -> str:
-    """Verify the transformation logic and transformation against the original questions to look for errors."""
-    prompt = f"""
-    You are an expert grid verifier.  You must verify that a transformation is valid, by performing error analysis.
-
-    question: {question}
-    transformation: {new_grid}
-
-    Example of a valid transformation, with explanation.
-        question:
-            === TRAINING EXAMPLES ===
-            Example 1:
-                Input Grid: [[1, 2], [3, 4]]
-                Output Grid: [[2, 3], [4, 1]]
-            === TEST INPUT ===
-            [[5, 6], [7, 8]]
-            Transform the test input according to the pattern shown in the training examples.
-
-    transformation: [[6, 7], [8, 5]]
-    verified: CORRECT because numbers shift to the right.
-
-    Example of a incorrect transformation, with explanation.
-        question:
-            === TRAINING EXAMPLES ===
-            Example 1:
-                Input Grid: [[1, 2], [3, 4]]
-                Output Grid: [[2, 3], [4, 1]]
-            === TEST INPUT ===
-            [[5, 6], [7, 8]]
-            Transform the test input according to the pattern shown in the training examples.
-
-    transformation: [[6, 7], [8, 6]]
-    verified: INCORRECT because all numbers must shift, 6 must become 5
-
-    Please verify the new grid and say if it is correct.
-    """
-    verified = call_llm(prompt)
-    return verified
-
-def main(question: str) -> str:
-    """Main function to solve the problem."""
-    try:
-        # 1. Identify the context
-        context = identify_context(question)
-
-        # 2. Select relevant examples
-        relevant_examples_text = select_relevant_examples(question, context)
-        relevant_examples = re.findall(r'\d+', relevant_examples_text)
-
-        # 3. Apply the transformation
-        transformed_grid = apply_transformation(question, relevant_examples)
-
-        # 4. Verify transformation and new grid
-        verified = verify_grid(question, transformed_grid)
-
-        if "INCORRECT" in verified:
-            return f"Error: Transformation verification failed. {verified}"
-
-        return transformed_grid
-    except Exception as e:
-        return f"An error occurred: {e}"
