@@ -10,6 +10,31 @@ This script:
 2. Analyzes performance history and identifies improvement opportunities
 3. Makes targeted code changes to enhance performance
 4. Tracks changes and validates improvements
+
+
+
+USAGE INSTRUCTIONS:
+------------------
+
+1. STAGING WORKFLOW (Recommended):
+   a) Generate and stage changes for review:
+      python system_improver.py --stage-only
+
+   b) Review staged changes:
+      cat staged_changes.json
+
+   c) Apply staged changes if approved:
+      python system_improver.py --apply-staged
+
+2. AUTOMATIC WORKFLOW:
+   a) Generate, apply and validate changes:
+      python system_improver.py
+
+   b) Generate and apply changes without validation:
+      python system_improver.py --skip-validation
+
+
+      
 """
 
 import os
