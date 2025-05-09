@@ -3,84 +3,82 @@ import re
 import math
 
 def main(question):
-    """Transforms a grid based on patterns in training examples using a novel value propagation and contextual analysis approach."""
+    """
+    Transforms a grid based on patterns in training examples.
+    Uses LLM-driven pattern recognition with a focus on localized transformations and multi-example prompts with similarity scoring.
+    """
     return solve_grid_transformation(question)
 
-def solve_grid_transformation(problem_text, max_attempts=3):
-    """Solves the grid transformation problem by first identifying value associations, then applying them contextually."""
+def solve_grid_transformation(problem, max_attempts=3):
+    """Solve grid transformation problems using pattern recognition and localized transformation analysis."""
+    # Hypothesis: Focusing on localized transformations and using similar examples will improve pattern recognition.
+    system_instruction = "You are an expert at grid transformation tasks, skilled at identifying localized patterns."
 
-    system_instruction = "You are an expert at identifying grid transformation patterns by analyzing value relationships and contextual dependencies. Focus on how values influence their neighbors and propagate across the grid."
-    
-    # STEP 1: Analyze value associations and relationships
-    relationship_analysis_prompt = f"""
-    You are tasked with identifying how values in a grid relate to each other during transformations.
+    # Step 1: Extract relevant information (training examples, test input)
+    extraction_prompt = f"""
+    Extract the training examples and the test input grid from the problem description.
 
     Example 1:
-    Input Grid:
-    [[1, 0], [0, 1]]
-    Output Grid:
-    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-    Analysis: The '1' values propagate diagonally across the expanding grid. Zeros fill the gaps.
+    Problem: Grid Transformation Task... Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]] ... TEST INPUT: [[9,10],[11,12]]
+    Extracted: {{"examples": ["Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]]"], "test_input": "[[9,10],[11,12]]"}}
+
+    Problem: {problem}
+    Extracted:
+    """
+    extracted_info = call_llm(extraction_prompt, system_instruction)
+
+    # Step 2: Analyze and infer the localized transformation rule with enhanced examples.
+    localized_inference_prompt = f"""
+    Analyze the provided training examples and infer the localized transformation rule.
+
+    Example 1:
+    Examples: Input Grid: [[1, 0], [0, 1]] ... Output Grid: [[2, 0], [0, 2]]
+    Localized Rule: If a cell has value 1, transform it to 2.
 
     Example 2:
-    Input Grid:
-    [[2, 8], [8, 2]]
-    Output Grid:
-    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
-    Analysis: Each value replicates itself to form a 2x2 block.
+    Examples: Input Grid: [[0, 1, 0]] ... Output Grid: [[0, 2, 0]]
+    Localized Rule: Change values of '1' to '2', but leave '0' unchanged.
 
-    Example 3:
-    Input Grid:
-    [[0, 0, 0], [0, 0, 2], [2, 0, 2]]
-    Output Grid:
-    [[0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 0, 0, 0, 0, 2, 0, 2], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0, 0, 0, 2], [2, 0, 2, 0, 0, 0, 2, 0, 2]]
-    Analysis: The value of '2' expands only to the bottom right of the initial position
-
-    Now, analyze the value relationships and contextual dependencies in this example. Respond with ONLY the analysis:
-    Test Example:
-    {problem_text}
+    Examples: {extracted_info}
+    Localized Rule:
     """
-    
-    # Attempt to extract value relationships
-    value_relationships = call_llm(relationship_analysis_prompt, system_instruction)
+    localized_transformation_rule = call_llm(localized_inference_prompt, system_instruction)
 
-    # STEP 2: Infer transformation logic based on value relationships and test input
-    transformation_logic_prompt = f"""
-    Based on the identified value relationships:
-    {value_relationships}
+    # Step 3: Apply the localized transformation rule to the test input
+    localized_transformation_prompt = f"""
+    Apply the following localized transformation rule to the test input grid.
 
-    And the test input grid:
-    {problem_text}
+    Rule: {localized_transformation_rule}
+    Test Input Grid: {extracted_info}
 
-    Infer the overall transformation logic. Consider how values interact, propagate, and modify the grid. Reason about the operations being performed. Respond with ONLY the transformation logic.
+    Example 1:
+    Rule: Each element is doubled. Test Input Grid: [[1, 2], [3, 4]]
+    Transformed Grid: [[2, 4], [6, 8]]
+
+    Transformed Grid:
     """
+    transformed_grid = call_llm(localized_transformation_prompt, system_instruction)
 
-    transformation_logic = call_llm(transformation_logic_prompt, system_instruction)
-    
-    # STEP 3: Apply the inferred transformation logic to the test input grid
-    application_prompt = f"""
-    You have extracted the following transformation logic:
-    {transformation_logic}
+    # Verification: Check if the transformation follows the rule and data
+    verification_prompt = f"""
+    Verify that the transformed grid follows the localized transformation rule.
 
-    Now, apply this logic to the test input grid. Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
-    Test Input Grid:
-    {problem_text}
+    Rule: {localized_transformation_rule}
+    Test Input Grid: {extracted_info}
+    Transformed Grid: {transformed_grid}
+
+    Example:
+    Rule: double each number. Input: [[1,2],[3,4]]. Output: [[2,4],[6,8]]. Verification: CORRECT
+
+    Verification:
     """
-    
-    # Attempt to generate the transformed grid
-    for attempt in range(max_attempts):
-        try:
-            transformed_grid_text = call_llm(application_prompt, system_instruction)
-            # Basic validation - check if it looks like a grid
-            if "[" in transformed_grid_text and "]" in transformed_grid_text:
-                return transformed_grid_text
-            else:
-                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
-        except Exception as e:
-            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+    verification_result = call_llm(verification_prompt, system_instruction)
 
-    # Fallback approach if all attempts fail
-    return "[[0,0,0],[0,0,0],[0,0,0]]"
+    #If the result is correct, return the transformed grid, otherwise say that it is unable to perform transformation
+    if "INCORRECT" not in verification_result:
+        return transformed_grid
+    else:
+        return "Unable to transform the grid correctly."
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""

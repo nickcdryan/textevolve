@@ -1,62 +1,95 @@
 import os
 import re
 import math
+import json
 
 def main(question):
-    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition."""
+    """
+    Transforms a grid based on patterns in training examples.
+    Uses LLM-driven pattern recognition and iterative refinement.
+    """
     return solve_grid_transformation(question)
 
-def solve_grid_transformation(problem_text, max_attempts=3):
-    """Solves the grid transformation problem by inferring patterns from examples and applying them."""
+def solve_grid_transformation(problem, max_attempts=3):
+    """Solve grid transformation problems using pattern recognition and verification."""
+    system_instruction = "You are an expert at grid transformation tasks, skilled at pattern recognition."
 
-    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids."
-    
-    # Improved prompt with multiple examples and clear instructions
-    prompt = f"""
-    You are tasked with transforming a test input grid based on the patterns observed in the training examples. Study the examples carefully to infer the transformation logic.
+    # Step 1: Extract relevant information (training examples, test input)
+    extraction_prompt = f"""
+    Extract the training examples and the test input grid from the problem description.
 
     Example 1:
-    Input Grid:
-    [[0, 7, 7], [7, 7, 7], [0, 7, 7]]
-    Output Grid:
-    [[0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7], [0, 7, 7, 0, 7, 7, 0, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7], [0, 0, 0, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 7, 7, 0, 7, 7]]
-    Reasoning: The transformation expands the grid. Each original cell's value is used to populate a 3x3 block in the output.
+    Problem: Grid Transformation Task... Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]] ... TEST INPUT: [[9,10],[11,12]]
+    Extracted: {{"examples": ["Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]]"], "test_input": "[[9,10],[11,12]]"}}
+
+    Problem: {problem}
+    Extracted:
+    """
+    extracted_info = call_llm(extraction_prompt, system_instruction)
+
+    # Step 2: Analyze and infer the transformation rule with enhanced examples
+    inference_prompt = f"""
+    Analyze the provided training examples and infer the transformation rule.
+
+    Example 1:
+    Examples: Input Grid: [[1, 1, 1]] ... Output Grid: [[2, 2, 2]]
+    Rule: Each element in the input grid is incremented by 1.
 
     Example 2:
-    Input Grid:
-    [[4, 0, 4], [0, 0, 0], [0, 4, 0]]
-    Output Grid:
-    [[4, 0, 4, 0, 0, 0, 4, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 4, 0, 0, 0, 0, 0, 4, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 4, 0, 4, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 4, 0, 0, 0, 0]]
-    Reasoning: The grid is expanded, and values are used to populate a 3x3 block based on the original cell's coordinates.
+    Examples: Input Grid: [[0, 1, 0]] ... Output Grid: [[0, 2, 0]]
+    Rule: Each '1' in the input grid is replaced with '2', while '0' remains unchanged.
 
-    Example 3:
-    Input Grid:
-    [[0, 0, 0], [0, 0, 2], [2, 0, 2]]
-    Output Grid:
-    [[0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 0, 0, 0, 0, 2, 0, 2], [0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0, 0, 0, 2], [2, 0, 2, 0, 0, 0, 2, 0, 2]]
-    Reasoning: Similar expansion pattern, but with different original values and block placements.
-    
-    Now, transform this test input grid according to the patterns:
-    Test Input Grid:
-    {problem_text}
-    
-    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+    Examples: {extracted_info}
+    Rule:
     """
-    
-    # Attempt to generate the transformed grid
-    for attempt in range(max_attempts):
-        try:
-            transformed_grid_text = call_llm(prompt, system_instruction)
-            # Basic validation - check if it looks like a grid
-            if "[" in transformed_grid_text and "]" in transformed_grid_text:
-                return transformed_grid_text
-            else:
-                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
-        except Exception as e:
-            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+    transformation_rule = call_llm(inference_prompt, system_instruction)
 
-    # Fallback approach if all attempts fail
-    return "[[0,0,0],[0,0,0],[0,0,0]]"
+    # Step 3: Apply the transformation rule to the test input
+    transformation_prompt = f"""
+    Apply the following transformation rule to the test input grid.
+
+    Rule: {transformation_rule}
+    Test Input Grid: {extracted_info}
+
+    Example 1:
+    Rule: Each element is doubled. Test Input Grid: [[1, 2], [3, 4]]
+    Transformed Grid: [[2, 4], [6, 8]]
+
+    Transformed Grid:
+    """
+    transformed_grid = call_llm(transformation_prompt, system_instruction)
+
+    # Step 4: Verify the transformed grid and correct if needed
+    verification_prompt = f"""
+    Verify that the transformed grid follows the transformation rule.
+
+    Rule: {transformation_rule}
+    Test Input Grid: {extracted_info}
+    Transformed Grid: {transformed_grid}
+
+    Example:
+    Rule: double each number. Input: [[1,2],[3,4]]. Output: [[2,4],[6,8]]. Verification: CORRECT
+
+    Verification:
+    """
+    verification_result = call_llm(verification_prompt, system_instruction)
+
+    if "INCORRECT" in verification_result:
+        # Attempt to correct the transformation (simple error correction)
+        correction_prompt = f"""
+        Correct the transformed grid based on the verification feedback.
+
+        Rule: {transformation_rule}
+        Test Input Grid: {extracted_info}
+        Transformed Grid: {transformed_grid}
+        Verification Feedback: {verification_result}
+
+        Corrected Grid:
+        """
+        corrected_grid = call_llm(correction_prompt, system_instruction)
+        return corrected_grid
+    else:
+        return transformed_grid
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""

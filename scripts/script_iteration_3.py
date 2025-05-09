@@ -3,77 +3,87 @@ import re
 import math
 
 def main(question):
-    """Transforms a grid based on patterns in training examples using LLM-driven pattern recognition and explicit rule extraction."""
+    """
+    Transforms a grid based on patterns in training examples using LLM-driven spatial reasoning and iterative refinement.
+    Uses a different approach by focusing on spatial relationships between numbers and using a combination of pattern extraction and grid manipulation.
+    """
     return solve_grid_transformation(question)
 
-def solve_grid_transformation(problem_text, max_attempts=3):
-    """Solves the grid transformation problem by first extracting the transformation rule and then applying it."""
+def solve_grid_transformation(problem, max_attempts=3):
+    """Solve grid transformation problems using spatial reasoning, pattern extraction, and grid manipulation."""
 
-    system_instruction = "You are an expert at identifying grid transformation patterns from examples and applying them to new grids. You first EXPLAIN the rule before applying it."
-    
-    # STEP 1: Extract the transformation rule with examples
-    rule_extraction_prompt = f"""
-    You are tasked with identifying the transformation rule applied to grids. Study the examples carefully and explain the transformation logic in plain English.
+    # Hypothesis: By explicitly defining spatial relationships and using a combination of pattern extraction and grid manipulation, we can better guide the LLM.
+    system_instruction = "You are an expert in spatial reasoning and grid manipulation. You will identify patterns based on the location of grid elements."
 
-    Example 1:
-    Input Grid:
-    [[1, 0], [0, 1]]
-    Output Grid:
-    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-    Explanation: Each element in the input grid becomes a diagonal in a larger grid. The new grid has the dimensions number of rows times number of columns of the input grid.
+    # Step 1: Extract the training examples and the test input grid from the problem description.
+    extraction_prompt = f"""
+    Extract the training examples and the test input grid from the problem description.
 
-    Example 2:
-    Input Grid:
-    [[2, 8], [8, 2]]
-    Output Grid:
-    [[2, 2, 8, 8], [2, 2, 8, 8], [8, 8, 2, 2], [8, 8, 2, 2]]
-    Explanation: Each element is expanded to a 2x2 block with the element's value. The new grid has the dimensions number of rows times number of columns of the input grid.
+    Example:
+    Problem: Grid Transformation Task... Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]] ... TEST INPUT: [[9,10],[11,12]]
+    Extracted: {{"examples": ["Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]]"], "test_input": "[[9,10],[11,12]]"}}
 
-    Example 3:
-    Input Grid:
-    [[0, 1, 0], [1, 0, 1], [0, 1, 0]]
-    Output Grid:
-    [[1, 0, 1], [0, 0, 0], [1, 0, 1]]
-    Explanation: The input grid is overlaid onto a grid of zeros; the value of 1 replaces 0; the values of 0 remain as 0. If the value is zero, the cell remains zero, otherise the value in the input grid is copied to the output grid in that location.
-
-    Now, explain the transformation rule applied to this example. Respond with ONLY the explanation:
-    Test Example:
-    {problem_text}
+    Problem: {problem}
+    Extracted:
     """
-    
-    # Attempt to extract the rule
-    extracted_rule = call_llm(rule_extraction_prompt, system_instruction)
+    extracted_info = call_llm(extraction_prompt, system_instruction)
+    print(f"Extracted Info: {extracted_info}")  # Diagnostic output
 
-    # STEP 2: Apply the extracted rule to the test input with example application for consistency.
-    application_prompt = f"""
-    You have extracted this transformation rule:
-    {extracted_rule}
+    # Step 2: Analyze the training examples to identify spatial relationships.
+    spatial_analysis_prompt = f"""
+    Analyze the training examples to identify spatial relationships between numbers.
+    Focus on identifying rules based on adjacent cells or patterns.
 
-    Now, apply this rule to the following test input grid:
-    {problem_text}
+    Example:
+    Examples: Input Grid: [[1, 0], [0, 1]] ... Output Grid: [[2, 0], [0, 2]]
+    Spatial Relationships: If a cell has value 1, transform it to 2. Otherwise, maintain cell values.
 
-    Example Application:
-    Extracted Rule: "Each element is expanded to a 2x2 block with the element's value."
-    Input Grid: [[1, 0], [0, 1]]
-    Transformed Grid: [[1, 1, 0, 0], [1, 1, 0, 0], [0, 0, 1, 1], [0, 0, 1, 1]]
-    
-    Provide the transformed grid as a 2D array formatted as a string, WITHOUT any additional explanation or comments.
+    Examples: {extracted_info}
+    Spatial Relationships:
     """
-    
-    # Attempt to generate the transformed grid
-    for attempt in range(max_attempts):
-        try:
-            transformed_grid_text = call_llm(application_prompt, system_instruction)
-            # Basic validation - check if it looks like a grid
-            if "[" in transformed_grid_text and "]" in transformed_grid_text:
-                return transformed_grid_text
-            else:
-                print(f"Attempt {attempt+1} failed: Output does not resemble a grid. Retrying...")
-        except Exception as e:
-            print(f"Attempt {attempt+1} failed with error: {e}. Retrying...")
+    spatial_relationships = call_llm(spatial_analysis_prompt, system_instruction)
+    print(f"Spatial Relationships: {spatial_relationships}")  # Diagnostic output
 
-    # Fallback approach if all attempts fail
-    return "[[0,0,0],[0,0,0],[0,0,0]]"
+    # Step 3: Apply transformation based on spatial relationships to the test input
+    transformation_prompt = f"""
+    Apply the identified spatial relationships to transform the test input grid.
+
+    Spatial Relationships: {spatial_relationships}
+    Test Input Grid: {extracted_info}
+
+    Example:
+    Spatial Relationships: If a cell has value 1, transform it to 2. Otherwise, maintain cell values.
+    Test Input Grid: [[1, 0], [0, 1]]
+    Transformed Grid: [[2, 0], [0, 2]]
+
+    Transformed Grid:
+    """
+    transformed_grid = call_llm(transformation_prompt, system_instruction)
+    print(f"Transformed Grid: {transformed_grid}")  # Diagnostic output
+
+    # Step 4: Verify the transformed grid.
+    verification_prompt = f"""
+    Verify the transformed grid based on the extracted spatial relationships.
+
+    Spatial Relationships: {spatial_relationships}
+    Test Input Grid: {extracted_info}
+    Transformed Grid: {transformed_grid}
+
+    Example:
+    Spatial Relationships: If a cell has value 1, transform it to 2. Otherwise, maintain cell values.
+    Test Input Grid: [[1, 0], [0, 1]]
+    Transformed Grid: [[2, 0], [0, 2]]
+    Verification: The grid transformation follows the spatial relationships defined.
+
+    Verification:
+    """
+    verification_result = call_llm(verification_prompt, system_instruction)
+    print(f"Verification Result: {verification_result}")  # Diagnostic output
+
+    if "The grid transformation follows the spatial relationships defined." in verification_result:
+        return transformed_grid
+    else:
+        return "Unable to transform the grid correctly."
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
