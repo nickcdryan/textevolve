@@ -34,7 +34,7 @@ USAGE INSTRUCTIONS:
       python system_improver.py --skip-validation
 
 
-      
+
 """
 
 import os
@@ -154,7 +154,21 @@ class SystemImprover:
             report_content += f"""### Change {i+1}: {change['file']}
 **Description:** {change['description']}
 
-```diff
+"""
+            if 'find' in change and 'replace' in change:
+                report_content += f"""**Find:**
+```
+{change['find']}
+```
+
+**Replace With:**
+```
+{change['replace']}
+```
+
+"""
+            elif 'diff' in change:
+                report_content += f"""```diff
 {change['diff']}
 ```
 
@@ -169,6 +183,103 @@ class SystemImprover:
 
         return staged_changes
 
+    def fix_nested_triple_quotes(self, code: str) -> str:
+        """
+        Fix issues with nested triple quotes in f-strings.
+        Uses a pattern-specific approach that handles various types of nesting.
+
+        Args:
+            code: Python code that might contain problematic nested quotes
+
+        Returns:
+            Modified code with fixed nested quotes
+        """
+        # Skip processing if there's no code or no potential problematic patterns
+        if not code or ('f"""' not in code and "f'''" not in code):
+            return code
+
+        # Track if we made changes
+        made_changes = False
+
+        # 1. Handle docstrings in code blocks
+        if '"""Analyzes' in code:
+            code = code.replace('"""Analyzes', "'''Analyzes")
+            code = code.replace('format."""', "format.'''")
+            made_changes = True
+
+        # 2. Other docstrings in code blocks
+        if '"""Applies the described' in code:
+            code = code.replace('"""Applies the described', "'''Applies the described")
+            code = code.replace('grid."""', "grid.'''")
+            made_changes = True
+
+        # 3. Nested f-strings with exact patterns from the example
+        if 'prompt = f"""' in code and 'Analyze the transformation' in code:
+            code = code.replace('prompt = f"""', "prompt = f'''")
+            code = code.replace('Describe the transformation concisely, including:', 
+                               'Describe the transformation concisely, including:')
+            code = code.replace('structured format."""', "structured format.'''")
+            made_changes = True
+
+        # 4. General nested f-strings with prompt patterns
+        patterns_to_fix = [
+            ('prompt = f"""Apply the following', "prompt = f'''Apply the following"),
+            ('JSON format: [[row1], [row2], ...]', 'JSON format: [[row1], [row2], ...]'),
+            ('"""  # Call LLM', "'''  # Call LLM"),
+            ('"""\n return', "'''\n return"),
+            ('"""\ntransformed_grid_json', "'''\ntransformed_grid_json")
+        ]
+
+        for old, new in patterns_to_fix:
+            if old in code:
+                code = code.replace(old, new)
+                made_changes = True
+
+        # 5. If we've made changes, do a final pass to ensure we haven't missed anything
+        if made_changes:
+            # Look for any remaining nested triple quotes in typical patterns
+            if 'f"""' in code and '"""' in code[code.find('f"""') + 5:]:
+                # Find all occurrences of f""" (the start of an f-string)
+                f_starts = []
+                pos = 0
+                while True:
+                    pos = code.find('f"""', pos)
+                    if pos == -1:
+                        break
+                    f_starts.append(pos)
+                    pos += 5  # Move past the current f"""
+
+                # For each f-string start, find the matching end and convert any triple quotes between
+                for start in f_starts:
+                    # Find the matching end """ for this f-string
+                    # This is approximate - we assume the first """ after nested content is the end
+                    content_start = start + 4  # Skip the f"""
+                    # Look for the next """ that terminates this f-string
+                    end = content_start
+                    quote_depth = 1
+                    while quote_depth > 0 and end < len(code):
+                        # Find next triple quote
+                        next_triple = code.find('"""', end)
+                        if next_triple == -1:
+                            break
+
+                        # Check if this is the matching end quote
+                        if quote_depth == 1:
+                            # This is our matching end quote - extract content between
+                            content = code[content_start:next_triple]
+                            # Replace any triple quotes in the content
+                            modified_content = content.replace('"""', "'''")
+                            # Replace the content in the original code
+                            code = code[:content_start] + modified_content + code[next_triple:]
+                            quote_depth -= 1
+                        else:
+                            quote_depth -= 1
+
+                        end = next_triple + 3
+
+        return code
+
+
     def apply_changes(self, staged_changes: Dict) -> List[Dict]:
         """
         Apply previously staged changes.
@@ -182,6 +293,9 @@ class SystemImprover:
         print("\n" + "="*80)
         print(f"System Improver - Applying Staged Changes - {self.improvement_timestamp}")
         print("="*80)
+
+        # Import here to ensure it's available in this method
+        import shutil
 
         # Create a backup if requested
         if self.create_backup:
@@ -200,7 +314,7 @@ class SystemImprover:
         # Sort changes by priority
         sorted_changes = sorted(
             changes_to_apply, 
-            key=lambda x: 0 if x["priority"] == "high" else 1
+            key=lambda x: 0 if x.get("priority", "medium") == "high" else 1
         )
 
         for change in sorted_changes:
@@ -211,49 +325,14 @@ class SystemImprover:
                 print(f"Warning: File not found: {file_path}, skipping change")
                 continue
 
-            # Standard approach for applying changes
-            try:
-                # Load current file content
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    current_content = f.read()
+            # Use find-and-replace if those fields are present
+            if 'find' in change and 'replace' in change:
+                try:
+                    # Read current file content
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        current_content = f.read()
 
-                # Apply the diff if provided
-                if change.get("diff"):
-                    print(f"Applying diff to {file_path}")
-                    new_content = self._apply_diff(current_content, change["diff"])
-                else:
-                    # Fallback to LLM for direct file modification
-                    print(f"No diff found, using LLM to modify {file_path}")
-                    new_content = self._generate_modified_file(file_path, current_content, change["description"])
-
-                # Check if there was an actual change
-                if new_content == current_content:
-                    print(f"Warning: No changes made to {file_path} - content identical after applying changes")
-                    print("Trying alternative approach with direct LLM modification...")
-                    new_content = self._generate_modified_file(file_path, current_content, change["description"])
-
-                # Only write if there's an actual change now
-                if new_content != current_content:
-                    # Generate the real diff for record-keeping
-                    diff = self._generate_diff(current_content, new_content, file_path)
-
-                    # Print a summary of changes for debugging
-                    diff_lines = diff.splitlines()
-                    added = sum(1 for line in diff_lines if line.startswith('+'))
-                    removed = sum(1 for line in diff_lines if line.startswith('-'))
-                    print(f"Changes to write: {added} lines added, {removed} lines removed")
-
-                    # Check if we have write permission
-                    if not os.access(full_path, os.W_OK):
-                        print(f"⚠️ WARNING: No write permission for {file_path}")
-                        # Try to make the file writable
-                        try:
-                            os.chmod(full_path, os.stat(full_path).st_mode | 0o200)  # Add write permission
-                            print(f"  Attempted to add write permission to {file_path}")
-                        except Exception as perm_e:
-                            print(f"  Could not change permissions: {perm_e}")
-
-                    # Create a backup of the specific file before modifying it
+                    # Backup the file
                     backup_dir = self.backup_dir / f"backup_file_{self.improvement_timestamp}"
                     backup_dir.mkdir(exist_ok=True, parents=True)
                     backup_path = backup_dir / file_path
@@ -261,41 +340,118 @@ class SystemImprover:
                     shutil.copy2(full_path, backup_path)
                     print(f"Backed up {file_path} to {backup_path}")
 
-                    # Now write the changes
-                    try:
+                    # Apply find-and-replace
+                    new_content, success = self._apply_find_replace(full_path, change["find"], change["replace"])
+
+                    if success:
+                        # Generate diff for record
+                        diff = self._generate_diff(current_content, new_content, file_path)
+
+                        # Write changes to file
                         with open(full_path, 'w', encoding='utf-8') as f:
                             f.write(new_content)
-                        print(f"✅ Successfully wrote changes to {file_path}")
-                    except Exception as write_e:
-                        print(f"❌ ERROR WRITING FILE {file_path}: {write_e}")
-                        # Try writing with different approach
+
+                        print(f"✅ Successfully applied find-and-replace to {file_path}")
+
+                        # Record the change
+                        change_record = {
+                            "file": file_path,
+                            "description": change["description"],
+                            "find": change["find"],
+                            "replace": change["replace"],
+                            "diff": diff,
+                            "timestamp": datetime.datetime.now().isoformat()
+                        }
+                        changes_made.append(change_record)
+                    else:
+                        print(f"❌ Could not find text to replace in {file_path}")
+                except Exception as e:
+                    print(f"❌ Error applying find-and-replace to {file_path}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            # Standard approach for applying changes with diff
+            elif 'diff' in change:
+                try:
+                    # Load current file content
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        current_content = f.read()
+
+                    # Apply the diff
+                    print(f"Applying diff to {file_path}")
+                    new_content = self._apply_diff(current_content, change["diff"])
+
+                    # Check if there was an actual change
+                    if new_content == current_content:
+                        print(f"Warning: No changes made to {file_path} - content identical after applying changes")
+                        print("Trying alternative approach with direct LLM modification...")
+                        new_content = self._generate_modified_file(file_path, current_content, change["description"])
+
+                    # Only write if there's an actual change now
+                    if new_content != current_content:
+                        # Generate the real diff for record-keeping
+                        diff = self._generate_diff(current_content, new_content, file_path)
+
+                        # Print a summary of changes for debugging
+                        diff_lines = diff.splitlines()
+                        added = sum(1 for line in diff_lines if line.startswith('+'))
+                        removed = sum(1 for line in diff_lines if line.startswith('-'))
+                        print(f"Changes to write: {added} lines added, {removed} lines removed")
+
+                        # Check if we have write permission
+                        if not os.access(full_path, os.W_OK):
+                            print(f"⚠️ WARNING: No write permission for {file_path}")
+                            # Try to make the file writable
+                            try:
+                                os.chmod(full_path, os.stat(full_path).st_mode | 0o200)  # Add write permission
+                                print(f"  Attempted to add write permission to {file_path}")
+                            except Exception as perm_e:
+                                print(f"  Could not change permissions: {perm_e}")
+
+                        # Create a backup of the specific file before modifying it
+                        backup_dir = self.backup_dir / f"backup_file_{self.improvement_timestamp}"
+                        backup_dir.mkdir(exist_ok=True, parents=True)
+                        backup_path = backup_dir / file_path
+                        backup_path.parent.mkdir(exist_ok=True, parents=True)
+                        shutil.copy2(full_path, backup_path)
+                        print(f"Backed up {file_path} to {backup_path}")
+
+                        # Now write the changes
                         try:
-                            temp_path = self.root_dir / f"temp_{file_path}"
-                            with open(temp_path, 'w', encoding='utf-8') as f:
+                            with open(full_path, 'w', encoding='utf-8') as f:
                                 f.write(new_content)
-                            # If successful, rename the file
-                            import shutil
-                            shutil.move(temp_path, full_path)
-                            print(f"✅ Successfully wrote changes using alternative approach")
-                        except Exception as alt_e:
-                            print(f"❌ Alternative writing approach also failed: {alt_e}")
-                            continue
+                            print(f"✅ Successfully wrote changes to {file_path}")
+                        except Exception as write_e:
+                            print(f"❌ ERROR WRITING FILE {file_path}: {write_e}")
+                            # Try writing with different approach
+                            try:
+                                temp_path = self.root_dir / f"temp_{file_path}"
+                                with open(temp_path, 'w', encoding='utf-8') as f:
+                                    f.write(new_content)
+                                # If successful, rename the file
+                                shutil.move(temp_path, full_path)
+                                print(f"✅ Successfully wrote changes using alternative approach")
+                            except Exception as alt_e:
+                                print(f"❌ Alternative writing approach also failed: {alt_e}")
+                                continue
 
-                    change_record = {
-                        "file": file_path,
-                        "description": change["description"],
-                        "diff": diff,
-                        "timestamp": datetime.datetime.now().isoformat()
-                    }
+                        change_record = {
+                            "file": file_path,
+                            "description": change["description"],
+                            "diff": diff,
+                            "timestamp": datetime.datetime.now().isoformat()
+                        }
 
-                    changes_made.append(change_record)
-                else:
-                    print(f"❌ No changes could be made to {file_path} (content remains identical)")
+                        changes_made.append(change_record)
+                    else:
+                        print(f"❌ No changes could be made to {file_path} (content remains identical)")
 
-            except Exception as e:
-                print(f"❌ Error implementing change for {file_path}: {e}")
-                import traceback
-                traceback.print_exc()
+                except Exception as e:
+                    print(f"❌ Error implementing change for {file_path}: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"⚠️ Change for {file_path} has neither find/replace nor diff - skipping")
 
         if not changes_made:
             print("No changes were successfully implemented.")
@@ -600,53 +756,34 @@ class SystemImprover:
             else:
                 print("WARNING: Could not extract improvement history analysis section from LLM response")
 
-            # Extract the changes section
-            if hasattr(self, '_extract_changes_from_llm_response'):
-                # Use the robust extractor if available
-                improvement_plan["changes"] = self._extract_changes_from_llm_response(improvement_analysis)
+            # Extract find-replace changes (primary approach)
+            find_replace_changes = self._extract_find_replace_changes(improvement_analysis)
+
+            if find_replace_changes:
+                # Process and use find-replace changes
+                print(f"Found {len(find_replace_changes)} find-replace changes")
+                improvement_plan["changes"] = find_replace_changes
             else:
-                # Fall back to the original extraction method
-                changes_section = re.search(r"##\s*PROPOSED\s*CODE\s*CHANGES(.*?)(?:##|$)", improvement_analysis, re.DOTALL | re.IGNORECASE)
-                if changes_section:
-                    changes_text = changes_section.group(1).strip()
-
-                    # Parse each change specification
-                    change_blocks = re.findall(r"###\s*Change\s*(\d+)\s*:(.*?)(?=###\s*Change\s*\d+\s*:|$)", changes_text, re.DOTALL)
-
-                    for i, (change_num, change_block) in enumerate(change_blocks):
-                        # Extract the file, description, and diff
-                        file_match = re.search(r"File\s*:\s*[`'\"]?([\w./\-_]+\.\w+)[`'\"]?", change_block, re.MULTILINE | re.IGNORECASE)
-                        description_match = re.search(r"Description\s*:(.*?)(?:```diff|```|Diff\s*:|$)", change_block, re.DOTALL | re.IGNORECASE)
-                        diff_match = re.search(r"```diff\n(.*?)```", change_block, re.DOTALL)
-
-                        # Try alternative diff patterns if the standard one fails
-                        if not diff_match:
-                            diff_match = re.search(r"```\n(.*?)```", change_block, re.DOTALL)
-
-                        file_path = file_match.group(1).strip() if file_match else None
-                        description = description_match.group(1).strip() if description_match else ""
-                        diff = diff_match.group(1) if diff_match else ""
-
-                        # Add the change if we have a valid file path and either description or diff
-                        if file_path and (description or diff):
-                            improvement_plan["changes"].append({
-                                "change_id": i+1,
-                                "file": file_path,
-                                "description": description,
-                                "diff": diff,
-                                "original_content": system_data["code_files"].get(file_path, ""),
-                                "priority": "high" if "high priority" in description.lower() else "medium"
-                            })
+                # Fall back to extracting regular changes
+                print("No find-replace changes found, trying to extract regular changes")
+                regular_changes = self._extract_changes_from_llm_response(improvement_analysis)
+                if regular_changes:
+                    improvement_plan["changes"] = regular_changes
+                    print(f"Extracted {len(regular_changes)} regular changes")
+                else:
+                    print("WARNING: Could not extract any changes from LLM response")
+                    # Try again with targeted prompt for changes only
+                    if improvement_plan["analysis"]:
+                        print("Trying to generate changes with targeted prompt...")
+                        targeted_changes = self._generate_changes_from_analysis(
+                            improvement_plan["analysis"], 
+                            system_data
+                        )
+                        if targeted_changes:
+                            improvement_plan["changes"] = targeted_changes
+                            print(f"Generated {len(targeted_changes)} targeted changes")
 
             print(f"Identified {len(improvement_plan['changes'])} proposed code changes")
-
-            # If we have analysis but no changes, try to generate changes from the analysis
-            if improvement_plan["analysis"] and not improvement_plan["changes"]:
-                print("Analysis found but no changes, asking LLM to generate specific changes...")
-                improvement_plan["changes"] = self._generate_changes_from_analysis(
-                    improvement_plan["analysis"], 
-                    system_data
-                )
 
         except Exception as e:
             print(f"Error parsing improvement plan: {e}")
@@ -658,7 +795,6 @@ class SystemImprover:
 
         return improvement_plan
 
-    
     def _extract_changes_from_llm_response(self, improvement_analysis: str) -> List[Dict]:
         """
         Extract proposed changes from LLM response using a more robust approach.
@@ -708,10 +844,10 @@ class SystemImprover:
             # Extract file path - try multiple patterns
             file_path = None
             file_patterns = [
-                r'File:\s*[`\'"]?([\w./\-_]+\.\w+)[`\'"]?',  # Standard format
-                r'File\s+`([\w./\-_]+\.\w+)`',                # With backticks
-                r'File\s+([\w./\-_]+\.\w+)',                  # Without any quotes
-                r'in\s+[`'"]?([\w./\-_]+\.\w+)[`'"]?'       # Alternative "in file.py" format
+                r"""File:\s*[`\'"]?([\w./\-_]+\.\w+)[`\'"]?""",  # Standard format
+                r"""File\s+`([\w./\-_]+\.\w+)`""",               # With backticks
+                r'File\s+([\w./\-_]+\.\w+)',                 # Without any quotes
+                r"""in\s+[`\'"]?([\w./\-_]+\.\w+)[`\'"]?"""      # Alternative "in file.py" format
             ]
 
             for pattern in file_patterns:
@@ -727,8 +863,8 @@ class SystemImprover:
             # Extract description - multiple patterns
             description = ""
             desc_patterns = [
-                r'Description:(.*?)(?:```|Diff:|$)',          # Standard format
-                r'Description\s*:(.*?)(?:```|Diff:|$)'        # With flexible whitespace
+                r'Description:(.*?)(?:```|Diff:|FIND:|REPLACE WITH:|$)',          # Standard format
+                r'Description\s*:(.*?)(?:```|Diff:|FIND:|REPLACE WITH:|$)'        # With flexible whitespace
             ]
 
             for pattern in desc_patterns:
@@ -775,6 +911,150 @@ class SystemImprover:
 
         print(f"Successfully extracted {len(changes)} changes from LLM response")
         return changes
+
+    def _extract_find_replace_changes(self, improvement_analysis: str) -> List[Dict]:
+        """
+        Extract find and replace changes from the improvement analysis.
+        Enhanced version that handles nested code blocks and various formatting styles.
+
+        Args:
+            improvement_analysis: The full LLM analysis text
+
+        Returns:
+            List of changes with file, description, find, and replace fields
+        """
+        changes = []
+
+        # Check if we have any actual analysis
+        if not improvement_analysis or len(improvement_analysis.strip()) == 0:
+            print("No improvement analysis to extract changes from")
+            return changes
+
+        # Check if there's a proposed changes section
+        if "## PROPOSED CODE CHANGES" not in improvement_analysis and "PROPOSED CODE CHANGES" not in improvement_analysis:
+            print("No PROPOSED CODE CHANGES section found in analysis")
+            return changes
+
+        # Split into change blocks - each change starts with "### Change X:"
+        change_blocks = re.split(r'###\s+Change\s+\d+\s*:', improvement_analysis)
+
+        # The first block is usually just header text
+        if len(change_blocks) > 1:
+            change_blocks = change_blocks[1:]  # Skip the header
+
+        print(f"Found {len(change_blocks)} change blocks to process")
+
+        for i, block in enumerate(change_blocks):
+            print(f"\nProcessing Change Block {i+1}:")
+            print("-" * 40)
+            print(block[:200] + "..." if len(block) > 200 else block)  # Print a preview
+
+            # Extract file path
+            file_match = re.search(r'File\s*:\s*[`\'"]*([^`\'"]+)[`\'"]*', block, re.IGNORECASE)
+            if not file_match:
+                print(f"  Warning: Could not extract file path from change block {i+1}")
+                continue
+
+            file_path = file_match.group(1).strip()
+            print(f"  File: {file_path}")
+
+            # Extract description
+            desc_match = re.search(r'Description\s*:(.*?)(?=FIND:|```|$)', block, re.DOTALL | re.IGNORECASE)
+            description = desc_match.group(1).strip() if desc_match else ""
+            print(f"  Description: {len(description)} chars")
+
+            # Extract find content - looking for content between FIND: and REPLACE WITH:
+            find_section = None
+            replace_section = None
+
+            # First try to find the whole sections
+            find_section_match = re.search(r'FIND\s*:(.*?)(?=REPLACE WITH:|REPLACE:|$)', block, re.DOTALL | re.IGNORECASE)
+            if find_section_match:
+                find_section = find_section_match.group(1).strip()
+
+            replace_section_match = re.search(r'(?:REPLACE WITH|REPLACE)\s*:(.*?)(?=$|###)', block, re.DOTALL | re.IGNORECASE)
+            if replace_section_match:
+                replace_section = replace_section_match.group(1).strip()
+
+            print(f"  Find section: {len(find_section) if find_section else 0} chars")
+            print(f"  Replace section: {len(replace_section) if replace_section else 0} chars")
+
+            # Now extract the code blocks from within these sections
+            find_text = ""
+            replace_text = ""
+
+            if find_section:
+                # Extract code block from find section
+                code_block_match = re.search(r'```(?:python)?\s*\n(.*?)\n```', find_section, re.DOTALL)
+                if code_block_match:
+                    find_text = code_block_match.group(1)
+                else:
+                    # If no code block, use the whole section
+                    find_text = find_section
+
+            if replace_section:
+                # Extract code block from replace section
+                code_block_match = re.search(r'```(?:python)?\s*\n(.*?)\n```', replace_section, re.DOTALL)
+                if code_block_match:
+                    replace_text = code_block_match.group(1)
+                else:
+                    # If no code block, use the whole section
+                    replace_text = replace_section
+
+            # Fallback: Try direct pattern matching if sections weren't found
+            if not find_text:
+                # Try alternative formats where FIND and code block might be separated
+                alt_find_match = re.search(r'FIND:\s*(?:```(?:python)?\s*\n)?(.*?)(?:\n```)?(?=REPLACE WITH:|REPLACE:|$)', 
+                                          block, re.DOTALL | re.IGNORECASE)
+                if alt_find_match:
+                    find_text = alt_find_match.group(1).strip()
+
+            if not replace_text:
+                # Try alternative formats where REPLACE and code block might be separated
+                alt_replace_match = re.search(r'(?:REPLACE WITH:|REPLACE:)\s*(?:```(?:python)?\s*\n)?(.*?)(?:\n```)?(?=$|###)', 
+                                             block, re.DOTALL | re.IGNORECASE)
+                if alt_replace_match:
+                    replace_text = alt_replace_match.group(1).strip()
+
+            print(f"  Final find text: {len(find_text)} chars")
+            print(f"  Final replace text: {len(replace_text)} chars")
+
+            if file_path and (find_text or replace_text):
+                # Determine priority
+                priority = "high" if "high priority" in description.lower() else "medium"
+
+                if find_text and replace_text:
+                    changes.append({
+                        "change_id": i+1,
+                        "file": file_path,
+                        "description": description,
+                        "find": find_text,
+                        "replace": replace_text,
+                        "priority": priority
+                    })
+                    print(f"  ✅ Added find-replace change for {file_path}")
+                else:
+                    # Check for diff format instead
+                    diff_match = re.search(r'```diff\s*(.*?)```', block, re.DOTALL)
+                    if diff_match:
+                        diff_text = diff_match.group(1).strip()
+
+                        changes.append({
+                            "change_id": i+1,
+                            "file": file_path,
+                            "description": description,
+                            "diff": diff_text,
+                            "priority": priority
+                        })
+                        print(f"  ✅ Added diff-based change for {file_path}")
+                    else:
+                        print(f"  ⚠️ Warning: Incomplete find-replace information for {file_path}")
+            else:
+                print(f"  ⚠️ Warning: Incomplete change information (file: {bool(file_path)}, find: {bool(find_text)}, replace: {bool(replace_text)})")
+
+        print(f"\nExtracted {len(changes)} find-replace/diff changes from improvement analysis")
+        return changes
+
     def _generate_changes_from_analysis(self, analysis: str, system_data: Dict) -> List[Dict]:
         """
         Generate specific code changes from system analysis when none were provided.
@@ -796,7 +1076,7 @@ class SystemImprover:
 
         # Create a prompt to generate specific changes
         change_gen_system_instruction = """You are an Expert Code Improvement Specialist.
-Your task is to translate a system analysis into specific, actionable code changes."""
+Your task is to translate a system analysis into specific, actionable code changes using a FIND and REPLACE WITH approach."""
 
         change_gen_prompt = f"""
 Based on the system analysis below, I need you to propose 2-3 specific code changes to improve the system.
@@ -809,8 +1089,9 @@ Based on the system analysis below, I need you to propose 2-3 specific code chan
 
 For each change, specify:
 1. Which specific file to modify
-2. What specific changes to make
-3. A detailed diff showing the exact changes
+2. A clear description of the improvement
+3. Exact text to find (FIND)
+4. Exact text to replace it with (REPLACE WITH)
 
 # REQUIRED OUTPUT FORMAT
 
@@ -820,16 +1101,25 @@ For each change, specify:
 File: `filename.py`
 Description: Clear description of the improvement
 
-```diff
-- Original line
-+ Modified line
+FIND:
+```python
+def some_function():
+    # Code to find here
+    pass
+```
+
+REPLACE WITH:
+```python
+def some_function():
+    # New improved code here
+    pass
 ```
 
 ### Change 2:
 [etc...]
 
 The changes should be specific, focused improvements that address the issues identified in the analysis.
-Make sure each change includes a clear diff showing exactly what lines to change.
+Make sure to provide the exact text to find and replace for each change.
 """
 
         # Call LLM to generate specific changes
@@ -842,44 +1132,8 @@ Make sure each change includes a clear diff showing exactly what lines to change
                 f.write(response)
             print(f"Generated changes saved to {debug_path}")
 
-            # Parse the response to extract changes
-            changes = []
-
-            # Extract the changes section
-            changes_section = re.search(r"##\s*PROPOSED\s*CODE\s*CHANGES(.*?)(?:##|$)", response, re.DOTALL | re.IGNORECASE)
-            if changes_section:
-                changes_text = changes_section.group(1).strip()
-
-                # Parse each change specification
-                change_blocks = re.findall(r"###\s*Change\s*(\d+)\s*:(.*?)(?=###\s*Change\s*\d+\s*:|$)", changes_text, re.DOTALL)
-
-                for i, (change_num, change_block) in enumerate(change_blocks):
-                    # Extract the file, description, and diff
-                    file_match = re.search(r"File: [`']?(.*?)[`']?$", change_block, re.MULTILINE)
-                    description_match = re.search(r"Description\s*:(.*?)(?:```diff|```|Diff\s*:|$)", change_block, re.DOTALL | re.IGNORECASE)
-                    diff_match = re.search(r"```diff\n(.*?)```", change_block, re.DOTALL)
-                    # If no diff match found, try alternative patterns
-                    if not diff_match:
-                        # Try without the 'diff' marker
-                        diff_match = re.search(r"```\n(.*?)```", change_block, re.DOTALL)
-                        if not diff_match:
-                            # Try code block without newline
-                            diff_match = re.search(r"```(.*?)```", change_block, re.DOTALL)
-                    
-
-                    file_path = file_match.group(1).strip() if file_match else None
-                    description = description_match.group(1).strip() if description_match else ""
-                    diff = diff_match.group(1) if diff_match else ""
-
-                    if file_path and file_path in system_data["code_files"]:
-                        changes.append({
-                            "change_id": i+1,
-                            "file": file_path,
-                            "description": description,
-                            "diff": diff,
-                            "original_content": system_data["code_files"][file_path],
-                            "priority": "high" if "high priority" in description.lower() else "medium"
-                        })
+            # Extract find-replace changes
+            changes = self._extract_find_replace_changes(response)
 
             print(f"Generated {len(changes)} specific changes from analysis")
             return changes
@@ -900,12 +1154,15 @@ Make sure each change includes a clear diff showing exactly what lines to change
         """
         print("\nImplementing code improvements...")
 
+        # Ensure necessary imports are available
+        import shutil
+
         changes_made = []
 
         # Check if we have changes to implement
-        if not improvement_plan["changes"]:
+        if not improvement_plan.get("changes"):
             print("No changes to implement - generating changes from analysis...")
-            if improvement_plan["analysis"]:
+            if improvement_plan.get("analysis"):
                 improvement_plan["changes"] = self._generate_changes_from_analysis(
                     improvement_plan["analysis"], 
                     {"code_files": self._load_all_code_files()}
@@ -915,16 +1172,17 @@ Make sure each change includes a clear diff showing exactly what lines to change
                 return []
 
         # Check again if we have changes
-        if not improvement_plan["changes"]:
+        if not improvement_plan.get("changes"):
             print("No changes could be generated - implementation aborted")
             return []
 
         # Sort changes by priority
         sorted_changes = sorted(
             improvement_plan["changes"], 
-            key=lambda x: 0 if x["priority"] == "high" else 1
+            key=lambda x: 0 if x.get("priority", "medium") == "high" else 1
         )
 
+        # Process each change
         for change in sorted_changes:
             file_path = change["file"]
             full_path = self.root_dir / file_path
@@ -933,67 +1191,106 @@ Make sure each change includes a clear diff showing exactly what lines to change
                 print(f"Warning: File not found: {file_path}, skipping change")
                 continue
 
-            # Determine if this is a large file that needs special handling
-            try:
-                file_size = full_path.stat().st_size
-                is_large_file = file_size > 100000  # ~100KB threshold
-                print(f"File size: {file_size/1024:.1f}KB ({'LARGE' if is_large_file else 'standard'} file)")
+            # Process find-replace change
+            if 'find' in change and 'replace' in change:
+                try:
+                    # Read current file content
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        current_content = f.read()
 
-                # For Python files, try to identify specific functions/sections to modify
-                if is_large_file and file_path.endswith('.py'):
-                    result = self._targeted_file_modification(full_path, change)
-                    if result["success"]:
-                        changes_made.append(result["change_record"])
-                        continue
+                    # Back up the file
+                    backup_dir = self.backup_dir / f"backup_file_{self.improvement_timestamp}"
+                    backup_dir.mkdir(exist_ok=True, parents=True)
+                    backup_path = backup_dir / file_path
+                    backup_path.parent.mkdir(exist_ok=True, parents=True)
+                    shutil.copy2(full_path, backup_path)
+                    print(f"Backed up {file_path} to {backup_path}")
+
+                    # Fix the replacement text to prevent nested triple quote issues
+                    original_replace = change["replace"]
+                    fixed_replace = self.fix_nested_triple_quotes(original_replace)
+
+                    if fixed_replace != original_replace:
+                        print(f"Fixed nested triple quotes in replacement for {file_path}")
+                        change["replace"] = fixed_replace
+
+                    # Apply find-and-replace
+                    new_content, success = self._apply_find_replace(full_path, change["find"], change["replace"])
+
+                    if success:
+                        # Generate diff for record
+                        diff = self._generate_diff(current_content, new_content, file_path)
+
+                        # Write changes to file
+                        with open(full_path, 'w', encoding='utf-8') as f:
+                            f.write(new_content)
+
+                        print(f"✅ Successfully applied find-and-replace to {file_path}")
+
+                        # Record the change
+                        change_record = {
+                            "file": file_path,
+                            "description": change["description"],
+                            "find": change["find"],
+                            "replace": change["replace"],
+                            "diff": diff,
+                            "timestamp": datetime.datetime.now().isoformat()
+                        }
+                        changes_made.append(change_record)
                     else:
-                        print(f"Targeted modification failed: {result['error']}")
-                        print("Falling back to standard modification approach")
-            except Exception as e:
-                print(f"Error determining file size: {e}")
+                        print(f"❌ Could not find text to replace in {file_path}")
+                        # Try fallback to LLM
+                        print("Trying fallback with LLM-guided modification...")
+                        new_content = self._generate_modified_file(file_path, current_content, 
+                                                              f"FIND: {change['find']}\nREPLACE WITH: {change['replace']}\n{change['description']}")
 
-            # Standard approach for normal-sized files or if targeted modification failed
-            try:
-                # Load current file content
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    current_content = f.read()
+                        if new_content != current_content:
+                            # Generate diff
+                            diff = self._generate_diff(current_content, new_content, file_path)
 
-                # Apply the diff if provided
-                if change.get("diff"):
+                            # Write changes
+                            with open(full_path, 'w', encoding='utf-8') as f:
+                                f.write(new_content)
+
+                            print(f"✅ Successfully applied changes using LLM-guided modification to {file_path}")
+
+                            # Record the change
+                            change_record = {
+                                "file": file_path,
+                                "description": change["description"],
+                                "find": change["find"],
+                                "replace": change["replace"],
+                                "diff": diff,
+                                "timestamp": datetime.datetime.now().isoformat()
+                            }
+                            changes_made.append(change_record)
+                        else:
+                            print(f"❌ LLM-guided modification also failed for {file_path}")
+                except Exception as e:
+                    print(f"❌ Error applying find-and-replace to {file_path}: {e}")
+                    import traceback
+                    traceback.print_exc()
+            # Process diff-based change
+            elif 'diff' in change:
+                try:
+                    # Load current file content
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        current_content = f.read()
+
+                    # Apply the diff
                     print(f"Applying diff to {file_path}")
                     new_content = self._apply_diff(current_content, change["diff"])
-                else:
-                    # Fallback to LLM for direct file modification
-                    print(f"No diff found, using LLM to modify {file_path}")
-                    new_content = self._generate_modified_file(file_path, current_content, change["description"])
 
-                # Check if there was an actual change
-                if new_content == current_content:
-                    print(f"Warning: No changes made to {file_path} - content identical after applying changes")
-                    print("Trying alternative approach with direct LLM modification...")
-                    new_content = self._generate_modified_file(file_path, current_content, change["description"])
+                    # Check if there was an actual change
+                    if new_content == current_content:
+                        print(f"Warning: No changes made to {file_path} - content identical after applying changes")
+                        print("Trying alternative approach with direct LLM modification...")
+                        new_content = self._generate_modified_file(file_path, current_content, change["description"])
 
-                # Only write if there's an actual change now
-                if new_content != current_content:
-                    # Generate the real diff for record-keeping
-                    diff = self._generate_diff(current_content, new_content, file_path)
-
-                    # Print a summary of changes for debugging
-                    diff_lines = diff.splitlines()
-                    added = sum(1 for line in diff_lines if line.startswith('+'))
-                    removed = sum(1 for line in diff_lines if line.startswith('-'))
-                    print(f"Changes to write: {added} lines added, {removed} lines removed")
-
-                    # Write the updated file - this is where the actual file modification happens
-                    try:
-                        # Check if we have write permission
-                        if not os.access(full_path, os.W_OK):
-                            print(f"⚠️ WARNING: No write permission for {file_path}")
-                            # Try to make the file writable
-                            try:
-                                os.chmod(full_path, os.stat(full_path).st_mode | 0o200)  # Add write permission
-                                print(f"  Attempted to add write permission to {file_path}")
-                            except Exception as perm_e:
-                                print(f"  Could not change permissions: {perm_e}")
+                    # Only write if there's an actual change now
+                    if new_content != current_content:
+                        # Generate the real diff for record-keeping
+                        diff = self._generate_diff(current_content, new_content, file_path)
 
                         # Create a backup of the specific file before modifying it
                         backup_dir = self.backup_dir / f"backup_file_{self.improvement_timestamp}"
@@ -1008,44 +1305,23 @@ Make sure each change includes a clear diff showing exactly what lines to change
                             f.write(new_content)
                         print(f"✅ Successfully wrote changes to {file_path}")
 
-                        # Verify the changes were actually written
-                        time.sleep(0.1)  # Small delay to ensure file system is updated
-                        with open(full_path, 'r', encoding='utf-8') as f:
-                            after_content = f.read()
-                        if after_content == new_content:
-                            print(f"  Verified: Changes were successfully written to {file_path}")
-                        else:
-                            print(f"⚠️ WARNING: File was written but content doesn't match expected changes!")
-                    except Exception as write_e:
-                        print(f"❌ ERROR WRITING FILE {file_path}: {write_e}")
-                        # Try writing with different approach
-                        try:
-                            temp_path = self.root_dir / f"temp_{file_path}"
-                            with open(temp_path, 'w', encoding='utf-8') as f:
-                                f.write(new_content)
-                            # If successful, rename the file
-                            import shutil
-                            shutil.move(temp_path, full_path)
-                            print(f"✅ Successfully wrote changes using alternative approach")
-                        except Exception as alt_e:
-                            print(f"❌ Alternative writing approach also failed: {alt_e}")
-                            continue
+                        change_record = {
+                            "file": file_path,
+                            "description": change["description"],
+                            "diff": diff,
+                            "timestamp": datetime.datetime.now().isoformat()
+                        }
 
-                    change_record = {
-                        "file": file_path,
-                        "description": change["description"],
-                        "diff": diff,
-                        "timestamp": datetime.datetime.now().isoformat()
-                    }
+                        changes_made.append(change_record)
+                    else:
+                        print(f"❌ No changes could be made to {file_path} (content remains identical)")
 
-                    changes_made.append(change_record)
-                else:
-                    print(f"❌ No changes could be made to {file_path} (content remains identical)")
-
-            except Exception as e:
-                print(f"❌ Error implementing change for {file_path}: {e}")
-                import traceback
-                traceback.print_exc()
+                except Exception as e:
+                    print(f"❌ Error implementing change for {file_path}: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"⚠️ Change for {file_path} has neither find/replace nor diff information - skipping")
 
         if not changes_made:
             print("No changes were successfully implemented.")
@@ -1086,443 +1362,141 @@ Make sure each change includes a clear diff showing exactly what lines to change
 
         return code_files
 
-    def _targeted_file_modification(self, file_path, change):
+    def _apply_find_replace(self, file_path, find_text: str, replace_text: str) -> Tuple[str, bool]:
         """
-        Perform targeted modifications on large files by focusing on specific functions or sections.
+        Apply a find-and-replace change to a file with enhanced fuzzy matching.
 
         Args:
             file_path: Path to the file to modify
-            change: Change specification
+            find_text: Text to find
+            replace_text: Text to replace it with
 
         Returns:
-            Dict with success status, error message if any, and change record if successful
+            Tuple of (modified content, success flag)
         """
-        print(f"Using targeted modification for large file: {file_path}")
-
-        # First, analyze the change description to identify target function/section
-        target_info = self._identify_targets_from_change(change)
-
-        if not target_info["targets"]:
-            return {
-                "success": False, 
-                "error": "Could not identify specific targets in the file"
-            }
-
-        print(f"Identified {len(target_info['targets'])} targets for modification")
-
-        # Get the original file content
         try:
+            # Read the file
             with open(file_path, 'r', encoding='utf-8') as f:
-                original_content = f.read()
+                content = f.read()
 
-            # Keep a copy for diff generation
-            current_content = original_content
+            # Fix potential nested triple quotes in the replacement text
+            replace_text = self.fix_nested_triple_quotes(replace_text)
 
-            # Try different targeted modification approaches
-            modified = False
+            # Try exact replacement first
+            if find_text in content:
+                new_content = content.replace(find_text, replace_text)
+                print(f"Applied find-and-replace to {file_path} (exact match)")
+                return new_content, True
 
-            # 1. Try function-based modification if we have function names
-            if target_info["function_names"]:
-                try:
-                    new_content = self._modify_functions(
-                        current_content, 
-                        target_info["function_names"], 
-                        change["description"]
-                    )
-                    if new_content != current_content:
-                        modified = True
-                        current_content = new_content
-                        print(f"Successfully modified functions: {target_info['function_names']}")
-                except Exception as e:
-                    print(f"Function-based modification failed: {e}")
+            # Try with normalized whitespace
+            find_text_normalized = ' '.join(find_text.split())
+            content_normalized = ' '.join(content.split())
 
-            # 2. Try line-range based modification if we have line ranges
-            if not modified and target_info["line_ranges"]:
-                try:
-                    new_content = self._modify_line_ranges(
-                        current_content, 
-                        target_info["line_ranges"], 
-                        change["description"]
-                    )
-                    if new_content != current_content:
-                        modified = True
-                        current_content = new_content
-                        print(f"Successfully modified line ranges: {target_info['line_ranges']}")
-                except Exception as e:
-                    print(f"Line-range modification failed: {e}")
+            if find_text_normalized in content_normalized:
+                print(f"Text found with normalized whitespace, attempting replacement")
 
-            # 3. Try section-based modification if we have section markers
-            if not modified and target_info["section_markers"]:
-                try:
-                    new_content = self._modify_sections(
-                        current_content, 
-                        target_info["section_markers"], 
-                        change["description"]
-                    )
-                    if new_content != current_content:
-                        modified = True
-                        current_content = new_content
-                        print(f"Successfully modified sections: {target_info['section_markers']}")
-                except Exception as e:
-                    print(f"Section-based modification failed: {e}")
+                # Use regex with flexible whitespace
+                pattern = '\\s+'.join(re.escape(word) for word in find_text_normalized.split())
+                new_content = re.sub(pattern, replace_text, content)
 
-            # If no modification worked, return failure
-            if not modified:
-                return {
-                    "success": False, 
-                    "error": "None of the targeted modification approaches worked"
-                }
+                if new_content != content:
+                    print(f"Applied find-and-replace to {file_path} (normalized whitespace)")
+                    return new_content, True
 
-            # Generate diff for the changes
-            diff = self._generate_diff(original_content, current_content, file_path.name)
+            # Try line-by-line matching for better fuzzy matching
+            find_lines = find_text.strip().splitlines()
+            content_lines = content.splitlines()
 
-            # Write the modified content back to the file
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(current_content)
+            # Line matching with different threshold levels
+            for match_threshold in [0.9, 0.8, 0.7]:  # Try decreasing thresholds
+                for i in range(len(content_lines) - len(find_lines) + 1):
+                    match_scores = []
 
-            print(f"✅ Successfully wrote targeted changes to {file_path}")
+                    for j, find_line in enumerate(find_lines):
+                        if i + j >= len(content_lines):
+                            break
 
-            # Create change record
-            change_record = {
-                "file": str(file_path.relative_to(self.root_dir)),
-                "description": change["description"],
-                "diff": diff,
-                "targets": target_info["targets"],
-                "timestamp": datetime.datetime.now().isoformat()
-            }
+                        content_line = content_lines[i + j]
 
-            return {
-                "success": True,
-                "change_record": change_record
-            }
+                        # Skip empty lines in comparison
+                        if not find_line.strip() and not content_line.strip():
+                            match_scores.append(1.0)  # Perfect match for empty lines
+                            continue
+
+                        # Calculate similarity score
+                        find_line_norm = ' '.join(find_line.split())
+                        content_line_norm = ' '.join(content_line.split())
+
+                        # Exact match
+                        if find_line_norm == content_line_norm:
+                            match_scores.append(1.0)
+                        # Fuzzy match - check if most of the words match
+                        else:
+                            find_words = set(find_line_norm.split())
+                            content_words = set(content_line_norm.split())
+
+                            if not find_words:  # Handle empty set
+                                match_scores.append(0.0)
+                            else:
+                                intersection = find_words.intersection(content_words)
+                                score = len(intersection) / len(find_words)
+                                match_scores.append(score)
+
+                    # If we have enough matching lines with good scores
+                    avg_score = sum(match_scores) / len(match_scores) if match_scores else 0
+
+                    if avg_score >= match_threshold:
+                        print(f"Found fuzzy match at line {i+1} with average score {avg_score:.2f} (threshold: {match_threshold})")
+
+                        # Replace the matching lines
+                        new_content_lines = content_lines.copy()
+                        new_content_lines[i:i + len(find_lines)] = replace_text.strip().splitlines()
+
+                        # Convert back to a single string
+                        new_content = '\n'.join(new_content_lines)
+
+                        print(f"Applied find-and-replace to {file_path} (fuzzy match)")
+                        return new_content, True
+
+            # If we've tried all thresholds and still no match, try matching based on key identifiers
+            # This is useful for function definitions, class definitions, etc.
+            key_patterns = [
+                r'def\s+([a-zA-Z0-9_]+)\s*\(',  # Function definitions
+                r'class\s+([a-zA-Z0-9_]+)\s*[:\(]',  # Class definitions
+                r'([a-zA-Z0-9_]+)\s*=\s*',  # Variable assignments
+            ]
+
+            # Extract key identifiers from find_text
+            key_identifiers = []
+            for pattern in key_patterns:
+                for match in re.finditer(pattern, find_text):
+                    key_identifiers.append(match.group(1))
+
+            if key_identifiers:
+                print(f"Searching for key identifiers: {key_identifiers}")
+
+                # Look for these identifiers in the content
+                for identifier in key_identifiers:
+                    pattern = r'((?:^|\n)(?:[ \t]*)(?:def|class)?\s*' + re.escape(identifier) + r'\s*(?:\(|\{|=|:)(?:.|[\r\n])*?(?:\n[ \t]*\n|\Z))'
+                    match = re.search(pattern, content)
+
+                    if match:
+                        matched_block = match.group(1)
+                        new_content = content.replace(matched_block, replace_text)
+
+                        if new_content != content:
+                            print(f"Applied find-and-replace to {file_path} (key identifier match: {identifier})")
+                            return new_content, True
+
+            print(f"Warning: Could not find the text to replace in {file_path}")
+            return content, False
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"Error in targeted modification: {str(e)}"
-            }
+            print(f"Error applying find-and-replace: {e}")
+            import traceback
+            traceback.print_exc()
+            return content, False
 
-    def _identify_targets_from_change(self, change):
-        """
-        Analyze change description to identify specific targets for modification.
-
-        Args:
-            change: Change specification
-
-        Returns:
-            Dict with targets information
-        """
-        targets = []
-        function_names = []
-        line_ranges = []
-        section_markers = []
-
-        # First try to extract information from the diff if available
-        if change.get("diff"):
-            # Look for function definitions or class methods in the diff
-            func_pattern = re.compile(r"[+-][ \t]*(def|class) ([a-zA-Z0-9_]+)")
-            for match in func_pattern.finditer(change["diff"]):
-                func_name = match.group(2)
-                if func_name not in function_names:
-                    function_names.append(func_name)
-                    targets.append(f"function:{func_name}")
-
-            # Look for line ranges in the diff header
-            line_pattern = re.compile(r"@@ -(\d+),(\d+) \+(\d+),(\d+) @@")
-            for match in line_pattern.finditer(change["diff"]):
-                start_line = int(match.group(1))
-                num_lines = int(match.group(2))
-                line_ranges.append((start_line, start_line + num_lines - 1))
-                targets.append(f"lines:{start_line}-{start_line + num_lines - 1}")
-
-        # If we couldn't extract from diff, try the description
-        if not targets:
-            description = change.get("description", "")
-
-            # Look for function names in the description
-            func_pattern = re.compile(r"(function|method|def) ([a-zA-Z0-9_]+)")
-            for match in func_pattern.finditer(description):
-                func_name = match.group(2)
-                if func_name not in function_names:
-                    function_names.append(func_name)
-                    targets.append(f"function:{func_name}")
-
-            # Look for line ranges in the description
-            line_pattern = re.compile(r"lines? (\d+)(?:\s*-\s*(\d+))?")
-            for match in line_pattern.finditer(description):
-                start_line = int(match.group(1))
-                end_line = int(match.group(2)) if match.group(2) else start_line
-                line_ranges.append((start_line, end_line))
-                targets.append(f"lines:{start_line}-{end_line}")
-
-            # Look for section markers in the description
-            section_pattern = re.compile(r"section '([^']+)'|section \"([^\"]+)\"|between '([^']+)' and '([^']+)'")
-            for match in section_pattern.finditer(description):
-                if match.group(1):
-                    section_markers.append((match.group(1), None))
-                    targets.append(f"section:{match.group(1)}")
-                elif match.group(2):
-                    section_markers.append((match.group(2), None))
-                    targets.append(f"section:{match.group(2)}")
-                elif match.group(3) and match.group(4):
-                    section_markers.append((match.group(3), match.group(4)))
-                    targets.append(f"section:{match.group(3)}...{match.group(4)}")
-
-        # If we still couldn't find targets, try to identify target from file
-        if not targets:
-            # We'll let the LLM help us identify targets
-            targets = self._identify_targets_with_llm(change)
-
-            # Extract the identified targets
-            for target in targets:
-                if target.startswith("function:"):
-                    function_name = target[9:]
-                    if function_name not in function_names:
-                        function_names.append(function_name)
-                elif target.startswith("lines:"):
-                    range_str = target[6:]
-                    if "-" in range_str:
-                        start, end = map(int, range_str.split("-"))
-                        line_ranges.append((start, end))
-                elif target.startswith("section:"):
-                    section_str = target[8:]
-                    if "..." in section_str:
-                        start, end = section_str.split("...")
-                        section_markers.append((start, end))
-                    else:
-                        section_markers.append((section_str, None))
-
-        return {
-            "targets": targets,
-            "function_names": function_names,
-            "line_ranges": line_ranges,
-            "section_markers": section_markers
-        }
-
-    def _identify_targets_with_llm(self, change):
-        """
-        Use LLM to identify specific targets for modification.
-
-        Args:
-            change: Change specification
-
-        Returns:
-            List of target identifiers
-        """
-        # Create a prompt for the LLM to identify targets
-        system_instruction = """You are a Code Modification Expert. 
-Your task is to identify specific parts of a file that need to be modified based on a change description."""
-
-        prompt = f"""
-I need to make a targeted modification to a file, but I need to identify exactly which parts of the file to modify.
-
-# CHANGE DESCRIPTION
-{change.get("description", "")}
-
-# DIFF (if available)
-```diff
-{change.get("diff", "No diff available")}
-```
-
-Based on this information, identify the specific targets in the file that need to be modified. Targets can be:
-1. Functions or methods (preferred)
-2. Line ranges
-3. Specific sections between identifiable markers
-
-Return a list of targets in this exact format (one per line):
-- function:function_name
-- lines:start_line-end_line  
-- section:start_marker...end_marker
-
-Be as specific as possible. If you can identify exact function names or line ranges, those are preferred.
-Return ONLY the list of targets, one per line, with no additional explanation.
-"""
-
-        # Call LLM to identify targets
-        response = self._call_llm(prompt, system_instruction)
-
-        # Parse the response into a list of targets
-        targets = []
-        for line in response.strip().split("\n"):
-            line = line.strip()
-            if line.startswith("-"):
-                line = line[1:].strip()
-            if line.startswith("function:") or line.startswith("lines:") or line.startswith("section:"):
-                targets.append(line)
-
-        return targets
-
-    def _modify_functions(self, content, function_names, change_description):
-        """
-        Modify specific functions in a file.
-
-        Args:
-            content: Original file content
-            function_names: List of function names to modify
-            change_description: Description of the changes to make
-
-        Returns:
-            Modified file content
-        """
-        # Check if we have any function names to modify
-        if not function_names:
-            return content
-
-        # For Python files, we'll use a simple regex-based approach
-        # (For more complex cases, an AST-based approach would be better)
-        modified_content = content
-
-        for function_name in function_names:
-            # Find the function definition
-            pattern = re.compile(f"(def {re.escape(function_name)}\\([^)]*\\):.*?)(?:def |class |$)", re.DOTALL)
-            match = pattern.search(modified_content)
-
-            if not match:
-                print(f"Function {function_name} not found in content")
-                continue
-
-            function_code = match.group(1)
-
-            # Use LLM to modify just the function
-            modified_function = self._modify_code_section(function_code, change_description)
-
-            # Replace the function in the original content
-            if modified_function != function_code:
-                modified_content = modified_content.replace(function_code, modified_function)
-                print(f"Modified function: {function_name}")
-
-        return modified_content
-
-    def _modify_line_ranges(self, content, line_ranges, change_description):
-        """
-        Modify specific line ranges in a file.
-
-        Args:
-            content: Original file content
-            line_ranges: List of (start_line, end_line) tuples
-            change_description: Description of the changes to make
-
-        Returns:
-            Modified file content
-        """
-        # Check if we have any line ranges to modify
-        if not line_ranges:
-            return content
-
-        # Split content into lines for easier processing
-        lines = content.splitlines(True)  # Keep line endings
-
-        # Process each line range
-        for start_line, end_line in line_ranges:
-            # Convert to 0-based indexing
-            start_idx = max(0, start_line - 1)
-            end_idx = min(len(lines), end_line)
-
-            # Extract the line range
-            line_range = "".join(lines[start_idx:end_idx])
-
-            # Use LLM to modify just this section
-            modified_section = self._modify_code_section(line_range, change_description)
-
-            # Replace the section in the original content
-            if modified_section != line_range:
-                modified_lines = modified_section.splitlines(True)
-                lines[start_idx:end_idx] = modified_lines
-                print(f"Modified lines: {start_line}-{end_line}")
-
-        return "".join(lines)
-
-    def _modify_sections(self, content, section_markers, change_description):
-        """
-        Modify specific sections in a file identified by markers.
-
-        Args:
-            content: Original file content
-            section_markers: List of (start_marker, end_marker) tuples
-            change_description: Description of the changes to make
-
-        Returns:
-            Modified file content
-        """
-        # Check if we have any section markers to modify
-        if not section_markers:
-            return content
-
-        modified_content = content
-
-        for start_marker, end_marker in section_markers:
-            if end_marker:
-                # Find section between start and end markers
-                pattern = re.compile(f"({re.escape(start_marker)}.*?{re.escape(end_marker)})", re.DOTALL)
-            else:
-                # Find section starting with marker
-                pattern = re.compile(f"({re.escape(start_marker)}.*?)(?={re.escape(start_marker)}|$)", re.DOTALL)
-
-            match = pattern.search(modified_content)
-
-            if not match:
-                print(f"Section {start_marker}...{end_marker or 'end'} not found in content")
-                continue
-
-            section = match.group(1)
-
-            # Use LLM to modify just the section
-            modified_section = self._modify_code_section(section, change_description)
-
-            # Replace the section in the original content
-            if modified_section != section:
-                modified_content = modified_content.replace(section, modified_section)
-                print(f"Modified section: {start_marker}...{end_marker or 'end'}")
-
-        return modified_content
-
-    def _modify_code_section(self, code_section, change_description):
-        """
-        Use LLM to modify a specific section of code.
-
-        Args:
-            code_section: Code section to modify
-            change_description: Description of the changes to make
-
-        Returns:
-            Modified code section
-        """
-        system_instruction = """You are an Expert Code Modifier. 
-Your task is to modify a specific section of code according to the change description.
-Make ONLY the requested changes while preserving the overall structure and style."""
-
-        prompt = f"""
-I need you to modify this specific section of code according to the following change description:
-
-# CHANGE DESCRIPTION
-{change_description}
-
-# CODE SECTION TO MODIFY
-```python
-{code_section}
-```
-
-Apply EXACTLY these changes to the code. Don't make any additional changes.
-Ensure the indentation and formatting remains consistent with the original code.
-Return ONLY the modified code section with no explanations before or after.
-"""
-
-        # Call LLM to modify the code section
-        modified_section = self._call_llm(prompt, system_instruction)
-
-        # Extract code if wrapped in code blocks
-        if "```python" in modified_section and "```" in modified_section:
-            modified_section = modified_section.split("```python")[1].split("```")[0].strip()
-        elif "```" in modified_section:
-            modified_section = modified_section.split("```")[1].split("```")[0].strip()
-
-        # Ensure consistent line endings
-        if code_section.endswith("\n") and not modified_section.endswith("\n"):
-            modified_section += "\n"
-
-        return modified_section
-
-    
     def _apply_diff(self, original_content: str, diff_text: str) -> str:
         """
         Apply a diff to the original content with improved handling of various diff formats.
@@ -1727,6 +1701,7 @@ Return ONLY the modified code section with no explanations before or after.
             traceback.print_exc()
             print("Falling back to LLM-based modification")
             return self._apply_changes_with_llm(original_content, diff_text)
+
     def _apply_simple_diff(self, original_content: str, diff_text: str) -> str:
         """
         Apply a simple LLM-style diff without line numbers.
@@ -1820,6 +1795,7 @@ Return ONLY the modified code section with no explanations before or after.
     def _apply_changes_with_llm(self, original_content: str, change_description: str) -> str:
         """
         Use LLM to apply changes when diff application fails.
+        Also fixes nested triple quotes in the modified content.
 
         Args:
             original_content: Original file content
@@ -1829,29 +1805,29 @@ Return ONLY the modified code section with no explanations before or after.
             Modified content with changes applied
         """
         system_instruction = """You are an Expert Code Editor. 
-Your task is to apply the described changes to the code. 
-Make EXACTLY the modifications specified in the change description/diff."""
+    Your task is to apply the described changes to the code. 
+    Make EXACTLY the modifications specified in the change description/diff."""
 
         prompt = f"""
-I need you to modify this code according to the change description/diff below.
+    I need you to modify this code according to the change description/diff below.
 
-# ORIGINAL CODE
-```python
-{original_content}
-```
+    # ORIGINAL CODE
+    ```python
+    {original_content}
+    ```
 
-# CHANGES TO APPLY
-```
-{change_description}
-```
+    # CHANGES TO APPLY
+    ```
+    {change_description}
+    ```
 
-Apply EXACTLY these changes to the code. Don't make any additional changes.
-Return the complete modified code, not just the changed sections.
+    Apply EXACTLY these changes to the code. Don't make any additional changes.
+    Return the complete modified code, not just the changed sections.
 
-If the changes don't specify exact locations or exact text, use your best judgment to apply them while maintaining the original code's structure and style.
+    If the changes don't specify exact locations or exact text, use your best judgment to apply them while maintaining the original code's structure and style.
 
-Return ONLY the complete modified code with no explanations before or after.
-"""
+    Return ONLY the complete modified code with no explanations before or after.
+    """
 
         # Call LLM to apply the changes
         modified_content = self._call_llm(prompt, system_instruction)
@@ -1861,6 +1837,9 @@ Return ONLY the complete modified code with no explanations before or after.
             modified_content = modified_content.split("```python")[1].split("```")[0].strip()
         elif "```" in modified_content:
             modified_content = modified_content.split("```")[1].split("```")[0].strip()
+
+        # Fix any nested triple quotes in the generated content
+        modified_content = self.fix_nested_triple_quotes(modified_content)
 
         # Check if content actually changed
         if modified_content == original_content:
@@ -1873,6 +1852,7 @@ Return ONLY the complete modified code with no explanations before or after.
     def _generate_modified_file(self, file_path: str, current_content: str, improvement_description: str) -> str:
         """
         Generate a modified version of a file based on improvement description.
+        Also fixes nested triple quotes in the generated content.
 
         Args:
             file_path: Path to the file
@@ -1883,29 +1863,29 @@ Return ONLY the complete modified code with no explanations before or after.
             Modified file content
         """
         system_instruction = """You are an Expert System Developer. 
-You must modify the provided code file to implement the specific improvement described.
-Make minimal, focused changes to implement the improvement while maintaining the overall structure and style."""
+    You must modify the provided code file to implement the specific improvement described.
+    Make minimal, focused changes to implement the improvement while maintaining the overall structure and style."""
 
         prompt = f"""
-I need you to modify a file ({file_path}) to implement a specific improvement.
+    I need you to modify a file ({file_path}) to implement a specific improvement.
 
-# IMPROVEMENT DESCRIPTION
-{improvement_description}
+    # IMPROVEMENT DESCRIPTION
+    {improvement_description}
 
-# CURRENT FILE CONTENT
-```python
-{current_content}
-```
+    # CURRENT FILE CONTENT
+    ```python
+    {current_content}
+    ```
 
-# TASK
-1. Implement the described improvement with minimal changes
-2. Maintain the same coding style and architecture
-3. Ensure no functionality is broken
-4. If you're unsure about any aspect, maintain the existing code
-5. Return the COMPLETE new file content (not just the changed sections)
+    # TASK
+    1. Implement the described improvement with minimal changes
+    2. Maintain the same coding style and architecture
+    3. Ensure no functionality is broken
+    4. If you're unsure about any aspect, maintain the existing code
+    5. Return the COMPLETE new file content (not just the changed sections)
 
-Return ONLY the complete modified file content, with no explanations before or after.
-"""
+    Return ONLY the complete modified file content, with no explanations before or after.
+    """
 
         # Call LLM to generate the modified file
         modified_content = self._call_llm(prompt, system_instruction)
@@ -1916,10 +1896,15 @@ Return ONLY the complete modified file content, with no explanations before or a
         elif "```" in modified_content:
             modified_content = modified_content.split("```")[1].split("```")[0].strip()
 
+        # Fix any nested triple quotes in the generated content
+        modified_content = self.fix_nested_triple_quotes(modified_content)
+
         return modified_content
 
     def _create_system_backup(self):
         """Create a backup of the current system state"""
+        import shutil  # Ensure import is available
+
         backup_timestamp = self.improvement_timestamp
         backup_dir = self.backup_dir / f"backup_{backup_timestamp}"
         backup_dir.mkdir(exist_ok=True)
@@ -2202,7 +2187,21 @@ Return ONLY the complete modified file content, with no explanations before or a
             report_content += f"""### Change {i+1}: {change['file']}
 **Description:** {change['description']}
 
-```diff
+"""
+            if 'find' in change and 'replace' in change:
+                report_content += f"""**Find:**
+```
+{change['find']}
+```
+
+**Replace With:**
+```
+{change['replace']}
+```
+
+"""
+            if 'diff' in change:
+                report_content += f"""```diff
 {change['diff']}
 ```
 
@@ -2388,16 +2387,11 @@ Your task:
 5. Propose 2-3 specific code changes that would improve the system
 6. For each change, provide:
    - The file to modify (use EXACTLY the name shown in "CURRENT CODE FILES" section)
-   - A clear description of the improvement 
-   - A detailed diff using standard diff format
+   - A clear description of the improvement
+   - The exact text to find (FIND)
+   - The exact text to replace it with (REPLACE WITH)
 
-IMPORTANT: For each change, you MUST include a proper diff using "```diff" code blocks showing the exact lines to modify.
-The diff format must follow standard git diff format with - for removals and + for additions:
-
-```diff
-- line to remove
-+ line to add
-```
+Focus on FIND/REPLACE changes rather than diffs for better reliability and easier implementation.
 
 ## REQUIRED OUTPUT FORMAT
 
@@ -2415,26 +2409,42 @@ Structure your response as follows:
 File: `filename.py`
 Description: Clear description of the improvement and its expected impact
 
-```diff
-- Original line
-+ Modified line
+FIND:
+```python
+# Exact code block to find
+def some_function():
+    original_code_here
+```
+
+REPLACE WITH:
+```python
+# New code block to replace it with
+def some_function():
+    modified_code_here
 ```
 
 ### Change 2:
 File: `filename.py`
 Description: Clear description of the improvement and its expected impact
 
-```diff
-- Original line
-+ Modified line
+FIND:
+```python
+# Another code block to find
+original_code_here
+```
+
+REPLACE WITH:
+```python
+# New code to replace it with
+modified_code_here
 ```
 
 IMPORTANT:
 1. Make specific, focused changes rather than wholesale rewrites
 2. Maintain the same coding style and architecture
-3. Focus on impactful improvements that address known issues 
-4. Include detailed diffs with proper formatting
-5. Note: It is CRITICAL that you include proper diffs in ```diff code blocks, showing exact lines to change
+3. Focus on impactful improvements that address known issues
+4. Be EXTREMELY PRECISE with the FIND text to ensure it can be located in the file
+5. Make sure the FIND text appears EXACTLY as-is in the file (whitespace matters)
 """
 
         return prompt
@@ -2487,21 +2497,9 @@ def parse_arguments():
         help="Skip validation step after applying changes"
     )
 
-    # Direct changes workflow
-    workflow_group.add_argument(
-        "--force-hard-changes",
-        action="store_true",
-        help="Force direct file changes without using LLM (DESTRUCTIVE)"
-    )
-
-    workflow_group.add_argument(
-        "--option",
-        type=int,
-        default=0,
-        help="Option to implement (1=Grid class, 2=system_prompt.md, 0=all)"
-    )
-
     return parser.parse_args()
+
+
 
 
 def main():
@@ -2557,114 +2555,6 @@ def main():
                 print(f"Error applying staged changes: {e}")
         else:
             print("No staged changes found (staged_changes.json doesn't exist)")
-        return
-
-    # If we're forcing hard changes
-    if args.force_hard_changes:
-        print("WARNING: Force hard changes mode enabled - will directly edit files")
-
-        # Option 1: Create Grid class in agent_system.py
-        if args.option == 1 or args.option == 0:
-            print("\nImplementing Option 1: Adding Grid class to agent_system.py")
-            try:
-                # Read the current file
-                with open("agent_system.py", 'r') as f:
-                    content = f.read()
-
-                # Check if Grid class already exists
-                if "class Grid:" in content:
-                    print("Grid class already exists in agent_system.py")
-                else:
-                    # Add Grid class after the imports
-                    import_section_end = content.find("\n\n", content.find("import "))
-                    if import_section_end == -1:
-                        import_section_end = content.find("\n", content.find("import "))
-
-                    grid_class = """
-import numpy as np
-
-class Grid:
-    def __init__(self, grid_string):
-        self.grid_string = grid_string
-        self.grid_array = self._string_to_array(grid_string)
-
-    def _string_to_array(self, grid_string):
-        # Convert the string representation to a numpy array.
-        # Example implementation (adapt as needed for your grid format):
-        lines = grid_string.strip().split('\\n')
-        grid = [list(line) for line in lines]
-        return np.array(grid)
-
-    def __str__(self):
-        return self.grid_string
-
-    # Example spatial manipulation method (add more as needed)
-    def rotate(self):
-        self.grid_array = np.rot90(self.grid_array)
-        self.grid_string = self._array_to_string(self.grid_array)
-
-    def _array_to_string(self, grid_array):
-         # Convert numpy array back to string representation.
-         # Example implementation (adapt as needed)
-         return '\\n'.join([''.join(row) for row in grid_array])
-
-"""
-                    new_content = content[:import_section_end] + grid_class + content[import_section_end:]
-
-                    # Write the changes
-                    with open("agent_system.py", 'w') as f:
-                        f.write(new_content)
-
-                    print("✅ Successfully added Grid class to agent_system.py")
-            except Exception as e:
-                print(f"Error implementing option 1: {e}")
-
-        # Option 2: Modify system_prompt.md
-        if args.option == 2 or args.option == 0:
-            print("\nImplementing Option 2: Updating system_prompt.md")
-            try:
-                # Read the current file
-                with open("system_prompt.md", 'r') as f:
-                    content = f.read()
-
-                # Check if the changes are already there
-                if "Identify the key differences between the input and output grids" in content:
-                    print("system_prompt.md already contains the required changes")
-                else:
-                    # Find the line to replace
-                    old_line = '"Given an input grid and an output grid, generate a Python script that transforms the input grid into the output grid."'
-
-                    if old_line in content:
-                        new_content = content.replace(old_line, """\"Given an input grid and an output grid, generate a Python script that transforms the input grid into the output grid using the following steps:
-1. Identify the key differences between the input and output grids (e.g., color changes, object movements, rotations). Describe these differences in a JSON format: {'differences': [{'type': 'rotation', 'object': 'square', 'degrees': 90}, ... ]}.
-2. For each identified difference, generate a Python function that implements the corresponding transformation. Ensure each function operates on a copy of the grid to avoid unintended side-effects.
-3. Combine these functions into a single script that applies the transformations sequentially to the input grid to produce the output grid.  Provide the final consolidated Python script.
-Example:\"
-```json
-{ \"differences\": [{\"type\": \"move\", \"object\": \"triangle\", \"x\": 1, \"y\":2}]}
-```
-```python
-import copy
-
-def move_triangle(grid, x, y):
-    new_grid = copy.deepcopy(grid)
-     # Implementation for moving the triangle
-    return new_grid
-
-# Example usage applying the move_triangle transformation
-```""")
-
-                        # Write the changes
-                        with open("system_prompt.md", 'w') as f:
-                            f.write(new_content)
-
-                        print("✅ Successfully updated system_prompt.md")
-                    else:
-                        print("Could not find the target line in system_prompt.md")
-            except Exception as e:
-                print(f"Error implementing option 2: {e}")
-
-        print("\nDirect file changes completed")
         return
 
     # Default: run the full improvement process
