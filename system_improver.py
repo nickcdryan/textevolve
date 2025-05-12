@@ -1364,7 +1364,8 @@ Make sure to provide the exact text to find and replace for each change.
 
     def _apply_find_replace(self, file_path, find_text: str, replace_text: str) -> Tuple[str, bool]:
         """
-        Apply a find-and-replace change to a file with enhanced fuzzy matching.
+        Apply a find-and-replace change to a file with proper line-boundary handling.
+        Ensures replacements start on their own line when needed.
 
         Args:
             file_path: Path to the file to modify
@@ -1379,124 +1380,80 @@ Make sure to provide the exact text to find and replace for each change.
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
-            # Fix potential nested triple quotes in the replacement text
-            replace_text = self.fix_nested_triple_quotes(replace_text)
+            # First, verify if find_text actually exists in content
+            if find_text not in content:
+                print(f"Warning: Exact text not found in {file_path}")            
+                return content, False
 
-            # Try exact replacement first
-            if find_text in content:
-                new_content = content.replace(find_text, replace_text)
-                print(f"Applied find-and-replace to {file_path} (exact match)")
-                return new_content, True
+            # Find the exact position in the content
+            find_pos = content.find(find_text)
 
-            # Try with normalized whitespace
-            find_text_normalized = ' '.join(find_text.split())
-            content_normalized = ' '.join(content.split())
+            # Check if find_text starts with indentation at the beginning of a line
+            find_lines = find_text.splitlines()
+            if find_lines and find_lines[0].strip() and find_lines[0].startswith(' '):
+                # Find_text starts with indentation, ensure it aligns with a line start
 
-            if find_text_normalized in content_normalized:
-                print(f"Text found with normalized whitespace, attempting replacement")
+                # Get the preceding character (if any)
+                preceding_char = content[find_pos-1] if find_pos > 0 else None
 
-                # Use regex with flexible whitespace
-                pattern = '\\s+'.join(re.escape(word) for word in find_text_normalized.split())
-                new_content = re.sub(pattern, replace_text, content)
+                # Ensure the match is at the beginning of a line
+                if preceding_char is not None and preceding_char != '\n':
+                    print(f"Warning: Match found but not at the beginning of a line")
 
-                if new_content != content:
-                    print(f"Applied find-and-replace to {file_path} (normalized whitespace)")
-                    return new_content, True
+                    # Find the start of the line
+                    line_start = content.rfind('\n', 0, find_pos) + 1
 
-            # Try line-by-line matching for better fuzzy matching
-            find_lines = find_text.strip().splitlines()
-            content_lines = content.splitlines()
+                    # Check if there's content on the same line before our match
+                    if line_start < find_pos:
+                        preceding_text = content[line_start:find_pos]
+                        if preceding_text.strip():
+                            print(f"Detected content before match on same line: '{preceding_text}'")
 
-            # Line matching with different threshold levels
-            for match_threshold in [0.9, 0.8, 0.7]:  # Try decreasing thresholds
-                for i in range(len(content_lines) - len(find_lines) + 1):
-                    match_scores = []
+                            # Insert a newline to ensure replacement starts on its own line
+                            # We'll need to rebuild the content with a newline inserted
+                            modified_content = content[:find_pos] + '\n' + content[find_pos:]
 
-                    for j, find_line in enumerate(find_lines):
-                        if i + j >= len(content_lines):
-                            break
+                            # Update find_pos to account for the inserted newline
+                            find_pos += 1
 
-                        content_line = content_lines[i + j]
+                            # Update content for the replacement
+                            content = modified_content
 
-                        # Skip empty lines in comparison
-                        if not find_line.strip() and not content_line.strip():
-                            match_scores.append(1.0)  # Perfect match for empty lines
-                            continue
+                            print("Inserted newline to ensure replacement starts on its own line")
 
-                        # Calculate similarity score
-                        find_line_norm = ' '.join(find_line.split())
-                        content_line_norm = ' '.join(content_line.split())
+            # Similarly, check if the replacement needs to start on its own line
+            replace_lines = replace_text.splitlines()
+            if replace_lines and replace_lines[0].strip() and replace_lines[0].startswith(' '):
+                # This replacement likely expects to be at the start of a line - verify
 
-                        # Exact match
-                        if find_line_norm == content_line_norm:
-                            match_scores.append(1.0)
-                        # Fuzzy match - check if most of the words match
-                        else:
-                            find_words = set(find_line_norm.split())
-                            content_words = set(content_line_norm.split())
+                # Get the preceding character in the original content
+                preceding_char = content[find_pos-1] if find_pos > 0 else None
 
-                            if not find_words:  # Handle empty set
-                                match_scores.append(0.0)
-                            else:
-                                intersection = find_words.intersection(content_words)
-                                score = len(intersection) / len(find_words)
-                                match_scores.append(score)
+                # If the preceding character isn't a newline, we might need to add one
+                if preceding_char is not None and preceding_char != '\n':
+                    print(f"Warning: Replacement might need to start on its own line")
 
-                    # If we have enough matching lines with good scores
-                    avg_score = sum(match_scores) / len(match_scores) if match_scores else 0
+                    # Insert a newline for the replacement
+                    replace_text = '\n' + replace_text
+                    print("Added newline to ensure replacement starts on its own line")
 
-                    if avg_score >= match_threshold:
-                        print(f"Found fuzzy match at line {i+1} with average score {avg_score:.2f} (threshold: {match_threshold})")
+            # Perform the replacement
+            new_content = content[:find_pos] + replace_text + content[find_pos + len(find_text):]
 
-                        # Replace the matching lines
-                        new_content_lines = content_lines.copy()
-                        new_content_lines[i:i + len(find_lines)] = replace_text.strip().splitlines()
+            # Check if any changes were actually made
+            if new_content == content:
+                print(f"Warning: Replacement had no effect on {file_path}")
+                return content, False
 
-                        # Convert back to a single string
-                        new_content = '\n'.join(new_content_lines)
-
-                        print(f"Applied find-and-replace to {file_path} (fuzzy match)")
-                        return new_content, True
-
-            # If we've tried all thresholds and still no match, try matching based on key identifiers
-            # This is useful for function definitions, class definitions, etc.
-            key_patterns = [
-                r'def\s+([a-zA-Z0-9_]+)\s*\(',  # Function definitions
-                r'class\s+([a-zA-Z0-9_]+)\s*[:\(]',  # Class definitions
-                r'([a-zA-Z0-9_]+)\s*=\s*',  # Variable assignments
-            ]
-
-            # Extract key identifiers from find_text
-            key_identifiers = []
-            for pattern in key_patterns:
-                for match in re.finditer(pattern, find_text):
-                    key_identifiers.append(match.group(1))
-
-            if key_identifiers:
-                print(f"Searching for key identifiers: {key_identifiers}")
-
-                # Look for these identifiers in the content
-                for identifier in key_identifiers:
-                    pattern = r'((?:^|\n)(?:[ \t]*)(?:def|class)?\s*' + re.escape(identifier) + r'\s*(?:\(|\{|=|:)(?:.|[\r\n])*?(?:\n[ \t]*\n|\Z))'
-                    match = re.search(pattern, content)
-
-                    if match:
-                        matched_block = match.group(1)
-                        new_content = content.replace(matched_block, replace_text)
-
-                        if new_content != content:
-                            print(f"Applied find-and-replace to {file_path} (key identifier match: {identifier})")
-                            return new_content, True
-
-            print(f"Warning: Could not find the text to replace in {file_path}")
-            return content, False
+            print(f"Successfully created modified content for {file_path}")
+            return new_content, True
 
         except Exception as e:
             print(f"Error applying find-and-replace: {e}")
             import traceback
             traceback.print_exc()
             return content, False
-
+    
     def _apply_diff(self, original_content: str, diff_text: str) -> str:
         """
         Apply a diff to the original content with improved handling of various diff formats.
