@@ -3759,18 +3759,19 @@ except Exception as e:
         # Update batch size for next iteration
         self.current_batch_size = new_batch_size
 
+        # TURN OFF script viz
         # Generate execution flow visualization
-        print("\nGenerating execution flow visualization...")
-        script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
-        try:
-            import subprocess
-            subprocess.run(
-                [sys.executable, "script_flow_graph.py", str(script_path)],
-                check=False  # Don't raise exception on non-zero exit
-            )
-            print("Visualization saved!")
-        except Exception as e:
-            print(f"Error generating visualization: {e}")
+        # print("\nGenerating execution flow visualization...")
+        # script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
+        # try:
+        #     import subprocess
+        #     subprocess.run(
+        #         [sys.executable, "script_flow_graph.py", str(script_path)],
+        #         check=False  # Don't raise exception on non-zero exit
+        #     )
+        #     print("Visualization saved!")
+        # except Exception as e:
+        #     print(f"Error generating visualization: {e}")
 
         # Increment iteration counter
         self.current_iteration += 1
