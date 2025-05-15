@@ -2,88 +2,143 @@ import os
 import re
 import math
 
-def main(question):
+def solve_grid_transformation(question, max_attempts=3):
+    """Solves grid transformation problems by detecting and applying transformations to individual elements.
+    HYPOTHESIS: The core transformation can be extracted by focusing on the individual elements within the grid
+    rather than trying to understand the whole grid at once. We break down the question into distinct steps:
+    1. Find the unique elements within the grid and how they get transformed
+    2. Identify the transformation rules that transform those elements
+    3. Apply the transformation rules to generate new grids
+
+    APPROACH:
+    1. Find unique elements in input and output grids.
+    2. Infer transformations for each unique element.
+    3. Apply these transformations to the test input grid.
+    4. Verification of output to attempt to resolve any potential problems with processing
     """
-    Transforms a grid based on patterns in training examples using LLM-driven spatial reasoning and iterative refinement.
-    Uses a different approach by focusing on spatial relationships between numbers and using a combination of pattern extraction and grid manipulation.
-    """
-    return solve_grid_transformation(question)
 
-def solve_grid_transformation(problem, max_attempts=3):
-    """Solve grid transformation problems using spatial reasoning, pattern extraction, and grid manipulation."""
+    # Step 1: Extract unique elements and their transformations
+    element_analysis_result = analyze_elements(question, max_attempts=max_attempts)
+    if not element_analysis_result["is_valid"]:
+        return f"Error: Could not analyze elements. {element_analysis_result['error']}"
 
-    # Hypothesis: By explicitly defining spatial relationships and using a combination of pattern extraction and grid manipulation, we can better guide the LLM.
-    system_instruction = "You are an expert in spatial reasoning and grid manipulation. You will identify patterns based on the location of grid elements."
+    element_transformations = element_analysis_result["element_transformations"]
 
-    # Step 1: Extract the training examples and the test input grid from the problem description.
-    extraction_prompt = f"""
-    Extract the training examples and the test input grid from the problem description.
+    # Step 2: Apply element transformations to the test input
+    predicted_grid = transform_grid(question, element_transformations, max_attempts=max_attempts)
 
-    Example:
-    Problem: Grid Transformation Task... Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]] ... TEST INPUT: [[9,10],[11,12]]
-    Extracted: {{"examples": ["Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]]"], "test_input": "[[9,10],[11,12]]"}}
+    # Step 3: Verfiy output grid
+    verification_result = verify_output_grid(question, predicted_grid, element_transformations, max_attempts=max_attempts)
 
-    Problem: {problem}
-    Extracted:
-    """
-    extracted_info = call_llm(extraction_prompt, system_instruction)
-    print(f"Extracted Info: {extracted_info}")  # Diagnostic output
+    if not verification_result["is_valid"]:
+        return f"Error: verification failure {verification_result['error']}"
 
-    # Step 2: Analyze the training examples to identify spatial relationships.
-    spatial_analysis_prompt = f"""
-    Analyze the training examples to identify spatial relationships between numbers.
-    Focus on identifying rules based on adjacent cells or patterns.
+    return predicted_grid
 
-    Example:
-    Examples: Input Grid: [[1, 0], [0, 1]] ... Output Grid: [[2, 0], [0, 2]]
-    Spatial Relationships: If a cell has value 1, transform it to 2. Otherwise, maintain cell values.
+def analyze_elements(question, max_attempts=3):
+    """Analyzes input and output grids to find unique elements and their transformations."""
 
-    Examples: {extracted_info}
-    Spatial Relationships:
-    """
-    spatial_relationships = call_llm(spatial_analysis_prompt, system_instruction)
-    print(f"Spatial Relationships: {spatial_relationships}")  # Diagnostic output
+    system_instruction = "You are an expert at analyzing grid transformations to identify element-level transformations."
 
-    # Step 3: Apply transformation based on spatial relationships to the test input
-    transformation_prompt = f"""
-    Apply the identified spatial relationships to transform the test input grid.
+    for attempt in range(max_attempts):
+        prompt = f"""
+        Given the following grid transformation problem, identify the unique elements in the input and output grids and determine how they are transformed.
 
-    Spatial Relationships: {spatial_relationships}
-    Test Input Grid: {extracted_info}
+        Example:
+        Input Grid: [[1, 2, 1], [2, 1, 2], [1, 2, 1]]
+        Output Grid: [[2, 3, 2], [3, 2, 3], [2, 3, 2]]
+        Element Transformations:
+        1 -> 2
+        2 -> 3
 
-    Example:
-    Spatial Relationships: If a cell has value 1, transform it to 2. Otherwise, maintain cell values.
-    Test Input Grid: [[1, 0], [0, 1]]
-    Transformed Grid: [[2, 0], [0, 2]]
+        Problem:
+        {question}
 
-    Transformed Grid:
-    """
-    transformed_grid = call_llm(transformation_prompt, system_instruction)
-    print(f"Transformed Grid: {transformed_grid}")  # Diagnostic output
+        Element Transformations:
+        """
 
-    # Step 4: Verify the transformed grid.
-    verification_prompt = f"""
-    Verify the transformed grid based on the extracted spatial relationships.
+        element_transformations = call_llm(prompt, system_instruction)
 
-    Spatial Relationships: {spatial_relationships}
-    Test Input Grid: {extracted_info}
-    Transformed Grid: {transformed_grid}
+        # Validation: check if the extracted transformations are reasonable
+        validation_prompt = f"""
+        Validate the extracted element transformations for the given problem.
 
-    Example:
-    Spatial Relationships: If a cell has value 1, transform it to 2. Otherwise, maintain cell values.
-    Test Input Grid: [[1, 0], [0, 1]]
-    Transformed Grid: [[2, 0], [0, 2]]
-    Verification: The grid transformation follows the spatial relationships defined.
+        Problem: {question}
+        Extracted Transformations: {element_transformations}
 
-    Verification:
-    """
-    verification_result = call_llm(verification_prompt, system_instruction)
-    print(f"Verification Result: {verification_result}")  # Diagnostic output
+        Are these transformations valid (True/False)?
+        """
 
-    if "The grid transformation follows the spatial relationships defined." in verification_result:
-        return transformed_grid
-    else:
-        return "Unable to transform the grid correctly."
+        is_valid = call_llm(validation_prompt, system_instruction)
+
+        if "True" in is_valid:
+            return {"is_valid": True, "element_transformations": element_transformations, "error": None}
+        else:
+            error_message = f"Invalid transformations (attempt {attempt+1}): {element_transformations}"
+            print(error_message)
+            if attempt == max_attempts - 1:
+                return {"is_valid": False, "element_transformations": None, "error": error_message}
+
+    return {"is_valid": False, "element_transformations": None, "error": "Failed to analyze elements."}
+
+def transform_grid(question, element_transformations, max_attempts=3):
+    """Applies element transformations to the test input grid."""
+    system_instruction = "You are an expert at applying element transformations to grids."
+    for attempt in range(max_attempts):
+        # Extract the test input grid from the problem description using regex
+        test_input_match = re.search(r"=== TEST INPUT ===\n(\[.*?\])", question, re.DOTALL)
+        if not test_input_match:
+            return "Error: Could not extract test input grid."
+
+        test_input_grid = test_input_match.group(1)
+        prompt = f"""
+        Given the following grid transformation problem and element transformations, apply the transformations to the test input grid to generate the output grid.
+
+        Problem: {question}
+        Element Transformations: {element_transformations}
+        Test Input Grid: {test_input_grid}
+
+        Output Grid:
+        """
+        predicted_grid = call_llm(prompt, system_instruction)
+
+        #attempt verification at each generation
+        validation_prompt = f"""
+        Given the transformation problem, and the predicted grid, determine if the transformations are correct. Return "VALID" if the solution looks correct and "INVALID" if it looks incorrect.
+        If incorrect provide an explanation as to why.
+        Problem: {question}
+        Output Grid: {predicted_grid}
+        """
+
+        is_valid = call_llm(validation_prompt, system_instruction)
+        if "VALID" in is_valid:
+            return predicted_grid
+        else:
+            error_message = f"Grid transformations invalid (attempt {attempt+1}): {predicted_grid}"
+            print(error_message)
+            if attempt == max_attempts - 1:
+                return f"Could not transform grid"
+
+        return predicted_grid
+def verify_output_grid(question, output_grid, element_transformations, max_attempts=3):
+    """Verifies the output grid against the transformation rules."""
+    system_instruction = "You are a grid transformation expert, responsible for verifying output grids."
+
+    for attempt in range(max_attempts):
+        validation_prompt = f"""
+            Verify the output grid against the problem statement and transformations
+
+            Problem: {question}
+            Element Transformations: {element_transformations}
+            Output Grid: {output_grid}
+
+            Does the output match transformation requirements? (VALID/INVALID)
+            """
+        validation_result = call_llm(validation_prompt, system_instruction)
+        if "VALID" in validation_result:
+            return {"is_valid": True, "error": None}
+        else:
+            return {"is_valid": False, "error": "The result is not valid"}
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -113,3 +168,11 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question):
+    """Main function to solve the grid transformation task."""
+    try:
+        answer = solve_grid_transformation(question)
+        return answer
+    except Exception as e:
+        return f"Error in main function: {str(e)}"

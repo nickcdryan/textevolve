@@ -2,83 +2,145 @@ import os
 import re
 import math
 
-def main(question):
+def solve_grid_transformation(question, max_attempts=3):
+    """Solves grid transformation problems using localized contextual analysis.
+
+    HYPOTHESIS: LLMs can identify grid transformation rules by focusing on local
+    contexts within the grid rather than attempting to understand the global pattern
+    all at once. The approach is to extract and analyze local contexts, and then
+    synthesize the results to make predictions about the transformation of individual
+    cells in the test input. It introduces targeted prompts for analyzing adjacent cell influences and validating patterns to avoid overfitting the limited training examples.
+
+    APPROACH:
+    1.  Identify key influencing factors by analyzing local cell contexts from the training examples.
+    2.  Based on 1, predict the transformation of each cell in the test grid.
+
     """
-    Transforms a grid based on patterns in training examples.
-    Uses LLM-driven pattern recognition with a focus on localized transformations and multi-example prompts with similarity scoring.
-    """
-    return solve_grid_transformation(question)
 
-def solve_grid_transformation(problem, max_attempts=3):
-    """Solve grid transformation problems using pattern recognition and localized transformation analysis."""
-    # Hypothesis: Focusing on localized transformations and using similar examples will improve pattern recognition.
-    system_instruction = "You are an expert at grid transformation tasks, skilled at identifying localized patterns."
+    # Step 1: Analyze Local Contexts and Identify Influencing Factors
+    context_analysis_result = analyze_local_contexts(question, max_attempts=max_attempts)
+    if not context_analysis_result["is_valid"]:
+        return f"Error: Could not identify influencing factors. {context_analysis_result['error']}"
 
-    # Step 1: Extract relevant information (training examples, test input)
-    extraction_prompt = f"""
-    Extract the training examples and the test input grid from the problem description.
+    influencing_factors = context_analysis_result["influencing_factors"]
 
-    Example 1:
-    Problem: Grid Transformation Task... Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]] ... TEST INPUT: [[9,10],[11,12]]
-    Extracted: {{"examples": ["Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]]"], "test_input": "[[9,10],[11,12]]"}}
+    # Step 2: Predict Cell Transformations based on Influencing Factors
+    predicted_grid = predict_cell_transformations(question, influencing_factors, max_attempts=max_attempts)
 
-    Problem: {problem}
-    Extracted:
-    """
-    extracted_info = call_llm(extraction_prompt, system_instruction)
+    # Step 3: Verify and Refine Output Grid
+    verification_result = verify_output_grid(question, predicted_grid, influencing_factors, max_attempts=max_attempts)
+    if not verification_result["is_valid"]:
+        return f"Error: Predicted grid validation failed. {verification_result['error']}"
 
-    # Step 2: Analyze and infer the localized transformation rule with enhanced examples.
-    localized_inference_prompt = f"""
-    Analyze the provided training examples and infer the localized transformation rule.
+    return predicted_grid
 
-    Example 1:
-    Examples: Input Grid: [[1, 0], [0, 1]] ... Output Grid: [[2, 0], [0, 2]]
-    Localized Rule: If a cell has value 1, transform it to 2.
+def analyze_local_contexts(question, max_attempts=3):
+    """Analyzes local cell contexts to identify factors influencing transformations."""
 
-    Example 2:
-    Examples: Input Grid: [[0, 1, 0]] ... Output Grid: [[0, 2, 0]]
-    Localized Rule: Change values of '1' to '2', but leave '0' unchanged.
+    system_instruction = "You are an expert in analyzing grid transformations to identify local influences."
 
-    Examples: {extracted_info}
-    Localized Rule:
-    """
-    localized_transformation_rule = call_llm(localized_inference_prompt, system_instruction)
+    for attempt in range(max_attempts):
+        prompt = f"""
+        Given the following grid transformation problem, analyze the local context of each cell to determine the key factors influencing its transformation.
 
-    # Step 3: Apply the localized transformation rule to the test input
-    localized_transformation_prompt = f"""
-    Apply the following localized transformation rule to the test input grid.
+        Example:
+        Input Grid: [[1, 2, 1], [2, 1, 2], [1, 2, 1]]
+        Output Grid: [[2, 3, 2], [3, 2, 3], [2, 3, 2]]
+        Influencing Factors: The value of each cell in the output is the sum of itself and its immediate neighbors (up, down, left, right) in the input grid.
 
-    Rule: {localized_transformation_rule}
-    Test Input Grid: {extracted_info}
+        Problem:
+        {question}
 
-    Example 1:
-    Rule: Each element is doubled. Test Input Grid: [[1, 2], [3, 4]]
-    Transformed Grid: [[2, 4], [6, 8]]
+        Influencing Factors:
+        """
 
-    Transformed Grid:
-    """
-    transformed_grid = call_llm(localized_transformation_prompt, system_instruction)
+        influencing_factors = call_llm(prompt, system_instruction)
 
-    # Verification: Check if the transformation follows the rule and data
-    verification_prompt = f"""
-    Verify that the transformed grid follows the localized transformation rule.
+        # Validation step: check if the extracted factors are reasonable and non-contradictory
+        validation_prompt = f"""
+        Validate if the extracted influencing factors are reasonable and coherent.
 
-    Rule: {localized_transformation_rule}
-    Test Input Grid: {extracted_info}
-    Transformed Grid: {transformed_grid}
+        Problem: {question}
+        Influencing Factors: {influencing_factors}
 
-    Example:
-    Rule: double each number. Input: [[1,2],[3,4]]. Output: [[2,4],[6,8]]. Verification: CORRECT
+        Are these factors valid (True/False)?
+        """
 
-    Verification:
-    """
-    verification_result = call_llm(verification_prompt, system_instruction)
+        is_valid = call_llm(validation_prompt, system_instruction)
 
-    #If the result is correct, return the transformed grid, otherwise say that it is unable to perform transformation
-    if "INCORRECT" not in verification_result:
-        return transformed_grid
-    else:
-        return "Unable to transform the grid correctly."
+        if "True" in is_valid:
+            return {"is_valid": True, "influencing_factors": influencing_factors, "error": None}
+        else:
+            error_message = f"Invalid factors (attempt {attempt+1}): {influencing_factors}"
+            print(error_message)
+            if attempt == max_attempts - 1:
+                return {"is_valid": False, "influencing_factors": None, "error": error_message}
+
+    return {"is_valid": False, "influencing_factors": None, "error": "Failed to analyze local contexts."}
+
+def predict_cell_transformations(question, influencing_factors, max_attempts=3):
+    """Predicts the transformation of each cell based on the identified influencing factors."""
+
+    system_instruction = "You are an expert at predicting grid cell transformations."
+
+    for attempt in range(max_attempts):
+        prompt = f"""
+        Given the following grid transformation problem and the identified influencing factors, predict the transformation of each cell in the test input grid.
+
+        Problem: {question}
+        Influencing Factors: {influencing_factors}
+
+        Test Input Grid: (extract from problem) ...
+
+        Predicted Output Grid:
+        """
+
+        # Extract the test input grid from the problem description using regex
+        test_input_match = re.search(r"=== TEST INPUT ===\n(\[.*?\])", question, re.DOTALL)
+        if not test_input_match:
+            return "Error: Could not extract test input grid."
+
+        test_input_grid = test_input_match.group(1)
+
+        # Construct a prediction prompt with the extracted test input
+        prompt = f"""
+        Given the following grid transformation problem and the identified influencing factors, predict the transformation of each cell in the test input grid.
+
+        Problem: {question}
+        Influencing Factors: {influencing_factors}
+        Test Input Grid: {test_input_grid}
+
+        Predicted Output Grid:
+        """
+        
+        predicted_grid = call_llm(prompt, system_instruction)
+        return predicted_grid
+
+def verify_output_grid(question, output_grid, influencing_factors, max_attempts=3):
+  for attempt in range(max_attempts):
+        validation_prompt = f"""
+        You are a meticulous grid transformation expert. 
+        Problem: {question}
+        Influencing Factors: {influencing_factors}
+        Output Grid: {output_grid}
+
+        1. Does the output grid follow the influencing factors?
+        2. Is the output grid format correct and consistent with the examples in the problem?
+        3. Is the output a valid Python list of lists representing the output grid?
+
+        If there are issues, clearly explain what they are. If all checks pass, respond 'VALID'. Otherwise, explain the issues.
+        """
+        validation_result = call_llm(validation_prompt, system_instruction="You are a meticulous grid transformation expert.")
+
+        if "VALID" in validation_result:
+            return {"is_valid": True, "error": None}
+        else:
+            error_message = f"Validation failed (attempt {attempt + 1}): {validation_result}"
+            print(error_message)
+            if attempt == max_attempts - 1:
+                return {"is_valid": False, "error": error_message}
+
+  return {"is_valid": False, "error": "Failed verification after multiple attempts."}
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -108,3 +170,11 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question):
+    """Main function to solve the grid transformation task."""
+    try:
+        answer = solve_grid_transformation(question)
+        return answer
+    except Exception as e:
+        return f"Error in main function: {str(e)}"

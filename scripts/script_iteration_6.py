@@ -2,109 +2,99 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Transforms a grid based on patterns in training examples.
-    Uses LLM-driven pattern extraction and refinement with LOCALIZED CONTEXTUAL ANALYSIS and EXPLICIT DIMENSION INFERENCE, with a dedicated verification step.
-    """
-    return solve_grid_transformation(question)
+# HYPOTHESIS: A hierarchical decomposition approach will improve the LLM's ability to solve grid transformation problems.
+# The LLM will first identify the overall transformation type (e.g., mirroring, rotation, value substitution), then extract specific parameters, and finally apply the transformation.
+# This script implements a hierarchical decomposition of the grid transformation problem.
+# It first identifies the overall transformation type. It then extracts specific parameters for that transformation.
+# Finally, it applies the transformation.
 
-def solve_grid_transformation(problem, max_attempts=3):
-    """Solve grid transformation problems by analyzing localized context and explicitly inferring output dimensions."""
+def solve_grid_transformation(question, max_attempts=3):
+    """Solves grid transformation problems using a hierarchical decomposition approach."""
 
-    # Hypothesis: Combining localized contextual analysis with explicit dimension inference will significantly improve the LLM's ability to perform grid transformations.
-    system_instruction = "You are an expert in grid transformation tasks. You are skilled at identifying localized patterns, understanding spatial relationships, and explicitly determining the output grid's dimensions."
+    # Step 1: Identify Transformation Type
+    transformation_type_result = identify_transformation_type(question, max_attempts=max_attempts)
+    if not transformation_type_result["is_valid"]:
+        return f"Error: Could not identify transformation type. {transformation_type_result['error']}"
 
-    # Step 1: Extract the training examples and the test input grid.
-    extraction_prompt = f"""
-    Extract the training examples and the test input grid from the problem description.
+    transformation_type = transformation_type_result["transformation_type"]
 
-    Example:
-    Problem: Grid Transformation Task... Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]] ... TEST INPUT: [[9,10],[11,12]]
-    Extracted:
-    {{
-      "examples": [
-        "Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]]"
-      ],
-      "test_input": "[[9,10],[11,12]]"
-    }}
+    # Step 2: Extract Transformation Parameters
+    transformation_parameters_result = extract_transformation_parameters(question, transformation_type, max_attempts=max_attempts)
+    if not transformation_parameters_result["is_valid"]:
+        return f"Error: Could not extract transformation parameters. {transformation_parameters_result['error']}"
 
-    Problem: {problem}
-    Extracted:
-    """
-    extracted_info = call_llm(extraction_prompt, system_instruction)
-    print(f"Extracted Info: {extracted_info}")
+    transformation_parameters = transformation_parameters_result["transformation_parameters"]
 
-    # Step 2: Infer the output grid dimensions and localized transformation rules, focusing on contextual analysis.
-    dimension_inference_prompt = f"""
-    Analyze the training examples and infer the localized transformation rules, *considering the surrounding context of each cell*, and the dimensions of the output grid.
+    # Step 3: Apply Transformation
+    transformed_grid = apply_transformation(question, transformation_type, transformation_parameters)
+    return transformed_grid
+
+def identify_transformation_type(question, max_attempts=3):
+    """Identifies the overall transformation type (e.g., mirroring, rotation, value substitution)."""
+    system_instruction = "You are an expert at identifying the overall type of transformation applied to a grid."
+    prompt = f"""
+    Given the following grid transformation problem, identify the overall type of transformation applied.
+    Possible transformation types include: mirroring, rotation, value substitution, expansion, contraction.
 
     Example 1:
-    Examples: Input Grid: [[1, 0], [0, 1]] ... Output Grid: [[2, 0], [0, 2]]
-    Output Grid Dimensions: 2x2
-    Localized Rule: If a cell has value 1, transform it to 2.
+    Input Grid: [[1, 2], [3, 4]]
+    Output Grid: [[4, 3], [2, 1]]
+    Transformation Type: mirroring
 
     Example 2:
-    Examples: Input Grid: [[0, 1, 0]] ... Output Grid: [[0, 2, 0]]
-    Output Grid Dimensions: 1x3
-    Localized Rule: Change values of '1' to '2', but leave '0' unchanged.
+    Input Grid: [[1, 2], [3, 4]]
+    Output Grid: [[2, 3], [4, 5]]
+    Transformation Type: value substitution
 
-    Examples: {extracted_info}
-    Output Grid Dimensions:
-    Localized Rule:
+    Problem:
+    {question}
+
+    Transformation Type:
     """
-    dimension_inference_result = call_llm(dimension_inference_prompt, system_instruction)
-    print(f"Dimension Inference Result: {dimension_inference_result}")
+    transformation_type = call_llm(prompt, system_instruction)
+    return {"is_valid": True, "transformation_type": transformation_type, "error": None}
 
-    # Step 3: Extract the test input grid and Localized Rule extracted and apply transformation
-
-    test_input_match = re.search(r'"test_input":\s*"(\[\[.*?\]\])"', extracted_info)
-    if test_input_match:
-        test_input_grid = test_input_match.group(1)
-    else:
-        test_input_grid = "[[0,0,0],[0,0,0],[0,0,0]]"  # Default grid if extraction fails
-
-    localized_rule_match = re.search(r"Localized Rule:\s*(.*)", dimension_inference_result)
-    if localized_rule_match:
-        localized_rule = localized_rule_match.group(1)
-    else:
-        localized_rule = "No rule identified." # Default if extraction fails
-        
-    transformation_prompt = f"""
-    Apply the following localized transformation rule to the test input grid.
-
-    Rule: {localized_rule}
-    Test Input Grid: {test_input_grid}
-    Output Grid Dimensions: {dimension_inference_result}
+def extract_transformation_parameters(question, transformation_type, max_attempts=3):
+    """Extracts the specific parameters for the identified transformation type."""
+    system_instruction = "You are an expert at extracting parameters for grid transformations."
+    prompt = f"""
+    Given the following grid transformation problem and the identified transformation type, extract the specific parameters required to apply the transformation.
 
     Example 1:
-    Rule: Each element is doubled. Test Input Grid: [[1, 2], [3, 4]]. Output Grid Dimensions: 2x2
-    Transformed Grid: [[2, 4], [6, 8]]
+    Transformation Type: mirroring
+    Input Grid: [[1, 2], [3, 4]]
+    Output Grid: [[4, 3], [2, 1]]
+    Transformation Parameters: horizontal
 
-    Transformed Grid:
+    Example 2:
+    Transformation Type: value substitution
+    Input Grid: [[1, 2], [3, 4]]
+    Output Grid: [[2, 3], [4, 5]]
+    Transformation Parameters: increment by 1
+
+    Problem:
+    {question}
+    Transformation Type: {transformation_type}
+
+    Transformation Parameters:
     """
-    transformed_grid = call_llm(transformation_prompt, system_instruction)
-    print(f"Transformed Grid: {transformed_grid}")
+    transformation_parameters = call_llm(prompt, system_instruction)
+    return {"is_valid": True, "transformation_parameters": transformation_parameters, "error": None}
 
-    # Step 4: Verify the transformed grid.
-    verification_prompt = f"""
-    Verify that the transformed grid follows the localized transformation rule AND has the correct dimensions.
+def apply_transformation(question, transformation_type, transformation_parameters):
+    """Applies the transformation to the test input grid."""
+    system_instruction = "You are an expert at applying transformations to grids."
+    prompt = f"""
+    Given the following grid transformation problem, the transformation type, and the transformation parameters, apply the transformation to the test input grid.
 
-    Rule: {localized_rule}
-    Test Input Grid: {test_input_grid}
-    Transformed Grid: {transformed_grid}
+    Problem: {question}
+    Transformation Type: {transformation_type}
+    Transformation Parameters: {transformation_parameters}
 
-    Example:
-    Rule: double each number. Input: [[1,2],[3,4]]. Output: [[2,4],[6,8]]. Verification: CORRECT
-
-    Verification: Is the transformation rule followed, AND are the output grid dimensions correct?
+    Generate the output grid.
     """
-    verification_result = call_llm(verification_prompt, system_instruction)
-
-    if "INCORRECT" not in verification_result:
-        return transformed_grid
-    else:
-        return "Unable to transform the grid correctly."
+    output_grid = call_llm(prompt, system_instruction)
+    return output_grid
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -118,7 +108,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -134,3 +124,11 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question):
+    """Main function to solve the grid transformation task."""
+    try:
+        answer = solve_grid_transformation(question)
+        return answer
+    except Exception as e:
+        return f"Error in main function: {str(e)}"

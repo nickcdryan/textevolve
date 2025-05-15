@@ -1,99 +1,123 @@
 import os
 import re
 import math
-import json
 
-def main(question):
-    """
-    Transforms a grid based on patterns in training examples.
-    Uses LLM-driven pattern recognition and iterative refinement with DIFFERENCE GRID ANALYSIS.
-    """
-    return solve_grid_transformation(question)
+def solve_grid_transformation(question, max_attempts=3):
+    """Solves a grid transformation problem using a novel LLM-driven approach with explicit rule extraction and validation."""
 
-def solve_grid_transformation(problem, max_attempts=3):
-    """Solve grid transformation problems using pattern recognition, difference grid analysis, and verification."""
-    system_instruction = "You are an expert at grid transformation tasks, skilled at pattern recognition and difference analysis."
+    # HYPOTHESIS: The LLM can extract transformation rules more effectively if explicitly prompted to do so AND the extracted rule is validated.
+    # This tests a hybrid approach - explicit rule extraction PLUS pattern matching to output a final answer.
 
-    # Step 1: Extract relevant information (training examples, test input)
-    extraction_prompt = f"""
-    Extract the training examples and the test input grid from the problem description.
+    # Step 1: Extract Transformation Rule with validation
+    rule_extraction_result = extract_transformation_rule(question, max_attempts=max_attempts)
+    if not rule_extraction_result["is_valid"]:
+        return f"Error: Could not extract a valid transformation rule. {rule_extraction_result['error']}"
+    
+    transformation_rule = rule_extraction_result["transformation_rule"]
 
-    Example 1:
-    Problem: Grid Transformation Task... Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]] ... TEST INPUT: [[9,10],[11,12]]
-    Extracted: {{"examples": ["Input Grid: [[1,2],[3,4]] ... Output Grid: [[5,6],[7,8]]"], "test_input": "[[9,10],[11,12]]"}}
+    # Step 2: Apply Transformation Rule to Test Input.
+    transformed_grid = apply_transformation_rule(question, transformation_rule)
+    
+    # Step 3: Verify that the output transformation is valid.
+    output_verification_result = verify_output_grid(question, transformed_grid, transformation_rule, max_attempts=max_attempts)
 
-    Problem: {problem}
-    Extracted:
-    """
-    extracted_info = call_llm(extraction_prompt, system_instruction)
+    if not output_verification_result["is_valid"]:
+        return f"Error: Output grid validation failed. {output_verification_result['error']}"
 
-    # Step 2: Analyze and infer the transformation rule using DIFFERENCE GRID ANALYSIS and enhanced examples.
-    # NEW HYPOTHESIS: Difference grid analysis will improve pattern recognition.
-    inference_prompt = f"""
-    Analyze the provided training examples and infer the transformation rule.
-    Use difference grid analysis to identify patterns by comparing Input and Output Grids.
+    return transformed_grid
 
-    Example 1:
-    Examples: Input Grid: [[1, 1, 1]] ... Output Grid: [[2, 2, 2]]
-    Difference Grid: [[1, 1, 1]]
-    Rule: Each element in the input grid is incremented by 1.
+def extract_transformation_rule(question, max_attempts=3):
+    """Extracts the transformation rule from the question using LLM with examples and validation."""
 
-    Example 2:
-    Examples: Input Grid: [[0, 1, 0]] ... Output Grid: [[0, 2, 0]]
-    Difference Grid: [[0, 1, 0]]
-    Rule: Each '1' in the input grid is replaced with '2', while '0' remains unchanged.
+    system_instruction = "You are an expert at extracting transformation rules from grid examples."
+    
+    for attempt in range(max_attempts):
+        prompt = f"""
+        Given the following grid transformation problem, extract the underlying transformation rule.
+        Provide the transformation rule in a concise, human-readable way.
 
-    Examples: {extracted_info}
-    Rule:
-    """
-    transformation_rule = call_llm(inference_prompt, system_instruction)
+        Example 1:
+        Input Grid: [[1, 0], [0, 1]]
+        Output Grid: [[2, 0], [0, 2]]
+        Transformation Rule: Each '1' is transformed to '2', while '0' remains unchanged.
 
-    # Step 3: Apply the transformation rule to the test input
-    transformation_prompt = f"""
-    Apply the following transformation rule to the test input grid.
+        Example 2:
+        Input Grid: [[1, 2], [3, 4]]
+        Output Grid: [[4, 3], [2, 1]]
+        Transformation Rule: The grid is rotated 180 degrees.
 
-    Rule: {transformation_rule}
-    Test Input Grid: {extracted_info}
+        Problem:
+        {question}
 
-    Example 1:
-    Rule: Each element is doubled. Test Input Grid: [[1, 2], [3, 4]]
-    Transformed Grid: [[2, 4], [6, 8]]
-
-    Transformed Grid:
-    """
-    transformed_grid = call_llm(transformation_prompt, system_instruction)
-
-    # Step 4: Verify the transformed grid and correct if needed
-    verification_prompt = f"""
-    Verify that the transformed grid follows the transformation rule.
-
-    Rule: {transformation_rule}
-    Test Input Grid: {extracted_info}
-    Transformed Grid: {transformed_grid}
-
-    Example:
-    Rule: double each number. Input: [[1,2],[3,4]]. Output: [[2,4],[6,8]]. Verification: CORRECT
-
-    Verification:
-    """
-    verification_result = call_llm(verification_prompt, system_instruction)
-
-    if "INCORRECT" in verification_result:
-        # Attempt to correct the transformation (simple error correction)
-        correction_prompt = f"""
-        Correct the transformed grid based on the verification feedback.
-
-        Rule: {transformation_rule}
-        Test Input Grid: {extracted_info}
-        Transformed Grid: {transformed_grid}
-        Verification Feedback: {verification_result}
-
-        Corrected Grid:
+        Transformation Rule:
         """
-        corrected_grid = call_llm(correction_prompt, system_instruction)
-        return corrected_grid
-    else:
-        return transformed_grid
+
+        transformation_rule = call_llm(prompt, system_instruction)
+
+        # Validation
+        validation_prompt = f"""
+        Validate the extracted transformation rule for the given problem.
+        Check if the rule is complete, consistent with the training examples, and applicable to the test input.
+
+        Problem: {question}
+        Extracted Rule: {transformation_rule}
+
+        Is the extracted transformation rule valid? (Answer True/False):
+        """
+
+        is_valid = call_llm(validation_prompt, system_instruction)
+
+        if "True" in is_valid:
+            return {"is_valid": True, "transformation_rule": transformation_rule, "error": None}
+        else:
+            error_message = f"Invalid transformation rule (attempt {attempt+1}): {transformation_rule}"
+            print(error_message)
+            if attempt == max_attempts - 1:
+                 return {"is_valid": False, "transformation_rule": None, "error": error_message}
+
+    return {"is_valid": False, "transformation_rule": None, "error": "Failed after multiple attempts."}
+
+def apply_transformation_rule(question, transformation_rule):
+    """Applies the extracted transformation rule to the test input using LLM."""
+    system_instruction = "You are an expert at applying transformation rules to grids."
+
+    prompt = f"""
+    Given the following grid transformation problem and the extracted transformation rule, apply the rule to the test input grid.
+
+    Problem: {question}
+    Transformation Rule: {transformation_rule}
+
+    Generate the output grid according to the transformation rule.
+    """
+
+    output_grid = call_llm(prompt, system_instruction)
+    return output_grid
+
+def verify_output_grid(question, output_grid, transformation_rule, max_attempts=3):
+  for attempt in range(max_attempts):
+        validation_prompt = f"""
+        You are a meticulous grid transformation expert. 
+        Problem: {question}
+        Transformation Rule: {transformation_rule}
+        Output Grid: {output_grid}
+
+        1. Does the output grid follow the transformation rule?
+        2. Is the output grid format correct and consistent with the examples in the problem?
+        3. Is the output a valid Python list of lists representing the output grid?
+
+        If there are issues, clearly explain what they are. If all checks pass, respond 'VALID'. Otherwise, explain the issues.
+        """
+        validation_result = call_llm(validation_prompt, system_instruction="You are a meticulous grid transformation expert.")
+
+        if "VALID" in validation_result:
+            return {"is_valid": True, "error": None}
+        else:
+            error_message = f"Validation failed (attempt {attempt + 1}): {validation_result}"
+            print(error_message)
+            if attempt == max_attempts - 1:
+                return {"is_valid": False, "error": error_message}
+
+  return {"is_valid": False, "error": "Failed verification after multiple attempts."}
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -123,3 +147,11 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question):
+    """Main function to solve the grid transformation task."""
+    try:
+        answer = solve_grid_transformation(question)
+        return answer
+    except Exception as e:
+        return f"Error in main function: {str(e)}"

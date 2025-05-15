@@ -2979,8 +2979,9 @@ except Exception as e:
         System answer: {system_answer}
         Golden answer: {golden_answer}
 
-        Do these answers communicate the same information, even if worded or formatted differently? The "Golden answer" is the reference answer. The "System answer" produced by our system may contain reasoning traces, but your job is to verify if  in the system answer there is an answer that is semantically equivalent to the golden answer.
+        Do these answers communicate the same information, even if worded or formatted differently? The "Golden answer" is the reference answer. The "System answer" produced by our system may contain reasoning traces, but your job is to verify if in the system answer there is an answer that is semantically equivalent to the golden answer.
         If this is a detailed numerical answer, where clearly precision is required, check very close, element by element, to ensure that the content is correct.
+        A system answer that is just code, or code that is meant to produce the final answer but with no final output is not acceptable. The system answer must contain a final answer that is semantically equivalent to the golden answer.
         Return only a JSON object with: {{"match": true/false, "confidence": 0-1, "explanation": "reason"}}
         """
         print ("SYSTEM ANSWER: ....", system_answer)
