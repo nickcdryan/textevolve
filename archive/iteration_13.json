@@ -1,167 +1,809 @@
 {
   "iteration": 13,
-  "timestamp": "2025-05-12T20:35:29.161754",
+  "timestamp": "2025-05-17T13:20:11.892156",
   "strategy": "Exploitation",
-  "explore_rate": 50,
-  "exploit_rate": 50,
-  "batch_size": 3,
-  "script": "import os\nimport re\nimport math\n\n# HYPOTHESIS: Improve the visual feature analysis and transformation application by adding more detailed examples\n# and implementing a validation loop for the transformation description.\n\ndef solve_grid_transformation(question, max_attempts=3):\n    \"\"\"Solves grid transformation problems by analyzing and describing visual features.\"\"\"\n\n    # Step 1: Analyze Visual Features\n    feature_analysis_result = analyze_visual_features(question, max_attempts=max_attempts)\n    if not feature_analysis_result[\"is_valid\"]:\n        return f\"Error: Could not analyze visual features. {feature_analysis_result['error']}\"\n\n    transformation_description = feature_analysis_result[\"transformation_description\"]\n\n    # Step 2: Apply Transformation\n    transformed_grid = apply_transformation(question, transformation_description)\n    return transformed_grid\n\ndef analyze_visual_features(question, max_attempts=3):\n    \"\"\"Analyzes visual features of the grid transformation problem with a validation loop.\"\"\"\n    system_instruction = \"You are an expert at analyzing visual features in grid transformations.\"\n    for attempt in range(max_attempts):\n        prompt = f\"\"\"\n        Given the following grid transformation problem, analyze the training examples and identify key visual features\n        and describe the transformation in terms of those features. Visual features can include lines, shapes, repetition,\n        patterns, symmetries, etc. Provide a concise description of the identified visual features and transformation applied.\n\n        Example 1:\n        === TRAINING EXAMPLES ===\n        Input Grid:\n        [[0, 0, 0], [1, 1, 1], [0, 0, 0]]\n        Output Grid:\n        [[1, 1, 1], [0, 0, 0], [1, 1, 1]]\n        Transformation Description: Swap the row containing '1' with adjacent rows. The '1' row moves up and down once.\n\n        Example 2:\n        === TRAINING EXAMPLES ===\n        Input Grid:\n        [[5, 0, 5], [0, 0, 0], [5, 0, 5]]\n        Output Grid:\n        [[2, 0, 2], [0, 0, 0], [2, 0, 2]]\n        Transformation Description: Change all 5's to 2's\n\n        Problem:\n        {question}\n\n        Transformation Description:\n        \"\"\"\n\n        transformation_description = call_llm(prompt, system_instruction)\n\n        # Add a verification step to ensure the LLM is providing a usable description.\n        verification_prompt = f\"\"\"\n        Verify that the given transformation description is clear, concise, and describes a valid transformation. Does it cover all test cases?\n        Transformation Description: {transformation_description}\n        Is the description valid? (VALID/INVALID)\n        \"\"\"\n        validation_result = call_llm(verification_prompt)\n\n        if \"VALID\" in validation_result:\n            return {\"is_valid\": True, \"transformation_description\": transformation_description, \"error\": None}\n        else:\n            print(f\"Attempt {attempt+1}: Invalid feature description. Retrying...\")\n            continue  # Retry if the description is invalid\n\n    return {\"is_valid\": False, \"transformation_description\": None, \"error\": \"Could not generate a valid feature description after multiple attempts.\"}\n\ndef apply_transformation(question, transformation_description):\n    \"\"\"Applies the described transformation to the test input grid.\"\"\"\n    system_instruction = \"You are an expert at applying transformations to grids based on a feature description.\"\n    prompt = f\"\"\"\n    Given the following grid transformation problem and the transformation description, apply the transformation to the test input grid. Output ONLY the transformed grid.\n\n    Problem: {question}\n    Transformation Description: {transformation_description}\n\n    Example 1:\n    Problem: Input Grid: [[0, 0, 0], [1, 1, 1], [0, 0, 0]] Output Grid:[[1, 1, 1], [0, 0, 0], [1, 1, 1]] Transformation Description: Swap the row containing '1' with adjacent rows.\n    Transformed Grid: [[1, 1, 1], [0, 0, 0], [1, 1, 1]]\n\n    Generate the output grid.\n    \"\"\"\n    output_grid = call_llm(prompt, system_instruction)\n    return output_grid\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question):\n    \"\"\"Main function to solve the grid transformation task.\"\"\"\n    try:\n        answer = solve_grid_transformation(question)\n        return answer\n    except Exception as e:\n        return f\"Error in main function: {str(e)}\"",
-  "approach_summary": "The script solves grid transformation problems by first analyzing visual features and then applying a transformation. It uses chain-of-thought by prompting the LLM to describe the transformation in terms of visual features, followed by a validation step to ensure the description is valid. Two agent roles are implicitly defined through system instructions: one for feature analysis and another for applying transformations.\n\nThe `solve_grid_transformation` function orchestrates the process by calling `analyze_visual_features` to get a transformation description and then calling `apply_transformation` to generate the transformed grid. `analyze_visual_features` calls `call_llm` to generate the transformation description and validate it, retrying if needed. `apply_transformation` calls `call_llm` to apply the transformation based on the description. `call_llm` interacts with the Gemini API to generate text based on prompts and system instructions.",
-  "sample_count": 3,
+  "explore_rate": 20,
+  "exploit_rate": 80,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script solves questions based on a given passage by:\n    1. Determining the question type with examples.\n    2. Extracting the relevant information with examples.\n    3. Generating the answer with examples.\n    \"\"\"\n\n    # Step 1: Determine the question type\n    question_type = determine_question_type(question)\n    if \"Error\" in question_type:\n        return question_type  # Return error message\n\n    # Step 2: Extract relevant information from the passage\n    extracted_info = extract_relevant_info(question, question_type)\n    if \"Error\" in extracted_info:\n        return extracted_info\n\n    # Step 3: Generate the answer\n    generated_answer = generate_answer(extracted_info, question_type, question)\n    if \"Error\" in generated_answer:\n        return generated_answer\n\n    return generated_answer # Directly return the generated answer\n\ndef determine_question_type(question):\n    \"\"\"Determine the type of the question (numerical, identification, etc.) with examples.\"\"\"\n    system_instruction = \"You are an expert at classifying question types.\"\n    prompt = f\"\"\"\n    Determine the type of question given the following examples. Return the type only.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    \n    Example 4:\n    Question: Which team won the game?\n    Type: Identification\n\n    Question: {question}\n    Type:\n    \"\"\"\n    try:\n        question_type = call_llm(prompt, system_instruction)\n        if not question_type:\n            return \"Error: Could not determine question type\"\n        return question_type\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef extract_relevant_info(question, question_type):\n    \"\"\"Extract relevant information from the passage with examples, tailored to question type.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant information.\"\n    prompt = f\"\"\"\n    Extract relevant information from the passage based on the given question type.\n    Return the extracted information as a plain text summary.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n    Extracted Info: Player who caught the final touchdown.\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.\n\n    Example 4:\n    Question: Which team won the game?\n    Type: Identification\n    Extracted Info: The Seahawks won the game.\n\n    Question: {question}\n    Type: {question_type}\n    Extracted Info:\n    \"\"\"\n    try:\n        extracted_info = call_llm(prompt, system_instruction)\n        if not extracted_info:\n            return \"Error: Could not extract information.\"\n        return extracted_info\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef generate_answer(extracted_info, question_type, question):\n    \"\"\"Generate the answer based on extracted information and question type with examples.\"\"\"\n    system_instruction = \"You are an expert at generating correct answers.\"\n    prompt = f\"\"\"\n    Generate an answer to the question based on the extracted information.\n\n    Example 1:\n    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.\n    Question Type: Numerical\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: 40 + 30 = 70 yards\n\n    Example 2:\n    Extracted Info: Player who caught the final touchdown = Mark Clayton\n    Question Type: Identification\n    Question: Who caught the final touchdown of the game?\n    Answer: Mark Clayton\n\n    Example 3:\n    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.\n    Question Type: Comparative\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: Gliese 915\n    \n    Example 4:\n    Extracted Info: The Seahawks won the game.\n    Question Type: Identification\n    Question: Which team won the game?\n    Answer: Seahawks\n\n    Extracted Info: {extracted_info}\n    Question Type: {question_type}\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        answer = call_llm(prompt, system_instruction)\n        if not answer:\n            return \"Error: Could not generate answer.\"\n        return answer\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a chain-of-thought approach, decomposing the problem into determining question type, extracting relevant information, and generating the answer, using LLMs for each stage. Each stage uses the `call_llm` function, treating the LLM as an agent that classifies questions, extracts information, and answers questions, respectively, based on given examples in the prompts. The main function `main` orchestrates the process, calling `determine_question_type`, `extract_relevant_info`, and `generate_answer` sequentially and returning the final answer, with error handling at each stage.",
+  "sample_count": 10,
   "samples": [
     {
-      "question": "Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 0, 0, 0, 0, 0, 0, 0, 0, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [8, 0, 0, 0, 0, 0, 0, 0, 0, 9]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [4, 0, 0, 0, 0, 0, 0, 0, 0, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 8]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 0, 0, 0, 0, 0, 0, 0, 0, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [8, 0, 0, 0, 0, 0, 0, 0, 0, 9]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 8]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [8, 0, 0, 0, 0, 0, 0, 0, 0, 8]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [4, 0, 0, 0, 0, 0, 0, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [3, 0, 0, 0, 0, 0, 0, 0, 0, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 0, 0, 0, 0, 0, 0, 0, 0, 3]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [8, 8, 8, 8, 8, 8, 8, 8, 8, 8]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [4, 0, 0, 0, 0, 0, 0, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [3, 0, 0, 0, 0, 0, 0, 0, 0, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 0, 0, 0, 0, 0, 0, 0, 0, 3]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 0, 0, 0, 0, 0, 0, 0, 0, 8]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [3, 0, 0, 0, 0, 0, 0, 0, 0, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [5, 0, 0, 0, 0, 0, 0, 0, 0, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [8, 0, 0, 0, 0, 0, 0, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 0, 0, 0, 0, 0, 0, 0, 0, 8]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [3, 0, 0, 0, 0, 0, 0, 0, 0, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [5, 0, 0, 0, 0, 0, 0, 0, 0, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [8, 0, 0, 0, 0, 0, 0, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [4, 0, 0, 0, 0, 0, 0, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [3, 0, 0, 0, 0, 0, 0, 0, 0, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 0, 0, 0, 0, 0, 0, 0, 0, 9]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 0, 0, 0, 0, 0, 0, 0, 0, 4]\n]\n\nTransform the test input according to the pattern shown in the training examples.",
-      "answer": "[[0,0,0,0,0,0,0,0,0,0],[4,0,0,0,0,0,0,0,0,2],[0,0,0,0,0,0,0,0,0,0],[3,3,3,3,3,3,3,3,3,3],[0,0,0,0,0,0,0,0,0,0],[2,0,0,0,0,0,0,0,0,9],[0,0,0,0,0,0,0,0,0,0],[6,6,6,6,6,6,6,6,6,6],[0,0,0,0,0,0,0,0,0,0],[9,0,0,0,0,0,0,0,0,4]]",
-      "id": "example_44",
+      "question": "PASSAGE:  The Indianapolis Colts began their 2011 season at Reliant Stadium against the Houston Texans.  For the first time since the 1998 season, Peyton Manning was not under the helm at quarterback and it was recently acquired Kerry Collins that would take his position.  The game started very well for the Colts, opening up with an interception by Melvin Bullitt that allowed the Colts to take control.  However, a three and out from the offense quickly gave the Texans the ball to drive down and score a field goal and take a 3-0 lead.  Collins and the Colts offense was out of sync for much of the first quarter, fumbling two snaps and giving Houston the great field position inside of the Indianapolis 40-yard line.  After the first quarter, the Texans held a commanding 17-0 lead and were firing on all cylinders.  The second quarter continued Houston's dominance, with all three teams of the Colts failing to stop or to execute against the Texans.  At halftime, the Colts trailed Houston 34-0, the largest deficit in the entire 58-year history of the franchise.  The second half saw little action with both teams taking shorter drives and in some senses, running down the clock.  The Colts scored their first and the only points scored in the second half with a Reggie Wayne touchdown from Collins in the fourth quarter.  The Colts went on to lose to the Texans 34-7, their second straight season starting 0-1.\n\nQUESTION: How many total points were scored in the game?",
+      "answer": "41",
+      "id": "example_106",
       "meta": {
-        "source": "ARC",
-        "filename": "22eb0ac0.json"
+        "source": "jsonl_dataset",
+        "original_passage": " The Indianapolis Colts began their 2011 season at Reliant Stadium against the Houston Texans.  For the first time since the 1998 season, Peyton Manning was not under the helm at quarterback and it was recently acquired Kerry Collins that would take his position.  The game started very well for the Colts, opening up with an interception by Melvin Bullitt that allowed the Colts to take control.  However, a three and out from the offense quickly gave the Texans the ball to drive down and score a field goal and take a 3-0 lead.  Collins and the Colts offense was out of sync for much of the first quarter, fumbling two snaps and giving Houston the great field position inside of the Indianapolis 40-yard line.  After the first quarter, the Texans held a commanding 17-0 lead and were firing on all cylinders.  The second quarter continued Houston's dominance, with all three teams of the Colts failing to stop or to execute against the Texans.  At halftime, the Colts trailed Houston 34-0, the largest deficit in the entire 58-year history of the franchise.  The second half saw little action with both teams taking shorter drives and in some senses, running down the clock.  The Colts scored their first and the only points scored in the second half with a Reggie Wayne touchdown from Collins in the fourth quarter.  The Colts went on to lose to the Texans 34-7, their second straight season starting 0-1.",
+        "original_question": "How many total points were scored in the game?",
+        "original_answer_data": {
+          "spans": [
+            "41"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 43
       }
     },
     {
-      "question": "Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 5, 0, 0, 0, 0, 0, 0, 0]\n  [2, 2, 0, 5, 1, 0, 5, 2, 2]\n  [0, 0, 0, 0, 5, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 2, 1, 1, 0, 0, 0]\n  [2, 2, 0, 1, 2, 2, 2]\n  [0, 0, 0, 0, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 5, 1, 5, 0, 0, 0, 0, 0]\n  [2, 2, 0, 0, 0, 0, 0, 0, 3, 3, 3]\n  [0, 5, 0, 0, 0, 0, 0, 5, 3, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 2, 0, 0, 0, 0, 3, 3, 3]\n  [0, 2, 1, 1, 1, 3, 3, 0, 0]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0]\n  [2, 2, 2, 0, 5, 8, 8, 0, 0, 0, 0]\n  [0, 0, 5, 0, 0, 0, 0, 0, 5, 6, 6]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 2, 2, 0, 0, 8, 6, 6, 6]\n  [0, 0, 2, 8, 8, 8, 0, 0, 0]\n]\nExample 4:\nInput Grid:\n[\n  [0, 1, 5, 0, 0, 0, 0, 0, 2, 2, 0]\n  [1, 1, 0, 0, 5, 2, 0, 5, 2, 0, 0]\n  [0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 1, 1, 2, 2, 0, 2, 2]\n  [1, 1, 0, 0, 2, 2, 2, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 5, 0, 5, 1, 0, 0, 5, 0, 5, 8]\n  [2, 2, 0, 0, 1, 0, 5, 3, 0, 0, 8]\n  [0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.",
-      "answer": "[[0,2,1,1,0,0,0,0],[2,2,0,1,0,3,8,8],[0,0,0,1,3,3,0,8]]",
-      "id": "example_45",
+      "question": "PASSAGE: Coming off their bye week, the Packers flew to LP Field for a Week 9 interconference duel with the unbeaten Tennessee Titans.  In the first quarter, Green Bay trailed early as Titans kicker Rob Bironas got a 31-yard field goal.  In the second quarter, the Pack continued to trail as Bironas made a 25-yard field goal.  The Packers responded with kicker Mason Crosby getting a 23-yard field goal, along with QB Aaron Rodgers completing a 5-yard TD pass to WR Donald Driver.  Tennessee ended the half with RB Chris Johnson getting a 3-yard TD run. In the third quarter, the Titans increased their with Bironas getting a 22-yard field goal.  Green Bay would respond with Crosby getting a 25-yard field goal.  In the fourth quarter, the Pack tied the game with Crosby making a 38-yard field goal.  However, in overtime, Tennessee emerged the victor as Bironas nailed the game-winning 41-yard field goal.\n\nQUESTION: What are the top two longest field goals made?",
+      "answer": "41-yard",
+      "id": "example_107",
       "meta": {
-        "source": "ARC",
-        "filename": "234bbc79.json"
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their bye week, the Packers flew to LP Field for a Week 9 interconference duel with the unbeaten Tennessee Titans.  In the first quarter, Green Bay trailed early as Titans kicker Rob Bironas got a 31-yard field goal.  In the second quarter, the Pack continued to trail as Bironas made a 25-yard field goal.  The Packers responded with kicker Mason Crosby getting a 23-yard field goal, along with QB Aaron Rodgers completing a 5-yard TD pass to WR Donald Driver.  Tennessee ended the half with RB Chris Johnson getting a 3-yard TD run. In the third quarter, the Titans increased their with Bironas getting a 22-yard field goal.  Green Bay would respond with Crosby getting a 25-yard field goal.  In the fourth quarter, the Pack tied the game with Crosby making a 38-yard field goal.  However, in overtime, Tennessee emerged the victor as Bironas nailed the game-winning 41-yard field goal.",
+        "original_question": "What are the top two longest field goals made?",
+        "original_answer_data": {
+          "spans": [
+            "41-yard",
+            "38-yard"
+          ],
+          "types": [
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 504
       }
     },
     {
-      "question": "Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 7, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [8, 8, 8, 8, 8, 8, 2, 8, 8]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [7, 7, 2, 7, 7, 7, 7, 7, 7]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 7, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [8, 8, 8, 8, 8, 8, 2, 8, 8]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [7, 7, 7, 2, 7, 7, 7, 7, 7]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 7, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.",
-      "answer": "[[0,7,0,0,8,0,0,0,0],[8,2,8,8,8,8,8,8,8],[0,7,0,0,8,0,0,0,0],[0,7,0,0,8,0,0,0,0],[0,7,0,0,8,0,0,0,0],[0,7,0,0,8,0,0,0,0],[7,7,7,7,2,7,7,7,7],[0,7,0,0,8,0,0,0,0],[0,7,0,0,8,0,0,0,0]]",
-      "id": "example_46",
+      "question": "PASSAGE: Playing in their second game of the season, the Cincinnati Bengals had a lot of things go wrong. Playing Ohio state rivals Cleveland Browns, the defense looked the exact opposite as they did in week one. Browns quarterback Derek Anderson started and threw for 328 yards and five touchdowns. It was only the third time in NFL history that two quarterbacks had thrown at least five touchdown passes in the same game. Jamal Lewis had 215 yards rushing with one touchdown and the Browns had two receivers with over 100 yards, Braylon Edwards and Kellen Winslow. The Bengals offense tried their best to keep the team in the game, however, as Carson Palmer threw for 6 TD's and Chad Johnson caught for 209 yards. The game started out slowly in the first quarter but the second quarter saw a combined 35 points scored. It was close in the end, when the Bengals started a drive with under one minute left. They managed to get the ball to the 50-yard line when Carson Palmer was intercepted by Leigh Bodden on an intended pass for Chad Johnson. This game ended up being the eighth highest scoring game in NFL history, but not the highest scoring game between these two teams. In 2004, the Bengals beat the Browns 58-48 for the second-most combined points. The Redskins (72) and Giants (41) combined for 113 points in 1966 for the most. Q1 - CIN - 10:40 - 13-yard TD pass from Carson Palmer to Rudi Johnson (Shayne Graham kick) (CIN 7-0) Q1 - CLE - 5:02 - Phil Dawson 39-yard FG (CIN 7-3) Q1 - CLE - 0:09 - Phil Dawson 39-yard FG (CIN 7-6) Q2 - CLE - 11:02 - 17-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 13-7) Q2 - CIN - 7:40 - 23-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CIN 14-13) Q2 - CLE - 6:37 - 9-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 20-14) Q2 - CIN - 3:12 - 22-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CIN 21-20) Q2 - CLE - 1:11 - 25-yard TD pass from Derek Anderson to Kellen Winslow (Dawson kick) (CLE 27-21) Q3 - CIN - 12:13 - Shayne Graham 20-yard FG (CLE 27-24) Q3 - CLE - 8:24 - 34-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 34-24) Q3 - CIN - 6:18 - 14-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CLE 34-31) Q3 - CLE - 6:04 - Jamal Lewis 66-yard TD run (Dawson kick) (CLE 41-31) Q3 - CIN - 0:53 - 5-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CLE 41-38) Q4 - CLE - 10:07 - 37-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 48-38) Q4 - CLE - 5:47 - Phil Dawson 18-yard FG (CLE 51-38) Q4 - CIN - 3:45 - 7-yard TD pass from Carson Palmer to Glenn Holt (Graham kick) (CLE 51-45)\n\nQUESTION: How many touchdowns did Carson Palmer throw?",
+      "answer": "6",
+      "id": "example_108",
       "meta": {
-        "source": "ARC",
-        "filename": "23581191.json"
+        "source": "jsonl_dataset",
+        "original_passage": "Playing in their second game of the season, the Cincinnati Bengals had a lot of things go wrong. Playing Ohio state rivals Cleveland Browns, the defense looked the exact opposite as they did in week one. Browns quarterback Derek Anderson started and threw for 328 yards and five touchdowns. It was only the third time in NFL history that two quarterbacks had thrown at least five touchdown passes in the same game. Jamal Lewis had 215 yards rushing with one touchdown and the Browns had two receivers with over 100 yards, Braylon Edwards and Kellen Winslow. The Bengals offense tried their best to keep the team in the game, however, as Carson Palmer threw for 6 TD's and Chad Johnson caught for 209 yards. The game started out slowly in the first quarter but the second quarter saw a combined 35 points scored. It was close in the end, when the Bengals started a drive with under one minute left. They managed to get the ball to the 50-yard line when Carson Palmer was intercepted by Leigh Bodden on an intended pass for Chad Johnson. This game ended up being the eighth highest scoring game in NFL history, but not the highest scoring game between these two teams. In 2004, the Bengals beat the Browns 58-48 for the second-most combined points. The Redskins (72) and Giants (41) combined for 113 points in 1966 for the most. Q1 - CIN - 10:40 - 13-yard TD pass from Carson Palmer to Rudi Johnson (Shayne Graham kick) (CIN 7-0) Q1 - CLE - 5:02 - Phil Dawson 39-yard FG (CIN 7-3) Q1 - CLE - 0:09 - Phil Dawson 39-yard FG (CIN 7-6) Q2 - CLE - 11:02 - 17-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 13-7) Q2 - CIN - 7:40 - 23-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CIN 14-13) Q2 - CLE - 6:37 - 9-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 20-14) Q2 - CIN - 3:12 - 22-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CIN 21-20) Q2 - CLE - 1:11 - 25-yard TD pass from Derek Anderson to Kellen Winslow (Dawson kick) (CLE 27-21) Q3 - CIN - 12:13 - Shayne Graham 20-yard FG (CLE 27-24) Q3 - CLE - 8:24 - 34-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 34-24) Q3 - CIN - 6:18 - 14-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CLE 34-31) Q3 - CLE - 6:04 - Jamal Lewis 66-yard TD run (Dawson kick) (CLE 41-31) Q3 - CIN - 0:53 - 5-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CLE 41-38) Q4 - CLE - 10:07 - 37-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 48-38) Q4 - CLE - 5:47 - Phil Dawson 18-yard FG (CLE 51-38) Q4 - CIN - 3:45 - 7-yard TD pass from Carson Palmer to Glenn Holt (Graham kick) (CLE 51-45)",
+        "original_question": "How many touchdowns did Carson Palmer throw?",
+        "original_answer_data": {
+          "spans": [
+            "6"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 86
+      }
+    },
+    {
+      "question": "PASSAGE: After back-to-back sub-par performances by the Patriots offense, they faced Derek Carr and the lowly Raiders in their 2014 home opener looking to have their first breakout performance of the season. After both teams punted on their opening drive, the Raiders reached the Patriots 31 and struck first blood on a 49-yard field goal by Sebastian Janikowski. After both teams punted again, the Patriots embarked on a 15 play, 84-yard drive, converting four third-downs,  and scoring on Brady's 6-yard touchdown pass to Gronkowski midway through the second quarter to take a 7-3 lead. The Raiders punted on their next drive, and Marquette King punted only 22 yards to midfield. With the great field position, the Patriots drove all the way to the Raiders 2, but their red zone struggles continued, and they settled for a 20-yard field goal by Gostkowski, giving them a 10-3 lead at halftime. Strong defense continued in the second half. The Raiders drove deep into Patriots territory early in the second quarter, but could only score on a 37-yard field goal by Janikowski. Following a Patriots punt, the Raiders drove from their own 14, to the Patriots 37, but a false start penalty on guard Donald Penn made it 3rd-and-15, and then Carr completed a 13-yard pass to James Jones to the Patriots 29, bringing up a 4th-and-2. The Raiders decided to settle with Janikowski's 47 yard field goal, making the score 10-9. Matthew Slater returned the ensuing kickoff 26 yards to the Patriots 41. With the good field position, the Patriots drove to the Raiders 2 again, but were once again held out of the end zone, and increased their lead to 13-9 on another 20-yard field goal by Gostkowski. After the Raiders went three-and-out, the Patriots marched 63 yards culminating with Gostkowski's 36-yard field goal, increasing the lead to 16-9 midway through the fourth quarter. The Raiders, though, couldn't muster up any offense against the Patriots and they went three-and-out again, but the Patriots failed to put the game away and punted. In just three plays the Raiders reached Patriots territory, but two plays later, on 3rd-and-7 at the Patriots 30-yard line, Carr threw an incomplete pass seemingly bringing up a do-or-die 4th down, but Ryan was called for pass interference moving the ball to the Patriots 6-yard line. On the very next play, Darren McFadden scored on a 6-yard touchdown run, but the score was nullified by a holding penalty on Raiders left guard Gabe Jackson. On the next play, Carr's pass attempt was tipped and intercepted by Vince Wilfork with 0:51 seconds left, which sealed the win for the Patriots. Tom Brady had his best game to date, despite being pressured relentlessly by the Oakland defensive line, including being sacked twice, completing 24 of 37 passes for 234 yards, with 1 touchdown and no interceptions. The running game struggled, with Ridley leading the team with only 54 yards on 19 carries. Julian Edelman was the leading receiver for either team, with 10 catches for 84 yards. Rob Gronkowski continued to slowly work himself into the offense catching only 3 passes for 44 yards, but also caught the only touchdown. Derek Carr had a sub-par day, going 21 of 34 for only 174 yards, with no touchdowns and an interception. Both defenses were spectacular holding the opposing offense to under 300 yards of offense (241 for the Raiders, 297 for the Patriots). With the win the Patriots advanced to 2-1 and Brady won his 150th career game, 3rd most by a starting quarterback in NFL history.\n\nQUESTION: How had more completed passes, Tom Brady or Derek Carr?`",
+      "answer": "Tom Brady",
+      "id": "example_109",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After back-to-back sub-par performances by the Patriots offense, they faced Derek Carr and the lowly Raiders in their 2014 home opener looking to have their first breakout performance of the season. After both teams punted on their opening drive, the Raiders reached the Patriots 31 and struck first blood on a 49-yard field goal by Sebastian Janikowski. After both teams punted again, the Patriots embarked on a 15 play, 84-yard drive, converting four third-downs,  and scoring on Brady's 6-yard touchdown pass to Gronkowski midway through the second quarter to take a 7-3 lead. The Raiders punted on their next drive, and Marquette King punted only 22 yards to midfield. With the great field position, the Patriots drove all the way to the Raiders 2, but their red zone struggles continued, and they settled for a 20-yard field goal by Gostkowski, giving them a 10-3 lead at halftime. Strong defense continued in the second half. The Raiders drove deep into Patriots territory early in the second quarter, but could only score on a 37-yard field goal by Janikowski. Following a Patriots punt, the Raiders drove from their own 14, to the Patriots 37, but a false start penalty on guard Donald Penn made it 3rd-and-15, and then Carr completed a 13-yard pass to James Jones to the Patriots 29, bringing up a 4th-and-2. The Raiders decided to settle with Janikowski's 47 yard field goal, making the score 10-9. Matthew Slater returned the ensuing kickoff 26 yards to the Patriots 41. With the good field position, the Patriots drove to the Raiders 2 again, but were once again held out of the end zone, and increased their lead to 13-9 on another 20-yard field goal by Gostkowski. After the Raiders went three-and-out, the Patriots marched 63 yards culminating with Gostkowski's 36-yard field goal, increasing the lead to 16-9 midway through the fourth quarter. The Raiders, though, couldn't muster up any offense against the Patriots and they went three-and-out again, but the Patriots failed to put the game away and punted. In just three plays the Raiders reached Patriots territory, but two plays later, on 3rd-and-7 at the Patriots 30-yard line, Carr threw an incomplete pass seemingly bringing up a do-or-die 4th down, but Ryan was called for pass interference moving the ball to the Patriots 6-yard line. On the very next play, Darren McFadden scored on a 6-yard touchdown run, but the score was nullified by a holding penalty on Raiders left guard Gabe Jackson. On the next play, Carr's pass attempt was tipped and intercepted by Vince Wilfork with 0:51 seconds left, which sealed the win for the Patriots. Tom Brady had his best game to date, despite being pressured relentlessly by the Oakland defensive line, including being sacked twice, completing 24 of 37 passes for 234 yards, with 1 touchdown and no interceptions. The running game struggled, with Ridley leading the team with only 54 yards on 19 carries. Julian Edelman was the leading receiver for either team, with 10 catches for 84 yards. Rob Gronkowski continued to slowly work himself into the offense catching only 3 passes for 44 yards, but also caught the only touchdown. Derek Carr had a sub-par day, going 21 of 34 for only 174 yards, with no touchdowns and an interception. Both defenses were spectacular holding the opposing offense to under 300 yards of offense (241 for the Raiders, 297 for the Patriots). With the win the Patriots advanced to 2-1 and Brady won his 150th career game, 3rd most by a starting quarterback in NFL history.",
+        "original_question": "How had more completed passes, Tom Brady or Derek Carr?`",
+        "original_answer_data": {
+          "spans": [
+            "Tom Brady",
+            "completing 24 of 37 passes",
+            "Derek Carr",
+            "21 of 34"
+          ],
+          "types": [
+            "span",
+            "span",
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 376
+      }
+    },
+    {
+      "question": "PASSAGE: Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.\n\nQUESTION: What problems did the engines have?",
+      "answer": "water and corrosion",
+      "id": "example_110",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.",
+        "original_question": "What problems did the engines have?",
+        "original_answer_data": {
+          "spans": [
+            "water and corrosion",
+            "paraffin clogging",
+            "reduced lubrication",
+            "head bolt failures"
+          ],
+          "types": [
+            "span",
+            "span",
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 530
+      }
+    },
+    {
+      "question": "PASSAGE: In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.\n\nQUESTION: Which countries on the 2014 Summer tour were scheduled for more than one date?",
+      "answer": "France",
+      "id": "example_111",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
+        "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
+        "original_answer_data": {
+          "spans": [
+            "France",
+            "Germany"
+          ],
+          "types": [
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 984
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.\n\nQUESTION: Which player threw the first TD pass of the game?",
+      "answer": "Kyle Orton",
+      "id": "example_112",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
+        "original_question": "Which player threw the first TD pass of the game?",
+        "original_answer_data": {
+          "spans": [
+            "Kyle Orton"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 851
+      }
+    },
+    {
+      "question": "PASSAGE: The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.\n\nQUESTION: How many total people died in the fight on February 10, 1756?",
+      "answer": "1515",
+      "id": "example_113",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
+        "original_question": "How many total people died in the fight on February 10, 1756?",
+        "original_answer_data": {
+          "spans": [
+            "1515"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 345
+      }
+    },
+    {
+      "question": "PASSAGE: After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.\n\nQUESTION: How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
+      "answer": "14",
+      "id": "example_114",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
+        "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
+        "original_answer_data": {
+          "spans": [
+            "14"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 403
+      }
+    },
+    {
+      "question": "PASSAGE: In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.\n\nQUESTION: How many percent of amputees in India did had an onset of disability over the age of 14?",
+      "answer": "89.7",
+      "id": "example_115",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.",
+        "original_question": "How many percent of amputees in India did had an onset of disability over the age of 14?",
+        "original_answer_data": {
+          "spans": [
+            "89.7"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 226
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "ARC",
-      "filename": "22eb0ac0.json"
+      "source": "jsonl_dataset",
+      "original_passage": " The Indianapolis Colts began their 2011 season at Reliant Stadium against the Houston Texans.  For the first time since the 1998 season, Peyton Manning was not under the helm at quarterback and it was recently acquired Kerry Collins that would take his position.  The game started very well for the Colts, opening up with an interception by Melvin Bullitt that allowed the Colts to take control.  However, a three and out from the offense quickly gave the Texans the ball to drive down and score a field goal and take a 3-0 lead.  Collins and the Colts offense was out of sync for much of the first quarter, fumbling two snaps and giving Houston the great field position inside of the Indianapolis 40-yard line.  After the first quarter, the Texans held a commanding 17-0 lead and were firing on all cylinders.  The second quarter continued Houston's dominance, with all three teams of the Colts failing to stop or to execute against the Texans.  At halftime, the Colts trailed Houston 34-0, the largest deficit in the entire 58-year history of the franchise.  The second half saw little action with both teams taking shorter drives and in some senses, running down the clock.  The Colts scored their first and the only points scored in the second half with a Reggie Wayne touchdown from Collins in the fourth quarter.  The Colts went on to lose to the Texans 34-7, their second straight season starting 0-1.",
+      "original_question": "How many total points were scored in the game?",
+      "original_answer_data": {
+        "spans": [
+          "41"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 43
     },
     {
-      "source": "ARC",
-      "filename": "234bbc79.json"
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their bye week, the Packers flew to LP Field for a Week 9 interconference duel with the unbeaten Tennessee Titans.  In the first quarter, Green Bay trailed early as Titans kicker Rob Bironas got a 31-yard field goal.  In the second quarter, the Pack continued to trail as Bironas made a 25-yard field goal.  The Packers responded with kicker Mason Crosby getting a 23-yard field goal, along with QB Aaron Rodgers completing a 5-yard TD pass to WR Donald Driver.  Tennessee ended the half with RB Chris Johnson getting a 3-yard TD run. In the third quarter, the Titans increased their with Bironas getting a 22-yard field goal.  Green Bay would respond with Crosby getting a 25-yard field goal.  In the fourth quarter, the Pack tied the game with Crosby making a 38-yard field goal.  However, in overtime, Tennessee emerged the victor as Bironas nailed the game-winning 41-yard field goal.",
+      "original_question": "What are the top two longest field goals made?",
+      "original_answer_data": {
+        "spans": [
+          "41-yard",
+          "38-yard"
+        ],
+        "types": [
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 504
     },
     {
-      "source": "ARC",
-      "filename": "23581191.json"
+      "source": "jsonl_dataset",
+      "original_passage": "Playing in their second game of the season, the Cincinnati Bengals had a lot of things go wrong. Playing Ohio state rivals Cleveland Browns, the defense looked the exact opposite as they did in week one. Browns quarterback Derek Anderson started and threw for 328 yards and five touchdowns. It was only the third time in NFL history that two quarterbacks had thrown at least five touchdown passes in the same game. Jamal Lewis had 215 yards rushing with one touchdown and the Browns had two receivers with over 100 yards, Braylon Edwards and Kellen Winslow. The Bengals offense tried their best to keep the team in the game, however, as Carson Palmer threw for 6 TD's and Chad Johnson caught for 209 yards. The game started out slowly in the first quarter but the second quarter saw a combined 35 points scored. It was close in the end, when the Bengals started a drive with under one minute left. They managed to get the ball to the 50-yard line when Carson Palmer was intercepted by Leigh Bodden on an intended pass for Chad Johnson. This game ended up being the eighth highest scoring game in NFL history, but not the highest scoring game between these two teams. In 2004, the Bengals beat the Browns 58-48 for the second-most combined points. The Redskins (72) and Giants (41) combined for 113 points in 1966 for the most. Q1 - CIN - 10:40 - 13-yard TD pass from Carson Palmer to Rudi Johnson (Shayne Graham kick) (CIN 7-0) Q1 - CLE - 5:02 - Phil Dawson 39-yard FG (CIN 7-3) Q1 - CLE - 0:09 - Phil Dawson 39-yard FG (CIN 7-6) Q2 - CLE - 11:02 - 17-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 13-7) Q2 - CIN - 7:40 - 23-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CIN 14-13) Q2 - CLE - 6:37 - 9-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 20-14) Q2 - CIN - 3:12 - 22-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CIN 21-20) Q2 - CLE - 1:11 - 25-yard TD pass from Derek Anderson to Kellen Winslow (Dawson kick) (CLE 27-21) Q3 - CIN - 12:13 - Shayne Graham 20-yard FG (CLE 27-24) Q3 - CLE - 8:24 - 34-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 34-24) Q3 - CIN - 6:18 - 14-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CLE 34-31) Q3 - CLE - 6:04 - Jamal Lewis 66-yard TD run (Dawson kick) (CLE 41-31) Q3 - CIN - 0:53 - 5-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CLE 41-38) Q4 - CLE - 10:07 - 37-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 48-38) Q4 - CLE - 5:47 - Phil Dawson 18-yard FG (CLE 51-38) Q4 - CIN - 3:45 - 7-yard TD pass from Carson Palmer to Glenn Holt (Graham kick) (CLE 51-45)",
+      "original_question": "How many touchdowns did Carson Palmer throw?",
+      "original_answer_data": {
+        "spans": [
+          "6"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 86
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After back-to-back sub-par performances by the Patriots offense, they faced Derek Carr and the lowly Raiders in their 2014 home opener looking to have their first breakout performance of the season. After both teams punted on their opening drive, the Raiders reached the Patriots 31 and struck first blood on a 49-yard field goal by Sebastian Janikowski. After both teams punted again, the Patriots embarked on a 15 play, 84-yard drive, converting four third-downs,  and scoring on Brady's 6-yard touchdown pass to Gronkowski midway through the second quarter to take a 7-3 lead. The Raiders punted on their next drive, and Marquette King punted only 22 yards to midfield. With the great field position, the Patriots drove all the way to the Raiders 2, but their red zone struggles continued, and they settled for a 20-yard field goal by Gostkowski, giving them a 10-3 lead at halftime. Strong defense continued in the second half. The Raiders drove deep into Patriots territory early in the second quarter, but could only score on a 37-yard field goal by Janikowski. Following a Patriots punt, the Raiders drove from their own 14, to the Patriots 37, but a false start penalty on guard Donald Penn made it 3rd-and-15, and then Carr completed a 13-yard pass to James Jones to the Patriots 29, bringing up a 4th-and-2. The Raiders decided to settle with Janikowski's 47 yard field goal, making the score 10-9. Matthew Slater returned the ensuing kickoff 26 yards to the Patriots 41. With the good field position, the Patriots drove to the Raiders 2 again, but were once again held out of the end zone, and increased their lead to 13-9 on another 20-yard field goal by Gostkowski. After the Raiders went three-and-out, the Patriots marched 63 yards culminating with Gostkowski's 36-yard field goal, increasing the lead to 16-9 midway through the fourth quarter. The Raiders, though, couldn't muster up any offense against the Patriots and they went three-and-out again, but the Patriots failed to put the game away and punted. In just three plays the Raiders reached Patriots territory, but two plays later, on 3rd-and-7 at the Patriots 30-yard line, Carr threw an incomplete pass seemingly bringing up a do-or-die 4th down, but Ryan was called for pass interference moving the ball to the Patriots 6-yard line. On the very next play, Darren McFadden scored on a 6-yard touchdown run, but the score was nullified by a holding penalty on Raiders left guard Gabe Jackson. On the next play, Carr's pass attempt was tipped and intercepted by Vince Wilfork with 0:51 seconds left, which sealed the win for the Patriots. Tom Brady had his best game to date, despite being pressured relentlessly by the Oakland defensive line, including being sacked twice, completing 24 of 37 passes for 234 yards, with 1 touchdown and no interceptions. The running game struggled, with Ridley leading the team with only 54 yards on 19 carries. Julian Edelman was the leading receiver for either team, with 10 catches for 84 yards. Rob Gronkowski continued to slowly work himself into the offense catching only 3 passes for 44 yards, but also caught the only touchdown. Derek Carr had a sub-par day, going 21 of 34 for only 174 yards, with no touchdowns and an interception. Both defenses were spectacular holding the opposing offense to under 300 yards of offense (241 for the Raiders, 297 for the Patriots). With the win the Patriots advanced to 2-1 and Brady won his 150th career game, 3rd most by a starting quarterback in NFL history.",
+      "original_question": "How had more completed passes, Tom Brady or Derek Carr?`",
+      "original_answer_data": {
+        "spans": [
+          "Tom Brady",
+          "completing 24 of 37 passes",
+          "Derek Carr",
+          "21 of 34"
+        ],
+        "types": [
+          "span",
+          "span",
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 376
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.",
+      "original_question": "What problems did the engines have?",
+      "original_answer_data": {
+        "spans": [
+          "water and corrosion",
+          "paraffin clogging",
+          "reduced lubrication",
+          "head bolt failures"
+        ],
+        "types": [
+          "span",
+          "span",
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 530
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
+      "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
+      "original_answer_data": {
+        "spans": [
+          "France",
+          "Germany"
+        ],
+        "types": [
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 984
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
+      "original_question": "Which player threw the first TD pass of the game?",
+      "original_answer_data": {
+        "spans": [
+          "Kyle Orton"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 851
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
+      "original_question": "How many total people died in the fight on February 10, 1756?",
+      "original_answer_data": {
+        "spans": [
+          "1515"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 345
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
+      "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
+      "original_answer_data": {
+        "spans": [
+          "14"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 403
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.",
+      "original_question": "How many percent of amputees in India did had an onset of disability over the age of 14?",
+      "original_answer_data": {
+        "spans": [
+          "89.7"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 226
     }
   ],
   "example_indices": [
-    44,
-    45,
-    46
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115
   ],
   "results": [
     {
       "success": true,
-      "answer": "```\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [6, 6, 6, 6, 6, 6, 6, 6, 6, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]\n]\n```",
-      "output": "ANSWER_START\n```\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [6, 6, 6, 6, 6, 6, 6, 6, 6, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]\n]\n```\nANSWER_END\n",
+      "answer": "34 + 7 = 41",
+      "output": "ANSWER_START\n34 + 7 = 41\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer shows the calculation and the final result, which is 41. The golden answer is also 41. Therefore, the answers are semantically equivalent."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "41 and 38 yards",
+      "output": "ANSWER_START\n41 and 38 yards\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_13.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The two answers are numerical matrices, and they are not equivalent. They differ in many entries."
+        "explanation": "The system answer provides two values while the golden answer provides only one. Therefore, they are not equivalent."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "```\n[\n  [0, 2, 8, 2, 2, 6, 6, 2, 6, 2, 6]\n  [2, 2, 8, 8, 2, 6, 2, 3, 6, 6, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n```",
-      "output": "ANSWER_START\n```\n[\n  [0, 2, 8, 2, 2, 6, 6, 2, 6, 2, 6]\n  [2, 2, 8, 8, 2, 6, 2, 3, 6, 6, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n```\nANSWER_END\n",
+      "answer": "6",
+      "output": "ANSWER_START\n6\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value: 6."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Tom Brady",
+      "output": "ANSWER_START\nTom Brady\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Water and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, use of aluminum rockers and stanchions in the 4.3L V8 engines.",
+      "output": "ANSWER_START\nWater and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, use of aluminum rockers and stanchions in the 4.3L V8 engines.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer contains 'water and corrosion' which is the same as the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "France and Germany",
+      "output": "ANSWER_START\nFrance and Germany\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_13.jsonl",
       "evaluation": {
         "match": false,
-        "confidence": 0.0,
-        "explanation": "The system answer and the golden answer are two different matrices. They don't convey the same information."
+        "confidence": 1,
+        "explanation": "The system answer includes Germany, which is not present in the golden answer. Thus, the answers do not convey the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "```\n[\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [7, 7, 7, 7, 2, 7, 7, 7, 7]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [7, 7, 7, 7, 2, 7, 7, 7, 7]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n]\n```",
-      "output": "ANSWER_START\n```\n[\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [7, 7, 7, 7, 2, 7, 7, 7, 7]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [7, 7, 7, 7, 2, 7, 7, 7, 7]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n]\n```\nANSWER_END\n",
+      "answer": "Kyle Orton",
+      "output": "ANSWER_START\nKyle Orton\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same name, Kyle Orton."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "1,511 + 4 = 1,515",
+      "output": "ANSWER_START\n1,511 + 4 = 1,515\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer contains the correct final answer (1515) as the final result of the arithmetic operation. The intermediate step doesn't affect the correctness since the final numerical answer is accurate."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "52 - 46 = 6 yards",
+      "output": "ANSWER_START\n52 - 46 = 6 yards\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_13.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The answers do not match. The second row is different. Golden answer has [8,2,8,8,8,8,8,8,8] and system answer has [7, 7, 7, 7, 2, 7, 7, 7, 7]."
+        "explanation": "The system's answer calculates 52 - 46 = 6, while the correct answer is 14. Therefore, the answers do not match."
       },
       "match": false
+    },
+    {
+      "success": true,
+      "answer": "100 - 10.3 = 89.7%",
+      "output": "ANSWER_START\n100 - 10.3 = 89.7%\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer calculates 100 - 10.3 = 89.7%, which means that 89.7 is the correct value, which matches the golden answer."
+      },
+      "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.0,
-    "correct_count": 0,
-    "total_count": 3,
+    "accuracy": 0.7,
+    "correct_count": 7,
+    "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "```\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [6, 6, 6, 6, 6, 6, 6, 6, 6, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]\n]\n```",
-        "golden_answer": "[[0,0,0,0,0,0,0,0,0,0],[4,0,0,0,0,0,0,0,0,2],[0,0,0,0,0,0,0,0,0,0],[3,3,3,3,3,3,3,3,3,3],[0,0,0,0,0,0,0,0,0,0],[2,0,0,0,0,0,0,0,0,9],[0,0,0,0,0,0,0,0,0,0],[6,6,6,6,6,6,6,6,6,6],[0,0,0,0,0,0,0,0,0,0],[9,0,0,0,0,0,0,0,0,4]]",
-        "output": "ANSWER_START\n```\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [6, 6, 6, 6, 6, 6, 6, 6, 6, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]\n]\n```\nANSWER_END\n",
-        "match": false,
+        "system_answer": "34 + 7 = 41",
+        "golden_answer": "41",
+        "output": "ANSWER_START\n34 + 7 = 41\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The two answers are numerical matrices, and they are not equivalent. They differ in many entries."
-        },
-        "capability_failures": []
+          "explanation": "The system answer shows the calculation and the final result, which is 41. The golden answer is also 41. Therefore, the answers are semantically equivalent."
+        }
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "```\n[\n  [0, 2, 8, 2, 2, 6, 6, 2, 6, 2, 6]\n  [2, 2, 8, 8, 2, 6, 2, 3, 6, 6, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n```",
-        "golden_answer": "[[0,2,1,1,0,0,0,0],[2,2,0,1,0,3,8,8],[0,0,0,1,3,3,0,8]]",
-        "output": "ANSWER_START\n```\n[\n  [0, 2, 8, 2, 2, 6, 6, 2, 6, 2, 6]\n  [2, 2, 8, 8, 2, 6, 2, 3, 6, 6, 6]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n```\nANSWER_END\n",
+        "system_answer": "41 and 38 yards",
+        "golden_answer": "41-yard",
+        "output": "ANSWER_START\n41 and 38 yards\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
-          "confidence": 0.0,
-          "explanation": "The system answer and the golden answer are two different matrices. They don't convey the same information."
+          "confidence": 1,
+          "explanation": "The system answer provides two values while the golden answer provides only one. Therefore, they are not equivalent."
         },
         "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "```\n[\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [7, 7, 7, 7, 2, 7, 7, 7, 7]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [7, 7, 7, 7, 2, 7, 7, 7, 7]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n]\n```",
-        "golden_answer": "[[0,7,0,0,8,0,0,0,0],[8,2,8,8,8,8,8,8,8],[0,7,0,0,8,0,0,0,0],[0,7,0,0,8,0,0,0,0],[0,7,0,0,8,0,0,0,0],[0,7,0,0,8,0,0,0,0],[7,7,7,7,2,7,7,7,7],[0,7,0,0,8,0,0,0,0],[0,7,0,0,8,0,0,0,0]]",
-        "output": "ANSWER_START\n```\n[\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [7, 7, 7, 7, 2, 7, 7, 7, 7]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [7, 7, 7, 7, 2, 7, 7, 7, 7]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n  [0, 7, 0, 0, 8, 0, 0, 0, 0]\n]\n```\nANSWER_END\n",
+        "system_answer": "6",
+        "golden_answer": "6",
+        "output": "ANSWER_START\n6\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 6."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "Tom Brady",
+        "golden_answer": "Tom Brady",
+        "output": "ANSWER_START\nTom Brady\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "Water and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, use of aluminum rockers and stanchions in the 4.3L V8 engines.",
+        "golden_answer": "water and corrosion",
+        "output": "ANSWER_START\nWater and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, use of aluminum rockers and stanchions in the 4.3L V8 engines.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer contains 'water and corrosion' which is the same as the golden answer."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "France and Germany",
+        "golden_answer": "France",
+        "output": "ANSWER_START\nFrance and Germany\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The answers do not match. The second row is different. Golden answer has [8,2,8,8,8,8,8,8,8] and system answer has [7, 7, 7, 7, 2, 7, 7, 7, 7]."
+          "explanation": "The system answer includes Germany, which is not present in the golden answer. Thus, the answers do not convey the same information."
         },
         "capability_failures": []
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "Kyle Orton",
+        "golden_answer": "Kyle Orton",
+        "output": "ANSWER_START\nKyle Orton\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same name, Kyle Orton."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "1,511 + 4 = 1,515",
+        "golden_answer": "1515",
+        "output": "ANSWER_START\n1,511 + 4 = 1,515\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer contains the correct final answer (1515) as the final result of the arithmetic operation. The intermediate step doesn't affect the correctness since the final numerical answer is accurate."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "52 - 46 = 6 yards",
+        "golden_answer": "14",
+        "output": "ANSWER_START\n52 - 46 = 6 yards\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system's answer calculates 52 - 46 = 6, while the correct answer is 14. Therefore, the answers do not match."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "100 - 10.3 = 89.7%",
+        "golden_answer": "89.7",
+        "output": "ANSWER_START\n100 - 10.3 = 89.7%\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer calculates 100 - 10.3 = 89.7%, which means that 89.7 is the correct value, which matches the golden answer."
+        }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\n\nNo explicit runtime errors (like JSONDecodeError, TypeError) were found in the provided outputs. This suggests the errors are logical or reasoning-based, rather than due to code execution problems.\n\n## STRENGTHS\n\n1.  The system can correctly identify that a grid transformation is required and attempts to apply a pattern learned from the training examples.\n2.  The system correctly recognizes that the input and output are numerical matrices.\n3.  The system can generate a valid matrix as an output.\n\n## WEAKNESSES\n\n1.  **Pattern Recognition and Generalization:** The system struggles to correctly identify and generalize the transformation pattern across different examples. The transformations are more complex than simply replicating values across rows or columns, which is what the system seems to be doing.\n2.  **Constraint Handling:** The system doesn't seem to understand the constraints of the transformation. It appears to apply transformations uniformly without considering the original values in the test input.\n3. **Complex rule extraction:** The pattern involves knowing *which* row to transform, which column to consider in a transformation, and where to place the updated values.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Inability to extract and generalize complex patterns:** The system can identify that a pattern exists, but it fails to correctly extract and apply the transformation rules from the training examples to the test input. It seems to be learning a superficial pattern (e.g., \"fill rows with the first/last number in the original row\") rather than the underlying logic.\n2. **Poor abstraction over individual transformations:** The system does not seem to generalize that a certain number transforms *other* numbers in a certain manner.\n\n## ERROR PATTERNS\n\n1.  **Row/Column Replication:** A common pattern is that the system fills entire rows with a single value derived from that row in the input grid. This suggests a bias towards simple row/column operations.\n2. **Misidentification of input parameters:** The transformations are complex, and the system doesn't correctly generalize how the input numbers affect the output numbers.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's inability to learn and generalize complex transformation rules from the training examples. It is overfitting to simple, superficial patterns rather than understanding the underlying logic. The complexity of the rule is non-trivial, and requires an approach better suited to abstract rule extraction.\n\n## IMPROVEMENT AREAS\n\n1.  **Pattern Recognition:** The system needs a more robust pattern recognition algorithm that can handle complex relationships and dependencies.\n2.  **Abstraction and Generalization:** Improve the system's ability to abstract away from specific examples and generalize to unseen inputs. This involves identifying the core transformation logic rather than simply memorizing patterns.\n3.  **Constraint Handling:** Incorporate mechanisms for understanding and applying constraints relevant to the transformations.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a more sophisticated pattern recognition algorithm:** Explore techniques like graph neural networks or attention mechanisms that can capture complex relationships between grid cells.\n2.  **Introduce a feature engineering step:** Before applying the transformation, extract relevant features from the input grid (e.g., relative positions of numbers, frequency of numbers, etc.). This can help the system identify the key factors driving the transformation.\n3.  **Use a rule-based system:** Explicitly define a set of transformation rules based on the training examples. This allows for more control over the transformation process and makes it easier to debug and refine the rules. Consider representing rules in a formal language that the system can interpret and apply.\n4.  **Increase the diversity of training examples:** Provide more training examples that cover a wider range of transformations. This will help the system learn more robust and generalizable rules.\n5. Print intermediate outputs during the reasoning process. Specifically, print the extracted rules and the application of these rules to the test input.\n\n## CAPABILITY MAPPING\n\n**Sample ID: 0**\n*   Failed Capabilities: pattern recognition, solution generation, constraint handling\n\n**Sample ID: 1**\n*   Failed Capabilities: pattern recognition, solution generation, constraint handling\n\n**Sample ID: 2**\n*   Failed Capabilities: pattern recognition, solution generation, constraint handling\n",
+      "text_report": "## RUNTIME ERRORS\nNo explicit runtime errors (JSONDecodeError, TypeError, etc.) were found in the 'output' fields of the provided error cases.\n\n## STRENGTHS\n1.  **Arithmetic Calculation:** The system is generally capable of performing simple arithmetic operations when the required numbers are identified in the text. This is evident in success cases 0, 7, and 9 where the system accurately calculates totals and percentages.\n2.  **Information Extraction (Basic):** The system can extract basic facts directly stated in the passage, such as player names and scores. Success cases 3 and 6 demonstrate this ability.\n3.  **String Matching:** The system can find and identify strings in the text to match the golden answer when the relationship between the question and answer is straightforward (sample 4)\n\n## WEAKNESSES\n1.  **Complex Information Extraction & Synthesis:** The system struggles with questions requiring the extraction and synthesis of information from multiple parts of the text, or identifying relationships between entities across the passage. This is most evident in error cases 1 and 5.\n2.  **Logical Reasoning & Comparison:** The system has difficulty applying logical reasoning, especially involving comparisons and ordering. Error case 8 highlights the system's inability to properly identify the longest field goals for each player before calculating the difference.\n3.  **Constraint Handling and Ambiguity:** The system demonstrates an inability to correctly identify and apply constraints when the question demands a more sophisticated reading of the passage. In error case 1 the question specified \"the top two longest field goals\" but did not specify to list them from all field goals mentioned or by each player.\n\n## CRITICAL BOTTLENECKS\n1.  **Difficulty with Complex Reasoning and Synthesis:** The inability to synthesize information from different parts of the passage and apply logical reasoning hinders the system's ability to answer questions that require more than basic fact extraction.\n2.  **Lack of Robust Understanding of Question Constraints:** The system needs to be better at interpreting and applying the implied constraints within the question to limit the extracted information to only the most relevant data.\n\n## ERROR PATTERNS\n1.  **Over-Extraction:** The system provides more information than the question asks for (e.g., listing multiple field goals when only the longest is required, or including extra countries when only one meets the criteria).\n2.  **Misinterpretation of Comparative Questions:** Comparative questions involving superlatives (e.g., \"longest,\" \"most\") are often mishandled.\n\n## PRIMARY ISSUE\nThe system's primary issue is its limited ability to extract information relevant to the implicit and explicit constraints within a question. It either extracts too much irrelevant information or fails to perform the necessary comparisons/reasoning to filter the extracted information appropriately.\n\n## IMPROVEMENT AREAS\n1.  **Question Understanding:** Improve the system's ability to parse and understand the question's intent, including identifying key constraints and required relationships.\n2.  **Reasoning and Synthesis:** Enhance the system's reasoning capabilities to enable it to compare and synthesize information from different parts of the passage and from external knowledge (e.g. to understand the relative magnitude of different values).\n3.  **Answer Generation:** Improve the system's ability to generate concise and accurate answers that directly address the question and adhere to all specified constraints.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a \"Question Focus\" module:** Before information extraction, have a module that explicitly identifies keywords, constraints, and expected answer format from the question. This could involve techniques like dependency parsing or semantic role labeling.\n2.  **Develop a \"Contextual Filtering\" Mechanism:** After information extraction, implement a filtering mechanism that uses the \"Question Focus\" output to filter the extracted information, removing irrelevant data points. This can be implemented via a scoring mechanism based on relevance to the question.\n3.  **Integrate Comparative Reasoning Module:** Create a module that specifically handles comparative questions. This module should: a) Identify the entities being compared, b) Extract the relevant attributes for comparison, c) Perform the comparison, and d) Generate the answer based on the comparison result.\n4. Add print statements such that intermediate outputs for each module can be viewed to determine exactly where things go wrong\n\n## CAPABILITY MAPPING\n*   **Sample 1:** information_extraction, constraint_handling, solution_generation\n*   **Sample 5:** information_extraction, solution_generation\n*   **Sample 8:** information_extraction, constraint_handling, solution_generation, solution_verification, decision_making\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The primary issue is the system's inability to learn and generalize complex transformation rules from the training examples. It is overfitting to simple, superficial patterns rather than understanding the underlying logic. The complexity of the rule is non-trivial, and requires an approach better suited to abstract rule extraction.",
+      "primary_issue": "The system's primary issue is its limited ability to extract information relevant to the implicit and explicit constraints within a question. It either extracts too much irrelevant information or fails to perform the necessary comparisons/reasoning to filter the extracted information appropriately.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here is a comprehensive capability report for your AI system based on the provided performance summary, error analysis, sample execution outputs, and requested structure.\n\n## CAPABILITY REPORT: AI System Performance Analysis\n\n**OVERALL ASSESSMENT:** The AI system is currently demonstrating a very low level of performance (0% accuracy). While it can identify the general nature of the problem (numerical grid transformation), it struggles to extract and apply the underlying transformation rules. The system appears to be overfitting to simple patterns, leading to incorrect solutions.\n\n## EXECUTION ANALYSIS\n\nAnalyzing the sample execution outputs reveals the following patterns:\n\n*   **Sample 0:** The system replicates numbers from specific rows to fill other rows, alternating between zeros and other numbers. This indicates a focus on row-wise operations but a flawed understanding of *which* rows to transform and with *what* values.\n*   **Sample 1:** The system generates a matrix, but the relationships between the numbers do not correspond to the correct answer (per the performance summary).\n*   **Sample 2:** The system replicates a few columns and fills other values in, indicating an understanding that some values are related to others. However, again, the transformations are incorrect.\n\nThese patterns confirm the Error Analysis's conclusions about row/column replication and misidentification of input parameters.\n\n## CAPABILITY ASSESSMENT\n\n**Current Capabilities:**\n\n*   **Basic Data Recognition:** Can identify numerical grid inputs.\n*   **Output Generation:** Can generate valid numerical grid outputs.\n*   **Pattern Identification (Limited):** Can identify that a pattern exists that requires transformation.\n\n**Lacking Capabilities:**\n\n*   **Complex Pattern Recognition:** Fails to identify and extract complex transformation rules.\n*   **Generalization:** Unable to generalize learned rules to unseen inputs.\n*   **Constraint Handling:** Ignores constraints imposed by the original grid values.\n*   **Abstract Reasoning:** Unable to understand and apply abstract transformation concepts.\n\n## KEY STRENGTHS\n\n*   **Structural Understanding:** The system correctly identifies the input as a numerical matrix and can produce a numerical matrix as output.\n*   **Pattern Recognition (Rudimentary):** It correctly attempts to apply a pattern derived from training examples to test inputs.\n\n## KEY WEAKNESSES\n\n*   **Pattern Generalization:** Significantly struggles with abstracting and generalizing transformation rules beyond simple patterns like row/column replication.\n*   **Abstract Reasoning:** Lacks the ability to extract abstract transformation rules.\n*   **Constraint Satisfaction:** Fails to consider the existing grid values and apply transformations accordingly.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Pattern Generalization** and **Abstract Reasoning**. The system needs to learn more sophisticated methods for extracting transformation rules that can be generalized to unseen inputs.\n\n## ACTIONABLE RECOMMENDATIONS\n\nGiven the current performance and the identified bottlenecks, here's a set of specific changes to implement in the next iteration:\n\n1.  **Implement Feature Engineering and Rule Extraction:**\n    *   **Action:** Introduce a feature engineering step before applying any transformation. This step should extract relevant features from the grid (e.g., relative positions of cells with the same value, distances between specific values, identifying rows/columns with unique properties). Then, use a rule-based system to identify the relationship between the features in the input and output grids in the training dataset.\n    *   **Rationale:** This will help the system identify the core factors driving the transformation and apply abstract transformation rules.\n2.  **Introduce Intermediate Rule Representation and Debugging:**\n    *   **Action:** As suggested in the improvement suggestions, print the extracted rules in a readable formal language *before* applying them to the test input. This creates the possibility of debugging the extraction process and the representation itself.\n    *   **Rationale:** Creating explicit rules allows for debugging and refinement. Printing the rules allows inspection of the system's reasoning.\n3.  **Targeted Training Data Augmentation:**\n    *   **Action:** Carefully analyze the errors made by the system and create additional training examples that specifically target those error patterns. Ensure the new examples cover a wider range of transformations.\n    *   **Rationale:** Addressing specific weaknesses with targeted training data can accelerate learning.\n\n## CAPABILITY TREND\n\nBased on the 0% accuracy, the capabilities are currently **stable at a very low level**. Significant improvements are required to move beyond basic functionality. The key is to address the pattern generalization bottleneck.\n",
+      "text_report": "Okay, here's a capability report based on the performance summary, error analysis, error patterns, improvement suggestions, capability mapping, and sample execution outputs provided.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal the following:\n\n*   **Output 1 (\"34 + 7 = 41\")**: Demonstrates correct arithmetic calculation, aligning with the reported \"Arithmetic Calculation\" strength. The presence of unnecessary text (\"ANSWER\\_START\", \"ANSWER\\_END\") indicates a formatting issue or lack of answer polishing.\n*   **Output 2 (\"41 and 38 yards\")**: Shows a mixture of correct and incorrect information. The question likely requires extraction of specific values, but the system provides two possibly because it doesn't know which one to select. This points to weaknesses in constraint handling or logical reasoning.\n*   **Output 3 (\"6\")**: A concise and seemingly correct answer. This aligns with the reported strength in basic information extraction.\n\nOverall, the execution outputs highlight inconsistencies in the system's performance and indicate a need for more robust output formatting and refinement.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic capacity for information extraction and arithmetic calculations but is significantly limited by its inability to handle complex reasoning, constraint handling, and comparative tasks. The system struggles with ambiguity and lacks a mechanism for filtering irrelevant information. The system's strengths are overshadowed by its weaknesses, resulting in inconsistent performance.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Calculation**: Maintaining the accuracy of basic calculations is essential.\n*   **Basic Information Extraction**: The system can extract information from text to match the golden answer when the relationship between the question and the answer is straightforward.\n\n### KEY WEAKNESSES\n\n*   **Complex Reasoning & Synthesis:** This is a major impediment to answering more challenging questions.\n*   **Constraint Handling:** The system struggles to filter information based on implicit and explicit constraints.\n*   **Output Refinement:** The system struggles to output a clean answer without excessive and unnecessary text.\n\n### IMPROVEMENT FOCUS\n\n**Constraint Handling:** Improving the system's ability to identify and apply constraints is the single most important capability to focus on. This will directly address over-extraction and improve the accuracy of answers.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement \"Question Focus\" Module with Expanded Constraint Identification:**\n    *   Refine the existing suggestion of a \"Question Focus\" module by explicitly programming it to identify constraint phrases (e.g., \"longest,\" \"top two,\" \"highest\").\n    *   Use techniques like dependency parsing to understand the grammatical structure of the question and identify constraints within prepositional phrases or subordinate clauses. For example, use the syntax to identify the entity and attribute of comparison in comparative questions.\n    *   Assign a weight to each identified constraint based on its importance to the question.\n2.  **Develop a \"Constraint-Based Filtering\" Mechanism:**\n    *   After information extraction, implement a filtering mechanism that explicitly checks whether extracted information satisfies the identified constraints.\n    *   Create a scoring system where data points that violate constraints receive negative scores, and only data points with positive scores are considered for the final answer.\n    *   Implement a threshold for the overall score, ensuring that the system only provides an answer if a sufficient number of constraints are met.\n3.  **Refine Answer Generation with Post-Processing Rules:**\n    *   Implement a post-processing step to remove extraneous text such as \"ANSWER\\_START\" and \"ANSWER\\_END.\"\n    *   Develop rules for formatting the answer based on the question type. For example, questions asking for a list should be formatted as a comma-separated list.\n4. Add print statements to modules\n    *   Add print statements to modules, in particular \"Question Focus\", \"Contextual Filtering\", and \"Comparative Reasoning\" to observe output from each module and assess and address any failure points\n\n### CAPABILITY TREND\n\nBased on the provided information, it's difficult to determine a definitive capability trend. The accuracy is at 0.70, and the error analysis highlights significant weaknesses. Without previous performance data, it's unclear if capabilities are improving, declining, or stable. However, implementing the recommended improvements should lead to a positive trend in the next iteration.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\n\nNo explicit runtime errors (like JSONDecodeError, TypeError) were found in the provided outputs. This suggests the errors are logical or reasoning-based, rather than due to code execution problems.\n\n## STRENGTHS\n\n1.  The system can correctly identify that a grid transformation is required and attempts to apply a pattern learned from the training examples.\n2.  The system correctly recognizes that the input and output are numerical matrices.\n3.  The system can generate a valid matrix as an output.\n\n## WEAKNESSES\n\n1.  **Pattern Recognition and Generalization:** The system struggles to correctly identify and generalize the transformation pattern across different examples. The transformations are more complex than simply replicating values across rows or columns, which is what the system seems to be doing.\n2.  **Constraint Handling:** The system doesn't seem to understand the constraints of the transformation. It appears to apply transformations uniformly without considering the original values in the test input.\n3. **Complex rule extraction:** The pattern involves knowing *which* row to transform, which column to consider in a transformation, and where to place the updated values.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Inability to extract and generalize complex patterns:** The system can identify that a pattern exists, but it fails to correctly extract and apply the transformation rules from the training examples to the test input. It seems to be learning a superficial pattern (e.g., \"fill rows with the first/last number in the original row\") rather than the underlying logic.\n2. **Poor abstraction over individual transformations:** The system does not seem to generalize that a certain number transforms *other* numbers in a certain manner.\n\n## ERROR PATTERNS\n\n1.  **Row/Column Replication:** A common pattern is that the system fills entire rows with a single value derived from that row in the input grid. This suggests a bias towards simple row/column operations.\n2. **Misidentification of input parameters:** The transformations are complex, and the system doesn't correctly generalize how the input numbers affect the output numbers.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's inability to learn and generalize complex transformation rules from the training examples. It is overfitting to simple, superficial patterns rather than understanding the underlying logic. The complexity of the rule is non-trivial, and requires an approach better suited to abstract rule extraction.\n\n## IMPROVEMENT AREAS\n\n1.  **Pattern Recognition:** The system needs a more robust pattern recognition algorithm that can handle complex relationships and dependencies.\n2.  **Abstraction and Generalization:** Improve the system's ability to abstract away from specific examples and generalize to unseen inputs. This involves identifying the core transformation logic rather than simply memorizing patterns.\n3.  **Constraint Handling:** Incorporate mechanisms for understanding and applying constraints relevant to the transformations.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a more sophisticated pattern recognition algorithm:** Explore techniques like graph neural networks or attention mechanisms that can capture complex relationships between grid cells.\n2.  **Introduce a feature engineering step:** Before applying the transformation, extract relevant features from the input grid (e.g., relative positions of numbers, frequency of numbers, etc.). This can help the system identify the key factors driving the transformation.\n3.  **Use a rule-based system:** Explicitly define a set of transformation rules based on the training examples. This allows for more control over the transformation process and makes it easier to debug and refine the rules. Consider representing rules in a formal language that the system can interpret and apply.\n4.  **Increase the diversity of training examples:** Provide more training examples that cover a wider range of transformations. This will help the system learn more robust and generalizable rules.\n5. Print intermediate outputs during the reasoning process. Specifically, print the extracted rules and the application of these rules to the test input.\n\n## CAPABILITY MAPPING\n\n**Sample ID: 0**\n*   Failed Capabilities: pattern recognition, solution generation, constraint handling\n\n**Sample ID: 1**\n*   Failed Capabilities: pattern recognition, solution generation, constraint handling\n\n**Sample ID: 2**\n*   Failed Capabilities: pattern recognition, solution generation, constraint handling\n",
-    "capability_report_text": "Okay, here is a comprehensive capability report for your AI system based on the provided performance summary, error analysis, sample execution outputs, and requested structure.\n\n## CAPABILITY REPORT: AI System Performance Analysis\n\n**OVERALL ASSESSMENT:** The AI system is currently demonstrating a very low level of performance (0% accuracy). While it can identify the general nature of the problem (numerical grid transformation), it struggles to extract and apply the underlying transformation rules. The system appears to be overfitting to simple patterns, leading to incorrect solutions.\n\n## EXECUTION ANALYSIS\n\nAnalyzing the sample execution outputs reveals the following patterns:\n\n*   **Sample 0:** The system replicates numbers from specific rows to fill other rows, alternating between zeros and other numbers. This indicates a focus on row-wise operations but a flawed understanding of *which* rows to transform and with *what* values.\n*   **Sample 1:** The system generates a matrix, but the relationships between the numbers do not correspond to the correct answer (per the performance summary).\n*   **Sample 2:** The system replicates a few columns and fills other values in, indicating an understanding that some values are related to others. However, again, the transformations are incorrect.\n\nThese patterns confirm the Error Analysis's conclusions about row/column replication and misidentification of input parameters.\n\n## CAPABILITY ASSESSMENT\n\n**Current Capabilities:**\n\n*   **Basic Data Recognition:** Can identify numerical grid inputs.\n*   **Output Generation:** Can generate valid numerical grid outputs.\n*   **Pattern Identification (Limited):** Can identify that a pattern exists that requires transformation.\n\n**Lacking Capabilities:**\n\n*   **Complex Pattern Recognition:** Fails to identify and extract complex transformation rules.\n*   **Generalization:** Unable to generalize learned rules to unseen inputs.\n*   **Constraint Handling:** Ignores constraints imposed by the original grid values.\n*   **Abstract Reasoning:** Unable to understand and apply abstract transformation concepts.\n\n## KEY STRENGTHS\n\n*   **Structural Understanding:** The system correctly identifies the input as a numerical matrix and can produce a numerical matrix as output.\n*   **Pattern Recognition (Rudimentary):** It correctly attempts to apply a pattern derived from training examples to test inputs.\n\n## KEY WEAKNESSES\n\n*   **Pattern Generalization:** Significantly struggles with abstracting and generalizing transformation rules beyond simple patterns like row/column replication.\n*   **Abstract Reasoning:** Lacks the ability to extract abstract transformation rules.\n*   **Constraint Satisfaction:** Fails to consider the existing grid values and apply transformations accordingly.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Pattern Generalization** and **Abstract Reasoning**. The system needs to learn more sophisticated methods for extracting transformation rules that can be generalized to unseen inputs.\n\n## ACTIONABLE RECOMMENDATIONS\n\nGiven the current performance and the identified bottlenecks, here's a set of specific changes to implement in the next iteration:\n\n1.  **Implement Feature Engineering and Rule Extraction:**\n    *   **Action:** Introduce a feature engineering step before applying any transformation. This step should extract relevant features from the grid (e.g., relative positions of cells with the same value, distances between specific values, identifying rows/columns with unique properties). Then, use a rule-based system to identify the relationship between the features in the input and output grids in the training dataset.\n    *   **Rationale:** This will help the system identify the core factors driving the transformation and apply abstract transformation rules.\n2.  **Introduce Intermediate Rule Representation and Debugging:**\n    *   **Action:** As suggested in the improvement suggestions, print the extracted rules in a readable formal language *before* applying them to the test input. This creates the possibility of debugging the extraction process and the representation itself.\n    *   **Rationale:** Creating explicit rules allows for debugging and refinement. Printing the rules allows inspection of the system's reasoning.\n3.  **Targeted Training Data Augmentation:**\n    *   **Action:** Carefully analyze the errors made by the system and create additional training examples that specifically target those error patterns. Ensure the new examples cover a wider range of transformations.\n    *   **Rationale:** Addressing specific weaknesses with targeted training data can accelerate learning.\n\n## CAPABILITY TREND\n\nBased on the 0% accuracy, the capabilities are currently **stable at a very low level**. Significant improvements are required to move beyond basic functionality. The key is to address the pattern generalization bottleneck.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNo explicit runtime errors (JSONDecodeError, TypeError, etc.) were found in the 'output' fields of the provided error cases.\n\n## STRENGTHS\n1.  **Arithmetic Calculation:** The system is generally capable of performing simple arithmetic operations when the required numbers are identified in the text. This is evident in success cases 0, 7, and 9 where the system accurately calculates totals and percentages.\n2.  **Information Extraction (Basic):** The system can extract basic facts directly stated in the passage, such as player names and scores. Success cases 3 and 6 demonstrate this ability.\n3.  **String Matching:** The system can find and identify strings in the text to match the golden answer when the relationship between the question and answer is straightforward (sample 4)\n\n## WEAKNESSES\n1.  **Complex Information Extraction & Synthesis:** The system struggles with questions requiring the extraction and synthesis of information from multiple parts of the text, or identifying relationships between entities across the passage. This is most evident in error cases 1 and 5.\n2.  **Logical Reasoning & Comparison:** The system has difficulty applying logical reasoning, especially involving comparisons and ordering. Error case 8 highlights the system's inability to properly identify the longest field goals for each player before calculating the difference.\n3.  **Constraint Handling and Ambiguity:** The system demonstrates an inability to correctly identify and apply constraints when the question demands a more sophisticated reading of the passage. In error case 1 the question specified \"the top two longest field goals\" but did not specify to list them from all field goals mentioned or by each player.\n\n## CRITICAL BOTTLENECKS\n1.  **Difficulty with Complex Reasoning and Synthesis:** The inability to synthesize information from different parts of the passage and apply logical reasoning hinders the system's ability to answer questions that require more than basic fact extraction.\n2.  **Lack of Robust Understanding of Question Constraints:** The system needs to be better at interpreting and applying the implied constraints within the question to limit the extracted information to only the most relevant data.\n\n## ERROR PATTERNS\n1.  **Over-Extraction:** The system provides more information than the question asks for (e.g., listing multiple field goals when only the longest is required, or including extra countries when only one meets the criteria).\n2.  **Misinterpretation of Comparative Questions:** Comparative questions involving superlatives (e.g., \"longest,\" \"most\") are often mishandled.\n\n## PRIMARY ISSUE\nThe system's primary issue is its limited ability to extract information relevant to the implicit and explicit constraints within a question. It either extracts too much irrelevant information or fails to perform the necessary comparisons/reasoning to filter the extracted information appropriately.\n\n## IMPROVEMENT AREAS\n1.  **Question Understanding:** Improve the system's ability to parse and understand the question's intent, including identifying key constraints and required relationships.\n2.  **Reasoning and Synthesis:** Enhance the system's reasoning capabilities to enable it to compare and synthesize information from different parts of the passage and from external knowledge (e.g. to understand the relative magnitude of different values).\n3.  **Answer Generation:** Improve the system's ability to generate concise and accurate answers that directly address the question and adhere to all specified constraints.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a \"Question Focus\" module:** Before information extraction, have a module that explicitly identifies keywords, constraints, and expected answer format from the question. This could involve techniques like dependency parsing or semantic role labeling.\n2.  **Develop a \"Contextual Filtering\" Mechanism:** After information extraction, implement a filtering mechanism that uses the \"Question Focus\" output to filter the extracted information, removing irrelevant data points. This can be implemented via a scoring mechanism based on relevance to the question.\n3.  **Integrate Comparative Reasoning Module:** Create a module that specifically handles comparative questions. This module should: a) Identify the entities being compared, b) Extract the relevant attributes for comparison, c) Perform the comparison, and d) Generate the answer based on the comparison result.\n4. Add print statements such that intermediate outputs for each module can be viewed to determine exactly where things go wrong\n\n## CAPABILITY MAPPING\n*   **Sample 1:** information_extraction, constraint_handling, solution_generation\n*   **Sample 5:** information_extraction, solution_generation\n*   **Sample 8:** information_extraction, constraint_handling, solution_generation, solution_verification, decision_making\n",
+    "capability_report_text": "Okay, here's a capability report based on the performance summary, error analysis, error patterns, improvement suggestions, capability mapping, and sample execution outputs provided.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal the following:\n\n*   **Output 1 (\"34 + 7 = 41\")**: Demonstrates correct arithmetic calculation, aligning with the reported \"Arithmetic Calculation\" strength. The presence of unnecessary text (\"ANSWER\\_START\", \"ANSWER\\_END\") indicates a formatting issue or lack of answer polishing.\n*   **Output 2 (\"41 and 38 yards\")**: Shows a mixture of correct and incorrect information. The question likely requires extraction of specific values, but the system provides two possibly because it doesn't know which one to select. This points to weaknesses in constraint handling or logical reasoning.\n*   **Output 3 (\"6\")**: A concise and seemingly correct answer. This aligns with the reported strength in basic information extraction.\n\nOverall, the execution outputs highlight inconsistencies in the system's performance and indicate a need for more robust output formatting and refinement.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic capacity for information extraction and arithmetic calculations but is significantly limited by its inability to handle complex reasoning, constraint handling, and comparative tasks. The system struggles with ambiguity and lacks a mechanism for filtering irrelevant information. The system's strengths are overshadowed by its weaknesses, resulting in inconsistent performance.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Calculation**: Maintaining the accuracy of basic calculations is essential.\n*   **Basic Information Extraction**: The system can extract information from text to match the golden answer when the relationship between the question and the answer is straightforward.\n\n### KEY WEAKNESSES\n\n*   **Complex Reasoning & Synthesis:** This is a major impediment to answering more challenging questions.\n*   **Constraint Handling:** The system struggles to filter information based on implicit and explicit constraints.\n*   **Output Refinement:** The system struggles to output a clean answer without excessive and unnecessary text.\n\n### IMPROVEMENT FOCUS\n\n**Constraint Handling:** Improving the system's ability to identify and apply constraints is the single most important capability to focus on. This will directly address over-extraction and improve the accuracy of answers.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement \"Question Focus\" Module with Expanded Constraint Identification:**\n    *   Refine the existing suggestion of a \"Question Focus\" module by explicitly programming it to identify constraint phrases (e.g., \"longest,\" \"top two,\" \"highest\").\n    *   Use techniques like dependency parsing to understand the grammatical structure of the question and identify constraints within prepositional phrases or subordinate clauses. For example, use the syntax to identify the entity and attribute of comparison in comparative questions.\n    *   Assign a weight to each identified constraint based on its importance to the question.\n2.  **Develop a \"Constraint-Based Filtering\" Mechanism:**\n    *   After information extraction, implement a filtering mechanism that explicitly checks whether extracted information satisfies the identified constraints.\n    *   Create a scoring system where data points that violate constraints receive negative scores, and only data points with positive scores are considered for the final answer.\n    *   Implement a threshold for the overall score, ensuring that the system only provides an answer if a sufficient number of constraints are met.\n3.  **Refine Answer Generation with Post-Processing Rules:**\n    *   Implement a post-processing step to remove extraneous text such as \"ANSWER\\_START\" and \"ANSWER\\_END.\"\n    *   Develop rules for formatting the answer based on the question type. For example, questions asking for a list should be formatted as a comma-separated list.\n4. Add print statements to modules\n    *   Add print statements to modules, in particular \"Question Focus\", \"Contextual Filtering\", and \"Comparative Reasoning\" to observe output from each module and assess and address any failure points\n\n### CAPABILITY TREND\n\nBased on the provided information, it's difficult to determine a definitive capability trend. The accuracy is at 0.70, and the error analysis highlights significant weaknesses. Without previous performance data, it's unclear if capabilities are improving, declining, or stable. However, implementing the recommended improvements should lead to a positive trend in the next iteration.\n"
   },
-  "progressive_testing": null,
-  "execution_time": 61.96069407463074,
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 6,
+    "accuracy": 0.6,
+    "results": [
+      {
+        "success": true,
+        "answer": "8 million",
+        "output": "ANSWER_START\n8 million\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "8",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer provides '8 million' while the golden answer provides '8'. These are not semantically equivalent as '8 million' implies 8,000,000, a significantly different value than '8'."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "John Kasay's longest field goal = 31 yards, John Kasay's shortest field goal = 29 yards.\n31 - 29 = 2 yards\nAnswer: 2 yards",
+        "output": "ANSWER_START\nJohn Kasay's longest field goal = 31 yards, John Kasay's shortest field goal = 29 yards.\n31 - 29 = 2 yards\nAnswer: 2 yards\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer provides the calculation and arrives at the correct final answer of 2 yards. The golden answer is simply '2', which is semantically equivalent to '2 yards' in this context."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "16",
+        "output": "ANSWER_START\n16\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "16",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (16)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1 yard",
+        "output": "ANSWER_START\n1 yard\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer is just the number 1, while the system answer is '1 yard'. The golden answer has no units and is just the number 1, while the system answer has units. These are not semantically equivalent. Note: the lack of units on the golden answer makes the conversion questionable."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "Sebastian Janikowski",
+        "output": "ANSWER_START\nSebastian Janikowski\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "Sebastian Janikowski",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2011 - 2001 = 10 years",
+        "output": "ANSWER_START\n2011 - 2001 = 10 years\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "10",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer's calculation leads to the same answer as the golden answer, 10."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "African American",
+        "output": "ANSWER_START\nAfrican American\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "African American",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "51 - 24 = 27 yards",
+        "output": "ANSWER_START\n51 - 24 = 27 yards\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer is 1, while the system answer calculates 51-24=27 yards. These answers are not semantically equivalent."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "32 + 32 + 51 + 35 = 150\nThere were 4 field goals greater than 30 yards.",
+        "output": "ANSWER_START\n32 + 32 + 51 + 35 = 150\nThere were 4 field goals greater than 30 yards.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "4",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer states \"There were 4 field goals greater than 30 yards\", which is semantically equivalent to the golden answer \"4\"."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Novgorod",
+        "output": "ANSWER_START\nNovgorod\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "Novgorodians",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer refers to the people of Novgorod, while the system answer refers to the city itself. These are not semantically equivalent."
+        },
+        "match": false
+      }
+    ]
+  },
+  "execution_time": 86.59853482246399,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

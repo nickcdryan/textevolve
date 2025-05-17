@@ -1,185 +1,780 @@
 {
   "iteration": 9,
-  "timestamp": "2025-05-12T20:25:35.429949",
-  "strategy": "Exploration",
-  "explore_rate": 70,
-  "exploit_rate": 30,
-  "batch_size": 3,
-  "script": "import os\nimport re\nimport math\n\n# HYPOTHESIS: Instead of trying to identify a single transformation rule, the LLM can directly transform the test grid \n# by considering the training examples as a set of constraints and desired outcomes. The key is to use a multi-example\n# prompt that guides the LLM in applying transformations observed in the training data to the test grid *without*\n# explicitly stating the rules. This leverages LLM's ability to generalize from examples.\n# A validation loop is used to ensure the output is a valid grid.\n\ndef solve_grid_transformation(question, max_attempts=3):\n    \"\"\"Solves grid transformation problems by direct example-guided transformation.\"\"\"\n\n    def call_llm(prompt, system_instruction=None):\n        \"\"\"Call the Gemini LLM with a prompt and return the response.\"\"\"\n        try:\n            from google import genai\n            from google.genai import types\n\n            # Initialize the Gemini client\n            client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n            # Call the API with system instruction if provided\n            if system_instruction:\n                response = client.models.generate_content(\n                    model=\"gemini-2.0-flash\", \n                    config=types.GenerateContentConfig(\n                        system_instruction=system_instruction\n                    ),\n                    contents=prompt\n                )\n            else:\n                response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n            return response.text\n        except Exception as e:\n            print(f\"Error calling Gemini API: {str(e)}\")\n            return f\"Error: {str(e)}\"\n\n    def transform_test_grid(question, max_attempts=3):\n        \"\"\"Transforms the test grid based on training examples.\"\"\"\n        system_instruction = \"You are an expert at transforming grids based on provided examples.\"\n        prompt = f\"\"\"\n        Given the following grid transformation problem, transform the test input grid according to the patterns observed in the training examples. Do NOT explicitly state the transformation rule. Apply the transformations directly.\n\n        Example 1:\n        === TRAINING EXAMPLES ===\n        Input Grid:\n        [[1, 2], [3, 4]]\n        Output Grid:\n        [[2, 3], [4, 5]]\n        === TEST INPUT ===\n        [[5, 6], [7, 8]]\n        Transformed Grid:\n        [[6, 7], [8, 9]]\n\n        Example 2:\n        === TRAINING EXAMPLES ===\n        Input Grid:\n        [[0, 1], [1, 0]]\n        Output Grid:\n        [[1, 0], [0, 1]]\n        === TEST INPUT ===\n        [[0, 0], [1, 1]]\n        Transformed Grid:\n        [[0, 0], [1, 1]]\n\n        Problem:\n        {question}\n\n        Transformed Grid:\n        \"\"\"\n        transformed_grid = call_llm(prompt, system_instruction)\n        return transformed_grid\n\n    # Function call is outside of the validation loop\n    transformed_grid = transform_test_grid(question)\n\n    def validate_grid_format(grid_string, max_attempts = 3):\n      \"\"\"Validates the output grid format as a list of lists.\"\"\"\n      system_instruction = \"You are an expert grid validator. Your job is to validate the grid format as a list of lists.\"\n      for attempt in range(max_attempts):\n        validation_prompt = f\"\"\"\n        Validate if the following grid string is a valid list of lists. The values in the lists may only be integer numbers.\n          Grid String:\n          {grid_string}\n\n          The output must be a JSON object in the following format:\n          {{\n            \"is_valid\": true/false,\n            \"reason\": \"reasoning for output\"\n          }}\n        \"\"\"\n        validation_json = call_llm(validation_prompt, system_instruction)\n\n        if \"true\" in validation_json.lower():\n          return True\n        else:\n          continue\n      return False\n    \n    if validate_grid_format(transformed_grid):\n      return transformed_grid\n    else:\n      return \"Error: Could not create a valid transformation\"\n\ndef main(question):\n    \"\"\"Main function to solve the grid transformation task.\"\"\"\n    try:\n        answer = solve_grid_transformation(question)\n        return answer\n    except Exception as e:\n        return f\"Error in main function: {str(e)}\"",
-  "approach_summary": "The script solves grid transformation problems using an LLM to directly transform the test grid based on patterns observed in training examples, without explicitly defining transformation rules. The problem is decomposed into transforming the grid and validating the output format. The `solve_grid_transformation` function orchestrates the process, calling `transform_test_grid` to generate the transformed grid and `validate_grid_format` to verify the output. `transform_test_grid` uses a multi-example prompt to guide the LLM to apply transformations observed in the training data. `validate_grid_format` uses the LLM to confirm that the output is a list of lists containing only integers. The overall workflow involves transforming the test grid using the LLM, validating the format of the transformed grid, and returning the transformed grid if it is valid, or an error message otherwise.",
-  "sample_count": 3,
+  "timestamp": "2025-05-17T13:00:24.347943",
+  "strategy": "Exploitation",
+  "explore_rate": 20,
+  "exploit_rate": 80,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script solves questions based on a given passage by:\n    1. Determining the question type with examples.\n    2. Extracting the relevant information with examples.\n    3. Generating the answer with examples.\n    \"\"\"\n\n    # Step 1: Determine the question type\n    question_type = determine_question_type(question)\n    if \"Error\" in question_type:\n        return question_type  # Return error message\n\n    # Step 2: Extract relevant information from the passage\n    extracted_info = extract_relevant_info(question, question_type)\n    if \"Error\" in extracted_info:\n        return extracted_info\n\n    # Step 3: Generate the answer\n    generated_answer = generate_answer(extracted_info, question_type, question)\n    if \"Error\" in generated_answer:\n        return generated_answer\n\n    return generated_answer # Directly return the generated answer\n\ndef determine_question_type(question):\n    \"\"\"Determine the type of the question (numerical, identification, etc.) with examples.\"\"\"\n    system_instruction = \"You are an expert at classifying question types.\"\n    prompt = f\"\"\"\n    Determine the type of question given the following examples. Return the type only.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n\n    Example 4:\n    Question: How many total points were scored in the game?\n    Type: Numerical\n\n    Question: {question}\n    Type:\n    \"\"\"\n    try:\n        question_type = call_llm(prompt, system_instruction)\n        if not question_type:\n            return \"Error: Could not determine question type\"\n        return question_type\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef extract_relevant_info(question, question_type):\n    \"\"\"Extract relevant information from the passage with examples, tailored to question type.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant information. Extract ONLY necessary information.\"\n    prompt = f\"\"\"\n    Extract relevant information from the passage based on the given question type.\n    Return the extracted information as a plain text summary, extracting ONLY the details needed to answer the question.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n    Extracted Info: Chris Johnson's first touchdown yards: 40, Jason Hanson's first field goal yards: 30.\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n    Extracted Info: Mark Clayton caught the final touchdown.\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    Extracted Info: Nu Phoenicis mass: 1.2 solar masses, Gliese 915 mass: 0.85 solar masses.\n\n    Example 4:\n    Question: How many total points were scored in the game?\n    Type: Numerical\n    Extracted Info: Total points scored: 42.\n\n    Question: {question}\n    Type: {question_type}\n    Extracted Info:\n    \"\"\"\n    try:\n        extracted_info = call_llm(prompt, system_instruction)\n        if not extracted_info:\n            return \"Error: Could not extract information.\"\n        return extracted_info\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef generate_answer(extracted_info, question_type, question):\n    \"\"\"Generate the answer based on extracted information and question type with examples.\"\"\"\n    system_instruction = \"You are an expert at generating correct answers. Focus on concise, accurate answers.\"\n    prompt = f\"\"\"\n    Generate an answer to the question based on the extracted information. Provide the most concise answer possible.\n\n    Example 1:\n    Extracted Info: Chris Johnson's first touchdown yards: 40, Jason Hanson's first field goal yards: 30.\n    Question Type: Numerical\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: 70 yards\n\n    Example 2:\n    Extracted Info: Mark Clayton caught the final touchdown.\n    Question Type: Identification\n    Question: Who caught the final touchdown of the game?\n    Answer: Mark Clayton\n\n    Example 3:\n    Extracted Info: Nu Phoenicis mass: 1.2 solar masses, Gliese 915 mass: 0.85 solar masses.\n    Question Type: Comparative\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: Gliese 915\n\n    Example 4:\n    Extracted Info: Total points scored: 42.\n    Question Type: Numerical\n    Question: How many total points were scored in the game?\n    Answer: 42\n\n    Extracted Info: {extracted_info}\n    Question Type: {question_type}\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        answer = call_llm(prompt, system_instruction)\n        if not answer:\n            return \"Error: Could not generate answer.\"\n        return answer\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "This script uses a Chain-of-Thought approach to answer questions by decomposing the problem into three steps: determining the question type, extracting relevant information, and generating the answer. Each step uses a distinct LLM call with specific instructions to act as an expert in that area. The script uses the functions `determine_question_type`, `extract_relevant_info`, and `generate_answer` to classify the question, retrieve necessary data, and produce a final answer respectively, facilitated by the `call_llm` function. The overall workflow involves sequentially calling these functions, passing the output of one as input to the next, to arrive at the final answer, with error handling at each step.",
+  "sample_count": 10,
   "samples": [
     {
-      "question": "Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 2, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 2, 2, 2, 0, 8, 0, 0, 0, 0, 0, 8, 0, 2, 2, 2, 0]\n  [0, 0, 2, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 8, 0, 0, 2, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 8, 0, 2, 0, 2, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 8, 0, 0, 2, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 2, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 2, 2, 2, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 2, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 2, 0, 0, 8, 0, 0, 8, 0, 0, 8, 0, 0, 8, 0, 0]\n  [0, 2, 2, 2, 0, 8, 0, 8, 8, 8, 0, 8, 0, 2, 2, 2, 0]\n  [0, 0, 2, 0, 0, 8, 0, 0, 8, 0, 0, 8, 0, 0, 8, 0, 0]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 8, 0, 0, 8, 0, 0, 2, 0, 0, 8, 0, 0, 8, 0, 0]\n  [0, 8, 8, 8, 0, 8, 0, 2, 8, 2, 0, 8, 0, 8, 8, 8, 0]\n  [0, 0, 8, 0, 0, 8, 0, 0, 2, 0, 0, 8, 0, 0, 8, 0, 0]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 2, 0, 0, 8, 0, 0, 8, 0, 0, 8, 0, 0, 8, 0, 0]\n  [0, 2, 2, 2, 0, 8, 0, 8, 8, 8, 0, 8, 0, 8, 8, 8, 0]\n  [0, 0, 2, 0, 0, 8, 0, 0, 8, 0, 0, 8, 0, 0, 8, 0, 0]\n  [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 1, 1, 1, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 1, 1, 0]\n  [0, 1, 1, 1, 0, 2, 0, 1, 1, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 1, 1, 1, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 0, 1, 0, 1, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 1, 1, 1, 0, 2, 0, 2, 2, 2, 0, 2, 0, 2, 1, 1, 0]\n  [0, 1, 1, 1, 0, 2, 0, 1, 1, 2, 0, 2, 0, 2, 2, 2, 0]\n  [0, 1, 1, 1, 0, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0]\n  [0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 0, 2, 1, 2, 0]\n  [0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 2, 2, 2, 0, 2, 0, 2, 1, 2, 0, 2, 0, 2, 2, 2, 0]\n  [0, 2, 2, 2, 0, 2, 0, 1, 2, 1, 0, 2, 0, 2, 2, 2, 0]\n  [0, 2, 2, 2, 0, 2, 0, 2, 1, 2, 0, 2, 0, 2, 2, 2, 0]\n  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 3, 0, 3, 0, 1, 0, 3, 0, 0, 0, 1, 0, 0, 0, 3, 0]\n  [0, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 3, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 3, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0]\n  [0, 3, 0, 3, 0, 1, 0, 3, 0, 1, 0, 1, 0, 1, 0, 3, 0]\n  [0, 0, 3, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 3, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0]\n  [0, 3, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]\n  [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0]\n  [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 3, 0]\n  [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 3, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 4, 0, 4, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 4, 4, 4, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9]\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 4, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 4, 0, 4, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 4, 0, 0, 9, 0, 4, 4, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9]\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 9, 0, 4, 0, 4, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.",
-      "answer": "[[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[0,4,4,4,0,9,0,4,4,9,0,9,0,9,9,9,0],[0,4,0,4,0,9,0,9,0,9,0,9,0,9,0,9,0],[0,4,4,4,0,9,0,9,9,9,0,9,0,9,9,9,0],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[0,9,4,9,0,9,0,9,9,9,0,9,0,9,9,9,0],[0,4,0,4,0,9,0,9,0,9,0,9,0,9,0,9,0],[0,9,4,9,0,9,0,4,4,9,0,9,0,9,9,9,0],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[0,9,9,9,0,9,0,9,9,9,0,9,0,9,9,9,0],[0,9,0,9,0,9,0,4,0,4,0,9,0,9,0,9,0],[0,9,9,9,0,9,0,9,9,9,0,9,0,9,9,9,0],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0]]",
-      "id": "example_32",
+      "question": "PASSAGE: The club had not gained a major trophy since the 2005 FA Cup until 17 May 2014 when, spearheaded by then club-record acquisition Mesut \u00d6zil, Arsenal beat Hull City A.F.C. in the 2014 FA Cup Final, coming back from a 2-0 deficit to win the match 3-2. A year later, Arsenal appeared in the FA Cup final for the second time in a row, defeating Aston Villa F.C. 4-0 in the 2015 FA Cup Final and becoming the most successful club in the tournaments history with 12 titles, a record which Manchester United would tie the following season. Arsenal later won the 2016-17 FA Cup for a record 13th time, defeating Chelsea 2-1 in the 2017 FA Cup Final and once more becoming the outright leader in terms of FA Cups won. The victory also saw Wenger become the first manager in English football history to win seven FA Cups. However, in that same season, Arsenal finished in the fifth position in the league, the first time they had finished outside the top four since before Wenger arrived in 1996. After another unspectacular league season the following year, Wenger announced his departure from the club on 20 April 2018, after 22 years as manager. His decision was met by responses of praise throughout English and world football from many pundits and former players, who also thanked him for developing them as people. His final home match in charge was a 5-0 win over Burnley where his entrance was met to a standing ovation by supporters. The final match under the Wenger era was a 1-0 away victory against Huddersfield.\n\nQUESTION: In what year did Arensal regain their record of most titles won?",
+      "answer": "2017",
+      "id": "example_66",
       "meta": {
-        "source": "ARC",
-        "filename": "1e32b0e9.json"
+        "source": "jsonl_dataset",
+        "original_passage": "The club had not gained a major trophy since the 2005 FA Cup until 17 May 2014 when, spearheaded by then club-record acquisition Mesut \u00d6zil, Arsenal beat Hull City A.F.C. in the 2014 FA Cup Final, coming back from a 2-0 deficit to win the match 3-2. A year later, Arsenal appeared in the FA Cup final for the second time in a row, defeating Aston Villa F.C. 4-0 in the 2015 FA Cup Final and becoming the most successful club in the tournaments history with 12 titles, a record which Manchester United would tie the following season. Arsenal later won the 2016-17 FA Cup for a record 13th time, defeating Chelsea 2-1 in the 2017 FA Cup Final and once more becoming the outright leader in terms of FA Cups won. The victory also saw Wenger become the first manager in English football history to win seven FA Cups. However, in that same season, Arsenal finished in the fifth position in the league, the first time they had finished outside the top four since before Wenger arrived in 1996. After another unspectacular league season the following year, Wenger announced his departure from the club on 20 April 2018, after 22 years as manager. His decision was met by responses of praise throughout English and world football from many pundits and former players, who also thanked him for developing them as people. His final home match in charge was a 5-0 win over Burnley where his entrance was met to a standing ovation by supporters. The final match under the Wenger era was a 1-0 away victory against Huddersfield.",
+        "original_question": "In what year did Arensal regain their record of most titles won?",
+        "original_answer_data": {
+          "spans": [
+            "2017"
+          ],
+          "types": [
+            "date"
+          ]
+        },
+        "line_number": 499
       }
     },
     {
-      "question": "Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 4, 2, 0, 0, 0, 0, 0]\n  [0, 0, 4, 4, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 4, 4, 4]\n  [0, 0, 0, 0, 0, 4, 4, 4, 0]\n  [0, 0, 0, 0, 4, 4, 4, 0, 0]\n  [0, 0, 0, 4, 4, 4, 0, 0, 0]\n  [0, 0, 4, 4, 4, 0, 0, 0, 0]\n  [0, 0, 4, 4, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 3, 3, 0, 0, 0, 0, 0]\n  [0, 0, 3, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 3, 3, 0, 0, 0, 0, 0]\n  [0, 0, 3, 3, 3, 0, 0, 0, 0]\n  [0, 0, 0, 3, 3, 3, 0, 0, 0]\n  [0, 0, 0, 0, 3, 3, 3, 0, 0]\n  [0, 0, 0, 0, 0, 3, 3, 3, 0]\n  [0, 0, 0, 0, 0, 0, 3, 3, 3]\n  [0, 0, 0, 0, 0, 0, 0, 3, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 3]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 6, 2, 0, 0, 0, 0]\n  [0, 0, 0, 2, 6, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 6, 6, 6]\n  [0, 0, 0, 0, 0, 6, 6, 6, 0]\n  [0, 0, 0, 0, 6, 6, 6, 0, 0]\n  [0, 0, 0, 6, 6, 6, 0, 0, 0]\n  [0, 0, 6, 6, 6, 0, 0, 0, 0]\n  [0, 6, 6, 6, 0, 0, 0, 0, 0]\n  [6, 6, 6, 0, 0, 0, 0, 0, 0]\n  [6, 6, 0, 0, 0, 0, 0, 0, 0]\n  [6, 0, 0, 0, 0, 0, 0, 0, 0]\n]\nExample 4:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 2, 2, 0, 0, 0, 0]\n  [0, 0, 0, 2, 7, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [7, 7, 0, 0, 0, 0, 7, 7, 7]\n  [7, 7, 7, 0, 0, 7, 7, 7, 0]\n  [0, 7, 7, 7, 7, 7, 7, 0, 0]\n  [0, 0, 7, 7, 7, 7, 0, 0, 0]\n  [0, 0, 7, 7, 7, 0, 0, 0, 0]\n  [0, 7, 7, 7, 0, 0, 0, 0, 0]\n  [7, 7, 7, 0, 0, 0, 0, 0, 0]\n  [7, 7, 0, 0, 0, 0, 0, 0, 0]\n  [7, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 2, 0, 0]\n  [0, 0, 0, 0, 0, 8, 2, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.",
-      "answer": "[[0,0,8,8,8,0,0,8,8],[0,0,0,8,8,8,8,8,8],[0,0,0,0,8,8,8,8,0],[0,0,0,0,0,8,8,8,0],[0,0,0,0,0,0,8,8,8],[0,0,0,0,0,0,0,8,8],[0,0,0,0,0,0,0,0,8],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0]]",
-      "id": "example_33",
+      "question": "PASSAGE: According to the FBI, a city to city comparison of crime rates is not meaningful, because recording practices vary from city to city, citizens report different percentages of crimes from one city to the next, and the actual number of people physically present in a city is unknown. With that in mind, Dallass violent crime rate (12.06 per 1,000 people) is lower than St Louis (24.81), Detroit (24.22), Baltimore (16.96), Philadelphia (15.62), Cleveland (15.47), Miami (15.09), Washington, D.C.. (14.48), Kansas City, Missouri (14.44) and Boston (13.39). However, Houston (11.69), Los Angeles (7.87), and New York City (6.38) have lower violent crime rates than Dallas.\n\nQUESTION: Which cities had a violent crime rate lower than 8?",
+      "answer": "Los Angeles",
+      "id": "example_67",
       "meta": {
-        "source": "ARC",
-        "filename": "1f0c79e5.json"
+        "source": "jsonl_dataset",
+        "original_passage": "According to the FBI, a city to city comparison of crime rates is not meaningful, because recording practices vary from city to city, citizens report different percentages of crimes from one city to the next, and the actual number of people physically present in a city is unknown. With that in mind, Dallass violent crime rate (12.06 per 1,000 people) is lower than St Louis (24.81), Detroit (24.22), Baltimore (16.96), Philadelphia (15.62), Cleveland (15.47), Miami (15.09), Washington, D.C.. (14.48), Kansas City, Missouri (14.44) and Boston (13.39). However, Houston (11.69), Los Angeles (7.87), and New York City (6.38) have lower violent crime rates than Dallas.",
+        "original_question": "Which cities had a violent crime rate lower than 8?",
+        "original_answer_data": {
+          "spans": [
+            "Los Angeles",
+            "New York City"
+          ],
+          "types": [
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 474
       }
     },
     {
-      "question": "Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 8, 0, 0, 0, 0]\n  [6, 0, 0, 0, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 9, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 8, 0, 0, 0, 0]\n  [6, 0, 0, 0, 6, 4, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 7, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [6, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 8, 8, 8, 0, 0, 0, 2]\n  [0, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [3, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 7, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [6, 0, 0, 6, 7, 8, 0, 0, 0, 0]\n  [0, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 8, 8, 2, 0, 0, 0, 2]\n  [0, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [3, 0, 0, 3, 8, 1, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 4, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 8, 8, 8, 0, 0, 0, 6]\n  [3, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [2, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 8, 8, 8, 0, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 7, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 4, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 4, 8, 6, 0, 0, 0, 6]\n  [3, 0, 0, 3, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 8, 8, 8, 0, 0, 0, 0]\n  [2, 0, 0, 2, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 7, 8, 2, 0, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 7, 0, 0, 0, 0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 6, 0, 2, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 0, 8, 8, 8, 8, 0, 0, 0, 0]\n  [0, 0, 8, 8, 8, 8, 0, 0, 0, 7]\n  [3, 0, 8, 8, 8, 8, 0, 0, 0, 0]\n  [4, 0, 8, 8, 8, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 6, 0, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.",
-      "answer": "[[0,0,0,6,0,2,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[9,0,9,6,8,2,0,0,0,0],[0,0,8,8,8,7,0,0,0,7],[3,0,3,8,8,8,0,0,0,0],[4,0,4,8,6,8,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[0,0,0,0,6,0,0,0,0,0]]",
-      "id": "example_34",
+      "question": "PASSAGE: In week 4, the Bears played against the Dallas Cowboys on Monday Night Football in Dallas. After a scoreless first quarter and Robbie Gould's field goal, Charles Tillman intercepted Tony Romo, returning the pick for a touchdown. The interception would be the first of Romo's five interceptions. Romo would later hit Miles Austin for a 10-yard touchdown. In the second half, Cutler was able to hit Devin Hester on a 34-yard touchdown pass to extend the Bears lead. Later, Romo's pass was intercepted by Bears linebacker Lance Briggs, who then returned the interception for a touchdown to increase the lead 24-7. The pick-six marked Bears' fourteenth forced turnover, which led the league, and also leads the league in interceptions (11). Cutler would then throw another touchdown pass to Brandon Marshall. Cutler would have his highest performance of the season, completing 18 of 24 passes for 275 yards, along with two touchdowns. His 140.1 passer rating was the third highest of his career. Marshall caught seven passes for 138 yards, a season-best. With 34 seconds left in the game, Romo was replaced by former Bears quarterback Kyle Orton, who threw a 5-yard touchdown pass to Jason Witten, and the Cowboys had a two-point conversion, but the Bears would then win 34-18. With the win, the Bears shared the NFC North lead with the Minnesota Vikings with a 3-1 record.\n\nQUESTION: Which receiver had over 125 yards receiving?",
+      "answer": "Brandon Marshall",
+      "id": "example_68",
       "meta": {
-        "source": "ARC",
-        "filename": "1f642eb9.json"
+        "source": "jsonl_dataset",
+        "original_passage": "In week 4, the Bears played against the Dallas Cowboys on Monday Night Football in Dallas. After a scoreless first quarter and Robbie Gould's field goal, Charles Tillman intercepted Tony Romo, returning the pick for a touchdown. The interception would be the first of Romo's five interceptions. Romo would later hit Miles Austin for a 10-yard touchdown. In the second half, Cutler was able to hit Devin Hester on a 34-yard touchdown pass to extend the Bears lead. Later, Romo's pass was intercepted by Bears linebacker Lance Briggs, who then returned the interception for a touchdown to increase the lead 24-7. The pick-six marked Bears' fourteenth forced turnover, which led the league, and also leads the league in interceptions (11). Cutler would then throw another touchdown pass to Brandon Marshall. Cutler would have his highest performance of the season, completing 18 of 24 passes for 275 yards, along with two touchdowns. His 140.1 passer rating was the third highest of his career. Marshall caught seven passes for 138 yards, a season-best. With 34 seconds left in the game, Romo was replaced by former Bears quarterback Kyle Orton, who threw a 5-yard touchdown pass to Jason Witten, and the Cowboys had a two-point conversion, but the Bears would then win 34-18. With the win, the Bears shared the NFC North lead with the Minnesota Vikings with a 3-1 record.",
+        "original_question": "Which receiver had over 125 yards receiving?",
+        "original_answer_data": {
+          "spans": [
+            "Brandon Marshall"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 617
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their loss to the Chargers the Cardinals played on home ground for an NFC duel with the Saints. In the first quarter the Cardinals trailed early as kicker John Carney nailed a 31-yard field goal, followed by QB Drew Brees completing a 1-yard TD pass to TE Jeremy Shockey. The Cardinals replied with kicker Jay Feely making a 37-yard field goal, followed by OT Levi Brown recovering a fumble and returning it 2 yards for a touchdown. In the third quarter the Cardinals replied and took the lead when Feely got a 44-yard field goal, followed the 4th quarter by Feely's 29-yard field goal. Then FS Kerry Rhodes recovered a fumble and ran 27 yards to the endzone for a touchdown. The lead was broken down with Brees making a 35-yard TD pass to WR Robert Meachem, but the Cardinals managed to pull away when Brees' pass was intercepted by CB Dominique Rodgers-Cromartie and returned 28 yards to the endzone for a touchdown. With the win, Arizona went into their bye week at 3-2.\n\nQUESTION: Which team scored first?",
+      "answer": "Saints",
+      "id": "example_69",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their loss to the Chargers the Cardinals played on home ground for an NFC duel with the Saints. In the first quarter the Cardinals trailed early as kicker John Carney nailed a 31-yard field goal, followed by QB Drew Brees completing a 1-yard TD pass to TE Jeremy Shockey. The Cardinals replied with kicker Jay Feely making a 37-yard field goal, followed by OT Levi Brown recovering a fumble and returning it 2 yards for a touchdown. In the third quarter the Cardinals replied and took the lead when Feely got a 44-yard field goal, followed the 4th quarter by Feely's 29-yard field goal. Then FS Kerry Rhodes recovered a fumble and ran 27 yards to the endzone for a touchdown. The lead was broken down with Brees making a 35-yard TD pass to WR Robert Meachem, but the Cardinals managed to pull away when Brees' pass was intercepted by CB Dominique Rodgers-Cromartie and returned 28 yards to the endzone for a touchdown. With the win, Arizona went into their bye week at 3-2.",
+        "original_question": "Which team scored first?",
+        "original_answer_data": {
+          "spans": [
+            "Saints"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 697
+      }
+    },
+    {
+      "question": "PASSAGE: In 1995, the Cowboys finished with a  regular season record, the best in the NFC. Pro Bowl quarterback Troy Aikman finished the regular season completing 280 out of 432 passes for 3,304 yards and 16 touchdowns, with only seven interceptions. Pro Bowl running back Emmitt Smith won his fourth and last league rushing crown in his career with 1,773 yards, and broke a league single-season record with 25 rushing touchdowns. Smith was also a reliable receiver out of the backfield, recording a career-high 62 receptions for 375 yards.  Fullback Daryl Johnston added 111 rushing yards, while also catching 30 passes for 248 and scoring three touchdowns. Pro Bowl wide receiver Michael Irvin led the team in receiving with 111 catches for 1,603 yards and 10 touchdowns.  Kevin Williams (wide receiver) was another a big receiving threat with 38 receptions for 613 yards, while also racking up 1,274 return yards on special teams. Pro Bowl tight end Jay Novacek had 62 receptions for 705 yards and five touchdowns. Dallas offensive line was led by Pro Bowl selections Larry Allen, Ray Donaldson, Nate Newton, and Mark Tuinei. However, Donaldson suffered a season-ending injury late in the season and would be replaced by Derek Kennard.\n\nQUESTION: Who caught more passes, Michael Irvin or Emmitt Smith?",
+      "answer": "Michael Irvin",
+      "id": "example_70",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In 1995, the Cowboys finished with a  regular season record, the best in the NFC. Pro Bowl quarterback Troy Aikman finished the regular season completing 280 out of 432 passes for 3,304 yards and 16 touchdowns, with only seven interceptions. Pro Bowl running back Emmitt Smith won his fourth and last league rushing crown in his career with 1,773 yards, and broke a league single-season record with 25 rushing touchdowns. Smith was also a reliable receiver out of the backfield, recording a career-high 62 receptions for 375 yards.  Fullback Daryl Johnston added 111 rushing yards, while also catching 30 passes for 248 and scoring three touchdowns. Pro Bowl wide receiver Michael Irvin led the team in receiving with 111 catches for 1,603 yards and 10 touchdowns.  Kevin Williams (wide receiver) was another a big receiving threat with 38 receptions for 613 yards, while also racking up 1,274 return yards on special teams. Pro Bowl tight end Jay Novacek had 62 receptions for 705 yards and five touchdowns. Dallas offensive line was led by Pro Bowl selections Larry Allen, Ray Donaldson, Nate Newton, and Mark Tuinei. However, Donaldson suffered a season-ending injury late in the season and would be replaced by Derek Kennard.",
+        "original_question": "Who caught more passes, Michael Irvin or Emmitt Smith?",
+        "original_answer_data": {
+          "spans": [
+            "Michael Irvin"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 50
+      }
+    },
+    {
+      "question": "PASSAGE: There were 2,380 households of which 18.4% had children under the age of 18 living with them, 28.6% were Marriage living together, 6.3% had a female householder with no husband present, 3.2% had a male householder with no wife present, and 61.9% were non-families. 32.1% of all households were made up of individuals and 11.9% had someone living alone who was 65 years of age or older. The average household size was 2.37 and the average family size was 2.82.\n\nQUESTION: Were there more children under the age of 18, or people over the age of 65?",
+      "answer": "under the age of 18",
+      "id": "example_71",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "There were 2,380 households of which 18.4% had children under the age of 18 living with them, 28.6% were Marriage living together, 6.3% had a female householder with no husband present, 3.2% had a male householder with no wife present, and 61.9% were non-families. 32.1% of all households were made up of individuals and 11.9% had someone living alone who was 65 years of age or older. The average household size was 2.37 and the average family size was 2.82.",
+        "original_question": "Were there more children under the age of 18, or people over the age of 65?",
+        "original_answer_data": {
+          "spans": [
+            "under the age of 18"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 211
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off of their Week 9 bye, the Patriots hosted the Seattle Seahawks on Sunday Night Football in a rematch of Super Bowl XLIX. The Patriots marched 75 yards in 9 plays on their first drive of the game, with LeGarrette Blount scoring on a 1-yard touchdown run. Placekicker Stephen Gostkowski's kick went out of bounds, giving Seattle the ball at their own 40. The Seahawks reached the Patriots 8-yard line, but the Patriots red zone defense held them to a 26-yard field goal by placekicker Steven Hauschka and the score was 7-3. After a Patriots three-and-out, the Seahawks drove 66 yards in 10 plays, reaching the Patriots 13, but once again the Patriots kept them out of the end zone, and Hauschka kicked a 31-yard field goal, trimming the deficit to 7-6. After another Patriots three-and-out, the Seahawks 65 yards in 10 plays, this time reaching the end zone on quarterback Russell Wilson's 6-yard touchdown pass to wide receiver Doug Baldwin, but the PAT was blocked, keeping the score 12-7. On the second play of the Patriots next drive, Gronkowski seemed to fumble after being hit hard by safety Earl Thomas, but replay overturned it. Two plays later, cornerback DeShawn Shead intercepted quarterback Tom Brady at the Seattle 22 and returned it 2 yards to the Seahawks 24. The Patriots forced Seattle to punt, then marched 81 yards in 11 plays, scoring on Blount's 1-yard touchdown run with 1:05 remaining in the first half. However, 1:05 was too much time for Seattle as they raced 75 yards in under a minute, with Wilson finding Baldwin wide open in the end zone for an 18-yard touchdown, giving Seattle a 19-14 lead at halftime. After a Seahawks three-and-out, the Patriots had their way with Seattle on 10 play, 91-yard drive, scoring on Blount's 13-yard touchdown run,re-taking the lead, 21-19. Seattle countered with a long drive of their own, advancing 52 yards in 9 plays, taking a 22-21 lead on Hauschka's 41-yard field goal. The Patriots countered Seattle's field goal with one of their own, marching 63 yards in 10 plays, reaching the Seattle, but the Seahawks clamped down, and drove the Patriots back to the 12 and forced them to settle for Gostkowski's 30-yard field goal, retaking the lead 24-22. Seattle countered as well, racing 58 yards in 8 plays, reaching the New England 5, but the Patriots red zone defense once more kept them out of the end zone, and Hauschka was good from 23 yards away, his fourth, retaking the lead for Seattle, 25-24. Kickoff returner Cyrus Jones fumbled the kick return, but safety Nate Ebner recovered, but two plays later, after a 5-yard gain, safety Kam Chancellor forced wide receiver Julian Edelman to fumble, with Richard Sherman returning the ball 14-yards to the Patriots 48. Eight plays later, Wilson capped off the 48-yard drive with his touchdown pass to Baldwin, with a failed two point conversion, keeping the Patriots in the game 31-24. Facing a 3rd-and-10 at their own 46, Brady hit Edelman on a 30-yard bomb to the Seahawks 24. After a 4-yard loss by Blount, Brady hit Gronkowski on a 26-yard bomb to the Seahawks 2. Very close to the end zone, Brady gained 1-yard on the sneak attempt. But on the very next play, Blount was stuffed for no gain, bringing up 3rd-and-Goal at the 1. Brady tried to sneak again, but fumbled and recovered at the Seahawks 2. On 4th-and-Goal Gronkowski couldn't catch a pass from Brady and the Patriots turned it over on downs. The Seahawks ran out the final seconds and won the game. The Pats dropped to a record of 7-2, but still maintained first place in the AFC East. This would be the last loss of the Patriots season. The Seahawks improved to a record of 6-2-1.\n\nQUESTION: How many total points were score?",
+      "answer": "55",
+      "id": "example_72",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off of their Week 9 bye, the Patriots hosted the Seattle Seahawks on Sunday Night Football in a rematch of Super Bowl XLIX. The Patriots marched 75 yards in 9 plays on their first drive of the game, with LeGarrette Blount scoring on a 1-yard touchdown run. Placekicker Stephen Gostkowski's kick went out of bounds, giving Seattle the ball at their own 40. The Seahawks reached the Patriots 8-yard line, but the Patriots red zone defense held them to a 26-yard field goal by placekicker Steven Hauschka and the score was 7-3. After a Patriots three-and-out, the Seahawks drove 66 yards in 10 plays, reaching the Patriots 13, but once again the Patriots kept them out of the end zone, and Hauschka kicked a 31-yard field goal, trimming the deficit to 7-6. After another Patriots three-and-out, the Seahawks 65 yards in 10 plays, this time reaching the end zone on quarterback Russell Wilson's 6-yard touchdown pass to wide receiver Doug Baldwin, but the PAT was blocked, keeping the score 12-7. On the second play of the Patriots next drive, Gronkowski seemed to fumble after being hit hard by safety Earl Thomas, but replay overturned it. Two plays later, cornerback DeShawn Shead intercepted quarterback Tom Brady at the Seattle 22 and returned it 2 yards to the Seahawks 24. The Patriots forced Seattle to punt, then marched 81 yards in 11 plays, scoring on Blount's 1-yard touchdown run with 1:05 remaining in the first half. However, 1:05 was too much time for Seattle as they raced 75 yards in under a minute, with Wilson finding Baldwin wide open in the end zone for an 18-yard touchdown, giving Seattle a 19-14 lead at halftime. After a Seahawks three-and-out, the Patriots had their way with Seattle on 10 play, 91-yard drive, scoring on Blount's 13-yard touchdown run,re-taking the lead, 21-19. Seattle countered with a long drive of their own, advancing 52 yards in 9 plays, taking a 22-21 lead on Hauschka's 41-yard field goal. The Patriots countered Seattle's field goal with one of their own, marching 63 yards in 10 plays, reaching the Seattle, but the Seahawks clamped down, and drove the Patriots back to the 12 and forced them to settle for Gostkowski's 30-yard field goal, retaking the lead 24-22. Seattle countered as well, racing 58 yards in 8 plays, reaching the New England 5, but the Patriots red zone defense once more kept them out of the end zone, and Hauschka was good from 23 yards away, his fourth, retaking the lead for Seattle, 25-24. Kickoff returner Cyrus Jones fumbled the kick return, but safety Nate Ebner recovered, but two plays later, after a 5-yard gain, safety Kam Chancellor forced wide receiver Julian Edelman to fumble, with Richard Sherman returning the ball 14-yards to the Patriots 48. Eight plays later, Wilson capped off the 48-yard drive with his touchdown pass to Baldwin, with a failed two point conversion, keeping the Patriots in the game 31-24. Facing a 3rd-and-10 at their own 46, Brady hit Edelman on a 30-yard bomb to the Seahawks 24. After a 4-yard loss by Blount, Brady hit Gronkowski on a 26-yard bomb to the Seahawks 2. Very close to the end zone, Brady gained 1-yard on the sneak attempt. But on the very next play, Blount was stuffed for no gain, bringing up 3rd-and-Goal at the 1. Brady tried to sneak again, but fumbled and recovered at the Seahawks 2. On 4th-and-Goal Gronkowski couldn't catch a pass from Brady and the Patriots turned it over on downs. The Seahawks ran out the final seconds and won the game. The Pats dropped to a record of 7-2, but still maintained first place in the AFC East. This would be the last loss of the Patriots season. The Seahawks improved to a record of 6-2-1.",
+        "original_question": "How many total points were score?",
+        "original_answer_data": {
+          "spans": [
+            "55"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 381
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their season-sweeping road win over the Giants, the Cowboys went home for a Week 11 NFC East duel with the Washington Redskins, a longtime rival of the Cowboys.  In the first quarter, Dallas trailed early as Redskins QB Jason Campbell completed a 19-yard TD pass to TE Chris Cooley for the only score of the period.  In the second quarter, the 'Boys got on the board as QB Tony Romo completed a 4-yard TD pass to WR Terrell Owens.  Washington would take the lead into halftime as kicker Shaun Suisham managed to get a 45-yard field goal. In the third quarter, the Cowboys took the lead with Romo and Owens hooking up with each other again on a 31-yard TD pass.  The Redskins got close as Suisham kicked a 39-yard field goal.  Fortunately, in the fourth quarter, the 'Boys started to run away with the lead as Romo and Owens hooked up with each other for a third time on a 46-yard TD pass.  Washington tried to come back as Suisham nailed a 44-yard field goal, yet Dallas continued to roll as Romo hooked up with Owens for the fourth time on a 52-yard TD pass.  The Redskins tried to come back as Campbell completed a 5-yard TD pass to WR Santana Moss.  Fortunately, the Dallas defense held on for the victory. Terrell Owens, with his 4 touchdown receptions, tied Bob Hayes for the most touchdown receptions by a Cowboys receiver in one game.\n\nQUESTION: How many yards was the longest touchdown pass of the game?",
+      "answer": "52",
+      "id": "example_73",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their season-sweeping road win over the Giants, the Cowboys went home for a Week 11 NFC East duel with the Washington Redskins, a longtime rival of the Cowboys.  In the first quarter, Dallas trailed early as Redskins QB Jason Campbell completed a 19-yard TD pass to TE Chris Cooley for the only score of the period.  In the second quarter, the 'Boys got on the board as QB Tony Romo completed a 4-yard TD pass to WR Terrell Owens.  Washington would take the lead into halftime as kicker Shaun Suisham managed to get a 45-yard field goal. In the third quarter, the Cowboys took the lead with Romo and Owens hooking up with each other again on a 31-yard TD pass.  The Redskins got close as Suisham kicked a 39-yard field goal.  Fortunately, in the fourth quarter, the 'Boys started to run away with the lead as Romo and Owens hooked up with each other for a third time on a 46-yard TD pass.  Washington tried to come back as Suisham nailed a 44-yard field goal, yet Dallas continued to roll as Romo hooked up with Owens for the fourth time on a 52-yard TD pass.  The Redskins tried to come back as Campbell completed a 5-yard TD pass to WR Santana Moss.  Fortunately, the Dallas defense held on for the victory. Terrell Owens, with his 4 touchdown receptions, tied Bob Hayes for the most touchdown receptions by a Cowboys receiver in one game.",
+        "original_question": "How many yards was the longest touchdown pass of the game?",
+        "original_answer_data": {
+          "spans": [
+            "52"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 883
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their Sunday night divisional road win over the Eagles, the Cowboys flew to Giants Stadium for an NFC East rematch with the New York Giants. In the first quarter, Dallas shot first as QB Tony Romo completed a 15-yard TD pass to TE Tony Curtis.  Afterwards, the Giants responded with QB Eli Manning completing an 8-yard TD pass to TE Jeremy Shockey. In the second quarter, the Cowboys retook the lead as rookie kicker Nick Folk got a 44-yard field goal, yet New York answered with RB Reuben Droughns getting a 1-yard TD run.  Dallas reclaimed the lead with Romo completing a 20-yard TD pass to WR Patrick Crayton.  However, due to a taunting penalty on LB Kevin Burnett, the Giants were given great field position to get some points prior to halftime.  The Cowboys held New York to a 40-yard Lawrence Tynes field goal. In the third quarter, Dallas regained the lead with Romo completing a 25-yard TD pass to WR Terrell Owens for the only score of the period.  In the fourth quarter, the Giants only got a 26-yard field goal from Tynes.  Afterwards, the Cowboys completed the season-sweep with Romo and Owens hooking up again on a 50-yard TD pass. This would mark the first time since their Super Bowl year of 1995 that the Cowboys began a season at 8-1, and only the third time in franchise history that Dallas began at 8-1; the other times were during the 1977 season, and the 1983 season.  The Cowboys won the Super Bowl in 1977 and 1995, but lost the wildcard game to the Los Angeles Rams in 1983. For their season-sweep over New York, Dallas had scored a total of 76 points in the two meetings. DT Tank Johnson, in his first game with the Cowboys (along with the first game off of his suspension), recorded 3 tackles and a sack.\n\nQUESTION: How many points did the Giants get in the third quarter?",
+      "answer": "3",
+      "id": "example_74",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their Sunday night divisional road win over the Eagles, the Cowboys flew to Giants Stadium for an NFC East rematch with the New York Giants. In the first quarter, Dallas shot first as QB Tony Romo completed a 15-yard TD pass to TE Tony Curtis.  Afterwards, the Giants responded with QB Eli Manning completing an 8-yard TD pass to TE Jeremy Shockey. In the second quarter, the Cowboys retook the lead as rookie kicker Nick Folk got a 44-yard field goal, yet New York answered with RB Reuben Droughns getting a 1-yard TD run.  Dallas reclaimed the lead with Romo completing a 20-yard TD pass to WR Patrick Crayton.  However, due to a taunting penalty on LB Kevin Burnett, the Giants were given great field position to get some points prior to halftime.  The Cowboys held New York to a 40-yard Lawrence Tynes field goal. In the third quarter, Dallas regained the lead with Romo completing a 25-yard TD pass to WR Terrell Owens for the only score of the period.  In the fourth quarter, the Giants only got a 26-yard field goal from Tynes.  Afterwards, the Cowboys completed the season-sweep with Romo and Owens hooking up again on a 50-yard TD pass. This would mark the first time since their Super Bowl year of 1995 that the Cowboys began a season at 8-1, and only the third time in franchise history that Dallas began at 8-1; the other times were during the 1977 season, and the 1983 season.  The Cowboys won the Super Bowl in 1977 and 1995, but lost the wildcard game to the Los Angeles Rams in 1983. For their season-sweep over New York, Dallas had scored a total of 76 points in the two meetings. DT Tank Johnson, in his first game with the Cowboys (along with the first game off of his suspension), recorded 3 tackles and a sack.",
+        "original_question": "How many points did the Giants get in the third quarter?",
+        "original_answer_data": {
+          "spans": [
+            "3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 173
+      }
+    },
+    {
+      "question": "PASSAGE: After the political changes, in 1991, Bulgaria had a US$11.25 billion state debt, which represented 180% of the GDP. The state debt peaked in 1994, when it reached US$14.4 billion. During 1998-2008 Bulgaria maintained policy of Government budget balance, which reduced the state debt to 5.07 billion euro. Combined with the economic growth in that period, the state debt dropped to a record low of 13.7% of GDP, one of the lowest in the European Union. In 2008 Bulgaria also maintained 4.286 billion euro fiscal reserve, meaning that net state debt at this moment was only 0.784 billion euro. After the Financial crisis of 2007\u201308 Bulgaria turned to policy of Deficit spending and at the end of 2013 the state debt rose up to 7.219 billion euro, representing 18.1% of the GDP. In 2015, the debt rate increased further to 26.7% of the GDP, still remaining the third lowest in EU after Estonia and Luxembourg. Part of the increase was driven by the collapse of Corporate Commercial Bank in 2014, the fourth largest bank in the country, and the subsequent paying out of Deposit insurance.\n\nQUESTION: How many percent lower was the state debt as a percentage of GDP from 1991 to 2008?",
+      "answer": "166.3",
+      "id": "example_75",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After the political changes, in 1991, Bulgaria had a US$11.25 billion state debt, which represented 180% of the GDP. The state debt peaked in 1994, when it reached US$14.4 billion. During 1998-2008 Bulgaria maintained policy of Government budget balance, which reduced the state debt to 5.07 billion euro. Combined with the economic growth in that period, the state debt dropped to a record low of 13.7% of GDP, one of the lowest in the European Union. In 2008 Bulgaria also maintained 4.286 billion euro fiscal reserve, meaning that net state debt at this moment was only 0.784 billion euro. After the Financial crisis of 2007\u201308 Bulgaria turned to policy of Deficit spending and at the end of 2013 the state debt rose up to 7.219 billion euro, representing 18.1% of the GDP. In 2015, the debt rate increased further to 26.7% of the GDP, still remaining the third lowest in EU after Estonia and Luxembourg. Part of the increase was driven by the collapse of Corporate Commercial Bank in 2014, the fourth largest bank in the country, and the subsequent paying out of Deposit insurance.",
+        "original_question": "How many percent lower was the state debt as a percentage of GDP from 1991 to 2008?",
+        "original_answer_data": {
+          "spans": [
+            "166.3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 147
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "ARC",
-      "filename": "1e32b0e9.json"
+      "source": "jsonl_dataset",
+      "original_passage": "The club had not gained a major trophy since the 2005 FA Cup until 17 May 2014 when, spearheaded by then club-record acquisition Mesut \u00d6zil, Arsenal beat Hull City A.F.C. in the 2014 FA Cup Final, coming back from a 2-0 deficit to win the match 3-2. A year later, Arsenal appeared in the FA Cup final for the second time in a row, defeating Aston Villa F.C. 4-0 in the 2015 FA Cup Final and becoming the most successful club in the tournaments history with 12 titles, a record which Manchester United would tie the following season. Arsenal later won the 2016-17 FA Cup for a record 13th time, defeating Chelsea 2-1 in the 2017 FA Cup Final and once more becoming the outright leader in terms of FA Cups won. The victory also saw Wenger become the first manager in English football history to win seven FA Cups. However, in that same season, Arsenal finished in the fifth position in the league, the first time they had finished outside the top four since before Wenger arrived in 1996. After another unspectacular league season the following year, Wenger announced his departure from the club on 20 April 2018, after 22 years as manager. His decision was met by responses of praise throughout English and world football from many pundits and former players, who also thanked him for developing them as people. His final home match in charge was a 5-0 win over Burnley where his entrance was met to a standing ovation by supporters. The final match under the Wenger era was a 1-0 away victory against Huddersfield.",
+      "original_question": "In what year did Arensal regain their record of most titles won?",
+      "original_answer_data": {
+        "spans": [
+          "2017"
+        ],
+        "types": [
+          "date"
+        ]
+      },
+      "line_number": 499
     },
     {
-      "source": "ARC",
-      "filename": "1f0c79e5.json"
+      "source": "jsonl_dataset",
+      "original_passage": "According to the FBI, a city to city comparison of crime rates is not meaningful, because recording practices vary from city to city, citizens report different percentages of crimes from one city to the next, and the actual number of people physically present in a city is unknown. With that in mind, Dallass violent crime rate (12.06 per 1,000 people) is lower than St Louis (24.81), Detroit (24.22), Baltimore (16.96), Philadelphia (15.62), Cleveland (15.47), Miami (15.09), Washington, D.C.. (14.48), Kansas City, Missouri (14.44) and Boston (13.39). However, Houston (11.69), Los Angeles (7.87), and New York City (6.38) have lower violent crime rates than Dallas.",
+      "original_question": "Which cities had a violent crime rate lower than 8?",
+      "original_answer_data": {
+        "spans": [
+          "Los Angeles",
+          "New York City"
+        ],
+        "types": [
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 474
     },
     {
-      "source": "ARC",
-      "filename": "1f642eb9.json"
+      "source": "jsonl_dataset",
+      "original_passage": "In week 4, the Bears played against the Dallas Cowboys on Monday Night Football in Dallas. After a scoreless first quarter and Robbie Gould's field goal, Charles Tillman intercepted Tony Romo, returning the pick for a touchdown. The interception would be the first of Romo's five interceptions. Romo would later hit Miles Austin for a 10-yard touchdown. In the second half, Cutler was able to hit Devin Hester on a 34-yard touchdown pass to extend the Bears lead. Later, Romo's pass was intercepted by Bears linebacker Lance Briggs, who then returned the interception for a touchdown to increase the lead 24-7. The pick-six marked Bears' fourteenth forced turnover, which led the league, and also leads the league in interceptions (11). Cutler would then throw another touchdown pass to Brandon Marshall. Cutler would have his highest performance of the season, completing 18 of 24 passes for 275 yards, along with two touchdowns. His 140.1 passer rating was the third highest of his career. Marshall caught seven passes for 138 yards, a season-best. With 34 seconds left in the game, Romo was replaced by former Bears quarterback Kyle Orton, who threw a 5-yard touchdown pass to Jason Witten, and the Cowboys had a two-point conversion, but the Bears would then win 34-18. With the win, the Bears shared the NFC North lead with the Minnesota Vikings with a 3-1 record.",
+      "original_question": "Which receiver had over 125 yards receiving?",
+      "original_answer_data": {
+        "spans": [
+          "Brandon Marshall"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 617
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their loss to the Chargers the Cardinals played on home ground for an NFC duel with the Saints. In the first quarter the Cardinals trailed early as kicker John Carney nailed a 31-yard field goal, followed by QB Drew Brees completing a 1-yard TD pass to TE Jeremy Shockey. The Cardinals replied with kicker Jay Feely making a 37-yard field goal, followed by OT Levi Brown recovering a fumble and returning it 2 yards for a touchdown. In the third quarter the Cardinals replied and took the lead when Feely got a 44-yard field goal, followed the 4th quarter by Feely's 29-yard field goal. Then FS Kerry Rhodes recovered a fumble and ran 27 yards to the endzone for a touchdown. The lead was broken down with Brees making a 35-yard TD pass to WR Robert Meachem, but the Cardinals managed to pull away when Brees' pass was intercepted by CB Dominique Rodgers-Cromartie and returned 28 yards to the endzone for a touchdown. With the win, Arizona went into their bye week at 3-2.",
+      "original_question": "Which team scored first?",
+      "original_answer_data": {
+        "spans": [
+          "Saints"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 697
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In 1995, the Cowboys finished with a  regular season record, the best in the NFC. Pro Bowl quarterback Troy Aikman finished the regular season completing 280 out of 432 passes for 3,304 yards and 16 touchdowns, with only seven interceptions. Pro Bowl running back Emmitt Smith won his fourth and last league rushing crown in his career with 1,773 yards, and broke a league single-season record with 25 rushing touchdowns. Smith was also a reliable receiver out of the backfield, recording a career-high 62 receptions for 375 yards.  Fullback Daryl Johnston added 111 rushing yards, while also catching 30 passes for 248 and scoring three touchdowns. Pro Bowl wide receiver Michael Irvin led the team in receiving with 111 catches for 1,603 yards and 10 touchdowns.  Kevin Williams (wide receiver) was another a big receiving threat with 38 receptions for 613 yards, while also racking up 1,274 return yards on special teams. Pro Bowl tight end Jay Novacek had 62 receptions for 705 yards and five touchdowns. Dallas offensive line was led by Pro Bowl selections Larry Allen, Ray Donaldson, Nate Newton, and Mark Tuinei. However, Donaldson suffered a season-ending injury late in the season and would be replaced by Derek Kennard.",
+      "original_question": "Who caught more passes, Michael Irvin or Emmitt Smith?",
+      "original_answer_data": {
+        "spans": [
+          "Michael Irvin"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 50
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "There were 2,380 households of which 18.4% had children under the age of 18 living with them, 28.6% were Marriage living together, 6.3% had a female householder with no husband present, 3.2% had a male householder with no wife present, and 61.9% were non-families. 32.1% of all households were made up of individuals and 11.9% had someone living alone who was 65 years of age or older. The average household size was 2.37 and the average family size was 2.82.",
+      "original_question": "Were there more children under the age of 18, or people over the age of 65?",
+      "original_answer_data": {
+        "spans": [
+          "under the age of 18"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 211
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off of their Week 9 bye, the Patriots hosted the Seattle Seahawks on Sunday Night Football in a rematch of Super Bowl XLIX. The Patriots marched 75 yards in 9 plays on their first drive of the game, with LeGarrette Blount scoring on a 1-yard touchdown run. Placekicker Stephen Gostkowski's kick went out of bounds, giving Seattle the ball at their own 40. The Seahawks reached the Patriots 8-yard line, but the Patriots red zone defense held them to a 26-yard field goal by placekicker Steven Hauschka and the score was 7-3. After a Patriots three-and-out, the Seahawks drove 66 yards in 10 plays, reaching the Patriots 13, but once again the Patriots kept them out of the end zone, and Hauschka kicked a 31-yard field goal, trimming the deficit to 7-6. After another Patriots three-and-out, the Seahawks 65 yards in 10 plays, this time reaching the end zone on quarterback Russell Wilson's 6-yard touchdown pass to wide receiver Doug Baldwin, but the PAT was blocked, keeping the score 12-7. On the second play of the Patriots next drive, Gronkowski seemed to fumble after being hit hard by safety Earl Thomas, but replay overturned it. Two plays later, cornerback DeShawn Shead intercepted quarterback Tom Brady at the Seattle 22 and returned it 2 yards to the Seahawks 24. The Patriots forced Seattle to punt, then marched 81 yards in 11 plays, scoring on Blount's 1-yard touchdown run with 1:05 remaining in the first half. However, 1:05 was too much time for Seattle as they raced 75 yards in under a minute, with Wilson finding Baldwin wide open in the end zone for an 18-yard touchdown, giving Seattle a 19-14 lead at halftime. After a Seahawks three-and-out, the Patriots had their way with Seattle on 10 play, 91-yard drive, scoring on Blount's 13-yard touchdown run,re-taking the lead, 21-19. Seattle countered with a long drive of their own, advancing 52 yards in 9 plays, taking a 22-21 lead on Hauschka's 41-yard field goal. The Patriots countered Seattle's field goal with one of their own, marching 63 yards in 10 plays, reaching the Seattle, but the Seahawks clamped down, and drove the Patriots back to the 12 and forced them to settle for Gostkowski's 30-yard field goal, retaking the lead 24-22. Seattle countered as well, racing 58 yards in 8 plays, reaching the New England 5, but the Patriots red zone defense once more kept them out of the end zone, and Hauschka was good from 23 yards away, his fourth, retaking the lead for Seattle, 25-24. Kickoff returner Cyrus Jones fumbled the kick return, but safety Nate Ebner recovered, but two plays later, after a 5-yard gain, safety Kam Chancellor forced wide receiver Julian Edelman to fumble, with Richard Sherman returning the ball 14-yards to the Patriots 48. Eight plays later, Wilson capped off the 48-yard drive with his touchdown pass to Baldwin, with a failed two point conversion, keeping the Patriots in the game 31-24. Facing a 3rd-and-10 at their own 46, Brady hit Edelman on a 30-yard bomb to the Seahawks 24. After a 4-yard loss by Blount, Brady hit Gronkowski on a 26-yard bomb to the Seahawks 2. Very close to the end zone, Brady gained 1-yard on the sneak attempt. But on the very next play, Blount was stuffed for no gain, bringing up 3rd-and-Goal at the 1. Brady tried to sneak again, but fumbled and recovered at the Seahawks 2. On 4th-and-Goal Gronkowski couldn't catch a pass from Brady and the Patriots turned it over on downs. The Seahawks ran out the final seconds and won the game. The Pats dropped to a record of 7-2, but still maintained first place in the AFC East. This would be the last loss of the Patriots season. The Seahawks improved to a record of 6-2-1.",
+      "original_question": "How many total points were score?",
+      "original_answer_data": {
+        "spans": [
+          "55"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 381
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their season-sweeping road win over the Giants, the Cowboys went home for a Week 11 NFC East duel with the Washington Redskins, a longtime rival of the Cowboys.  In the first quarter, Dallas trailed early as Redskins QB Jason Campbell completed a 19-yard TD pass to TE Chris Cooley for the only score of the period.  In the second quarter, the 'Boys got on the board as QB Tony Romo completed a 4-yard TD pass to WR Terrell Owens.  Washington would take the lead into halftime as kicker Shaun Suisham managed to get a 45-yard field goal. In the third quarter, the Cowboys took the lead with Romo and Owens hooking up with each other again on a 31-yard TD pass.  The Redskins got close as Suisham kicked a 39-yard field goal.  Fortunately, in the fourth quarter, the 'Boys started to run away with the lead as Romo and Owens hooked up with each other for a third time on a 46-yard TD pass.  Washington tried to come back as Suisham nailed a 44-yard field goal, yet Dallas continued to roll as Romo hooked up with Owens for the fourth time on a 52-yard TD pass.  The Redskins tried to come back as Campbell completed a 5-yard TD pass to WR Santana Moss.  Fortunately, the Dallas defense held on for the victory. Terrell Owens, with his 4 touchdown receptions, tied Bob Hayes for the most touchdown receptions by a Cowboys receiver in one game.",
+      "original_question": "How many yards was the longest touchdown pass of the game?",
+      "original_answer_data": {
+        "spans": [
+          "52"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 883
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their Sunday night divisional road win over the Eagles, the Cowboys flew to Giants Stadium for an NFC East rematch with the New York Giants. In the first quarter, Dallas shot first as QB Tony Romo completed a 15-yard TD pass to TE Tony Curtis.  Afterwards, the Giants responded with QB Eli Manning completing an 8-yard TD pass to TE Jeremy Shockey. In the second quarter, the Cowboys retook the lead as rookie kicker Nick Folk got a 44-yard field goal, yet New York answered with RB Reuben Droughns getting a 1-yard TD run.  Dallas reclaimed the lead with Romo completing a 20-yard TD pass to WR Patrick Crayton.  However, due to a taunting penalty on LB Kevin Burnett, the Giants were given great field position to get some points prior to halftime.  The Cowboys held New York to a 40-yard Lawrence Tynes field goal. In the third quarter, Dallas regained the lead with Romo completing a 25-yard TD pass to WR Terrell Owens for the only score of the period.  In the fourth quarter, the Giants only got a 26-yard field goal from Tynes.  Afterwards, the Cowboys completed the season-sweep with Romo and Owens hooking up again on a 50-yard TD pass. This would mark the first time since their Super Bowl year of 1995 that the Cowboys began a season at 8-1, and only the third time in franchise history that Dallas began at 8-1; the other times were during the 1977 season, and the 1983 season.  The Cowboys won the Super Bowl in 1977 and 1995, but lost the wildcard game to the Los Angeles Rams in 1983. For their season-sweep over New York, Dallas had scored a total of 76 points in the two meetings. DT Tank Johnson, in his first game with the Cowboys (along with the first game off of his suspension), recorded 3 tackles and a sack.",
+      "original_question": "How many points did the Giants get in the third quarter?",
+      "original_answer_data": {
+        "spans": [
+          "3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 173
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After the political changes, in 1991, Bulgaria had a US$11.25 billion state debt, which represented 180% of the GDP. The state debt peaked in 1994, when it reached US$14.4 billion. During 1998-2008 Bulgaria maintained policy of Government budget balance, which reduced the state debt to 5.07 billion euro. Combined with the economic growth in that period, the state debt dropped to a record low of 13.7% of GDP, one of the lowest in the European Union. In 2008 Bulgaria also maintained 4.286 billion euro fiscal reserve, meaning that net state debt at this moment was only 0.784 billion euro. After the Financial crisis of 2007\u201308 Bulgaria turned to policy of Deficit spending and at the end of 2013 the state debt rose up to 7.219 billion euro, representing 18.1% of the GDP. In 2015, the debt rate increased further to 26.7% of the GDP, still remaining the third lowest in EU after Estonia and Luxembourg. Part of the increase was driven by the collapse of Corporate Commercial Bank in 2014, the fourth largest bank in the country, and the subsequent paying out of Deposit insurance.",
+      "original_question": "How many percent lower was the state debt as a percentage of GDP from 1991 to 2008?",
+      "original_answer_data": {
+        "spans": [
+          "166.3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 147
     }
   ],
   "example_indices": [
-    32,
-    33,
-    34
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75
   ],
   "results": [
     {
       "success": true,
-      "answer": "```python\n[\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 0, 0, 4, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n]\n```",
-      "output": "ANSWER_START\n```python\n[\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 0, 0, 4, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n]\n```\nANSWER_END\n",
+      "answer": "2017",
+      "output": "ANSWER_START\n2017\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_9.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Los Angeles and New York City",
+      "output": "ANSWER_START\nLos Angeles and New York City\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_9.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The two answers are matrices, and they do not match element by element. For instance, the element at position [1,8] in the system answer is 4, while in the golden answer it is 9."
+        "explanation": "The system answer includes an additional city, New York City, that is not present in the golden answer. Therefore, the answers do not communicate the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error: Could not create a valid transformation",
-      "output": "ANSWER_START\nError: Could not create a valid transformation\nANSWER_END\n",
+      "answer": "Brandon Marshall",
+      "output": "ANSWER_START\nBrandon Marshall\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_9.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same information: Brandon Marshall."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Saints",
+      "output": "ANSWER_START\nSaints\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_9.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are exactly the same."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Michael Irvin",
+      "output": "ANSWER_START\nMichael Irvin\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_9.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and refer to the same person, Michael Irvin."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Children under the age of 18",
+      "output": "ANSWER_START\nChildren under the age of 18\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_9.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers specify the same age restriction, with the system answer adding 'children' which does not change the meaning of the age limit."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "55",
+      "output": "ANSWER_START\n55\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_9.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value: 55."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "52 yards",
+      "output": "ANSWER_START\n52 yards\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_9.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers represent the same numerical value. The system answer includes the unit 'yards', which provides additional context but doesn't change the numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "0",
+      "output": "ANSWER_START\n0\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_9.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer indicates an error, while the golden answer provides a numerical array. These answers do not convey the same information."
+        "explanation": "The system answer (0) and the golden answer (3) are different numerical values, and therefore do not convey the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "```python\n[\n  [0, 0, 0, 6, 0, 2, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [9, 0, 6, 8, 2, 8, 0, 0, 0, 0],\n  [0, 0, 8, 8, 8, 8, 0, 0, 0, 7],\n  [3, 0, 3, 8, 8, 8, 0, 0, 0, 0],\n  [4, 0, 4, 8, 8, 8, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 6, 0, 0, 0, 0, 0]\n]\n```",
-      "output": "ANSWER_START\n```python\n[\n  [0, 0, 0, 6, 0, 2, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [9, 0, 6, 8, 2, 8, 0, 0, 0, 0],\n  [0, 0, 8, 8, 8, 8, 0, 0, 0, 7],\n  [3, 0, 3, 8, 8, 8, 0, 0, 0, 0],\n  [4, 0, 4, 8, 8, 8, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 6, 0, 0, 0, 0, 0]\n]\n```\nANSWER_END\n",
+      "answer": "166.3%",
+      "output": "ANSWER_START\n166.3%\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_9.jsonl",
       "evaluation": {
-        "match": false,
+        "match": true,
         "confidence": 1,
-        "explanation": "The two matrices are not identical. Element [3][2] in the golden answer is 9, while in the system answer it is 6. Element [4][5] in the golden answer is 7, while in the system answer it is 8. Element [6][4] in the golden answer is 6, while in the system answer it is 8."
+        "explanation": "Both answers represent the same numerical value. The presence of the percentage symbol (%) in the system answer does not change the meaning, as it is understood to be a percentage value."
       },
-      "match": false
+      "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.0,
-    "correct_count": 0,
-    "total_count": 3,
+    "accuracy": 0.8,
+    "correct_count": 8,
+    "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "```python\n[\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 0, 0, 4, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n]\n```",
-        "golden_answer": "[[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[0,4,4,4,0,9,0,4,4,9,0,9,0,9,9,9,0],[0,4,0,4,0,9,0,9,0,9,0,9,0,9,0,9,0],[0,4,4,4,0,9,0,9,9,9,0,9,0,9,9,9,0],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[0,9,4,9,0,9,0,9,9,9,0,9,0,9,9,9,0],[0,4,0,4,0,9,0,9,0,9,0,9,0,9,0,9,0],[0,9,4,9,0,9,0,4,4,9,0,9,0,9,9,9,0],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0],[0,9,9,9,0,9,0,9,9,9,0,9,0,9,9,9,0],[0,9,0,9,0,9,0,4,0,4,0,9,0,9,0,9,0],[0,9,9,9,0,9,0,9,9,9,0,9,0,9,9,9,0],[0,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,0]]",
-        "output": "ANSWER_START\n```python\n[\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 0, 0, 4, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 4, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 4, 0],\n  [0, 4, 4, 4, 0, 9, 0, 4, 0, 4, 0, 9, 0, 4, 0, 0, 0],\n  [0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n]\n```\nANSWER_END\n",
-        "match": false,
+        "system_answer": "2017",
+        "golden_answer": "2017",
+        "output": "ANSWER_START\n2017\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The two answers are matrices, and they do not match element by element. For instance, the element at position [1,8] in the system answer is 4, while in the golden answer it is 9."
-        },
-        "capability_failures": []
+          "explanation": "Both answers are the same numerical value."
+        }
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "Error: Could not create a valid transformation",
-        "golden_answer": "[[0,0,8,8,8,0,0,8,8],[0,0,0,8,8,8,8,8,8],[0,0,0,0,8,8,8,8,0],[0,0,0,0,0,8,8,8,0],[0,0,0,0,0,0,8,8,8],[0,0,0,0,0,0,0,8,8],[0,0,0,0,0,0,0,0,8],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0]]",
-        "output": "ANSWER_START\nError: Could not create a valid transformation\nANSWER_END\n",
+        "system_answer": "Los Angeles and New York City",
+        "golden_answer": "Los Angeles",
+        "output": "ANSWER_START\nLos Angeles and New York City\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer indicates an error, while the golden answer provides a numerical array. These answers do not convey the same information."
+          "explanation": "The system answer includes an additional city, New York City, that is not present in the golden answer. Therefore, the answers do not communicate the same information."
         },
         "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "```python\n[\n  [0, 0, 0, 6, 0, 2, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [9, 0, 6, 8, 2, 8, 0, 0, 0, 0],\n  [0, 0, 8, 8, 8, 8, 0, 0, 0, 7],\n  [3, 0, 3, 8, 8, 8, 0, 0, 0, 0],\n  [4, 0, 4, 8, 8, 8, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 6, 0, 0, 0, 0, 0]\n]\n```",
-        "golden_answer": "[[0,0,0,6,0,2,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[9,0,9,6,8,2,0,0,0,0],[0,0,8,8,8,7,0,0,0,7],[3,0,3,8,8,8,0,0,0,0],[4,0,4,8,6,8,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[0,0,0,0,6,0,0,0,0,0]]",
-        "output": "ANSWER_START\n```python\n[\n  [0, 0, 0, 6, 0, 2, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [9, 0, 6, 8, 2, 8, 0, 0, 0, 0],\n  [0, 0, 8, 8, 8, 8, 0, 0, 0, 7],\n  [3, 0, 3, 8, 8, 8, 0, 0, 0, 0],\n  [4, 0, 4, 8, 8, 8, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 6, 0, 0, 0, 0, 0]\n]\n```\nANSWER_END\n",
+        "system_answer": "Brandon Marshall",
+        "golden_answer": "Brandon Marshall",
+        "output": "ANSWER_START\nBrandon Marshall\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information: Brandon Marshall."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "Saints",
+        "golden_answer": "Saints",
+        "output": "ANSWER_START\nSaints\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are exactly the same."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "Michael Irvin",
+        "golden_answer": "Michael Irvin",
+        "output": "ANSWER_START\nMichael Irvin\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same person, Michael Irvin."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "Children under the age of 18",
+        "golden_answer": "under the age of 18",
+        "output": "ANSWER_START\nChildren under the age of 18\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers specify the same age restriction, with the system answer adding 'children' which does not change the meaning of the age limit."
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "55",
+        "golden_answer": "55",
+        "output": "ANSWER_START\n55\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 55."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "52 yards",
+        "golden_answer": "52",
+        "output": "ANSWER_START\n52 yards\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value. The system answer includes the unit 'yards', which provides additional context but doesn't change the numerical value."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "0",
+        "golden_answer": "3",
+        "output": "ANSWER_START\n0\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The two matrices are not identical. Element [3][2] in the golden answer is 9, while in the system answer it is 6. Element [4][5] in the golden answer is 7, while in the system answer it is 8. Element [6][4] in the golden answer is 6, while in the system answer it is 8."
+          "explanation": "The system answer (0) and the golden answer (3) are different numerical values, and therefore do not convey the same information."
         },
         "capability_failures": []
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "166.3%",
+        "golden_answer": "166.3",
+        "output": "ANSWER_START\n166.3%\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value. The presence of the percentage symbol (%) in the system answer does not change the meaning, as it is understood to be a percentage value."
+        }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\n\n*   **Sample ID 1:** \"Error: Could not create a valid transformation\". This indicates a failure in `solution_generation`. The system could not produce a valid grid transformation based on the provided training examples. This might be due to an inability to generalize the pattern or an incomplete understanding of the transformation rules.\n\n## STRENGTHS\n\n*   **Underlying Structure:** The system correctly outputs a matrix/grid-like structure as its answer, aligning with the expected output format for this task.\n*   **Consistent Delimiters**: The response consistently uses ```python tags to enclose the grid.\n\n## WEAKNESSES\n\n*   **Pattern Generalization:** The system struggles to generalize the transformation patterns observed in the training examples to the test input. It fails to identify and apply the correct logic for transforming the grid elements.\n*   **Constraint Handling:** The system does not seem to handle constraints effectively. In Sample ID 2, the final result does not match the golden answer.\n*   **Error Handling:** The system gives generic error messages instead of pinpointing the exact issue.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Generalization of Transformation Rules:** The primary bottleneck is the inability to generalize transformation rules from the training examples to the test input. This is especially evident in the first two cases where the system fails to output a grid.\n2.  **Constraint Handling:** The system is not able to implement the correct constraints.\n\n## ERROR PATTERNS\n\n*   **Inability to Adapt:** The core recurring pattern is the system's inflexibility. It seems to learn the training examples but cannot adapt those learnings to new, unseen input.\n*   **Transformation Failures**: There are recurring errors with the transformation process.\n\n## PRIMARY ISSUE\n\nThe primary issue is the **inability to generalize grid transformation rules** from the training examples. The system either fails to identify the underlying pattern or cannot adapt the learned pattern to new input grids with different dimensions or element distributions.\n\n## IMPROVEMENT AREAS\n\n1.  **Pattern Recognition:** Improve the system's ability to recognize and extract patterns from the training data. Implement more sophisticated pattern recognition algorithms that can identify complex relationships between grid elements.\n2.  **Generalization Techniques:** Incorporate techniques that promote generalization, such as data augmentation, regularization, or meta-learning. Data augmentation can involve creating new training examples by slightly modifying existing ones.\n3.  **Debugging and Error Reporting:** Improve debugging and error reporting capabilities. Implement more detailed logging and error messages that pinpoint the specific step where the transformation process fails. This would make it easier to diagnose and fix issues.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement Data Augmentation:** Generate more training examples by applying slight transformations to the existing ones. For instance, rotate, flip, or scale the grids to create new examples.\n2.  **Refine Pattern Extraction:** Experiment with different machine learning models, such as Convolutional Neural Networks (CNNs) or Graph Neural Networks (GNNs), that are better suited for pattern recognition in grid-like data.\n3.  **Introduce Regularization:** Add regularization techniques to the learning process to prevent overfitting to the training data. L1 or L2 regularization can help to simplify the learned model and improve its generalization ability.\n4.  **Debug Print Statements**: Add print statements and intermediate outputs such that you can see them later to determine why things are going wrong.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** `solution_generation`, `solution_verification`, `constraint_handling`\n*   **Sample ID 1:** `solution_generation`\n*   **Sample ID 2:** `solution_generation`, `solution_verification`, `constraint_handling`\n",
-      "strengths": [
-        "Underlying Structure:** The system correctly outputs a matrix/grid-like structure as its answer, aligning with the expected output format for this task.",
-        "Consistent Delimiters**: The response consistently uses ```python tags to enclose the grid."
-      ],
-      "weaknesses": [
-        "Pattern Generalization:** The system struggles to generalize the transformation patterns observed in the training examples to the test input. It fails to identify and apply the correct logic for transforming the grid elements.",
-        "Constraint Handling:** The system does not seem to handle constraints effectively. In Sample ID 2, the final result does not match the golden answer.",
-        "Error Handling:** The system gives generic error messages instead of pinpointing the exact issue."
-      ],
-      "primary_issue": "The primary issue is the **inability to generalize grid transformation rules** from the training examples. The system either fails to identify the underlying pattern or cannot adapt the learned pattern to new input grids with different dimensions or element distributions.",
+      "text_report": "## RUNTIME ERRORS\nThere are no identified runtime errors in the provided 'output' fields of the error cases.\n\n## STRENGTHS\n1.  **Successful Information Extraction:** The system demonstrates a good ability to extract relevant information from the passage to answer questions, as seen in the success cases. The system can identify key details and facts necessary for generating correct answers.\n2.  **Numerical Comparison:** The system can perform basic numerical comparisons and identify the correct entities based on those comparisons (e.g., identifying the receiver with more yards).\n\n## WEAKNESSES\n1.  **Inaccurate Quantification:** The system struggles with accurately quantifying information, particularly when it involves combining information from different parts of the passage (e.g., calculating total scores across the game).\n2.  **Strict Interpretation of Answer Specifications:** The system can err when the golden answer is more restrictive or specific than what is minimally required. It provides extra information leading to incorrect answers.\n\n## CRITICAL BOTTLENECKS\n1.  **Complex Calculation and Aggregation:** The system struggles when questions require complex calculations or aggregation of information scattered throughout the passage.\n2.  **Lack of Precision in Answer Generation:** The system occasionally provides more information than required, leading to incorrect answers by including extraneous elements.\n\n## ERROR PATTERNS\n1.  **Numerical Miscalculation:** The most frequent error is the incorrect calculation of numerical values, such as the score in the third quarter or failing to filter results.\n2.  **Overspecification:** Including extra information in the answer that isn't explicitly requested, leading to incorrect answers when compared to stricter golden answers.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's **inability to accurately perform calculations and synthesize numerical information from the provided passages.** This manifests in errors related to summing scores, comparing crime rates, and extracting precise numerical quantities.\n\n## IMPROVEMENT AREAS\n1.  **Enhanced Numerical Reasoning:** Strengthen the system's ability to perform arithmetic operations and synthesize numerical information from the passage.\n2.  **Answer Precision:** Improve the system's ability to generate answers that are precisely aligned with the question's scope and constraints, avoiding over-specification.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Numerical Reasoning Module:** Develop a dedicated module responsible for extracting numerical data, performing calculations, and synthesizing information. This module should have error handling to prevent issues with incorrect calculations.\n2.  **Fine-tune Answer Generation:** Train the system to generate answers that are concise and directly address the question's prompt, avoiding unnecessary additions. Employ techniques like negative prompting or reward shaping to discourage over-specification.\n3.  **Add Intermediate Steps for Error Diagnosis:** Introduce more tracing and debugging information within the system, capturing the intermediate results of calculations and reasoning steps. This will enable better error diagnosis and allow for targeted improvements.\n\n## CAPABILITY MAPPING\n*   **Sample 1:** information_extraction, solution_generation. The system correctly identified Los Angeles but also included New York City.\n*   **Sample 8:** information_extraction, constraint_handling. The system failed to correctly extract the number of points in the third quarter and miscalculated.\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The most critical problem is the system's **inability to accurately perform calculations and synthesize numerical information from the provided passages.** This manifests in errors related to summing scores, comparing crime rates, and extracting precise numerical quantities.",
       "improvement_suggestions": [],
-      "runtime_errors": [
-        "Sample ID 1:** \"Error: Could not create a valid transformation\". This indicates a failure in `solution_generation`. The system could not produce a valid grid transformation based on the provided training examples. This might be due to an inability to generalize the pattern or an incomplete understanding of the transformation rules."
-      ]
+      "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and your request for a thorough, actionable assessment:\n\n## CAPABILITY REPORT: AI System Performance Analysis\n\n### EXECUTION ANALYSIS\n\nThe execution outputs reveal a critical failure in the system's core functionality.\n\n*   **Sample 0:** The system outputs a grid, but it's difficult to ascertain if it's logically correct without knowing the input/training data.  The output does show some pattern repetition. It consistently generates grids and uses ```python delimiters.\n*   **Sample 1:** The system throws a \"Could not create a valid transformation\" error. This suggests a fundamental problem in the transformation logic or data handling. The system fails entirely.\n*   **Sample 2:** The system produces a grid, but without the golden answer, it's impossible to know if this grid satisfies the constraints and transformation rules. The fact that a grid *is* produced implies partial functionality, but correctness is unknown.\n\nThe immediate issue is the complete failure in one of the three samples and the inability to assess correctness in the others.  The generic error message for Sample 1 is insufficient for debugging.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system's overall capability is extremely low, given the 0% accuracy rate.  It demonstrates a limited ability to generalize transformation rules and effectively handle constraints. While the system demonstrates structural formatting and uses ```python delimiters properly, the core transformation logic is unreliable.\n\n### KEY STRENGTHS\n\n*   **Structural Output:** The system consistently outputs a matrix/grid-like structure when it doesn't error.  This is a foundation to build upon.\n*   **Consistent formatting**: The system consistently uses ```python tags to enclose the grid.\n\n### KEY WEAKNESSES\n\n*   **Transformation Generalization:** The system's primary weakness is its inability to generalize transformation rules from training data to new inputs. This is reflected in the low accuracy score.\n*   **Error Handling & Reporting:** The generic error message \"Could not create a valid transformation\" provides insufficient information for debugging.\n*   **Constraint Handling:** There is no constraint handling.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Transformation Generalization**.  The system needs to be able to understand and apply transformation rules to new, unseen grid configurations.\n\n### ACTIONABLE RECOMMENDATIONS\n\nHere's a prioritized list of actionable changes to implement in the next iteration:\n\n1.  **Implement Detailed Debugging and Logging:**\n    *   **Action:** Introduce detailed logging *within* the `solution_generation` module. This logging should capture intermediate states, variable values, and decision points during the transformation process.\n    *   **Rationale:**  This will make the root cause of failures easily identifiable. It will make debugging infinitely easier. The current error message provides almost zero information.\n    *   **Example:** Add `print()` statements showing the values of key variables at different stages of the transformation process (e.g., values from the input grid, identified patterns, applied transformations). Log these intermediate steps.\n2.  **Address Transformation Errors:**\n    *   **Action:** Implement a more robust error-handling mechanism within the transformation process. Specifically, when a transformation fails, the system should identify *why* it failed (e.g., pattern not found, incompatible input, constraint violation).\n    *   **Rationale:** This provides much-needed context and will guide development efforts.\n    *   **Example:** Instead of \"Could not create a valid transformation,\" the error message could be, \"Transformation failed: Pattern 'X' not found in input grid.\"\n3.  **Refine Pattern Extraction:**\n    *   **Action:** The original error analysis suggested CNNs and GNNs, however this is unecessarily complex at this stage. Try to increase the number of training samples, as well as the pattern complexity that the system is able to generate.\n    *   **Rationale:** More training data is key. This can be achieved by simply creating more patterns, or by generating the data via Data Augmentation.\n    *   **Example:** Create variations of the existing training examples by rotating, flipping, or scaling the grids. Introduce small random noise to the grid elements to make the system more robust to variations in the input.\n4.  **Implement a Constraint Handling Mechanism:**\n    *   **Action:** Add logic to explicitly check and enforce constraints within the transformation process.\n    *   **Rationale:** This ensures that the generated solutions meet the problem requirements.\n    *   **Example:** Before outputting a grid, implement a function that verifies whether it satisfies all the predefined constraints. If a constraint is violated, the system should attempt to modify the grid until all constraints are met.\n5.  **Testing Infrastructure**\n    *   **Action:** The tests should be self-evaluating, providing an automatic correctness metric.\n    *   **Rationale:** In the current form, the system only gives the raw outputs, without any kind of golden answer or evaluator to determine if the result is valid.\n    *   **Example:** Design the test cases with a golden answer and evaluation to allow for an accuracy calculation.\n\n### CAPABILITY TREND\n\nBased on the current performance, the capability trend is **declining**. The 0% accuracy indicates a significant lack of functionality. Without targeted improvements, the trend will likely remain negative.\n",
-      "strengths": [
-        "Underlying Structure:** The system correctly outputs a matrix/grid-like structure as its answer, aligning with the expected output format for this task.",
-        "Consistent Delimiters**: The response consistently uses ```python tags to enclose the grid."
-      ],
-      "weaknesses": [
-        "Pattern Generalization:** The system struggles to generalize the transformation patterns observed in the training examples to the test input. It fails to identify and apply the correct logic for transforming the grid elements.",
-        "Constraint Handling:** The system does not seem to handle constraints effectively. In Sample ID 2, the final result does not match the golden answer.",
-        "Error Handling:** The system gives generic error messages instead of pinpointing the exact issue."
-      ],
+      "text_report": "## AI System Capability Report\n\nBased on the provided performance summary, error analysis report, and sample execution outputs, the following capability assessment is presented:\n\n### EXECUTION ANALYSIS\n\nThe execution outputs reveal several key issues that align with the provided error analysis.\n\n*   **Sample 1 Error (Overspecification):** The system correctly identified \"Los Angeles\" as a relevant city but also included \"New York City\". This confirms the \"Overspecification\" error pattern highlighted in the error analysis. This suggests the system lacks the ability to precisely constrain its answers to the explicitly requested information.\n*   **Numerical Issues:** The error analysis mentions problems with numerical calculations. Although the provided output snippets don't directly showcase this (since they don't provide the prompts or context), the Sample 8 capability mapping indicates the system failed to extract and calculate points in the third quarter. This is a critical issue.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates competence in basic information extraction and entity recognition, but its ability to perform accurate calculations, synthesize numerical information, and generate precise answers is lacking. The system appears to struggle with questions requiring more than simple lookup or direct extraction. The system also displays a tendency to include extraneous information in its answers, deviating from the prompt's precise requirements.\n\nOverall capability: **Moderate**, with significant room for improvement in numerical reasoning and answer precision.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** The system can identify and extract relevant information from text.\n*   **Entity Recognition:** The system correctly recognizes entities (e.g., cities, people).\n\n### KEY WEAKNESSES\n\n*   **Numerical Reasoning:** Inaccurate calculations and synthesis of numerical information.\n*   **Answer Precision:** Overspecification and inclusion of extraneous information in answers.\n*   **Complex Question Handling:** Struggles with questions requiring aggregation or comparison of multiple pieces of information.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Numerical Reasoning**. The system's inability to accurately calculate and synthesize numerical information directly impacts its accuracy and reliability. Addressing this weakness will have the most significant positive impact on overall performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Prioritize Numerical Reasoning Module Development:** Immediately begin development and integration of a dedicated Numerical Reasoning Module as suggested. This module should be robust and handle different units, formats, and types of calculations (addition, subtraction, comparisons, etc.).\n    *   **Action:** Allocate resources for the design, development, and testing of the Numerical Reasoning Module in the next sprint. Define clear input/output specifications and error handling mechanisms.\n2.  **Implement Input Validation & Filtering:** Before passing any numerical values to the Numerical Reasoning Module, implement a validation step to ensure data integrity. This includes checking for data type correctness, and appropriate range, and handling potential missing values.\n    *   **Action:** Add input validation checks within the code to sanitize and validate all numerical inputs before they are processed by the Numerical Reasoning Module.\n3.  **Refine Answer Generation with Specificity Constraints:** Modify the answer generation process to incorporate constraints related to specificity. This includes training the system to identify and avoid including unnecessary information in its answers. This could use a prompt engineering approach.\n    *   **Action:** Implement a scoring mechanism that penalizes the inclusion of irrelevant information in the generated answers. Experiment with negative prompting or reward shaping during fine-tuning.\n4.  **Increase Transparency of Reasoning Steps:** Modify the system to output intermediate steps during the question-answering process, particularly those related to numerical reasoning and answer generation.\n    *   **Action:** Implement logging mechanisms to record the intermediate values of calculations performed by the Numerical Reasoning Module and the decision-making process involved in selecting the final answer.\n\n### CAPABILITY TREND\n\nBased on the error patterns and weaknesses identified, the capability trend is currently **Stable with a Negative Bias** due to the persistence of the overspecification error. While the system demonstrates some baseline capabilities, the recurring errors in numerical reasoning and answer precision prevent significant progress. Active intervention and implementation of the recommended improvements are crucial to reverse this trend and drive positive growth.\n",
+      "strengths": [],
+      "weaknesses": [],
       "improvement_suggestions": [],
-      "runtime_errors": [
-        "Sample ID 1:** \"Error: Could not create a valid transformation\". This indicates a failure in `solution_generation`. The system could not produce a valid grid transformation based on the provided training examples. This might be due to an inability to generalize the pattern or an incomplete understanding of the transformation rules."
-      ]
+      "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\n\n*   **Sample ID 1:** \"Error: Could not create a valid transformation\". This indicates a failure in `solution_generation`. The system could not produce a valid grid transformation based on the provided training examples. This might be due to an inability to generalize the pattern or an incomplete understanding of the transformation rules.\n\n## STRENGTHS\n\n*   **Underlying Structure:** The system correctly outputs a matrix/grid-like structure as its answer, aligning with the expected output format for this task.\n*   **Consistent Delimiters**: The response consistently uses ```python tags to enclose the grid.\n\n## WEAKNESSES\n\n*   **Pattern Generalization:** The system struggles to generalize the transformation patterns observed in the training examples to the test input. It fails to identify and apply the correct logic for transforming the grid elements.\n*   **Constraint Handling:** The system does not seem to handle constraints effectively. In Sample ID 2, the final result does not match the golden answer.\n*   **Error Handling:** The system gives generic error messages instead of pinpointing the exact issue.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Generalization of Transformation Rules:** The primary bottleneck is the inability to generalize transformation rules from the training examples to the test input. This is especially evident in the first two cases where the system fails to output a grid.\n2.  **Constraint Handling:** The system is not able to implement the correct constraints.\n\n## ERROR PATTERNS\n\n*   **Inability to Adapt:** The core recurring pattern is the system's inflexibility. It seems to learn the training examples but cannot adapt those learnings to new, unseen input.\n*   **Transformation Failures**: There are recurring errors with the transformation process.\n\n## PRIMARY ISSUE\n\nThe primary issue is the **inability to generalize grid transformation rules** from the training examples. The system either fails to identify the underlying pattern or cannot adapt the learned pattern to new input grids with different dimensions or element distributions.\n\n## IMPROVEMENT AREAS\n\n1.  **Pattern Recognition:** Improve the system's ability to recognize and extract patterns from the training data. Implement more sophisticated pattern recognition algorithms that can identify complex relationships between grid elements.\n2.  **Generalization Techniques:** Incorporate techniques that promote generalization, such as data augmentation, regularization, or meta-learning. Data augmentation can involve creating new training examples by slightly modifying existing ones.\n3.  **Debugging and Error Reporting:** Improve debugging and error reporting capabilities. Implement more detailed logging and error messages that pinpoint the specific step where the transformation process fails. This would make it easier to diagnose and fix issues.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement Data Augmentation:** Generate more training examples by applying slight transformations to the existing ones. For instance, rotate, flip, or scale the grids to create new examples.\n2.  **Refine Pattern Extraction:** Experiment with different machine learning models, such as Convolutional Neural Networks (CNNs) or Graph Neural Networks (GNNs), that are better suited for pattern recognition in grid-like data.\n3.  **Introduce Regularization:** Add regularization techniques to the learning process to prevent overfitting to the training data. L1 or L2 regularization can help to simplify the learned model and improve its generalization ability.\n4.  **Debug Print Statements**: Add print statements and intermediate outputs such that you can see them later to determine why things are going wrong.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** `solution_generation`, `solution_verification`, `constraint_handling`\n*   **Sample ID 1:** `solution_generation`\n*   **Sample ID 2:** `solution_generation`, `solution_verification`, `constraint_handling`\n",
-    "capability_report_text": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and your request for a thorough, actionable assessment:\n\n## CAPABILITY REPORT: AI System Performance Analysis\n\n### EXECUTION ANALYSIS\n\nThe execution outputs reveal a critical failure in the system's core functionality.\n\n*   **Sample 0:** The system outputs a grid, but it's difficult to ascertain if it's logically correct without knowing the input/training data.  The output does show some pattern repetition. It consistently generates grids and uses ```python delimiters.\n*   **Sample 1:** The system throws a \"Could not create a valid transformation\" error. This suggests a fundamental problem in the transformation logic or data handling. The system fails entirely.\n*   **Sample 2:** The system produces a grid, but without the golden answer, it's impossible to know if this grid satisfies the constraints and transformation rules. The fact that a grid *is* produced implies partial functionality, but correctness is unknown.\n\nThe immediate issue is the complete failure in one of the three samples and the inability to assess correctness in the others.  The generic error message for Sample 1 is insufficient for debugging.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system's overall capability is extremely low, given the 0% accuracy rate.  It demonstrates a limited ability to generalize transformation rules and effectively handle constraints. While the system demonstrates structural formatting and uses ```python delimiters properly, the core transformation logic is unreliable.\n\n### KEY STRENGTHS\n\n*   **Structural Output:** The system consistently outputs a matrix/grid-like structure when it doesn't error.  This is a foundation to build upon.\n*   **Consistent formatting**: The system consistently uses ```python tags to enclose the grid.\n\n### KEY WEAKNESSES\n\n*   **Transformation Generalization:** The system's primary weakness is its inability to generalize transformation rules from training data to new inputs. This is reflected in the low accuracy score.\n*   **Error Handling & Reporting:** The generic error message \"Could not create a valid transformation\" provides insufficient information for debugging.\n*   **Constraint Handling:** There is no constraint handling.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Transformation Generalization**.  The system needs to be able to understand and apply transformation rules to new, unseen grid configurations.\n\n### ACTIONABLE RECOMMENDATIONS\n\nHere's a prioritized list of actionable changes to implement in the next iteration:\n\n1.  **Implement Detailed Debugging and Logging:**\n    *   **Action:** Introduce detailed logging *within* the `solution_generation` module. This logging should capture intermediate states, variable values, and decision points during the transformation process.\n    *   **Rationale:**  This will make the root cause of failures easily identifiable. It will make debugging infinitely easier. The current error message provides almost zero information.\n    *   **Example:** Add `print()` statements showing the values of key variables at different stages of the transformation process (e.g., values from the input grid, identified patterns, applied transformations). Log these intermediate steps.\n2.  **Address Transformation Errors:**\n    *   **Action:** Implement a more robust error-handling mechanism within the transformation process. Specifically, when a transformation fails, the system should identify *why* it failed (e.g., pattern not found, incompatible input, constraint violation).\n    *   **Rationale:** This provides much-needed context and will guide development efforts.\n    *   **Example:** Instead of \"Could not create a valid transformation,\" the error message could be, \"Transformation failed: Pattern 'X' not found in input grid.\"\n3.  **Refine Pattern Extraction:**\n    *   **Action:** The original error analysis suggested CNNs and GNNs, however this is unecessarily complex at this stage. Try to increase the number of training samples, as well as the pattern complexity that the system is able to generate.\n    *   **Rationale:** More training data is key. This can be achieved by simply creating more patterns, or by generating the data via Data Augmentation.\n    *   **Example:** Create variations of the existing training examples by rotating, flipping, or scaling the grids. Introduce small random noise to the grid elements to make the system more robust to variations in the input.\n4.  **Implement a Constraint Handling Mechanism:**\n    *   **Action:** Add logic to explicitly check and enforce constraints within the transformation process.\n    *   **Rationale:** This ensures that the generated solutions meet the problem requirements.\n    *   **Example:** Before outputting a grid, implement a function that verifies whether it satisfies all the predefined constraints. If a constraint is violated, the system should attempt to modify the grid until all constraints are met.\n5.  **Testing Infrastructure**\n    *   **Action:** The tests should be self-evaluating, providing an automatic correctness metric.\n    *   **Rationale:** In the current form, the system only gives the raw outputs, without any kind of golden answer or evaluator to determine if the result is valid.\n    *   **Example:** Design the test cases with a golden answer and evaluation to allow for an accuracy calculation.\n\n### CAPABILITY TREND\n\nBased on the current performance, the capability trend is **declining**. The 0% accuracy indicates a significant lack of functionality. Without targeted improvements, the trend will likely remain negative.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no identified runtime errors in the provided 'output' fields of the error cases.\n\n## STRENGTHS\n1.  **Successful Information Extraction:** The system demonstrates a good ability to extract relevant information from the passage to answer questions, as seen in the success cases. The system can identify key details and facts necessary for generating correct answers.\n2.  **Numerical Comparison:** The system can perform basic numerical comparisons and identify the correct entities based on those comparisons (e.g., identifying the receiver with more yards).\n\n## WEAKNESSES\n1.  **Inaccurate Quantification:** The system struggles with accurately quantifying information, particularly when it involves combining information from different parts of the passage (e.g., calculating total scores across the game).\n2.  **Strict Interpretation of Answer Specifications:** The system can err when the golden answer is more restrictive or specific than what is minimally required. It provides extra information leading to incorrect answers.\n\n## CRITICAL BOTTLENECKS\n1.  **Complex Calculation and Aggregation:** The system struggles when questions require complex calculations or aggregation of information scattered throughout the passage.\n2.  **Lack of Precision in Answer Generation:** The system occasionally provides more information than required, leading to incorrect answers by including extraneous elements.\n\n## ERROR PATTERNS\n1.  **Numerical Miscalculation:** The most frequent error is the incorrect calculation of numerical values, such as the score in the third quarter or failing to filter results.\n2.  **Overspecification:** Including extra information in the answer that isn't explicitly requested, leading to incorrect answers when compared to stricter golden answers.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's **inability to accurately perform calculations and synthesize numerical information from the provided passages.** This manifests in errors related to summing scores, comparing crime rates, and extracting precise numerical quantities.\n\n## IMPROVEMENT AREAS\n1.  **Enhanced Numerical Reasoning:** Strengthen the system's ability to perform arithmetic operations and synthesize numerical information from the passage.\n2.  **Answer Precision:** Improve the system's ability to generate answers that are precisely aligned with the question's scope and constraints, avoiding over-specification.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Numerical Reasoning Module:** Develop a dedicated module responsible for extracting numerical data, performing calculations, and synthesizing information. This module should have error handling to prevent issues with incorrect calculations.\n2.  **Fine-tune Answer Generation:** Train the system to generate answers that are concise and directly address the question's prompt, avoiding unnecessary additions. Employ techniques like negative prompting or reward shaping to discourage over-specification.\n3.  **Add Intermediate Steps for Error Diagnosis:** Introduce more tracing and debugging information within the system, capturing the intermediate results of calculations and reasoning steps. This will enable better error diagnosis and allow for targeted improvements.\n\n## CAPABILITY MAPPING\n*   **Sample 1:** information_extraction, solution_generation. The system correctly identified Los Angeles but also included New York City.\n*   **Sample 8:** information_extraction, constraint_handling. The system failed to correctly extract the number of points in the third quarter and miscalculated.\n",
+    "capability_report_text": "## AI System Capability Report\n\nBased on the provided performance summary, error analysis report, and sample execution outputs, the following capability assessment is presented:\n\n### EXECUTION ANALYSIS\n\nThe execution outputs reveal several key issues that align with the provided error analysis.\n\n*   **Sample 1 Error (Overspecification):** The system correctly identified \"Los Angeles\" as a relevant city but also included \"New York City\". This confirms the \"Overspecification\" error pattern highlighted in the error analysis. This suggests the system lacks the ability to precisely constrain its answers to the explicitly requested information.\n*   **Numerical Issues:** The error analysis mentions problems with numerical calculations. Although the provided output snippets don't directly showcase this (since they don't provide the prompts or context), the Sample 8 capability mapping indicates the system failed to extract and calculate points in the third quarter. This is a critical issue.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates competence in basic information extraction and entity recognition, but its ability to perform accurate calculations, synthesize numerical information, and generate precise answers is lacking. The system appears to struggle with questions requiring more than simple lookup or direct extraction. The system also displays a tendency to include extraneous information in its answers, deviating from the prompt's precise requirements.\n\nOverall capability: **Moderate**, with significant room for improvement in numerical reasoning and answer precision.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** The system can identify and extract relevant information from text.\n*   **Entity Recognition:** The system correctly recognizes entities (e.g., cities, people).\n\n### KEY WEAKNESSES\n\n*   **Numerical Reasoning:** Inaccurate calculations and synthesis of numerical information.\n*   **Answer Precision:** Overspecification and inclusion of extraneous information in answers.\n*   **Complex Question Handling:** Struggles with questions requiring aggregation or comparison of multiple pieces of information.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Numerical Reasoning**. The system's inability to accurately calculate and synthesize numerical information directly impacts its accuracy and reliability. Addressing this weakness will have the most significant positive impact on overall performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Prioritize Numerical Reasoning Module Development:** Immediately begin development and integration of a dedicated Numerical Reasoning Module as suggested. This module should be robust and handle different units, formats, and types of calculations (addition, subtraction, comparisons, etc.).\n    *   **Action:** Allocate resources for the design, development, and testing of the Numerical Reasoning Module in the next sprint. Define clear input/output specifications and error handling mechanisms.\n2.  **Implement Input Validation & Filtering:** Before passing any numerical values to the Numerical Reasoning Module, implement a validation step to ensure data integrity. This includes checking for data type correctness, and appropriate range, and handling potential missing values.\n    *   **Action:** Add input validation checks within the code to sanitize and validate all numerical inputs before they are processed by the Numerical Reasoning Module.\n3.  **Refine Answer Generation with Specificity Constraints:** Modify the answer generation process to incorporate constraints related to specificity. This includes training the system to identify and avoid including unnecessary information in its answers. This could use a prompt engineering approach.\n    *   **Action:** Implement a scoring mechanism that penalizes the inclusion of irrelevant information in the generated answers. Experiment with negative prompting or reward shaping during fine-tuning.\n4.  **Increase Transparency of Reasoning Steps:** Modify the system to output intermediate steps during the question-answering process, particularly those related to numerical reasoning and answer generation.\n    *   **Action:** Implement logging mechanisms to record the intermediate values of calculations performed by the Numerical Reasoning Module and the decision-making process involved in selecting the final answer.\n\n### CAPABILITY TREND\n\nBased on the error patterns and weaknesses identified, the capability trend is currently **Stable with a Negative Bias** due to the persistence of the overspecification error. While the system demonstrates some baseline capabilities, the recurring errors in numerical reasoning and answer precision prevent significant progress. Active intervention and implementation of the recommended improvements are crucial to reverse this trend and drive positive growth.\n"
   },
-  "progressive_testing": null,
-  "execution_time": 45.33897352218628,
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 8,
+    "accuracy": 0.8,
+    "results": [
+      {
+        "success": true,
+        "answer": "166 days",
+        "output": "ANSWER_START\n166 days\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "166",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers express the same numerical value, with one including a unit ('days') and the other omitting it. The core numerical information is identical."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "White",
+        "output": "ANSWER_START\nWhite\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "white",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers convey the same color, 'white'."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "135 yards",
+        "output": "ANSWER_START\n135 yards\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "144",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers 135 and 144 are different numerical values, therefore they do not convey the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 2."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "210",
+        "output": "ANSWER_START\n210\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "210",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 210."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Drew Brees",
+        "output": "ANSWER_START\nDrew Brees\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "Drew Brees",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "110 yards",
+        "output": "ANSWER_START\n110 yards\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "110",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers refer to the numerical value of 110. The \"system answer\" contains the number along with the units \"yards\". The \"golden answer\" only contains the number. In this context the units are implicit, so the numerical value is the only thing that matters."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers 2 and 1 are different numerical values, thus do not convey the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "1,483,353",
+        "output": "ANSWER_START\n1,483,353\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "1483353",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value. The difference is only in the formatting (presence or absence of commas)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The Seahawks",
+        "output": "ANSWER_START\nThe Seahawks\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_9.jsonl",
+        "golden_answer": "Seahawks",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers refer to the same thing: the Seattle Seahawks."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 79.15953874588013,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

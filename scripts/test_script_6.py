@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 6,
-        "sample_id": "example_25",
-        "question": 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 9, 9, 1, 9, 9, 9]\n  [0, 0, 9, 1, 9, 9, 0]\n  [9, 0, 9, 1, 9, 9, 0]\n  [0, 0, 0, 1, 9, 0, 0]\n  [0, 9, 9, 1, 9, 9, 9]\n]\n\nOutput Grid:\n[\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 8, 8]\n  [0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 1, 9, 0, 0]\n  [9, 0, 9, 1, 9, 9, 9]\n  [0, 9, 9, 1, 9, 9, 9]\n  [0, 0, 0, 1, 9, 9, 9]\n  [0, 9, 9, 1, 9, 9, 9]\n]\n\nOutput Grid:\n[\n  [0, 8, 8]\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 0, 0]\n]\nExample 3:\nInput Grid:\n[\n  [9, 0, 0, 1, 9, 0, 9]\n  [9, 0, 0, 1, 0, 9, 0]\n  [9, 0, 0, 1, 9, 0, 0]\n  [0, 9, 9, 1, 0, 9, 9]\n  [0, 0, 9, 1, 0, 9, 0]\n]\n\nOutput Grid:\n[\n  [0, 8, 0]\n  [0, 0, 8]\n  [0, 8, 8]\n  [8, 0, 0]\n  [8, 0, 0]\n]\nExample 4:\nInput Grid:\n[\n  [0, 9, 9, 1, 9, 0, 9]\n  [9, 0, 0, 1, 9, 0, 0]\n  [9, 9, 9, 1, 9, 9, 9]\n  [0, 9, 0, 1, 0, 0, 0]\n  [9, 0, 0, 1, 9, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0]\n  [0, 8, 8]\n  [0, 0, 0]\n  [8, 0, 8]\n  [0, 8, 8]\n]\nExample 5:\nInput Grid:\n[\n  [0, 9, 9, 1, 9, 0, 9]\n  [9, 0, 9, 1, 9, 9, 9]\n  [9, 9, 9, 1, 0, 0, 9]\n  [9, 0, 0, 1, 9, 0, 0]\n  [9, 9, 9, 1, 0, 0, 9]\n]\n\nOutput Grid:\n[\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 8, 8]\n  [0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [9, 9, 0, 1, 0, 9, 0]\n  [0, 9, 9, 1, 0, 0, 0]\n  [9, 9, 0, 1, 0, 9, 0]\n  [9, 9, 9, 1, 9, 0, 9]\n  [0, 9, 9, 1, 0, 9, 9]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+        "sample_id": "example_50",
+        "question": "PASSAGE: Hoping to rebound from their divisional road loss to the Chiefs, the Broncos went home for a Week 5 interconference duel with the Tampa Bay Buccaneers.  In the first quarter, Denver trailed early as Bucs kicker Matt Bryant got a 33-yard field goal.  In the second quarter, the Broncos took the lead as kicker Matt Prater got a 55-yard and a 40-yard field goal.  Tampa Bay would tie the game at halftime as Bryant kicked a 31-yard field goal.  In the third quarter, Denver took a big lead as QB Jay Cutler completed a 10-yard TD pass to WR Brandon Stokley.  In the fourth quarter, the Broncos increased its lead as Prater nailed a 27-yard field goal.  The Buccaneers would try to rally as QB Jeff Garcia completed a 7-yard TD pass to WR Ike Hilliard.  Fortunately, Denver recovered the onside kick and drained the clock.\n\nQUESTION: How many yards longer was Bryant's first field goal over his second one?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 6,
-            "sample_id": "example_25",
+            "sample_id": "example_50",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 9, 9, 1, 9, 9, 9]\n  [0, 0, 9, 1, 9, 9, 0]\n  [9, 0, 9, 1, 9, 9, 0]\n  [0, 0, 0, 1, 9, 0, 0]\n  [0, 9, 9, 1, 9, 9, 9]\n]\n\nOutput Grid:\n[\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 8, 8]\n  [0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 1, 9, 0, 0]\n  [9, 0, 9, 1, 9, 9, 9]\n  [0, 9, 9, 1, 9, 9, 9]\n  [0, 0, 0, 1, 9, 9, 9]\n  [0, 9, 9, 1, 9, 9, 9]\n]\n\nOutput Grid:\n[\n  [0, 8, 8]\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 0, 0]\n]\nExample 3:\nInput Grid:\n[\n  [9, 0, 0, 1, 9, 0, 9]\n  [9, 0, 0, 1, 0, 9, 0]\n  [9, 0, 0, 1, 9, 0, 0]\n  [0, 9, 9, 1, 0, 9, 9]\n  [0, 0, 9, 1, 0, 9, 0]\n]\n\nOutput Grid:\n[\n  [0, 8, 0]\n  [0, 0, 8]\n  [0, 8, 8]\n  [8, 0, 0]\n  [8, 0, 0]\n]\nExample 4:\nInput Grid:\n[\n  [0, 9, 9, 1, 9, 0, 9]\n  [9, 0, 0, 1, 9, 0, 0]\n  [9, 9, 9, 1, 9, 9, 9]\n  [0, 9, 0, 1, 0, 0, 0]\n  [9, 0, 0, 1, 9, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0]\n  [0, 8, 8]\n  [0, 0, 0]\n  [8, 0, 8]\n  [0, 8, 8]\n]\nExample 5:\nInput Grid:\n[\n  [0, 9, 9, 1, 9, 0, 9]\n  [9, 0, 9, 1, 9, 9, 9]\n  [9, 9, 9, 1, 0, 0, 9]\n  [9, 0, 0, 1, 9, 0, 0]\n  [9, 9, 9, 1, 0, 0, 9]\n]\n\nOutput Grid:\n[\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 0, 0]\n  [0, 8, 8]\n  [0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [9, 9, 0, 1, 0, 9, 0]\n  [0, 9, 9, 1, 0, 0, 0]\n  [9, 9, 0, 1, 0, 9, 0]\n  [9, 9, 9, 1, 9, 0, 9]\n  [0, 9, 9, 1, 0, 9, 9]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+    question = "PASSAGE: Hoping to rebound from their divisional road loss to the Chiefs, the Broncos went home for a Week 5 interconference duel with the Tampa Bay Buccaneers.  In the first quarter, Denver trailed early as Bucs kicker Matt Bryant got a 33-yard field goal.  In the second quarter, the Broncos took the lead as kicker Matt Prater got a 55-yard and a 40-yard field goal.  Tampa Bay would tie the game at halftime as Bryant kicked a 31-yard field goal.  In the third quarter, Denver took a big lead as QB Jay Cutler completed a 10-yard TD pass to WR Brandon Stokley.  In the fourth quarter, the Broncos increased its lead as Prater nailed a 27-yard field goal.  The Buccaneers would try to rally as QB Jeff Garcia completed a 7-yard TD pass to WR Ike Hilliard.  Fortunately, Denver recovered the onside kick and drained the clock.\n\nQUESTION: How many yards longer was Bryant's first field goal over his second one?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 6,
-            "sample_id": "example_25",
+            "sample_id": "example_50",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 6,
-            "sample_id": "example_25",
+            "sample_id": "example_50",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

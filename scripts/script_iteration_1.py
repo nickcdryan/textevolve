@@ -2,122 +2,132 @@ import os
 import re
 import math
 
-def solve_grid_transformation(question, max_attempts=3):
-    """Solves a grid transformation problem using a novel LLM-driven approach with explicit rule extraction and validation."""
+def main(question):
+    """
+    This script solves questions based on a given passage by:
+    1. Determining the question type with examples.
+    2. Extracting the relevant information with examples.
+    3. Generating the answer with examples.
 
-    # HYPOTHESIS: The LLM can extract transformation rules more effectively if explicitly prompted to do so AND the extracted rule is validated.
-    # This tests a hybrid approach - explicit rule extraction PLUS pattern matching to output a final answer.
-
-    # Step 1: Extract Transformation Rule with validation
-    rule_extraction_result = extract_transformation_rule(question, max_attempts=max_attempts)
-    if not rule_extraction_result["is_valid"]:
-        return f"Error: Could not extract a valid transformation rule. {rule_extraction_result['error']}"
-    
-    transformation_rule = rule_extraction_result["transformation_rule"]
-
-    # Step 2: Apply Transformation Rule to Test Input.
-    transformed_grid = apply_transformation_rule(question, transformation_rule)
-    
-    # Step 3: Verify that the output transformation is valid.
-    output_verification_result = verify_output_grid(question, transformed_grid, transformation_rule, max_attempts=max_attempts)
-
-    if not output_verification_result["is_valid"]:
-        return f"Error: Output grid validation failed. {output_verification_result['error']}"
-
-    return transformed_grid
-
-def extract_transformation_rule(question, max_attempts=3):
-    """Extracts the transformation rule from the question using LLM with examples and validation."""
-
-    system_instruction = "You are an expert at extracting transformation rules from grid examples."
-    
-    for attempt in range(max_attempts):
-        prompt = f"""
-        Given the following grid transformation problem, extract the underlying transformation rule.
-        Provide the transformation rule in a concise, human-readable way.
-
-        Example 1:
-        Input Grid: [[1, 0], [0, 1]]
-        Output Grid: [[2, 0], [0, 2]]
-        Transformation Rule: Each '1' is transformed to '2', while '0' remains unchanged.
-
-        Example 2:
-        Input Grid: [[1, 2], [3, 4]]
-        Output Grid: [[4, 3], [2, 1]]
-        Transformation Rule: The grid is rotated 180 degrees.
-
-        Problem:
-        {question}
-
-        Transformation Rule:
-        """
-
-        transformation_rule = call_llm(prompt, system_instruction)
-
-        # Validation
-        validation_prompt = f"""
-        Validate the extracted transformation rule for the given problem.
-        Check if the rule is complete, consistent with the training examples, and applicable to the test input.
-
-        Problem: {question}
-        Extracted Rule: {transformation_rule}
-
-        Is the extracted transformation rule valid? (Answer True/False):
-        """
-
-        is_valid = call_llm(validation_prompt, system_instruction)
-
-        if "True" in is_valid:
-            return {"is_valid": True, "transformation_rule": transformation_rule, "error": None}
-        else:
-            error_message = f"Invalid transformation rule (attempt {attempt+1}): {transformation_rule}"
-            print(error_message)
-            if attempt == max_attempts - 1:
-                 return {"is_valid": False, "transformation_rule": None, "error": error_message}
-
-    return {"is_valid": False, "transformation_rule": None, "error": "Failed after multiple attempts."}
-
-def apply_transformation_rule(question, transformation_rule):
-    """Applies the extracted transformation rule to the test input using LLM."""
-    system_instruction = "You are an expert at applying transformation rules to grids."
-
-    prompt = f"""
-    Given the following grid transformation problem and the extracted transformation rule, apply the rule to the test input grid.
-
-    Problem: {question}
-    Transformation Rule: {transformation_rule}
-
-    Generate the output grid according to the transformation rule.
+    The 'verify_answer' step has been removed to avoid getting stuck in a verification loop.
     """
 
-    output_grid = call_llm(prompt, system_instruction)
-    return output_grid
+    # Step 1: Determine the question type
+    question_type = determine_question_type(question)
+    if "Error" in question_type:
+        return question_type  # Return error message
 
-def verify_output_grid(question, output_grid, transformation_rule, max_attempts=3):
-  for attempt in range(max_attempts):
-        validation_prompt = f"""
-        You are a meticulous grid transformation expert. 
-        Problem: {question}
-        Transformation Rule: {transformation_rule}
-        Output Grid: {output_grid}
+    # Step 2: Extract relevant information from the passage
+    extracted_info = extract_relevant_info(question, question_type)
+    if "Error" in extracted_info:
+        return extracted_info
 
-        1. Does the output grid follow the transformation rule?
-        2. Is the output grid format correct and consistent with the examples in the problem?
-        3. Is the output a valid Python list of lists representing the output grid?
+    # Step 3: Generate the answer
+    generated_answer = generate_answer(extracted_info, question_type, question)
+    if "Error" in generated_answer:
+        return generated_answer
 
-        If there are issues, clearly explain what they are. If all checks pass, respond 'VALID'. Otherwise, explain the issues.
-        """
-        validation_result = call_llm(validation_prompt, system_instruction="You are a meticulous grid transformation expert.")
+    return generated_answer # Directly return the generated answer
 
-        if "VALID" in validation_result:
-            return {"is_valid": True, "error": None}
-        else:
-            error_message = f"Validation failed (attempt {attempt + 1}): {validation_result}"
-            print(error_message)
-            if attempt == max_attempts - 1:
-                return {"is_valid": False, "error": error_message}
+def determine_question_type(question):
+    """Determine the type of the question (numerical, identification, etc.) with examples."""
+    system_instruction = "You are an expert at classifying question types."
+    prompt = f"""
+    Determine the type of question given the following examples. Return the type only.
 
-  return {"is_valid": False, "error": "Failed verification after multiple attempts."}
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+
+    Question: {question}
+    Type:
+    """
+    try:
+        question_type = call_llm(prompt, system_instruction)
+        if not question_type:
+            return "Error: Could not determine question type"
+        return question_type
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def extract_relevant_info(question, question_type):
+    """Extract relevant information from the passage with examples, tailored to question type."""
+    system_instruction = "You are an expert at extracting relevant information."
+    prompt = f"""
+    Extract relevant information from the passage based on the given question type.
+    Return the extracted information as a plain text summary.
+
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+    Extracted Info: Player who caught the final touchdown.
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.
+
+    Question: {question}
+    Type: {question_type}
+    Extracted Info:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        if not extracted_info:
+            return "Error: Could not extract information."
+        return extracted_info
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def generate_answer(extracted_info, question_type, question):
+    """Generate the answer based on extracted information and question type with examples."""
+    system_instruction = "You are an expert at generating correct answers."
+    prompt = f"""
+    Generate an answer to the question based on the extracted information.
+
+    Example 1:
+    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.
+    Question Type: Numerical
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 40 + 30 = 70 yards
+
+    Example 2:
+    Extracted Info: Player who caught the final touchdown = Mark Clayton
+    Question Type: Identification
+    Question: Who caught the final touchdown of the game?
+    Answer: Mark Clayton
+
+    Example 3:
+    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.
+    Question Type: Comparative
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Answer: Gliese 915
+
+    Extracted Info: {extracted_info}
+    Question Type: {question_type}
+    Question: {question}
+    Answer:
+    """
+    try:
+        answer = call_llm(prompt, system_instruction)
+        if not answer:
+            return "Error: Could not generate answer."
+        return answer
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -147,11 +157,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def main(question):
-    """Main function to solve the grid transformation task."""
-    try:
-        answer = solve_grid_transformation(question)
-        return answer
-    except Exception as e:
-        return f"Error in main function: {str(e)}"

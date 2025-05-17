@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 13,
-        "sample_id": "example_46",
-        "question": 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 7, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [8, 8, 8, 8, 8, 8, 2, 8, 8]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [7, 7, 2, 7, 7, 7, 7, 7, 7]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 7, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [8, 8, 8, 8, 8, 8, 2, 8, 8]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [7, 7, 7, 2, 7, 7, 7, 7, 7]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 7, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+        "sample_id": "4561d400-6cd5-42cd-b157-8bf7f57b0eb5",
+        "question": "PASSAGE: In the winter of 1240/1241, the Novgorodians took Pereyaslavl-Zalessky. After, the Teutonic knights constructed the fortress of Koporie, where they kept all their supplies, and took the Novgorod city of Tesov, pillaging its merchants and ravaging the surrounding area. The Novgorodians, fearing a fate similar to that of Pskov, sent envoys to Prince Yaroslav. Yaroslav liked Alexander's younger brother Andrew as a leader, but Novgorod insisted on Alexander. Alexander returned to Novgorod and commanded its army to Koporye in 1241. In the Spring of 1242, he recaptured Pskov. After this victory, Alexander decided to continue his campaign.. On April 5, 1242, one of Russia's most famous battles, the Battle of the Ice, took place on the ice of Lake Peipsi. The battle was a significant defeat sustained by the crusaders during the Northern Crusades. The crusaders' defeat in the battle marked the end of their campaigns against the Orthodox Novgorod Republic and other Russian territories for the next century.\n\nQUESTION: Who did Prince Yaroslav represent?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 13,
-            "sample_id": "example_46",
+            "sample_id": "4561d400-6cd5-42cd-b157-8bf7f57b0eb5",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 7, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [8, 8, 8, 8, 8, 8, 2, 8, 8]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [7, 7, 2, 7, 7, 7, 7, 7, 7]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 7, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [8, 8, 8, 8, 8, 8, 2, 8, 8]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n  [7, 7, 7, 2, 7, 7, 7, 7, 7]\n  [0, 0, 0, 8, 0, 0, 7, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 7, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+    question = "PASSAGE: In the winter of 1240/1241, the Novgorodians took Pereyaslavl-Zalessky. After, the Teutonic knights constructed the fortress of Koporie, where they kept all their supplies, and took the Novgorod city of Tesov, pillaging its merchants and ravaging the surrounding area. The Novgorodians, fearing a fate similar to that of Pskov, sent envoys to Prince Yaroslav. Yaroslav liked Alexander's younger brother Andrew as a leader, but Novgorod insisted on Alexander. Alexander returned to Novgorod and commanded its army to Koporye in 1241. In the Spring of 1242, he recaptured Pskov. After this victory, Alexander decided to continue his campaign.. On April 5, 1242, one of Russia's most famous battles, the Battle of the Ice, took place on the ice of Lake Peipsi. The battle was a significant defeat sustained by the crusaders during the Northern Crusades. The crusaders' defeat in the battle marked the end of their campaigns against the Orthodox Novgorod Republic and other Russian territories for the next century.\n\nQUESTION: Who did Prince Yaroslav represent?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 13,
-            "sample_id": "example_46",
+            "sample_id": "4561d400-6cd5-42cd-b157-8bf7f57b0eb5",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 13,
-            "sample_id": "example_46",
+            "sample_id": "4561d400-6cd5-42cd-b157-8bf7f57b0eb5",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

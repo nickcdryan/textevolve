@@ -2,195 +2,145 @@ import os
 import re
 import math
 
-def solve_grid_transformation(question, max_attempts=3):
-    """Solves grid transformation problems by analyzing row and column patterns independently.
-    
-    HYPOTHESIS: By decomposing the problem into independent row and column analyses, we can simplify the pattern recognition process and improve the LLM's ability to identify the underlying transformation rules. This is based on the observation that some grid transformations operate primarily on rows or columns. If neither of these analyses provide good answers, a fallback to a whole grid analysis is performed.
-
-    APPROACH:
-    1. Analyze row transformations.
-    2. Analyze column transformations.
-    3. Attempt to recombine the row and column transformations.
-    4. If both the row/column transformations fail, fall back to a whole grid analysis.
+def main(question):
+    """
+    This script solves questions based on a given passage by:
+    1. Determining the question type with examples.
+    2. Extracting the relevant information with examples.
+    3. Generating the answer with examples.
     """
 
-    row_analysis_result = analyze_row_transformations(question, max_attempts=max_attempts)
-    column_analysis_result = analyze_column_transformations(question, max_attempts=max_attempts)
-    
-    if row_analysis_result["is_valid"] and column_analysis_result["is_valid"]:
-        #Attempt to combine the answers from the rows and columns together.
-        combined_result = combine_row_column_results(question, row_analysis_result["transformed_grid"], column_analysis_result["transformed_grid"])
-        return combined_result
-    else:
-        whole_grid_result = analyze_whole_grid(question, max_attempts=max_attempts)
-        return whole_grid_result["transformed_grid"]
+    # Step 1: Determine the question type
+    question_type = determine_question_type(question)
+    if "Error" in question_type:
+        return question_type  # Return error message
 
-def analyze_row_transformations(question, max_attempts=3):
-    """Analyzes the input and output grids to identify row-based transformations."""
-    system_instruction = "You are an expert at identifying row-based transformations in grids."
-    for attempt in range(max_attempts):
-        prompt = f"""
-        Given the following grid transformation problem, analyze the training examples to identify any patterns in how the rows are transformed from the input grid to the output grid.
+    # Step 2: Extract relevant information from the passage
+    extracted_info = extract_relevant_info(question, question_type)
+    if "Error" in extracted_info:
+        return extracted_info
 
-        Example:
-        Question:
-        === TRAINING EXAMPLES ===
-        Input Grid:
-        [[1, 2, 3], [4, 5, 6]]
-        Output Grid:
-        [[2, 3, 4], [5, 6, 7]]
-        Row Transformation: Each number in the row is incremented by 1.
+    # Step 3: Generate the answer
+    generated_answer = generate_answer(extracted_info, question_type, question)
+    if "Error" in generated_answer:
+        return generated_answer
 
-        Problem:
-        {question}
+    return generated_answer # Directly return the generated answer
 
-        Row Transformation:
-        """
-        row_transformation = call_llm(prompt, system_instruction)
-
-        validation_prompt = f"""
-        Validate if the extracted row transformation is correct and can be applied to all rows in the training examples.
-        Problem: {question}
-        Row Transformation: {row_transformation}
-        Is the row transformation valid? (True/False)
-        """
-        is_valid = call_llm(validation_prompt, system_instruction)
-
-        if "True" in is_valid:
-            transformed_grid = apply_row_transformation(question, row_transformation)
-            return {"is_valid": True, "transformed_grid": transformed_grid, "error": None}
-        else:
-            error_message = f"Invalid row transformation (attempt {attempt+1}): {row_transformation}"
-            print(error_message)
-            if attempt == max_attempts - 1:
-                return {"is_valid": False, "transformed_grid": None, "error": error_message}
-    return {"is_valid": False, "transformed_grid": None, "error": "Failed to analyze row transformations."}
-
-def analyze_column_transformations(question, max_attempts=3):
-    """Analyzes the input and output grids to identify column-based transformations."""
-    system_instruction = "You are an expert at identifying column-based transformations in grids."
-    for attempt in range(max_attempts):
-        prompt = f"""
-        Given the following grid transformation problem, analyze the training examples to identify any patterns in how the columns are transformed from the input grid to the output grid.
-
-        Example:
-        Question:
-        === TRAINING EXAMPLES ===
-        Input Grid:
-        [[1, 4], [2, 5], [3, 6]]
-        Output Grid:
-        [[2, 5], [3, 6], [4, 7]]
-        Column Transformation: Each number in the column is incremented by 1.
-
-        Problem:
-        {question}
-
-        Column Transformation:
-        """
-        column_transformation = call_llm(prompt, system_instruction)
-
-        validation_prompt = f"""
-        Validate if the extracted column transformation is correct and can be applied to all columns in the training examples.
-        Problem: {question}
-        Column Transformation: {column_transformation}
-        Is the column transformation valid? (True/False)
-        """
-        is_valid = call_llm(validation_prompt, system_instruction)
-
-        if "True" in is_valid:
-            transformed_grid = apply_column_transformation(question, column_transformation)
-            return {"is_valid": True, "transformed_grid": transformed_grid, "error": None}
-        else:
-            error_message = f"Invalid column transformation (attempt {attempt+1}): {column_transformation}"
-            print(error_message)
-            if attempt == max_attempts - 1:
-                return {"is_valid": False, "transformed_grid": None, "error": error_message}
-    return {"is_valid": False, "transformed_grid": None, "error": "Failed to analyze column transformations."}
-
-def analyze_whole_grid(question, max_attempts=3):
-  system_instruction = "You are an expert at transforming grids and solving grid transformation problems."
-  for attempt in range(max_attempts):
-      prompt = f"""
-      Given the following grid transformation problem, analyze the whole grid and apply a transformation in order to solve the grid transformation problem.
-
-      Example:
-      Question:
-      === TRAINING EXAMPLES ===
-      Input Grid:
-      [[1, 2], [3, 4]]
-      Output Grid:
-      [[2, 3], [4, 5]]
-      Transformation: Each number in the grid is incremented by 1.
-
-      Problem:
-      {question}
-
-      Transformation:
-      """
-      transformation = call_llm(prompt, system_instruction)
-
-      validation_prompt = f"""
-        Validate the given grid transformation in order to solve the given grid transformation problem.
-        Problem: {question}
-        Output Grid: {transformation}
-        Is the solution valid? (True/False)
-        """
-      is_valid = call_llm(validation_prompt, system_instruction)
-
-      if "True" in is_valid:
-          return {"is_valid": True, "transformed_grid": transformation, "error": None}
-      else:
-          error_message = f"Invalid grid transformation (attempt {attempt+1}): {transformation}"
-          print(error_message)
-          if attempt == max_attempts - 1:
-              return {"is_valid": False, "transformed_grid": None, "error": error_message}
-
-  return {"is_valid": False, "transformed_grid": None, "error": "Failed to analyze grid transformations."}
-
-def combine_row_column_results(question, row_transformed_grid, column_transformed_grid):
-  """Combines results and takes the transformed grid from the approach that validates as true."""
-  system_instruction = "You are an expert grid solution result combiner. You will review proposed results from different grid approaches and select the result that looks the best and most promising."
-
-  prompt = f"""
-        You have proposed solution grids based on different transformation approaches, and your job is to select the best solution, given the original problem.
-        The better and more correct solution will be chosen and given as the result. The problem is given, along with the proposed row and column transformation results.
-        If one of the two results is a clear and well-formed grid result, and the other is not well-formed, or if the quality of one output looks better, then that should be chosen.
-
-        Problem: {question}
-        Row Transformation Result: {row_transformed_grid}
-        Column Transformation Result: {column_transformed_grid}
-        Result:
-        """
-  result = call_llm(prompt, system_instruction)
-  return result
-
-def apply_row_transformation(question, row_transformation):
-    """Applies the extracted row transformation to the test input grid."""
-    system_instruction = "You are an expert at applying row transformations to grids."
+def determine_question_type(question):
+    """Determine the type of the question (numerical, identification, etc.) with examples."""
+    system_instruction = "You are an expert at classifying question types."
     prompt = f"""
-    Given the following grid transformation problem and the extracted row transformation, apply the row transformation to the test input grid.
+    Determine the type of question given the following examples. Return the type only.
 
-    Problem: {question}
-    Row Transformation: {row_transformation}
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
 
-    Generate the output grid by applying the row transformation.
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    
+    Example 4:
+    Question: Who died first John of Ibelin or Isabella II?
+    Type: Sequencing
+
+    Question: {question}
+    Type:
     """
-    output_grid = call_llm(prompt, system_instruction)
-    return output_grid
+    try:
+        question_type = call_llm(prompt, system_instruction)
+        if not question_type:
+            return "Error: Could not determine question type"
+        return question_type
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-def apply_column_transformation(question, column_transformation):
-    """Applies the extracted column transformation to the test input grid."""
-    system_instruction = "You are an expert at applying column transformations to grids."
+def extract_relevant_info(question, question_type):
+    """Extract relevant information from the passage with examples, tailored to question type."""
+    system_instruction = "You are an expert at extracting relevant information."
     prompt = f"""
-    Given the following grid transformation problem and the extracted column transformation, apply the column transformation to the test input grid.
+    Extract relevant information from the passage based on the given question type.
+    Return the extracted information as a plain text summary.
 
-    Problem: {question}
-    Column Transformation: {column_transformation}
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
 
-    Generate the output grid by applying the column transformation.
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+    Extracted Info: Player who caught the final touchdown.
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.
+    
+    Example 4:
+    Question: Who died first John of Ibelin or Isabella II?
+    Type: Sequencing
+    Extracted Info: Date of death of John of Ibelin, Date of death of Isabella II.
+
+    Question: {question}
+    Type: {question_type}
+    Extracted Info:
     """
-    output_grid = call_llm(prompt, system_instruction)
-    return output_grid
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        if not extracted_info:
+            return "Error: Could not extract information."
+        return extracted_info
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def generate_answer(extracted_info, question_type, question):
+    """Generate the answer based on extracted information and question type with examples."""
+    system_instruction = "You are an expert at generating correct answers."
+    prompt = f"""
+    Generate an answer to the question based on the extracted information.
+
+    Example 1:
+    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.
+    Question Type: Numerical
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 40 + 30 = 70 yards
+
+    Example 2:
+    Extracted Info: Player who caught the final touchdown = Mark Clayton
+    Question Type: Identification
+    Question: Who caught the final touchdown of the game?
+    Answer: Mark Clayton
+
+    Example 3:
+    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.
+    Question Type: Comparative
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Answer: Gliese 915
+    
+    Example 4:
+    Extracted Info: Date of death of John of Ibelin = 1236, Date of death of Isabella II = 1228.
+    Question Type: Sequencing
+    Question: Who died first John of Ibelin or Isabella II?
+    Answer: Isabella II
+
+    Extracted Info: {extracted_info}
+    Question Type: {question_type}
+    Question: {question}
+    Answer:
+    """
+    try:
+        answer = call_llm(prompt, system_instruction)
+        if not answer:
+            return "Error: Could not generate answer."
+        return answer
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -220,11 +170,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def main(question):
-    """Main function to solve the grid transformation task."""
-    try:
-        answer = solve_grid_transformation(question)
-        return answer
-    except Exception as e:
-        return f"Error in main function: {str(e)}"

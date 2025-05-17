@@ -2,115 +2,171 @@ import os
 import re
 import math
 
-# HYPOTHESIS: Instead of trying to identify a single transformation rule, the LLM can directly transform the test grid 
-# by considering the training examples as a set of constraints and desired outcomes. The key is to use a multi-example
-# prompt that guides the LLM in applying transformations observed in the training data to the test grid *without*
-# explicitly stating the rules. This leverages LLM's ability to generalize from examples.
-# A validation loop is used to ensure the output is a valid grid.
+def main(question):
+    """
+    This script solves questions based on a given passage by:
+    1. Determining the question type with examples.
+    2. Extracting the relevant information with examples.
+    3. Generating the answer with examples.
+    """
 
-def solve_grid_transformation(question, max_attempts=3):
-    """Solves grid transformation problems by direct example-guided transformation."""
+    # Step 1: Determine the question type
+    question_type = determine_question_type(question)
+    if "Error" in question_type:
+        return question_type  # Return error message
 
-    def call_llm(prompt, system_instruction=None):
-        """Call the Gemini LLM with a prompt and return the response."""
-        try:
-            from google import genai
-            from google.genai import types
+    # Step 2: Extract relevant information from the passage
+    extracted_info = extract_relevant_info(question, question_type)
+    if "Error" in extracted_info:
+        return extracted_info
 
-            # Initialize the Gemini client
-            client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    # Step 3: Generate the answer
+    generated_answer = generate_answer(extracted_info, question_type, question)
+    if "Error" in generated_answer:
+        return generated_answer
 
-            # Call the API with system instruction if provided
-            if system_instruction:
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash", 
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction
-                    ),
-                    contents=prompt
-                )
-            else:
-                response = client.models.generate_content(
+    return generated_answer # Directly return the generated answer
+
+def determine_question_type(question):
+    """Determine the type of the question (numerical, identification, etc.) with examples."""
+    system_instruction = "You are an expert at classifying question types."
+    prompt = f"""
+    Determine the type of question given the following examples. Return the type only.
+
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+
+    Example 4:
+    Question: How many total points were scored in the game?
+    Type: Numerical
+
+    Question: {question}
+    Type:
+    """
+    try:
+        question_type = call_llm(prompt, system_instruction)
+        if not question_type:
+            return "Error: Could not determine question type"
+        return question_type
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def extract_relevant_info(question, question_type):
+    """Extract relevant information from the passage with examples, tailored to question type."""
+    system_instruction = "You are an expert at extracting relevant information. Extract ONLY necessary information."
+    prompt = f"""
+    Extract relevant information from the passage based on the given question type.
+    Return the extracted information as a plain text summary, extracting ONLY the details needed to answer the question.
+
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+    Extracted Info: Chris Johnson's first touchdown yards: 40, Jason Hanson's first field goal yards: 30.
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+    Extracted Info: Mark Clayton caught the final touchdown.
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    Extracted Info: Nu Phoenicis mass: 1.2 solar masses, Gliese 915 mass: 0.85 solar masses.
+
+    Example 4:
+    Question: How many total points were scored in the game?
+    Type: Numerical
+    Extracted Info: Total points scored: 42.
+
+    Question: {question}
+    Type: {question_type}
+    Extracted Info:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        if not extracted_info:
+            return "Error: Could not extract information."
+        return extracted_info
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def generate_answer(extracted_info, question_type, question):
+    """Generate the answer based on extracted information and question type with examples."""
+    system_instruction = "You are an expert at generating correct answers. Focus on concise, accurate answers."
+    prompt = f"""
+    Generate an answer to the question based on the extracted information. Provide the most concise answer possible.
+
+    Example 1:
+    Extracted Info: Chris Johnson's first touchdown yards: 40, Jason Hanson's first field goal yards: 30.
+    Question Type: Numerical
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 70 yards
+
+    Example 2:
+    Extracted Info: Mark Clayton caught the final touchdown.
+    Question Type: Identification
+    Question: Who caught the final touchdown of the game?
+    Answer: Mark Clayton
+
+    Example 3:
+    Extracted Info: Nu Phoenicis mass: 1.2 solar masses, Gliese 915 mass: 0.85 solar masses.
+    Question Type: Comparative
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Answer: Gliese 915
+
+    Example 4:
+    Extracted Info: Total points scored: 42.
+    Question Type: Numerical
+    Question: How many total points were scored in the game?
+    Answer: 42
+
+    Extracted Info: {extracted_info}
+    Question Type: {question_type}
+    Question: {question}
+    Answer:
+    """
+    try:
+        answer = call_llm(prompt, system_instruction)
+        if not answer:
+            return "Error: Could not generate answer."
+        return answer
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def call_llm(prompt, system_instruction=None):
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    try:
+        from google import genai
+        from google.genai import types
+
+        # Initialize the Gemini client
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+        # Call the API with system instruction if provided
+        if system_instruction:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
+            )
+        else:
+            response = client.models.generate_content(
                 model="gemini-2.0-flash",
                 contents=prompt
             )
 
-            return response.text
-        except Exception as e:
-            print(f"Error calling Gemini API: {str(e)}")
-            return f"Error: {str(e)}"
-
-    def transform_test_grid(question, max_attempts=3):
-        """Transforms the test grid based on training examples."""
-        system_instruction = "You are an expert at transforming grids based on provided examples."
-        prompt = f"""
-        Given the following grid transformation problem, transform the test input grid according to the patterns observed in the training examples. Do NOT explicitly state the transformation rule. Apply the transformations directly.
-
-        Example 1:
-        === TRAINING EXAMPLES ===
-        Input Grid:
-        [[1, 2], [3, 4]]
-        Output Grid:
-        [[2, 3], [4, 5]]
-        === TEST INPUT ===
-        [[5, 6], [7, 8]]
-        Transformed Grid:
-        [[6, 7], [8, 9]]
-
-        Example 2:
-        === TRAINING EXAMPLES ===
-        Input Grid:
-        [[0, 1], [1, 0]]
-        Output Grid:
-        [[1, 0], [0, 1]]
-        === TEST INPUT ===
-        [[0, 0], [1, 1]]
-        Transformed Grid:
-        [[0, 0], [1, 1]]
-
-        Problem:
-        {question}
-
-        Transformed Grid:
-        """
-        transformed_grid = call_llm(prompt, system_instruction)
-        return transformed_grid
-
-    # Function call is outside of the validation loop
-    transformed_grid = transform_test_grid(question)
-
-    def validate_grid_format(grid_string, max_attempts = 3):
-      """Validates the output grid format as a list of lists."""
-      system_instruction = "You are an expert grid validator. Your job is to validate the grid format as a list of lists."
-      for attempt in range(max_attempts):
-        validation_prompt = f"""
-        Validate if the following grid string is a valid list of lists. The values in the lists may only be integer numbers.
-          Grid String:
-          {grid_string}
-
-          The output must be a JSON object in the following format:
-          {{
-            "is_valid": true/false,
-            "reason": "reasoning for output"
-          }}
-        """
-        validation_json = call_llm(validation_prompt, system_instruction)
-
-        if "true" in validation_json.lower():
-          return True
-        else:
-          continue
-      return False
-    
-    if validate_grid_format(transformed_grid):
-      return transformed_grid
-    else:
-      return "Error: Could not create a valid transformation"
-
-def main(question):
-    """Main function to solve the grid transformation task."""
-    try:
-        answer = solve_grid_transformation(question)
-        return answer
+        return response.text
     except Exception as e:
-        return f"Error in main function: {str(e)}"
+        print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"

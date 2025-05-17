@@ -1,89 +1,173 @@
-import google.generativeai as genai
 import os
-
-# Set up the Gemini API (replace with your actual API key)
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
-model = genai.GenerativeModel('gemini-pro')
-
-
-def call_llm(prompt, system_instruction=None):
-    """
-    Calls the LLM with the given prompt and optional system instruction.
-    Includes basic error handling.
-    """
-    try:
-        if system_instruction:
-            response = model.generate_content(
-                contents=prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.2),
-                safety_settings={
-                    genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: genai.types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: genai.types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                },
-            )
-        else:
-            response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"Error calling LLM: {e}")
-        return "Error: Could not generate response."
-
+import re
+import math
 
 def main(question):
     """
-    Main function that takes a question string as input and returns the answer string.
-    Uses multiple LLM calls for different reasoning steps.
+    This script solves questions based on a given passage by:
+    1. Determining the question type with examples.
+    2. Extracting the relevant information with examples.
+    3. Generating the answer with examples.
     """
 
-    # Step 1: Analyze the question type using LLM
-    analysis_prompt = f"""
-    Analyze the following question and determine its type (e.g., math, reasoning, general knowledge).
-    Example:
-    Question: What is the capital of France?
-    Type: General Knowledge
+    # Step 1: Determine the question type
+    question_type = determine_question_type(question)
+    if "Error" in question_type:
+        return question_type  # Return error message
+
+    # Step 2: Extract relevant information from the passage
+    extracted_info = extract_relevant_info(question, question_type)
+    if "Error" in extracted_info:
+        return extracted_info
+
+    # Step 3: Generate the answer
+    generated_answer = generate_answer(extracted_info, question_type, question)
+    if "Error" in generated_answer:
+        return generated_answer
+
+    return generated_answer
+
+def determine_question_type(question):
+    """Determine the type of the question (numerical, identification, etc.) with examples."""
+    system_instruction = "You are an expert at classifying question types."
+    prompt = f"""
+    Determine the type of question given the following examples. Return the type only.
+
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    
+    Example 4:
+    Question: How many points did they win by?
+    Type: Numerical
 
     Question: {question}
     Type:
     """
-    question_type = call_llm(analysis_prompt)
+    try:
+        question_type = call_llm(prompt, system_instruction)
+        if not question_type:
+            return "Error: Could not determine question type"
+        return question_type
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-    # Step 2: Generate a plan to answer the question using LLM
-    plan_prompt = f"""
-    Given that the question type is {question_type}, generate a step-by-step plan to answer the question.
-    Example:
-    Question Type: General Knowledge
-    Question: What is the capital of France?
-    Plan: 1. Search for the capital of France. 2. Return the answer.
+def extract_relevant_info(question, question_type):
+    """Extract relevant information from the passage with examples, tailored to question type."""
+    system_instruction = "You are an expert at extracting relevant information, focusing only on the essentials."
+    prompt = f"""
+    Extract relevant information from the passage based on the given question type.
+    Return the extracted information as a plain text summary. Be concise.
 
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+    Extracted Info: Player who caught the final touchdown.
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.
+    
+    Example 4:
+    Question: How many points did they win by?
+    Type: Numerical
+    Extracted Info: Winning team points, losing team points.
+
+    Question: {question}
+    Type: {question_type}
+    Extracted Info:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        if not extracted_info:
+            return "Error: Could not extract information."
+        return extracted_info
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def generate_answer(extracted_info, question_type, question):
+    """Generate the answer based on extracted information and question type with examples. Performs calculations where necessary."""
+    system_instruction = "You are an expert at generating correct and concise answers, including performing calculations."
+    prompt = f"""
+    Generate an answer to the question based on the extracted information.
+    If the question type is Numerical, perform the necessary calculations and clearly show the steps.
+
+    Example 1:
+    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.
+    Question Type: Numerical
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 40 + 30 = 70 yards
+
+    Example 2:
+    Extracted Info: Player who caught the final touchdown = Mark Clayton
+    Question Type: Identification
+    Question: Who caught the final touchdown of the game?
+    Answer: Mark Clayton
+
+    Example 3:
+    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.
+    Question Type: Comparative
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Answer: Gliese 915
+    
+    Example 4:
+    Extracted Info: Winning team points = 23, losing team points = 10
+    Question Type: Numerical
+    Question: How many points did they win by?
+    Answer: 23 - 10 = 13 points
+
+    Extracted Info: {extracted_info}
     Question Type: {question_type}
     Question: {question}
-    Plan:
-    """
-    plan = call_llm(plan_prompt)
-
-    # Step 3: Execute the plan using LLM
-    execution_prompt = f"""
-    Execute the following plan to answer the question:
-    Example:
-    Question: What is the capital of France?
-    Plan: 1. Search for the capital of France. 2. Return the answer.
-    Answer: Paris
-
-    Question: {question}
-    Plan: {plan}
     Answer:
     """
-    answer = call_llm(execution_prompt)
+    try:
+        answer = call_llm(prompt, system_instruction)
+        if not answer:
+            return "Error: Could not generate answer."
+        return answer
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-    return answer
+def call_llm(prompt, system_instruction=None):
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    try:
+        from google import genai
+        from google.genai import types
 
+        # Initialize the Gemini client
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# Example usage
-if __name__ == "__main__":
-    question = "What is the boiling point of water in Celsius?"
-    answer = main(question)
-    print(f"Question: {question}")
-    print(f"Answer: {answer}")
+        # Call the API with system instruction if provided
+        if system_instruction:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
+            )
+        else:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+
+        return response.text
+    except Exception as e:
+        print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"

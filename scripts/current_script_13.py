@@ -2,89 +2,145 @@ import os
 import re
 import math
 
-# HYPOTHESIS: Improve the visual feature analysis and transformation application by adding more detailed examples
-# and implementing a validation loop for the transformation description.
+def main(question):
+    """
+    This script solves questions based on a given passage by:
+    1. Determining the question type with examples.
+    2. Extracting the relevant information with examples.
+    3. Generating the answer with examples.
+    """
 
-def solve_grid_transformation(question, max_attempts=3):
-    """Solves grid transformation problems by analyzing and describing visual features."""
+    # Step 1: Determine the question type
+    question_type = determine_question_type(question)
+    if "Error" in question_type:
+        return question_type  # Return error message
 
-    # Step 1: Analyze Visual Features
-    feature_analysis_result = analyze_visual_features(question, max_attempts=max_attempts)
-    if not feature_analysis_result["is_valid"]:
-        return f"Error: Could not analyze visual features. {feature_analysis_result['error']}"
+    # Step 2: Extract relevant information from the passage
+    extracted_info = extract_relevant_info(question, question_type)
+    if "Error" in extracted_info:
+        return extracted_info
 
-    transformation_description = feature_analysis_result["transformation_description"]
+    # Step 3: Generate the answer
+    generated_answer = generate_answer(extracted_info, question_type, question)
+    if "Error" in generated_answer:
+        return generated_answer
 
-    # Step 2: Apply Transformation
-    transformed_grid = apply_transformation(question, transformation_description)
-    return transformed_grid
+    return generated_answer # Directly return the generated answer
 
-def analyze_visual_features(question, max_attempts=3):
-    """Analyzes visual features of the grid transformation problem with a validation loop."""
-    system_instruction = "You are an expert at analyzing visual features in grid transformations."
-    for attempt in range(max_attempts):
-        prompt = f"""
-        Given the following grid transformation problem, analyze the training examples and identify key visual features
-        and describe the transformation in terms of those features. Visual features can include lines, shapes, repetition,
-        patterns, symmetries, etc. Provide a concise description of the identified visual features and transformation applied.
-
-        Example 1:
-        === TRAINING EXAMPLES ===
-        Input Grid:
-        [[0, 0, 0], [1, 1, 1], [0, 0, 0]]
-        Output Grid:
-        [[1, 1, 1], [0, 0, 0], [1, 1, 1]]
-        Transformation Description: Swap the row containing '1' with adjacent rows. The '1' row moves up and down once.
-
-        Example 2:
-        === TRAINING EXAMPLES ===
-        Input Grid:
-        [[5, 0, 5], [0, 0, 0], [5, 0, 5]]
-        Output Grid:
-        [[2, 0, 2], [0, 0, 0], [2, 0, 2]]
-        Transformation Description: Change all 5's to 2's
-
-        Problem:
-        {question}
-
-        Transformation Description:
-        """
-
-        transformation_description = call_llm(prompt, system_instruction)
-
-        # Add a verification step to ensure the LLM is providing a usable description.
-        verification_prompt = f"""
-        Verify that the given transformation description is clear, concise, and describes a valid transformation. Does it cover all test cases?
-        Transformation Description: {transformation_description}
-        Is the description valid? (VALID/INVALID)
-        """
-        validation_result = call_llm(verification_prompt)
-
-        if "VALID" in validation_result:
-            return {"is_valid": True, "transformation_description": transformation_description, "error": None}
-        else:
-            print(f"Attempt {attempt+1}: Invalid feature description. Retrying...")
-            continue  # Retry if the description is invalid
-
-    return {"is_valid": False, "transformation_description": None, "error": "Could not generate a valid feature description after multiple attempts."}
-
-def apply_transformation(question, transformation_description):
-    """Applies the described transformation to the test input grid."""
-    system_instruction = "You are an expert at applying transformations to grids based on a feature description."
+def determine_question_type(question):
+    """Determine the type of the question (numerical, identification, etc.) with examples."""
+    system_instruction = "You are an expert at classifying question types."
     prompt = f"""
-    Given the following grid transformation problem and the transformation description, apply the transformation to the test input grid. Output ONLY the transformed grid.
-
-    Problem: {question}
-    Transformation Description: {transformation_description}
+    Determine the type of question given the following examples. Return the type only.
 
     Example 1:
-    Problem: Input Grid: [[0, 0, 0], [1, 1, 1], [0, 0, 0]] Output Grid:[[1, 1, 1], [0, 0, 0], [1, 1, 1]] Transformation Description: Swap the row containing '1' with adjacent rows.
-    Transformed Grid: [[1, 1, 1], [0, 0, 0], [1, 1, 1]]
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
 
-    Generate the output grid.
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    
+    Example 4:
+    Question: Which team won the game?
+    Type: Identification
+
+    Question: {question}
+    Type:
     """
-    output_grid = call_llm(prompt, system_instruction)
-    return output_grid
+    try:
+        question_type = call_llm(prompt, system_instruction)
+        if not question_type:
+            return "Error: Could not determine question type"
+        return question_type
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def extract_relevant_info(question, question_type):
+    """Extract relevant information from the passage with examples, tailored to question type."""
+    system_instruction = "You are an expert at extracting relevant information."
+    prompt = f"""
+    Extract relevant information from the passage based on the given question type.
+    Return the extracted information as a plain text summary.
+
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+    Extracted Info: Player who caught the final touchdown.
+
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.
+
+    Example 4:
+    Question: Which team won the game?
+    Type: Identification
+    Extracted Info: The Seahawks won the game.
+
+    Question: {question}
+    Type: {question_type}
+    Extracted Info:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        if not extracted_info:
+            return "Error: Could not extract information."
+        return extracted_info
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def generate_answer(extracted_info, question_type, question):
+    """Generate the answer based on extracted information and question type with examples."""
+    system_instruction = "You are an expert at generating correct answers."
+    prompt = f"""
+    Generate an answer to the question based on the extracted information.
+
+    Example 1:
+    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.
+    Question Type: Numerical
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 40 + 30 = 70 yards
+
+    Example 2:
+    Extracted Info: Player who caught the final touchdown = Mark Clayton
+    Question Type: Identification
+    Question: Who caught the final touchdown of the game?
+    Answer: Mark Clayton
+
+    Example 3:
+    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.
+    Question Type: Comparative
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Answer: Gliese 915
+    
+    Example 4:
+    Extracted Info: The Seahawks won the game.
+    Question Type: Identification
+    Question: Which team won the game?
+    Answer: Seahawks
+
+    Extracted Info: {extracted_info}
+    Question Type: {question_type}
+    Question: {question}
+    Answer:
+    """
+    try:
+        answer = call_llm(prompt, system_instruction)
+        if not answer:
+            return "Error: Could not generate answer."
+        return answer
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -114,11 +170,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def main(question):
-    """Main function to solve the grid transformation task."""
-    try:
-        answer = solve_grid_transformation(question)
-        return answer
-    except Exception as e:
-        return f"Error in main function: {str(e)}"

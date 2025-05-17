@@ -2,99 +2,145 @@ import os
 import re
 import math
 
-# HYPOTHESIS: A hierarchical decomposition approach will improve the LLM's ability to solve grid transformation problems.
-# The LLM will first identify the overall transformation type (e.g., mirroring, rotation, value substitution), then extract specific parameters, and finally apply the transformation.
-# This script implements a hierarchical decomposition of the grid transformation problem.
-# It first identifies the overall transformation type. It then extracts specific parameters for that transformation.
-# Finally, it applies the transformation.
+def main(question):
+    """
+    This script solves questions based on a given passage by:
+    1. Determining the question type with examples.
+    2. Extracting the relevant information with examples.
+    3. Generating the answer with examples.
+    """
 
-def solve_grid_transformation(question, max_attempts=3):
-    """Solves grid transformation problems using a hierarchical decomposition approach."""
+    # Step 1: Determine the question type
+    question_type = determine_question_type(question)
+    if "Error" in question_type:
+        return question_type  # Return error message
 
-    # Step 1: Identify Transformation Type
-    transformation_type_result = identify_transformation_type(question, max_attempts=max_attempts)
-    if not transformation_type_result["is_valid"]:
-        return f"Error: Could not identify transformation type. {transformation_type_result['error']}"
+    # Step 2: Extract relevant information from the passage
+    extracted_info = extract_relevant_info(question, question_type)
+    if "Error" in extracted_info:
+        return extracted_info
 
-    transformation_type = transformation_type_result["transformation_type"]
+    # Step 3: Generate the answer
+    generated_answer = generate_answer(extracted_info, question_type, question)
+    if "Error" in generated_answer:
+        return generated_answer
 
-    # Step 2: Extract Transformation Parameters
-    transformation_parameters_result = extract_transformation_parameters(question, transformation_type, max_attempts=max_attempts)
-    if not transformation_parameters_result["is_valid"]:
-        return f"Error: Could not extract transformation parameters. {transformation_parameters_result['error']}"
+    return generated_answer # Directly return the generated answer
 
-    transformation_parameters = transformation_parameters_result["transformation_parameters"]
-
-    # Step 3: Apply Transformation
-    transformed_grid = apply_transformation(question, transformation_type, transformation_parameters)
-    return transformed_grid
-
-def identify_transformation_type(question, max_attempts=3):
-    """Identifies the overall transformation type (e.g., mirroring, rotation, value substitution)."""
-    system_instruction = "You are an expert at identifying the overall type of transformation applied to a grid."
+def determine_question_type(question):
+    """Determine the type of the question (numerical, identification, etc.) with examples."""
+    system_instruction = "You are an expert at classifying question types."
     prompt = f"""
-    Given the following grid transformation problem, identify the overall type of transformation applied.
-    Possible transformation types include: mirroring, rotation, value substitution, expansion, contraction.
+    Determine the type of question given the following examples. Return the type only.
 
     Example 1:
-    Input Grid: [[1, 2], [3, 4]]
-    Output Grid: [[4, 3], [2, 1]]
-    Transformation Type: mirroring
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
 
     Example 2:
-    Input Grid: [[1, 2], [3, 4]]
-    Output Grid: [[2, 3], [4, 5]]
-    Transformation Type: value substitution
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
 
-    Problem:
-    {question}
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
 
-    Transformation Type:
+    Example 4:
+    Question: How many points were scored in the first half?
+    Type: Numerical
+
+    Question: {question}
+    Type:
     """
-    transformation_type = call_llm(prompt, system_instruction)
-    return {"is_valid": True, "transformation_type": transformation_type, "error": None}
+    try:
+        question_type = call_llm(prompt, system_instruction)
+        if not question_type:
+            return "Error: Could not determine question type"
+        return question_type
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-def extract_transformation_parameters(question, transformation_type, max_attempts=3):
-    """Extracts the specific parameters for the identified transformation type."""
-    system_instruction = "You are an expert at extracting parameters for grid transformations."
+def extract_relevant_info(question, question_type):
+    """Extract relevant information from the passage with examples, tailored to question type."""
+    system_instruction = "You are an expert at extracting relevant information."
     prompt = f"""
-    Given the following grid transformation problem and the identified transformation type, extract the specific parameters required to apply the transformation.
+    Extract relevant information from the passage based on the given question type.
+    Return the extracted information as a plain text summary.
 
     Example 1:
-    Transformation Type: mirroring
-    Input Grid: [[1, 2], [3, 4]]
-    Output Grid: [[4, 3], [2, 1]]
-    Transformation Parameters: horizontal
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
 
     Example 2:
-    Transformation Type: value substitution
-    Input Grid: [[1, 2], [3, 4]]
-    Output Grid: [[2, 3], [4, 5]]
-    Transformation Parameters: increment by 1
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+    Extracted Info: Player who caught the final touchdown.
 
-    Problem:
-    {question}
-    Transformation Type: {transformation_type}
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.
+    
+    Example 4:
+    Question: How many points were scored in the first half?
+    Type: Numerical
+    Extracted Info: Points scored by each team in the first half.
 
-    Transformation Parameters:
+    Question: {question}
+    Type: {question_type}
+    Extracted Info:
     """
-    transformation_parameters = call_llm(prompt, system_instruction)
-    return {"is_valid": True, "transformation_parameters": transformation_parameters, "error": None}
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        if not extracted_info:
+            return "Error: Could not extract information."
+        return extracted_info
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-def apply_transformation(question, transformation_type, transformation_parameters):
-    """Applies the transformation to the test input grid."""
-    system_instruction = "You are an expert at applying transformations to grids."
+def generate_answer(extracted_info, question_type, question):
+    """Generate the answer based on extracted information and question type with examples."""
+    system_instruction = "You are an expert at generating correct answers."
     prompt = f"""
-    Given the following grid transformation problem, the transformation type, and the transformation parameters, apply the transformation to the test input grid.
+    Generate an answer to the question based on the extracted information.
 
-    Problem: {question}
-    Transformation Type: {transformation_type}
-    Transformation Parameters: {transformation_parameters}
+    Example 1:
+    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.
+    Question Type: Numerical
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 40 + 30 = 70 yards
 
-    Generate the output grid.
+    Example 2:
+    Extracted Info: Player who caught the final touchdown = Mark Clayton
+    Question Type: Identification
+    Question: Who caught the final touchdown of the game?
+    Answer: Mark Clayton
+
+    Example 3:
+    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.
+    Question Type: Comparative
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Answer: Gliese 915
+
+    Example 4:
+    Extracted Info: Ravens scored 17 points, Tampa Bay scored 3 points.
+    Question Type: Numerical
+    Question: How many points were scored in the first half?
+    Answer: 17 + 3 = 20 points
+
+    Extracted Info: {extracted_info}
+    Question Type: {question_type}
+    Question: {question}
+    Answer:
     """
-    output_grid = call_llm(prompt, system_instruction)
-    return output_grid
+    try:
+        answer = call_llm(prompt, system_instruction)
+        if not answer:
+            return "Error: Could not generate answer."
+        return answer
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -124,11 +170,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def main(question):
-    """Main function to solve the grid transformation task."""
-    try:
-        answer = solve_grid_transformation(question)
-        return answer
-    except Exception as e:
-        return f"Error in main function: {str(e)}"

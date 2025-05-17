@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 8,
-        "sample_id": "example_31",
-        "question": 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 4, 0, 9]\n  [0, 0, 0, 0]\n  [0, 4, 6, 0]\n  [1, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0]\n  [0, 0, 0, 0]\n  [0, 4, 0, 0]\n  [1, 4, 6, 9]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 9]\n  [0, 0, 0, 8, 0, 0]\n  [0, 0, 0, 0, 0, 0]\n  [4, 0, 0, 0, 0, 0]\n  [4, 0, 7, 8, 0, 0]\n  [4, 0, 7, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0]\n  [4, 0, 0, 0, 0, 0]\n  [4, 0, 7, 8, 0, 0]\n  [4, 0, 7, 8, 0, 9]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 1, 0]\n  [0, 3, 0, 0, 0]\n  [0, 3, 0, 1, 2]\n  [6, 0, 0, 0, 0]\n  [0, 3, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 3, 0, 0, 0]\n  [0, 3, 0, 1, 0]\n  [6, 3, 0, 1, 2]\n]\n\n=== TEST INPUT ===\n[\n  [0, 2, 0, 4, 3]\n  [5, 0, 0, 0, 0]\n  [0, 0, 6, 0, 0]\n  [5, 2, 0, 4, 0]\n  [5, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+        "sample_id": "13d7160c-3d91-456d-8b96-34125961a2d9",
+        "question": "PASSAGE: Following their Monday Night loss to the Raiders, the Broncos remained on home turf to face the Cincinnati Bengals. The Broncos took the lead in the first quarter, with a 1-yard touchdown run by running back Willis McGahee. The Bengals got on the board in the second quarter, with a 45-yard field goal by placekicker Mike Nugent. The Broncos responded, with a 34-yard field goal by placekicker Matt Prater just before halftime. In the third quarter, the Broncos extended their lead, with a 25-yard touchdown pass from quarterback Kyle Orton to wide receiver Eric Decker. The Bengals reeled off 12 unanswered points, with a 37-yard field goal by Nugent, a 10-yard touchdown pass from quarterback Andy Dalton to wide receiver Andre Caldwell (with a failed two-point conversion attempt), followed by a 23-yard field goal by Nugent, narrowing the Broncos' lead to 17-15. In the fourth quarter, the Broncos once again increased their lead, with a 52-yard touchdown pass from Orton to Decker, but the Bengals responded, with a 5-yard touchdown pass from Dalton to wide receiver A. J. Green. The Broncos' defense prevented any more scoring.\n\nQUESTION: How many yards shorter was Mike Nugent's second field goal compared to his first?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 8,
-            "sample_id": "example_31",
+            "sample_id": "13d7160c-3d91-456d-8b96-34125961a2d9",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 4, 0, 9]\n  [0, 0, 0, 0]\n  [0, 4, 6, 0]\n  [1, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0]\n  [0, 0, 0, 0]\n  [0, 4, 0, 0]\n  [1, 4, 6, 9]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 9]\n  [0, 0, 0, 8, 0, 0]\n  [0, 0, 0, 0, 0, 0]\n  [4, 0, 0, 0, 0, 0]\n  [4, 0, 7, 8, 0, 0]\n  [4, 0, 7, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0]\n  [4, 0, 0, 0, 0, 0]\n  [4, 0, 7, 8, 0, 0]\n  [4, 0, 7, 8, 0, 9]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 1, 0]\n  [0, 3, 0, 0, 0]\n  [0, 3, 0, 1, 2]\n  [6, 0, 0, 0, 0]\n  [0, 3, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0]\n  [0, 3, 0, 0, 0]\n  [0, 3, 0, 1, 0]\n  [6, 3, 0, 1, 2]\n]\n\n=== TEST INPUT ===\n[\n  [0, 2, 0, 4, 3]\n  [5, 0, 0, 0, 0]\n  [0, 0, 6, 0, 0]\n  [5, 2, 0, 4, 0]\n  [5, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+    question = "PASSAGE: Following their Monday Night loss to the Raiders, the Broncos remained on home turf to face the Cincinnati Bengals. The Broncos took the lead in the first quarter, with a 1-yard touchdown run by running back Willis McGahee. The Bengals got on the board in the second quarter, with a 45-yard field goal by placekicker Mike Nugent. The Broncos responded, with a 34-yard field goal by placekicker Matt Prater just before halftime. In the third quarter, the Broncos extended their lead, with a 25-yard touchdown pass from quarterback Kyle Orton to wide receiver Eric Decker. The Bengals reeled off 12 unanswered points, with a 37-yard field goal by Nugent, a 10-yard touchdown pass from quarterback Andy Dalton to wide receiver Andre Caldwell (with a failed two-point conversion attempt), followed by a 23-yard field goal by Nugent, narrowing the Broncos' lead to 17-15. In the fourth quarter, the Broncos once again increased their lead, with a 52-yard touchdown pass from Orton to Decker, but the Bengals responded, with a 5-yard touchdown pass from Dalton to wide receiver A. J. Green. The Broncos' defense prevented any more scoring.\n\nQUESTION: How many yards shorter was Mike Nugent's second field goal compared to his first?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 8,
-            "sample_id": "example_31",
+            "sample_id": "13d7160c-3d91-456d-8b96-34125961a2d9",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 8,
-            "sample_id": "example_31",
+            "sample_id": "13d7160c-3d91-456d-8b96-34125961a2d9",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

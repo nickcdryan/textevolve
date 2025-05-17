@@ -1,232 +1,190 @@
-Okay, I will synthesize the new learnings from Iteration 40 into the existing knowledge base, carefully condensing information to stay within the token limit. I will prioritize concrete, task-specific insights and consolidate redundant sections while retaining all critical information about dataset patterns, effective/ineffective strategies, failure modes, experiment logs, and next research directions.
+```
+# Dataset-Specific Research Log: Question Answering on Sports/Statistical Texts
 
-**1. DATASET PATTERNS & CHARACTERISTICS**
+This document serves as a running log of our research and findings specific to the task of question answering on a dataset consisting of short sports reports or statistical summaries followed by fact-based questions.
 
-*   **Question Format:** "Grid Transformation Tasks" with "TRAINING EXAMPLES" (input/output grid pairs labeled "Input Grid," "Output Grid") and a "TEST INPUT" grid. Objective: generate the "OUTPUT GRID" for the test input, following patterns from the training examples. Questions follow a rigid format: "Grid Transformation Task" followed by training examples labeled "Example 1", "Example 2", etc., input and output grids, a test input grid, and the instruction "Transform the test input according to the pattern shown in the training examples."
-*   **Consistent Structure:** Header, training examples, test input, transformation instruction.
-*   **Grid Representation:** Nested lists of integers (e.g., `[[1, 2], [3, 4]]`). Dimensions vary (e.g., 10x10, 17x17). Grids are typically small matrices of integers, often with a background value (e.g., 0) and a few other distinct values that participate in transformations. Input/Output grid dimensions may vary between training and test grids. Training examples define constraints for output grid size. The dimensions of input and output grids vary significantly across examples, making it difficult to establish a general scaling or cropping rule.
-*   **Mixed Element Types:** Grids contain zeros and other numerical values.
-*   **Limited Color Palette:** Grids primarily consist of integers, with a limited number of distinct values (often 0, 1, 2, 3, 4, 5, 6, 7, 8, and 9). Transformations often involve replacing one number with another based on the grid's pattern.
-*   **Transformation Logic:** Identifying transformation logic is the core challenge, often involving spatial manipulations (e.g., shifts, expansions, alternating patterns, boundary adherence, region swapping). Rules are often *localized* or dependent on subgrid characteristics. Transformations are not simple element-wise operations, involving replacing numbers based on their position relative to other numbers or patterns, expansion, replication, and *selective* substitution based on contextual patterns. A cell's new value may depend on multiple other cells (local context), with potentially asymmetric transformations. Transformations involve replication or rearrangement of elements within the grid. The transformation in error example one (Iteration 37) expects a particular arrangement of `0, 3, 1` values to transform into a new grid pattern. The transformations involve not just number replacements, but also applying these replacements according to spatial patterns (e.g., alternating numbers in a row, diagonal patterns, replicating rows).
-*   **Abstracted Transformations:** Transformations are implicit and must be inferred. Identifying content-based and spatial patterns is critical. The core challenge lies in identifying subtle, non-explicit transformations, such as mirroring, shifting sections of the grid, or applying conditional coloring based on neighboring cell values. The relationships between input and output grids are not always visually intuitive.
-*   **Implicit Rules:** Transformation logic is *never* explicitly stated.
-*   **Few-Shot Learning Format:** Questions are presented in a few-shot format.
-*   **Varying Grid Sizes:** Transformations might be size-dependent; output grid size may differ from input grid. LLM struggles with size differences. (e.g., 2x2, 3x3, 5x5). Test grid dimensions may differ from training. Correctly inferring output grid dimensions is crucial.
-*   **Multiple Possible Rules:** Different transformations might yield similar training results but diverge on the test data.
-*   **Value Encoding:** Values (e.g., 0, 1, 2, 3, 4, 8, 9) have semantic meaning related to the transformation. Examples often introduce *new* values not present in the input grid.
-*   **Element Distribution:** Performance impacted by different element distributions. Sparse (mostly zeros) vs. dense patterns exist.
-*   **Limited Training Examples:** Limited examples (typically 1-3) make generalization challenging.
-*   **Zero Prevalence:** Many grids contain significant zeros. Non-zero values often represent distinct visual elements.
-*   **Limited Integer Values:** Grids contain a limited set of integer values (e.g., 0, 1, 2, 3, 4, 6, 8).
-*   **Varied Transformation Rules:** Diverse rules ranging from neighbor-based replacement to tiling/replication patterns, rotations/reflections, or more complex pattern propagations. Pattern complexity varies significantly; some are simple row/column shifts/substitutions, while others involve non-linear transformations or combinations of changes in subgrids.
-*   **Combined transformations:** Struggles with multiple rules within a single grid, combining copying and fill values, or performing different transformations simultaneously.
-*   **Implicit spatial relationships:** Struggles to discern spatial aspects and accurately capture how the grid modifies elements and positions. Spatial reasoning is crucial; transformations depend on the relative positions of numbers/patterns.
-*   **Element-wise transformations:** Training examples demonstrate element-wise transformations based on visual features and patterns within the grid. Specific numbers might trigger changes in neighboring cells, or overall arrangements of numbers could imply a transformation.
-*   **Small Integers:** Grids contain small integers, and tasks often involve identifying relationships between different numbers within the grid (e.g., 5s causing modifications to 0s or 1s).
-*   **Consistent Training Example Structure:** Questions are presented in a consistent format: a problem description, training examples, and test input, but extracting transformation rules remains complex.
-*   **Output grid restrictions:** Output grids have specific dimensions and populations of new elements. The key challenge lies in abstracting the underlying transformation rule from a limited number of examples. This requires not just pattern recognition, but also an understanding of how the patterns *change* between input and output.
+## 1. DATASET PATTERNS & CHARACTERISTICS
 
-**2. EFFECTIVE TASK-SPECIFIC STRATEGIES**
+*   **Passage Structure:** Each example consists of a passage of text followed by a question, separated by "\n\nQUESTION: ". The passages describe sports events, statistical summaries, or other fact-based scenarios.
+*   **Passage Density:** The passages are often dense with information, requiring precise identification of relevant facts amidst irrelevant details (e.g., crime rate passage with multiple cities and rates).
+*   **Question Types:**
+    *   **Who:** Asks for a person performing an action (e.g., "Who kicked the field goal?").
+    *   **How many:** Asks for a count (e.g., "How many rushing touchdowns did he have?"). The answer may be a single number, list, or calculation.
+    *   **Calculation:** Asks for a result of a simple numerical operation (e.g., "How many total yards did the team gain?").
+    *   **Comparative (Numerical):** Compares two entities based on a numerical attribute (e.g., "Which team had more passing yards, the Bears or the Packers?").
+    *   **Which Player (Action-Based):** Asks "which player" performed a specific action (e.g., "Which player threw the touchdown pass?").
+    *   **Date Related:** Asks about dates of events.
+    *   **Value identification:** Asks for exact quantity of something (e.g., "How many total points were scored...").
+    *   **Reason Identification:** Asks for the "why" behind a specific event.
+    *   **Temporal Reasoning & Numeric Anchoring:** Requires temporal reasoning (e.g., "How many months did...") often involving calculations based on dates/durations. Passages embed relevant numeric values (years, counts, scores) close to entity mentions.
+    *   **Event Sequencing and Ordering:** Requires determining the order of events.
+    *   **Numerical Reasoning with Date/Time Context:** Questions requiring numerical reasoning with specific attention to dates, years, or time spans mentioned in the passage. The context of these numbers is crucial.
+    *   **Proportional Reasoning:** Some questions require understanding proportions or fractions, then converting them to percentages.
+*   **Question Diversity:** Questions are diverse (dates, names, quantities, comparisons, reasons).
+*   **Numerical Answer Emphasis:** A significant portion of the questions require a numerical answer derived from the passage, often involving calculations or identification of specific numerical facts.
+*   **Numerical Reasoning Emphasis:** The dataset heavily features questions requiring numerical reasoning, including addition, subtraction, and comparison of values extracted from the passage. Many questions ask for totals, differences, or comparisons.
+*   **Multi-Step Reasoning:** Some questions implicitly require multiple steps (e.g., identifying *all* cities with rates below a threshold).
+*   **Multi-Source Information Integration:** Passages often contain information from multiple sources, requiring correctly identifying the scope and relevance of each source to answer the question accurately.
+*   **Implicit Information and Calculation:** Some questions don't directly state the calculation needed; it must be inferred from the question's intent (e.g., "How many years..." implies a subtraction of years).
+*   **Answer Types:** Answers are short (name, number, phrase) directly from the passage, fact-based, and unambiguous.
+*   **Passage Length Variability:** Passages vary in length/complexity. Longer passages and complex questions can lead to failures.
+*   **Domain Knowledge:** Basic sports understanding is helpful but not required.
+*   **Implicit Relationship Understanding:** Some questions require understanding implicit relationships (e.g., "How many years after...").
+*   **Complex Passages with Multiple Facts:** Passages contain a high density of factual information.
+*   **Named Entity Dependency:** Questions heavily rely on correctly identifying and associating named entities.
+*   **Mixed Question Types:** The dataset contains a mix of question types.
+*   **Sports Game Summaries & Calculation/Comparison Questions:** Dataset heavily features summaries of sports games with questions involving calculation/comparison.
+*   **Varied Numerical Information:** Numerical information is presented in varied ways (explicitly stated or implied by scores).
+*   **Passage Topic Variability:** Passages vary in topic, spanning history, sports, and potentially other domains.
+*   **Implicit Unit Understanding:** Many questions require implicit understanding of units (e.g., months, years, points). Questions frequently omit units, requiring the system to infer them from context.
+*   **Explicit References:** Many questions require pinpointing specific details directly mentioned in the provided passage.
+*   **Granular Detail:** The questions often target very specific pieces of information, such as particular locations, quantities, or names, not broader summaries.
 
-*   **No consistently effective strategy:** Given consistently low accuracy, no single strategy has emerged as reliably effective (Iterations 22-40: Accuracy <= 0.33).
-*   **Decomposition into Pattern Identification and Rule Application (Promising):** Breaking down the problem into analyzing patterns and then applying a rule shows promise, as it mirrors a logical human approach to these puzzles. It allows the LLM to focus on distinct sub-problems.
-*   **LLM-based Visual Feature Analysis (Ineffective):** Using an LLM to analyze visual features and infer transformation rules is a promising approach, but generalization remains a major challenge.
-*   **Two-Step LLM Approach (Ineffective):** The two-step LLM approach (analyze then apply) shows some promise, but is still insufficient for reliable generalization.
-*   **Chain-of-Thought with Specialized Agents (Inconsistent):** The chain-of-thought approach, with specialized expert agents for visual feature analysis and transformation application, shows promise but suffers from inconsistent performance due to the LLM's issues with generalization. Role separation may not be effective.
-*   **Decomposition (Helpful, but Insufficient):** Breaking down the problem into analyzing visual features and applying the transformation simplifies the task. Decomposition into identifying transformation type, analyzing visual features, and applying the transformation appears insufficient to handle variations in grid sizes between training and test examples. Simple decomposition into transformation type identification, feature analysis, and application yielded 0.33 accuracy (Iteration 38), indicating this decomposition alone is insufficient.
-*   **Chain-of-Thought Prompting (Helpful):** Chain-of-thought prompting to guide the LLM through its reasoning is helpful for breaking down the analysis and making the rule extraction more transparent.
-*   **Chain-of-Thought with Multi-Example Prompts (Helpful):** Chain-of-thought prompting with multi-example prompts has been helpful in guiding the LLM to recognize patterns. Multi-example prompting aids in establishing the underlying transformation rule.
-*   **Analogical Reasoning (Potentially Useful):** The analogical reasoning approach demonstrates potential in pattern recognition, but has not achieved high accuracy.
-*   **Proper API Configuration (Critical):** API configuration is paramount for any LLM-based strategy to function. The `GOOGLE_API_KEY` environment variable must be correctly set, and the chosen LLM model (e.g., 'gemini-pro') must be accessible. LLM access failure due to API configuration issues (Iteration 12).
-*   **LLM-guided recursive subdivision (Potentially Useful):** If transformations are locally consistent, then LLM-guided recursive subdivision *might* have potential.
-*   **Coordinate-based transformation rules generated from an LLM (Potentially Useful):** At a basic level the LLM is able to correctly identify locations of numbers.
-*   **Code Generation approach:** The LLM is successful at generating Python code to manipulate the grid data structures.
-*   **Neighbor detection:** The model attempts to look at neighbors and perform transformations based on neighbor values. Pattern recognition considering neighboring cells is a good start.
-*   **Region Identification (Potentially Useful):** The general idea of region identification might be useful.
+## 2. EFFECTIVE TASK-SPECIFIC STRATEGIES
 
-**3. COMMON FAILURE MODES ON THIS DATASET**
+*   **Chain-of-Thought Decomposition:** Decomposing the problem into smaller, well-defined functions (`determine_question_type`, `extract_relevant_info`, `generate_answer`) is generally effective. This modularity likely helps in focusing the LLM's reasoning at each step. The chain-of-thought method helped to decompose the question into its required parts.
+*   **LLM-Driven Modularity:** Using the LLM for each stage (question type determination, information extraction, and answer generation), rather than hard-coded rules, provides the flexibility needed to handle the diversity of question types.
+*   **Directly Tie Extraction to Question Type:** Tailor the information extraction process to the specific question type identified. This improves efficiency and accuracy.
+*   **Specialized Agents for CoT:** The Chain-of-Thought (CoT) approach, using specialized agents for question type classification, information extraction, and answer generation, is effective *when it works correctly*. This breaks down the complex task into smaller, manageable steps. However, reliability needs to be assessed with more data.
+*   **Chain-of-Thought Prompting with Examples:** The CoT structure with explicit examples seems promising, likely helping ground the LLM in the specific task by guiding it towards mimicking the format and content of the examples.
+*   **Explicit Examples Effectiveness:** The use of explicit examples within the prompts for each stage helps guide the LLM towards the correct output format.
+*   **Explicit Date Extraction:** When dealing with date/time-related questions, focus on explicitly extracting all date/time mentions from the passage first. This creates a pool of potentially relevant values.
+*   **Three-Step Approach Soundness:** The overall three-step approach (question type determination, information extraction, answer generation) seems fundamentally sound. The *structure* of the solution is effective, but the *implementation* within each step needs refinement.
+*   **Effective Information Extraction:** The information extraction module is somewhat effective in pinpointing the relevant text spans within the passage. This is crucial given the information density of the passages.
 
-*   **Generalization Failure (Key Issue):** The core problem is the inability to generalize from training examples to the test input, especially when the test input contains different dimensions or complexities not seen in the training set. For example, in the first failure example (Iteration 40), the system correctly identifies the initial grid, but struggles to find the position to put the '4' value at the bottom of the grid. The system answer at index \[6]\[2] has an error; it should be 4, but it is 0.
-*   **Incorrect Output Format:** The most prominent failure is generating an incorrectly formatted output grid, resulting in "Invalid output grid format" errors.
-*   **Dimensionality Mismatch:** The system fails when the test input grid has different dimensions than the training examples, or when the *output* grid has dimensions inconsistent with the transformation implied by training examples. The core issue lies in the inability to extrapolate or scale the learned transformation rules to grids of different sizes. The LLM hallucinates incorrect placement of elements. Incorrect dimensionality of the generated grid continues to be an occasional failure. The system fails to adapt to the varying sizes of input and output grids. It does not deduce proper scaling or cropping operations and often produces output grids with incorrect dimensions.
-*   **Pattern Generalization:** The primary failure is the inability to generalize from training examples to the test input. The model seems to overfit the training examples, memorizing specific transformations rather than inferring the underlying logic. Even when training examples appear similar, the LLM fails to apply the learned transformation correctly, indicating a lack of robust pattern understanding. The LLM hallucinates patterns and applies them incorrectly.
-*   **Overfitting to Specific Examples:** The system may be learning the specific arrangements of numbers in the training examples, rather than the underlying rule governing the transformation. This leads to incorrect applications when the test grid deviates even slightly. For example, in the second failure (Iteration 40), the system generates a 3x3 grid when the correct answer has a dimension of 15x15.
-*   **Incorrect Rule Abstraction/Incomplete Transformations:** Inability to accurately infer the transformation rule from limited examples and then implement it. Often *describes* the rules but fails to *implement* them. The system often applies a partial transformation, failing to extrapolate identified patterns to the entire grid. The system is too literal in its interpretation of patterns, failing to abstract the core transformation logic. It attempts to memorize specific configurations rather than learning generalizable rules.
-*   **Flawed Pattern Recognition:** The system struggles to identify and generalize the actual transformations. Instead of recognizing operations like shifting or mirroring, it creates illogical rules based on superficial correlations in the training data.
-*   **Descriptive vs. Implementational Gap:** The agent can often *describe* the transformation rules but fails to *implement* them to produce the final numerical grid.
-*   **Halting at Structural Similarity:** Gets stuck in a loop of assessing and refining structural similarity, never producing the concrete numerical output.
-*   **Incorrect JSON Formatting:** Frequently produces invalid JSON (backticks, quotation marks, extra nesting, leading/trailing whitespace).
-*   **Inability to Extrapolate Complex Transformations:** Struggles to generalize from training examples, especially with complex spatial reasoning.
-*   **Incorrect Content Transformation:** Fails to accurately identify and apply correct number transformations.
-*   **Numerical Mapping Errors:** Fails to consistently map numbers correctly, memorizing specific number-to-number transformations instead of extracting underlying logic. The LLM struggles with identifying and applying mathematical or logical relationships between numbers in the grids.
-*   **Spatial Configuration Misinterpretation:** Struggles to discern the spatial aspects of the transformations. Lacks robust coordinate mapping, failing to accurately map coordinate-based transformation rules. Insufficient contextual understanding; struggles to grasp the overall context and transformation logic.
-*   **Output Grid Dimension Errors:** Generates output grids with incorrect dimensions.
-*   **Null Value Handling:** Encounters `None` values during numerical comparisons.
-*   **Unexpected Input Values**: Inconsistencies in input data format not properly validated.
-*   **Empty Output Grid:** Returns an empty list `[[]]`.
-*   **Inability to Generate Valid Output:** Fails to capture underlying patterns and apply them to the test input.
-*   **Complex Reasoning:** Struggles with questions requiring complex spatial or value dependency reasoning.
-*   **Over-Reliance on Memorization:** Memorizes training examples rather than generalizing transformation logic.
-*   **Inability to Abstract Complex Rules:** Requires abstraction of non-linear relationships and contextual dependencies.
-*   **Incorrect Pattern Generalization:** Fails to correctly identify the underlying transformation patterns.
-*   **Incorrect Application:** Even when the LLM correctly identifies the transformation, it struggles to apply it to the test input.
-*   **Lack of Spatial Precision:** Struggles with precise spatial relationships, failing to place transformed elements correctly.
-*   **Shape and Dimensionality Errors:** Generated output grids often have incorrect shapes or dimensions.
-*   **Output Format Mismatch:** Output grid does not match the expected size or shape.
-*   **Incorrect Value Mapping:** Fails to map values correctly.
-*   **Incorrect Element Replacement:** Identifies correct structure but uses wrong numbers.
-*   **Value Errors:** Generates grids containing numbers not present in the target grid.
-*   **Code Generation Errors:** Outputs Python code rather than the grid itself.
-*   **Ambiguity:** Transformations are implicit and can be interpreted in multiple ways.
-*   **Complexity:** Transformations involve combinations of replication, shifting, value changes, etc.
-*   **Inability to Extract Accurate Transformation Rules:** Consistently fails to extract accurate and generalizable rules.
-*   **Fragility of Pattern Recognition:** Pattern recognition is fragile and easily disrupted by small variations.
-*   **Lack of Rule Validation:** Rule validation is not robust enough.
-*   **Localized Contextual Analysis Insufficient:** Struggles to generalize local rules across the entire grid.
-*   **Oversimplification of Transformations:** Tends to oversimplify transformation rules.
-*   **Complex Rule Interpretation:** Struggles with multiple intertwined rules.
-*   **Incomplete Generalization:** Fails to accurately generalize rules based on limited examples.
-*   **In-place vs. New Object Confusion:** Confused with modifying the input grid vs. creating a new output grid.
-*   **Incorrect Mirroring Logic:** Flawed mirroring logic leads to incorrect placements.
-*   **Positional Transformation Neglect:** Unable to accurately capture how elements and positions change.
-*   **Difficulty with complex value dependencies:** Struggles when the transformation relies on complex relationships between values.
-*   **Misinterpretation of spatial relationships:** Incorrectly interprets how objects and values are spatially related.
-*   **Misinterpretation of Visual Features:** `analyze_visual_features` prone to misinterpreting key features.
-*   **Inconsistent Transformation Application:** Inconsistent application of identified rules.
-*   **Ambiguous Transformations:** Training examples might have multiple interpretations.
-*   **Error in output format**: Correct reasoning, but incorrect grid size or text output instead of code.
-*   **Dimensionality and Element Distribution:** Fails with different dimensions or element distributions.
-*   **Error in Transformation:** LLM produces an error rather than a valid transformation.
-*   **Overfitting to Superficial Patterns:** Overfits to simple patterns.
-*   **Inability to Generalize Complex Rules:** Struggles with complex rules involving relationships between elements or regions.
-*   **Output validation inadequate:** Relying on an LLM for output validation may be flawed.
-*   **Incorrect Pattern Identification:** LLM fails to correctly identify the transformation pattern.
-*   **Inability to Handle Number Transformations:** Struggles with generalizing number transformations.
-*   **Code Generation Errors:** Generated code contains logical errors or fails to translate the pattern.
-*   **Ignoring Existing Grid Values:** Struggles with transformations requiring *both* copying and fill values.
-*   **Context-Switching Errors:** Struggles to perform different transformations in the same grid.
-*   **No Fallback Mechanisms:** Lacks robust error handling or fallback mechanisms.
-*   **Lack of Output Constraints:** Not constrained to produce valid numerical grids.
-*   **Incorrect coordinate application:** Coordinate transformation misapplied.
-*   **Combined Analytical and Application Complexity:** Requires perfect output format which is difficult to guarantee.
-*   **Misinterpretation of Patterns:** Model incorrectly identified a pattern.
-*   **Incorrect Transformation Implementation:** Implements incorrect code.
-*   **Limitation of Simple CoT:** LLM unable to correctly interpret the problem transformation.
-*   **Incorrect Corner Rotation:** Model identifies clockwise corner rotation but applies it incorrectly.
-*   **Misinterpreting Non-Zero Value Patterns:** Model struggles to decipher patterns in grids with non-zero values.
-*   **Faulty Reflection Logic:** Meta-reasoning agent fails to identify proper reflection.
-*   **Incorrect Region Identification/Transformation:** The LLM fails to identify key regions and the correct swapping pattern, leading to incorrect transformations of rows and columns. The LLM misinterprets the relevant features in the grids, failing to identify consistent regions and corresponding transformation rules between input and output grids.
-*   **Matrix summarization/reduction instead of transformation:** The system consistently failed by outputting small, summarized matrices (e.g., 2x2) instead of transforming the full input grid based on the provided examples.
-*   **Ignoring the input grid's dimensions:** The system failed to preserve the size/dimensions of the input grid during transformation.
-*   **Incorrect Anchor Identification:** The LLM fails to accurately identify stable "visual anchors" or misinterprets their role in the transformation.
-*   **Faulty Rule Inference:** Even with correct anchors, the LLM struggles to infer the transformation rule, leading to incorrect replacement logic.
-*   **Overgeneralization:** The system can overgeneralize patterns, leading to incorrect transformations.
-*   **Limited Contextual Understanding:** The system fails to capture the full range of contextual dependencies for substitutions.
-*   **Incomplete Rule Application:** The system often applies a partial transformation, identifying some patterns but failing to extrapolate them to the entire grid.
+## 3. COMMON FAILURE MODES ON THIS DATASET
 
-**4. EXPERIMENT LOG & FINDINGS**
+*   **Difficulty Locating Relevant Information:** Especially for longer passages, finding the specific sentence or phrase containing the answer can be challenging.
+*   **Incorrect Entity Identification:** Misidentifying the entities (players, teams) referred to in the question within the passage.
+*   **Numerical Calculation Errors:** Performing the wrong numerical calculation or misinterpreting the wording of the question leading to incorrect arithmetic. The system fails to perform simple arithmetic correctly.
+*   **Stuck in Verification Loop (Generic Answer):** The system gets stuck in a planning or verification stage instead of executing the task, producing canned responses. This indicates a breakdown between task identification and task execution.
+*   **Inability to Extract and Compare Numerical Values:** When presented with comparative questions, the system fails to extract the relevant numerical values from the passage and perform the necessary comparison.
+*   **Failure to Identify Specific Actors in Complex Scenarios:** In questions asking about a specific player's action within a game summary, the system gets stuck on "verifying" the identification of the player instead of extracting the name associated with the event from the passage.
+*   **Script Errors:** NameError: name 'question' is not defined. This occurred during script repair. The variable 'question' was not defined in the scope where it was being used.
+*   **Lack of Error Information:** The primary failure mode currently is the lack of error data. Without knowing *why* the system fails, it's impossible to pinpoint specific weaknesses.
+*   **Sensitivity to passage and question complexity:** Longer passages and more complex questions (requiring multi-step reasoning or implicit relationship understanding) can lead to failures.
+*   **Incorrect Temporal Calculation:** Failing to accurately extract and process temporal information. Example: The system incorrectly calculated the number of months between February and December. System struggles to accurately extract and perform calculations with temporal information. It may misinterpret time references, leading to incorrect answers. Example: "How many years were between Osumi Islands being transferred, and Kagoshima District being transferred?" expected "6", actual "76 years".
+*   **Misinterpreting Point Differentials:** Failing to extract scores and calculate the difference. Example: For example, in the question about the Falcons' lead at halftime, the model failed to correctly determine the point difference based on the passage.
+*   **Erroneous Event Sequencing:** Difficulty in identifying the order of events and their relative timing based on the passage.
+*   **Entity Confusion:** The model incorrectly identifies the relevant entities or confuses their relationships.
+*   **Poor Numerical Extraction & Calculation:** The system struggles to extract the *correct* numbers required for calculations. It extracts irrelevant numbers or misinterprets the relationships between them.
+*   **Inadequate Temporal Reasoning:** The system seems to have a weak understanding of temporal relations expressed in the text.
+*   **Indiscriminate Information Extraction:** The root cause is the "expert at extracting relevant information" agent isn't precise enough. It extracts too much information, and the subsequent steps are unable to filter and use only the necessary parts.
+*   **Inaccurate Numerical Reasoning:** The model frequently fails to correctly identify the relevant numerical values and perform the required calculations (addition, subtraction, etc.).
+*   **Contextual Misunderstanding of Units:** The model struggles to consistently apply the correct units in its calculations and answers, demonstrating a lack of contextual awareness.
+*   **Over-Extraction:** The most prominent failure mode is the tendency to include *more* information than strictly necessary to answer the question.
+*   **Incorrect Arithmetic Operations:** The system sometimes performs arithmetic when it's not required or combines numbers that shouldn't be combined.
+*   **Failure to Distinguish Different Roles/Attributes:** The system fails to differentiate between different attributes of the same entity.
+*   **LLM Reliance on Explicit Instructions:** The LLM relies heavily on the system instructions provided in the prompt.
+*   **Need for Improved Contextual Understanding:** The low accuracy underscores the need for enhancing the system's contextual understanding capabilities.
+*   **Inaccurate Numerical Extraction & Comparison:** The system struggles to accurately identify and compare numerical values.
+*   **Incorrect Date Span Calculation:** Correctly identifying the start and end years but failing to correctly calculate the difference or misinterpreting what that difference represents in the context of the question.
+*   **Lack of Temporal Reasoning:** The model struggles with temporal reasoning and understanding implied time relationships. It can identify dates but fails to link them correctly to the event or period the question refers to.
+*   **Limitations of Keyword-Based Information Extraction:** Reliance on keywords alone for information extraction is insufficient. A deeper understanding of the question's temporal and logical intent is required.
+*   **Incorrect Level of Detail:** The primary failure mode is providing answers at an inappropriate level of detail, specifically missing the required numeric specificity (e.g., providing the event of a touchdown pass without specifying the yardage when the question asks for yardage). The LLM in the current form has a hard time mapping to the *exact* requirement of the question.
+*   **Lack of Unit Awareness:** The LLM may be missing the association of units (yards, points) with numeric values extracted from the passage, leading to incomplete answers.
+*   **Inflexible Answer Matching:** The system's primary failure stems from its rigid answer-matching criteria. Even when the core numerical answer is correct, the inclusion of extra explanatory text or minor formatting variations (e.g., including a "%" sign) leads to incorrect classifications. This highlights a lack of robustness in the evaluation process. Example: Correctly calculating 5.5 but including "%" makes it wrong.
+*   **Over-Strictness on Exact Phrases:** The model struggles when the answer requires interpreting a relationship that's conceptually correct but doesn't perfectly match the question's wording.
+*   **Implicit Constraint Neglect:** Overlooking implicit constraints within the question. Example: Asked "Which countries on the 2014 Summer tour were scheduled for more than one date?", it returns both "France" and "Germany," failing to recognize that the question is only asking for countries. This shows failure to filter the extracted countries properly.
+*   **Arithmetic Errors After Correct Extraction:** Even when the relevant numerical values are correctly identified, arithmetic errors in the final calculation lead to incorrect answers.
+*   **Unit Mismatch:** The system frequently fails to distinguish between a numerical value alone and a numerical value with its unit (e.g., "1" vs. "1 yard"). This occurs because the `generate_answer` function does not reliably strip units when the expected answer is only the numerical value. Example: "How many yards shorter was Jason Campbell 's second touchdown pass compared to his first?" expected "1", actual "1 yard".
+*   **Scope Confusion:** The system can fail to correctly isolate the time period or subject that the question is actually asking about within the passage, as seen in the question about Justin Tucker's field goals.
 
-*   **Iteration 0-39:** (Summarized for Brevity) A wide variety of approaches have consistently failed to achieve accuracy above 0.33. Common issues include incorrect output format, dimensionality mismatch, pattern generalization failures, and descriptive vs. implementational gaps. LLMs struggle with spatial reasoning and applying rules consistently across grids. Explicit coordinate-based transformation rule extraction (Iteration 36) and recursive decomposition with LLM guidance (Iteration 37) both yielded 0% accuracy. Simple decomposition into transformation type identification, feature analysis, and application yielded 0.33 accuracy (Iteration 38), indicating this decomposition alone is insufficient. Iteration 39: LLM-Driven Transformation with Visual Pattern Encoding and Iterative Refinement yielded 0% accuracy, rejecting the hypothesis. The LLM's ability to identify and apply visual patterns is limited, particularly when the transformations are subtle or require abstract reasoning.
-*   **Iteration 40:** Hypothesis partially confirmed: Decomposing the problem into pattern identification and rule application is a reasonable approach. Hypothesis rejected: The current implementation of pattern identification and rule application via LLMs is not robust enough to achieve high accuracy on this dataset (accuracy 0.33). Key learning: The LLM needs more guidance or constraints to avoid overfitting and improve generalization in applying transformation rules.
+## 4. EXPERIMENT LOG & FINDINGS
 
-**5. NEXT RESEARCH DIRECTIONS**
+*   **2025-05-17 12:44:34:** Initial Dataset Analysis: Comprehensive breakdown of data characteristics, challenges, potential approaches, creative insights, and implementation recommendations. Key recommendations included: (1) Keyword Matching, (2) Sentence Similarity, (3) Information Extraction with Rules, (4) LLM-based Question Answering. Also included a sample prompt structure for text based techniques.
+*   **2025-05-17 12:44:44:** SCRIPT ERROR ENCOUNTERED: NameError: name 'question' is not defined. This occurred during script repair in the `generate_answer` function. The variable 'question' was not properly passed or defined within that function's scope.
+*   **Iteration 0 Findings:** Chain-of-thought decomposition into question type classification, information extraction, answer generation, and verification was *ineffective*. The sequential chain, as implemented, led to premature "verification" steps that prevented the system from generating concrete answers. The system exhibited an over-reliance on verification, hindering progress. Accuracy was very low.
+*   **Iteration 1 Findings:** Chain-of-thought approach (determine type, extract info, generate answer) achieved 100% accuracy, suggesting it is well-suited for this dataset. The modularity likely helps in focusing the LLM's reasoning at each step. Removing the verification step did not negatively impact performance, suggesting it was unnecessary overhead.
+*   **Iteration 2 Findings:** CoT with specialized agents *can* achieve perfect accuracy (1.00) on a small subset, suggesting the underlying strategy has potential. However, without error data, we cannot determine how robust this approach is. The 1.00 accuracy might be a fluke on a small, easy subset of the data. Reliability is unknown.
+*   **Iteration 3 Findings:** The exploitation strategy using a decomposed approach and chain-of-thought prompting achieved only moderate accuracy (0.60). This suggests that while the overall structure is promising, the information extraction and reasoning capabilities need significant improvement.
+*   **Iteration 4 Findings:** The decompose-and-generate approach, as implemented, is not yet effective for this dataset. The accuracy of 0.80 indicates that at least one of the sub-tasks (question type classification, information extraction, answer generation) is introducing errors. The current in-context learning examples are insufficient to guide the LLM in performing the required temporal reasoning and complex entity relationship extraction.
+*   **Iteration 5 Findings:** A naive chain-of-thought implementation, without more precise extraction and reasoning, performs poorly on this dataset. The accuracy was low, indicating significant issues with information extraction and temporal reasoning.
+*   **Iteration 6 Findings:** The exploitation strategy, while aiming to leverage existing knowledge, isn't sufficient without improvements to numerical reasoning and contextual understanding. The current implementation of the decomposition approach is limited by the accuracy of its individual components, particularly in extracting and manipulating numerical information. Relying solely on the LLM for calculations, even with prompting, is unreliable for this dataset.
+*   **Iteration 7 Findings:** The high accuracy (0.90) indicates that the overall strategy of question decomposition is effective for this type of question-answering task *on this specific dataset*. The isolated error mode (over-extraction) suggests that the primary area for improvement is refining the information extraction process, rather than fundamentally altering the overall approach.
+*   **Iteration 8 Findings:** The decompose-and-generate approach needs significant improvement, as the accuracy is low. This highlights that while the overall structure may be promising, the information extraction, numerical reasoning, and contextual understanding need further enhancement.
+*   **Iteration 9 Findings:** The Chain-of-Thought approach, while conceptually sound, is insufficient on its own when the task involves numerical reasoning. The decomposition into question type, extraction, and generation does not guarantee accuracy in numerical operations.
+*   **Iteration 10 Findings:** The experiment confirmed that while the LLM can extract information, numerical reasoning and accurate calculation remain a weak point. Simply identifying relevant numbers is not enough; the system needs to perform calculations precisely.
+*   **Iteration 11 Findings:** The exploitation strategy achieved a good initial accuracy (0.90). However, the failures highlight the critical need for precise information extraction, especially with respect to numeric values and their units. The current prompt engineering in the information extraction and answer generation steps is insufficient to guarantee the correct level of detail is returned.
+*   **Iteration 12 Findings:** The current CoT approach is capable of extracting the relevant numbers from the passages and performing basic calculations, confirming the hypothesis that a modular approach can handle the complexity of the questions. However, the 70% accuracy shows that the strict evaluation method is a significant bottleneck. The system's raw numerical reasoning capabilities might be higher than what the accuracy metric suggests.
+*   **Iteration 13 Findings:** The chain-of-thought strategy has not completely solved the problems within the dataset. The model still has issues with constraint based questions, where it will overlook constraints leading to wrong answers.
+*   **Iteration 14 Findings:** The exploitation strategy (using the existing approach) reveals the limitations of the current multi-stage LLM approach. It highlights the specific weaknesses in unit handling, temporal reasoning, and contextual scope. The 50% accuracy indicates that while the general framework is partially effective, specific improvements are needed in data extraction and answer formatting.
 
-*   **Enhance Rule Extraction:**
-    *   **Formalize Rule Representation:** Explore ways to represent the extracted transformation rules in a more structured and explicit format (e.g., using code, symbolic expressions, or a domain-specific language). This could allow for more precise and reliable application of the rules.
-    *   **Explicitly define parameters** LLM could extract parameters from the training examples and use them to apply them to the Test Input grids.
-    *   **Data Augmentation:** Generate more training examples with variations of existing patterns to learn more robust rules.
-    *   **Constrain Rule Space:** Provide the LLM with a set of possible transformation rules or rule templates to limit the search space and prevent overly complex rules. Think of this as providing a "grammar" for transformations.
-*   **Improve Generalization:**
-    *   **Focus on Relationships:** Encourage the LLM to focus on relationships *between* elements and regions in the input/output grids to prevent overfitting.
-    *   **Explicit Spatial Reasoning:** Improve the prompts to encourage the LLM to explicitly describe spatial relationships between elements.
-*   **Add dimensional awareness:**
-    *   **Explicitly include the dimensions** of the grids in the prompt and train the system to be aware of them.
-    *   **Normalize the training data** by cropping it to a specific size. The transformation process would need to be relative to the size of the grid.
-*   **Improve Pattern Recognition:** Focus on enhancing the LLM's ability to recognize and encode patterns in the training examples.
-    *   **Explicit Pattern Encoding:** Design prompts that explicitly ask the LLM to identify and describe the transformation rules observed in the training data *before* applying them to the test input. This should emphasize spatial relationships, contextual dependencies, and the importance of consistent rule application.
-*   **Constrain Output Format:** Implement stricter output validation and constraints to ensure that the generated grid adheres to the expected dimensions and value ranges. Explicitly add a module to the script that checks the output grid's dimensions and content *against the constraints implied by the input grids in the training examples*. Refine the prompting strategy to specifically request the LLM to output the grid dimensions *before* generating the full grid, allowing for independent verification.
-*   **Modularize Transformation Steps:** Instead of relying on a single LLM call for each subgrid transformation, break down the transformation process into smaller, more manageable steps.
-*   **Implement a Rule Validation Mechanism**: Before applying any transformation rules, implement a mechanism to validate the extracted rules against the training examples.
-*   **Shift Focus to Transformation Primitives:** Instead of focusing on end-to-end visual pattern encoding, decompose the task into identifying potential transformation primitives (e.g., mirroring, rotation, shifting, scaling, color mapping).
-*   **Introduce Constraint Satisfaction:** Incorporate constraint satisfaction techniques to ensure that the generated transformations are consistent with the training examples.
-*   **Develop a Transformation Scoring Mechanism:** Implement a scoring mechanism to evaluate the quality of different transformation hypotheses.
-*   **Explore Explicit Spatial Reasoning:** Explore representations that explicitly encode spatial relationships between grid elements.
-*   **Consider Hybrid Approach**: Explore a hybrid approach that combines LLM-based rule extraction with traditional computer vision techniques for pattern recognition and object detection.
-*   **Focus on Simpler Cases**: Start by focusing on simpler grid transformation tasks with fewer elements and more straightforward transformation rules.
-*   **Robust Output Validation:** Implement a more robust validation function (`is_valid_grid`). Re-evaluate the roles of the LLM agents. Incorporate Validation Steps: Add validation steps to ensure the generated output grid adheres to patterns observed in the training examples.
-*   **Size Invariance:** Implement a mechanism to normalize grid sizes during the feature analysis stage.
-*   **Transformation Parameterization:** Instead of relying solely on visual feature analysis, try to parameterize the transformation itself.
-*   **Implement a robust validation step:** Validate the dimensions of the generated grid before outputting, padding or cropping the grid if necessary.
-*   **Explicit Transformation Rules:** Prompt the LLM to first explicitly state the transformation rule it identifies in the training examples, and then apply that rule to the test input.
-*   **Iterative Refinement:** Instead of a single refinement step, implement an iterative refinement loop where the LLM refines its solution in multiple passes, receiving feedback on each pass.
-*   **Expand Contextual Analysis:** Increase the scope of the "local pattern analysis" to consider a larger neighborhood around each cell.
-*   **Explicit Rule Extraction:** Instead of relying solely on LLMs to implicitly learn the rules, consider a mechanism to explicitly extract transformation rules from the training examples.
-*   **Fine-grained Conditionals:** Incorporate more fine-grained conditional logic into the transformation application process.
-*   **Curriculum Learning:** Train the model on simpler examples first, gradually increasing the complexity.
-*   **Data Augmentation:** Create synthetic training examples by applying known transformations to existing examples.
-*   **Improve Pattern Abstraction:** Prompt the LLM to describe the *transformation logic* in a general way.
-*   **Verification and Validation:** Implement additional validation steps to verify intermediate results and completed grids.
-*   **Enforce Output Generation:** Modify the prompt to *explicitly* demand the full transformed grid as the final answer.
-*   **Rule Extraction Focus:** Shift the focus from code generation to more robust rule extraction.
-*   **Separate Reasoning and Execution:** Separate the tasks of describing the transformation rules and applying them.
-*   **Test-Driven Development (TDD) Approach:** Implement a TDD-like workflow.
-*   **Introduce a "Completion" Condition:** Add a mechanism to detect when further iterations are unlikely to improve the result.
-*   **Symbolic Reasoning:** Explore incorporating symbolic reasoning techniques.
-*   **Decomposition of Sub-Tasks:** Explicitly decompose the process of rule extraction, rule validation, and code implementation.
-*   **Few-shot examples:** Investigate providing the model with more varied few-shot examples.
-*   **Focus on JSON Formatting:** Implement a strict post-processing step that validates the JSON output and corrects common formatting errors.
-*   **Simplify the Transformation Task:** Break the task down into smaller, more manageable steps.
-*   **Improve Template Identification and Encoding:** Investigate how to better identify and encode the template or pattern present in the training examples.
-*   **Consider a Hybrid Approach:** Explore combining the LLM with a more traditional algorithm.
-*   **Address Output Size Variability:** Explicitly handle cases where the output grid size is different from the input grid size.
-*   **Explore data preprocessing techniques.** Investigate methods to simplify the grid representations or highlight relevant visual features to improve the LLM's ability to analyze the patterns.
-*   **Decompose Numerical Mapping:** Instead of letting the LLM directly predict numerical substitutions, force it to extract rules for *how* numbers change.
-*   **Augment Training Examples:** Provide more varied training examples.
-*   **Coordinate Transformation:** Consider more direct coordinate transformations.
-*   **Iterative KG Refinement:** Implement a feedback loop where the LLM can iteratively refine the knowledge graph based on errors in the transformation.
-*   **Focus on Debugging and Correctness:** Prioritize debugging the core logic responsible for grid manipulation and output generation.
-*   **Robust Input Validation:** Thoroughly validate the input grid to ensure it contains only expected numerical values and has the correct dimensions.
-*   **Null/None Handling:** Add explicit checks for `None` values *before* any numerical comparison or operation.
-*   **LLM Output Validation and Constraints:** Constrain the LLM to produce valid numerical outputs that conform to the grid's expected data type.
-*   **Implement Error Recovery:** Incorporate mechanisms to detect and recover from errors during the LLM-based transformation process.
-*   **Prioritize LLM Access and Error Handling:** Verify LLM access and improve error handling within the `call_llm` function.
-*   **Enhanced Feature Analysis:** The `analyze_visual_features` function needs significant improvement.
-*   **Refine Transformation Application:** Enhance the `apply_transformation` function to accurately apply the inferred transformations to the test input grid.
-*   **Implement Robust Output Validation:** Implement a comprehensive validation step to check the dimensions, value ranges, and overall structure of the output grid.
-*   **Implement a More Robust Rule Extraction Mechanism:** Develop a mechanism that can identify and formalize the transformation rules in a more abstract and general way.
-*   **Explore Different Model Architectures:** Evaluate the performance of other model architectures.
-*   **Incorporate a More Fine-Grained Validation Process:** Implement a validation process that checks the individual steps of the transformation, rather than just the final result.
-*   **Enhanced Example Descriptions:** Provide more structured information to the LLM, emphasizing key elements like grid dimensions and relationships between input and output.
-*   **Transformation Validation:** Implement a more robust validation step for the transformation descriptions generated by the LLM.
-*   **Refine Output Formatting:** Implement stricter output format validation.
-*   **Code Generation Fine-Tuning:** Encourage the LLM to generate a *validated* code implementation of the transformation rules.
-*   **Improved Output Validation:** Implement a more robust validation function that can evaluate the *logic* of the transformation in the output grid.
-*   **Introduce Explicit Rule Extraction:** Focus on methods that first extract explicit transformation rules from the training examples and then apply those rules to the test input.
-*   **Decompose the Transformation Process:** Decompose the transformation process into smaller, more manageable steps.
-*   **Increase Training Data Diversity:** Supplement the training data with more diverse examples.
-*   **Explore Hybrid Approaches:** Investigate hybrid approaches that combine the LLM's reasoning abilities with more traditional algorithms.
-*   **Implement Validation Techniques:** Develop more robust validation techniques that can detect and correct errors in the transformed grid.
-*   **Introduce Verification Mechanisms:** Implement more robust verification mechanisms to validate the transformation description before applying it to the test input.
-*   **Fine-tune LLM Prompts:** Carefully refine the prompts used for `call_llm` to provide more context and guidance to the LLM.
-*   **Focus on Rule Decomposition:** Explicitly decompose the transformation rule into smaller, more manageable sub-rules.
-*   **Implement a More Structured Validation Process:** Develop a more rigorous validation process that checks for specific aspects of the transformation, such as element counts and row/column patterns.
-*   **Explore Explicit Coordinate-Based Rules:** Shift the representation of rules to be more explicit about coordinates.
-*   **Generate More Diverse Training Data:** Consider augmenting the training dataset with examples that cover a wider range of transformation types and complexities.
-*   **Add unit tests:** Add unit tests for `transform_grid` function.
-*   **Enhanced Rule Extraction:** Refine the `extract_transformation_rule` agent to focus explicitly on identifying the source locations of numbers to be replicated.
-*   **Value-Specific Propagation:** Modify the `refine_transformation_rule` and `apply_transformation` agents to ensure that the correct values are being propagated based on their source locations.
-*   **Hybrid Approach:** Test a combination of explicit rule-based transformations (hard-coded logic for common patterns) with the LLM-based agents.
-*   **Context Aware Prompting:** Change the prompting strategy to explicitly instruct agents to be aware of the grid context during transformations.
-*   **Simplify Transformation Logic:** Start with very basic transformation patterns and gradually increase complexity.
-*   **Output format:** The prompt needs to be much more specific to encourage the output to be a valid grid, not just a description of a grid.
-*   **Implement a more robust method for pattern identification, potentially incorporating techniques like convolution filters or feature extraction methods to discern relevant features.**
-*   **Refine the agent's ability to accurately translate identified patterns into executable rules.**
-*   **Test a wider range of strategies beyond simple rotation or reflection.**
-*   **Implement unit tests for each sub-module, especially focusing on the strategy application to isolate failure points.**
-*   **Refine prompting for element-wise transformations:** Modify the `analyze_visual_features` prompt to explicitly request an element-wise transformation rule.
-*   **Implement a Validation Mechanism:** Implement a validation mechanism to check the plausibility of the inferred transformation rules.
-*   **Explore Alternative Transformation Approaches:** If LLMs struggle with this task, consider exploring alternative approaches such as image processing techniques.
-*   **Augment Training Data:** Consider augmenting the training data with more diverse examples to improve the LLM's generalization ability.
-*   **Explicit Spatial Encoding:** Preprocess the input grids to explicitly encode spatial information.
-*   **Pattern Matching Augmentation:** Augment the feature analysis step with pattern matching algorithms to identify repeating patterns within the training grids. These patterns could then be fed into the LLM to guide the transformation process.
-*   **Iterative Refinement:** Implement an iterative refinement process where the LLM generates an initial output grid, then refines it based on feedback from a spatial validation module.
+## 5. NEXT RESEARCH DIRECTIONS
+
+*   **Prioritize Error Logging and Analysis:** The *most critical* next step is to implement robust error logging that captures the following for each failure:
+    *   The original question and passage.
+    *   The predicted question type.
+    *   The extracted information.
+    *   The generated answer.
+    *   The ground truth answer.
+    *   The exact error message or exception that occurred.
+*   **Analyze Error Data:** Once error data is available, analyze it to identify the most frequent failure modes (e.g., incorrect question type classification, poor information extraction for certain question types, hallucination during answer generation).
+*   **Targeted Improvements:** Based on the error analysis, focus on improving the weakest components of the pipeline. This might involve:
+    *   Providing more training examples for question type classification.
+    *   Refining the information extraction prompts or logic.
+    *   Improving the answer generation prompts to reduce hallucination.
+*   **Introduce Complexity & Ambiguity:** Introduce more complex or ambiguous questions to test the limits of the current approach.
+*   **Evaluate on Larger Dataset:** Evaluate the approach on a larger, more diverse dataset to ensure its robustness and generalizability.
+*   **Prompt Engineering Exploration:** Explore the impact of different prompt engineering techniques for each step (determine type, extract info, generate answer) to potentially improve efficiency or reduce reliance on the LLM.
+*   **Cost Metric Analysis:** Consider adding a cost metric (e.g., number of LLM calls) to evaluate the efficiency of the approach.
+*   **Error Case Creation:** Create error cases in the dataset to evaluate the robustness of the approach. This could involve questions with missing information, ambiguous wording, or requiring deeper inference.
+*   **Address Scope Issues:** Debug and resolve the scope issue that caused the NameError in the `generate_answer` function. Ensure that the `question` variable is properly passed and accessible within the function's scope.
+*   **Prioritize Answer Generation:** Refocus the system on generating a *tentative* answer first, even if it's potentially incorrect. Subsequent steps can then refine or correct this answer. Shift the emphasis from verification to execution.
+*   **Implement Numerical Reasoning Module:** For numerical comparison questions, incorporate a specific module designed for numerical extraction and comparison. This module should handle the parsing and comparison of numbers found in the passage.
+*   **Test on Simpler Subsets:** Before scaling, test the adapted approach on smaller, simpler subsets of the data containing only one or two question types to isolate the effectiveness of the changes.
+*   **Enhance Information Extraction Robustness:** Focus on improving the reliability of the `extract_relevant_info` function, with specific attention on numerical values and relationships, temporal phrases, and key entities. Incorporate techniques such as:
+    *   **Fine-tuning a NER (Named Entity Recognition) model:** Train a model to identify specific entities (dates, locations, people, numerical values).
+    *   **Regular Expression-based extraction:** Implement regular expressions to robustly extract numerical values and dates.
+    *   **Contextual filtering:** Add logic to filter extracted information based on keywords in the question (e.g., if the question asks about "months," prioritize extracting date ranges).
+*   **Improve Temporal Reasoning:** Implement specific modules or techniques to improve temporal reasoning. This could involve:
+    *   Developing a robust date extraction component that can identify and normalize date mentions in the passage.
+    *   Using a dedicated date calculation library or API to perform the month difference calculation.
+    *   Providing more explicit examples of temporal reasoning in the in-context learning prompts.
+    *   Explicitly demonstrate how to calculate time differences and order events in the chain-of-thought examples.
+*   **Improve Entity Extraction and Linking:** Focus on improving the accuracy of the information extraction component, especially for named entities and their relationships. This could involve:
+    *   Fine-tuning a named entity recognition (NER) model on a dataset relevant to the domain of the passages.
+    *   Using a knowledge graph or entity linking service to resolve entity ambiguities.
+    *   Adding more explicit examples of entity linking to the in-context learning prompts.
+*   **Introduce Validation Steps:** Implement validation steps after information extraction to check the reasonableness and consistency of extracted values before passing them to the answer generation phase.
+*   **Debug Sub-task Performance:** Break down the end-to-end accuracy by evaluating the performance of each sub-task independently (question type classification, information extraction, answer generation). This will help pinpoint the bottleneck in the pipeline.
+*   **Increase In-Context Examples:** Experiment with increasing the number and diversity of in-context learning examples, especially for complex reasoning tasks like temporal calculation and entity relationship identification.
+*   **Focus on Precise Information Extraction:** Condition the information extraction on a *deeper* understanding of the question's requirements. The prompt for extraction should incorporate the question's intent.
+*   **Named Entity Recognition (NER) with Type Constraints:** Use NER to identify numerical values, but *constrain* the entities based on the question type.
+*   **Relationship Extraction:** Implement a relationship extraction step to identify the *relationship* between the extracted entities and the question's targets.
+*   **Temporal Reasoning Module:** For temporal reasoning questions, consider a dedicated module that explicitly identifies and orders events within the passage.
+*   **Fine-tuning or Few-Shot Learning for Extraction:** Fine-tune a model specifically for extracting relevant information from sports summaries or use a more robust few-shot learning strategy with more diverse examples to guide the extraction agent.
+*   **Rethink Prompting:** Experiment with more detailed and directive prompts that guide the extraction and reasoning processes more explicitly. Include more detailed examples in the prompt itself.
+*   **Implement a robust numerical reasoning module:** Integrate a dedicated module for performing calculations. This could involve:
+    *   Explicitly identifying numerical values and their units during information extraction.
+    *   Using a calculator or similar tool to ensure accurate computation.
+    *   Validating the units of the final answer.
+*   **Improve Date and Time Handling:** Enhance the model's ability to parse and reason about dates and times. This could involve using a dedicated library for date calculations.
+*   **Augment Prompting with More Diverse Examples:** Provide a wider range of examples in the prompts, specifically focusing on questions that require numerical reasoning, unit conversions, and duration calculations.
+*   **Evaluate and Improve Information Extraction:** Carefully examine the output of the information extraction stage. If the correct numbers aren't being extracted in the first place, no amount of calculation will fix the problem.
+*   **Refine Information Extractor Prompt:** Modify the prompt for the `extract_relevant_info` function to explicitly emphasize extracting ONLY the information required to directly answer the question. Add negative examples showing what *not* to include (e.g., examples of over-extraction).
+    *   **Role-Based Extraction:**  Instruct the LLM to explicitly identify the *role* of each numerical value in the context of the question (e.g., "distance of the first field goal," "distance of the longest field goal").
+    *   **Contextual Similarity:** Train a smaller model (or use a few-shot prompt) to score the relevance of each sentence to the question, and then prioritize numerical values from the most relevant sentences.
+*   **Post-Processing Pruning:** Implement a post-processing step to prune the extracted information.
+*   **Evaluate Question Type Impact:** Investigate whether certain question types are more prone to over-extraction. If so, tailor the extraction prompt based on the identified question type to improve precision.
+*   **Focus Evaluation on Over-Extraction Cases:** Create a specific evaluation dataset comprised of examples where over-extraction is likely, allowing for targeted testing of the improved information extraction prompts and post-processing techniques.
+*   **Arithmetic Operation Validation:** Before performing any arithmetic operation, add a step to explicitly validate the necessity and correctness of the operation based on the question type and extracted information.
+*   **Unit Awareness:** Incorporate unit awareness into the system. Explicitly extract the units of measurement associated with each numerical value and ensure that only values with compatible units are combined in arithmetic operations. The question type determiner could be improved to extract what type of answer is expected, to guide the next steps.
+*   **Improve Question Type Classifier:** Enhance the question type classifier to better identify questions that require specific types of reasoning or information extraction, as well as the types of output. Add specific categories for questions that require numeric answers with units (e.g., "yardage question," "points difference question"). This would allow the system to tailor the information extraction and answer generation steps accordingly.
+*   **Enhance Numerical Calculation Accuracy:** Implement a more robust numerical calculation module. Instead of relying solely on the LLM for calculations, consider incorporating external tools or libraries for arithmetic operations.
+*   **Improve Temporal Reasoning:** Fine-tune the "information extraction" agent to explicitly identify and represent temporal relationships (start date, end date, duration) within the passage. Focus on understanding time spans.
+*   **Prompt Engineering for Calculation Explanation:** In the "answer generation" phase, prompt the LLM to show its reasoning *before* providing the final numerical answer.
+*   **Dataset Augmentation:** Augment the training data with more examples that specifically test numerical reasoning and temporal understanding.
+*   **Implement Unit Handling:** Within the `generate_answer` function, explicitly handle units. If the question type indicates a "yardage question," ensure the answer includes "yards." If it's a "points difference question," ensure the answer includes "points."
+*   **Add calculation capability:** Augment the `generate_answer` function to perform simple calculations based on the extracted information. If the question asks for the difference in points, extract the scores of both teams and calculate the difference before generating the answer.
+*   **Provide stricter constraints:** Re-prompt the LLM to "only provide the number of yards" when a question asks about the yards of a throw. Also, filter the LLM output and re-prompt if the LLM provides too much information.
+*   **Implement a more flexible answer matching system:** Employ fuzzy matching or semantic similarity metrics to evaluate answers. Ignore formatting differences (e.g., "%" sign, commas) and focus on the underlying numerical value.
+*   **Improve answer generation to be more concise:** Train the answer generation module to provide only the essential numerical answer without extraneous explanations, unless the question specifically asks for context.
+*   **Refine information extraction with attention to scope:** Train the information extraction model to more precisely determine what is being asked (Hispaniola vs. Haiti's Commerce), and filter irrelevant facts, as well as ensure the answer is based on the question.
+    *   **Enhance Information Extraction with Constraint Awareness:** Improve the `extract_relevant_info` step to explicitly consider both explicit and implicit constraints. This could involve adding a filtering step that removes irrelevant information based on these constraints after the initial extraction. Use additional examples in the prompt that clearly show how to filter the correct information with the specified constraint.
+    *   **Implement Explicit Numerical Comparison and Ranking:** For questions involving comparisons (longest, shortest, etc.), implement a dedicated numerical comparison module. This module should take the extracted values, sort/rank them according to the question's criteria, and then return the correct answer.
+    *   **Introduce a Verification Step:** Add a final verification step to check the plausibility of the answer, particularly for numerical answers. This could involve cross-referencing the answer against the passage to ensure it aligns with the overall context.
+*   **Refine Answer Generation:** Modify the `generate_answer` function to include a step that checks if the expected answer is strictly numerical. If so, strip any units from the generated answer.
+*   **Contextual Scope Reinforcement:** When extracting relevant information, explicitly prompt the LLM to focus on the specific entity or time period mentioned in the question to avoid mixing up information from different parts of the passage. Use few-shot examples that highlight this.
+*   **Numerical Validation:** Add a validation step where if the question asks "how many," it checks that the result is a whole number and makes logical sense. If not, retry the extraction and generation.
+```

@@ -2,143 +2,145 @@ import os
 import re
 import math
 
-def solve_grid_transformation(question, max_attempts=3):
-    """Solves grid transformation problems by detecting and applying transformations to individual elements.
-    HYPOTHESIS: The core transformation can be extracted by focusing on the individual elements within the grid
-    rather than trying to understand the whole grid at once. We break down the question into distinct steps:
-    1. Find the unique elements within the grid and how they get transformed
-    2. Identify the transformation rules that transform those elements
-    3. Apply the transformation rules to generate new grids
-
-    APPROACH:
-    1. Find unique elements in input and output grids.
-    2. Infer transformations for each unique element.
-    3. Apply these transformations to the test input grid.
-    4. Verification of output to attempt to resolve any potential problems with processing
+def main(question):
+    """
+    This script solves questions based on a given passage by:
+    1. Determining the question type with examples.
+    2. Extracting the relevant information with examples.
+    3. Generating the answer with examples.
     """
 
-    # Step 1: Extract unique elements and their transformations
-    element_analysis_result = analyze_elements(question, max_attempts=max_attempts)
-    if not element_analysis_result["is_valid"]:
-        return f"Error: Could not analyze elements. {element_analysis_result['error']}"
+    # Step 1: Determine the question type
+    question_type = determine_question_type(question)
+    if "Error" in question_type:
+        return question_type  # Return error message
 
-    element_transformations = element_analysis_result["element_transformations"]
+    # Step 2: Extract relevant information from the passage
+    extracted_info = extract_relevant_info(question, question_type)
+    if "Error" in extracted_info:
+        return extracted_info
 
-    # Step 2: Apply element transformations to the test input
-    predicted_grid = transform_grid(question, element_transformations, max_attempts=max_attempts)
+    # Step 3: Generate the answer
+    generated_answer = generate_answer(extracted_info, question_type, question)
+    if "Error" in generated_answer:
+        return generated_answer
 
-    # Step 3: Verfiy output grid
-    verification_result = verify_output_grid(question, predicted_grid, element_transformations, max_attempts=max_attempts)
+    return generated_answer # Directly return the generated answer
 
-    if not verification_result["is_valid"]:
-        return f"Error: verification failure {verification_result['error']}"
+def determine_question_type(question):
+    """Determine the type of the question (numerical, identification, etc.) with examples."""
+    system_instruction = "You are an expert at classifying question types."
+    prompt = f"""
+    Determine the type of question given the following examples. Return the type only.
 
-    return predicted_grid
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
 
-def analyze_elements(question, max_attempts=3):
-    """Analyzes input and output grids to find unique elements and their transformations."""
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
 
-    system_instruction = "You are an expert at analyzing grid transformations to identify element-level transformations."
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    
+    Example 4:
+    Question: What year did the player get drafted?
+    Type: Date
 
-    for attempt in range(max_attempts):
-        prompt = f"""
-        Given the following grid transformation problem, identify the unique elements in the input and output grids and determine how they are transformed.
+    Question: {question}
+    Type:
+    """
+    try:
+        question_type = call_llm(prompt, system_instruction)
+        if not question_type:
+            return "Error: Could not determine question type"
+        return question_type
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-        Example:
-        Input Grid: [[1, 2, 1], [2, 1, 2], [1, 2, 1]]
-        Output Grid: [[2, 3, 2], [3, 2, 3], [2, 3, 2]]
-        Element Transformations:
-        1 -> 2
-        2 -> 3
+def extract_relevant_info(question, question_type):
+    """Extract relevant information from the passage with examples, tailored to question type."""
+    system_instruction = "You are an expert at extracting relevant information."
+    prompt = f"""
+    Extract relevant information from the passage based on the given question type.
+    Return the extracted information as a plain text summary.
 
-        Problem:
-        {question}
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
 
-        Element Transformations:
-        """
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+    Extracted Info: Player who caught the final touchdown.
 
-        element_transformations = call_llm(prompt, system_instruction)
+    Example 3:
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Type: Comparative
+    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.
+    
+    Example 4:
+    Question: What year did the player get drafted?
+    Type: Date
+    Extracted Info: Year the player got drafted
 
-        # Validation: check if the extracted transformations are reasonable
-        validation_prompt = f"""
-        Validate the extracted element transformations for the given problem.
+    Question: {question}
+    Type: {question_type}
+    Extracted Info:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        if not extracted_info:
+            return "Error: Could not extract information."
+        return extracted_info
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-        Problem: {question}
-        Extracted Transformations: {element_transformations}
+def generate_answer(extracted_info, question_type, question):
+    """Generate the answer based on extracted information and question type with examples."""
+    system_instruction = "You are an expert at generating correct answers."
+    prompt = f"""
+    Generate an answer to the question based on the extracted information.
 
-        Are these transformations valid (True/False)?
-        """
+    Example 1:
+    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.
+    Question Type: Numerical
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 40 + 30 = 70 yards
 
-        is_valid = call_llm(validation_prompt, system_instruction)
+    Example 2:
+    Extracted Info: Player who caught the final touchdown = Mark Clayton
+    Question Type: Identification
+    Question: Who caught the final touchdown of the game?
+    Answer: Mark Clayton
 
-        if "True" in is_valid:
-            return {"is_valid": True, "element_transformations": element_transformations, "error": None}
-        else:
-            error_message = f"Invalid transformations (attempt {attempt+1}): {element_transformations}"
-            print(error_message)
-            if attempt == max_attempts - 1:
-                return {"is_valid": False, "element_transformations": None, "error": error_message}
+    Example 3:
+    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.
+    Question Type: Comparative
+    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
+    Answer: Gliese 915
+    
+    Example 4:
+    Extracted Info: Year the player got drafted = 2008
+    Question Type: Date
+    Question: What year did the player get drafted?
+    Answer: 2008
 
-    return {"is_valid": False, "element_transformations": None, "error": "Failed to analyze elements."}
-
-def transform_grid(question, element_transformations, max_attempts=3):
-    """Applies element transformations to the test input grid."""
-    system_instruction = "You are an expert at applying element transformations to grids."
-    for attempt in range(max_attempts):
-        # Extract the test input grid from the problem description using regex
-        test_input_match = re.search(r"=== TEST INPUT ===\n(\[.*?\])", question, re.DOTALL)
-        if not test_input_match:
-            return "Error: Could not extract test input grid."
-
-        test_input_grid = test_input_match.group(1)
-        prompt = f"""
-        Given the following grid transformation problem and element transformations, apply the transformations to the test input grid to generate the output grid.
-
-        Problem: {question}
-        Element Transformations: {element_transformations}
-        Test Input Grid: {test_input_grid}
-
-        Output Grid:
-        """
-        predicted_grid = call_llm(prompt, system_instruction)
-
-        #attempt verification at each generation
-        validation_prompt = f"""
-        Given the transformation problem, and the predicted grid, determine if the transformations are correct. Return "VALID" if the solution looks correct and "INVALID" if it looks incorrect.
-        If incorrect provide an explanation as to why.
-        Problem: {question}
-        Output Grid: {predicted_grid}
-        """
-
-        is_valid = call_llm(validation_prompt, system_instruction)
-        if "VALID" in is_valid:
-            return predicted_grid
-        else:
-            error_message = f"Grid transformations invalid (attempt {attempt+1}): {predicted_grid}"
-            print(error_message)
-            if attempt == max_attempts - 1:
-                return f"Could not transform grid"
-
-        return predicted_grid
-def verify_output_grid(question, output_grid, element_transformations, max_attempts=3):
-    """Verifies the output grid against the transformation rules."""
-    system_instruction = "You are a grid transformation expert, responsible for verifying output grids."
-
-    for attempt in range(max_attempts):
-        validation_prompt = f"""
-            Verify the output grid against the problem statement and transformations
-
-            Problem: {question}
-            Element Transformations: {element_transformations}
-            Output Grid: {output_grid}
-
-            Does the output match transformation requirements? (VALID/INVALID)
-            """
-        validation_result = call_llm(validation_prompt, system_instruction)
-        if "VALID" in validation_result:
-            return {"is_valid": True, "error": None}
-        else:
-            return {"is_valid": False, "error": "The result is not valid"}
+    Extracted Info: {extracted_info}
+    Question Type: {question_type}
+    Question: {question}
+    Answer:
+    """
+    try:
+        answer = call_llm(prompt, system_instruction)
+        if not answer:
+            return "Error: Could not generate answer."
+        return answer
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -168,11 +170,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def main(question):
-    """Main function to solve the grid transformation task."""
-    try:
-        answer = solve_grid_transformation(question)
-        return answer
-    except Exception as e:
-        return f"Error in main function: {str(e)}"

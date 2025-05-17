@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 5,
-        "sample_id": "example_22",
-        "question": 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 5, 5, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 5, 5, 5, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 5, 0, 0, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 8, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 8, 2, 2, 2, 0, 0, 0, 0]\n  [0, 0, 0, 2, 8, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 2, 8, 8, 8, 8, 0, 0, 0]\n  [0, 0, 0, 2, 0, 0, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 5, 5, 5, 5, 5, 5, 0, 0, 0]\n  [0, 5, 5, 5, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 5, 0, 0, 5, 0, 0, 0]\n  [0, 0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 5, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 8, 8, 2, 8, 8, 2, 0, 0, 0]\n  [0, 8, 8, 2, 8, 8, 2, 0, 0, 0]\n  [0, 0, 0, 2, 0, 0, 2, 0, 0, 0]\n  [0, 0, 0, 0, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 5, 5, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 5, 5, 0, 0, 0]\n  [0, 0, 0, 5, 0, 0, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 2, 2, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 8, 8, 0, 0, 0]\n  [0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 5, 5, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 5, 5, 0, 0, 5, 0, 0, 0, 0]\n  [0, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 0, 5, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+        "sample_id": "example_40",
+        "question": 'PASSAGE: Trying to snap a five-game losing streak, the Rams stayed at home for a Week 13 interconference duel with the Miami Dolphins. The Rams would welcome back Steven Jackson to the lineup after weeks of sitting out with a thigh injury. Jackson gave the Rams a good enough boost to strike first with a first possession field goal by Josh Brown from 23 yards. Brown would kick a 51-yard field goal to give the Rams a 6-0 lead. In the second quarter, the Dolphins responded as RB Ronnie Brown got a 3-yard TD run. The Rams would answer with Brown making a 33-yard field goal, but Miami replied with kicker Dan Carpenter getting a 37-yard field goal. In the third quarter, the Dolphins increased their lead as Carpenter got a 47-yard field goal. In the fourth quarter, St. Louis tried to keep up as Brown made a 38-yard field goal, yet Miami answered right back with Carpenter nailing a 42-yard field goal. The Rams tried to come back, but a late-game interception shattered any hope of a comeback.\n\nQUESTION: How many points got the Rams on the board?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 5,
-            "sample_id": "example_22",
+            "sample_id": "example_40",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 5, 5, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 5, 5, 5, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 5, 0, 0, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 8, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 8, 2, 2, 2, 0, 0, 0, 0]\n  [0, 0, 0, 2, 8, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 2, 8, 8, 8, 8, 0, 0, 0]\n  [0, 0, 0, 2, 0, 0, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 5, 5, 5, 5, 5, 5, 0, 0, 0]\n  [0, 5, 5, 5, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 5, 0, 0, 5, 0, 0, 0]\n  [0, 0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 5, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 8, 8, 2, 8, 8, 2, 0, 0, 0]\n  [0, 8, 8, 2, 8, 8, 2, 0, 0, 0]\n  [0, 0, 0, 2, 0, 0, 2, 0, 0, 0]\n  [0, 0, 0, 0, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 5, 5, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 5, 5, 0, 0, 0]\n  [0, 0, 0, 5, 0, 0, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 2, 2, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 8, 8, 0, 0, 0]\n  [0, 0, 0, 2, 0, 0, 0, 0, 0]\n  [0, 0, 0, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 2, 8, 8, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 5, 5, 0, 5, 5, 5, 0, 0, 0]\n  [0, 0, 5, 5, 0, 0, 5, 0, 0, 0, 0]\n  [0, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 0, 5, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+    question = 'PASSAGE: Trying to snap a five-game losing streak, the Rams stayed at home for a Week 13 interconference duel with the Miami Dolphins. The Rams would welcome back Steven Jackson to the lineup after weeks of sitting out with a thigh injury. Jackson gave the Rams a good enough boost to strike first with a first possession field goal by Josh Brown from 23 yards. Brown would kick a 51-yard field goal to give the Rams a 6-0 lead. In the second quarter, the Dolphins responded as RB Ronnie Brown got a 3-yard TD run. The Rams would answer with Brown making a 33-yard field goal, but Miami replied with kicker Dan Carpenter getting a 37-yard field goal. In the third quarter, the Dolphins increased their lead as Carpenter got a 47-yard field goal. In the fourth quarter, St. Louis tried to keep up as Brown made a 38-yard field goal, yet Miami answered right back with Carpenter nailing a 42-yard field goal. The Rams tried to come back, but a late-game interception shattered any hope of a comeback.\n\nQUESTION: How many points got the Rams on the board?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 5,
-            "sample_id": "example_22",
+            "sample_id": "example_40",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 5,
-            "sample_id": "example_22",
+            "sample_id": "example_40",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

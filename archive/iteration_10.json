@@ -1,180 +1,775 @@
 {
   "iteration": 10,
-  "timestamp": "2025-05-12T20:30:24.538567",
+  "timestamp": "2025-05-17T13:14:26.467657",
   "strategy": "Exploitation",
-  "explore_rate": 80,
-  "exploit_rate": 20,
-  "batch_size": 3,
-  "script": "import os\nimport re\nimport math\n\n# HYPOTHESIS: Improve generalization by adding multi-example prompting and output validation in analyze_visual_features.\n\ndef solve_grid_transformation(question, max_attempts=3):\n    \"\"\"Solves grid transformation problems by analyzing and describing visual features.\"\"\"\n    feature_analysis_result = analyze_visual_features(question, max_attempts=max_attempts)\n    if not feature_analysis_result[\"is_valid\"]:\n        return f\"Error: Could not analyze visual features. {feature_analysis_result['error']}\"\n\n    transformation_description = feature_analysis_result[\"transformation_description\"]\n    transformed_grid = apply_transformation(question, transformation_description)\n    return transformed_grid\n\ndef analyze_visual_features(question, max_attempts=3):\n    \"\"\"Analyzes visual features of the grid transformation problem.\"\"\"\n    system_instruction = \"You are an expert at analyzing visual features in grid transformations.\"\n\n    prompt = f\"\"\"\n    Given the following grid transformation problem, analyze the training examples and identify key visual features and describe the transformation in terms of those features.\n\n    Example 1:\n    Problem:\n    === TRAINING EXAMPLES ===\n    Input Grid:\n    [[0, 0, 0], [1, 1, 1], [0, 0, 0]]\n    Output Grid:\n    [[1, 1, 1], [0, 0, 0], [1, 1, 1]]\n    Transformation Description: The transformation involves swapping the rows with '1' with adjacent rows.\n\n    Example 2:\n    Problem:\n    === TRAINING EXAMPLES ===\n    Input Grid:\n    [[1, 0], [0, 1]]\n    Output Grid:\n    [[0, 1], [1, 0]]\n    Transformation Description: The transformation involves mirroring the grid across the diagonal.\n\n    Problem:\n    {question}\n\n    Transformation Description:\n    \"\"\"\n    transformation_description = call_llm(prompt, system_instruction)\n\n    # Verification step\n    verification_prompt = f\"\"\"\n    Verify that the transformation description is clear, concise, and describes a valid transformation. Provide reasons.\n    Transformation Description: {transformation_description}\n    Is the description valid? (VALID/INVALID)\n    \"\"\"\n    validation_result = call_llm(verification_prompt)\n\n    if \"VALID\" in validation_result:\n        return {\"is_valid\": True, \"transformation_description\": transformation_description, \"error\": None}\n    else:\n        return {\"is_valid\": False, \"transformation_description\": None, \"error\": \"Invalid feature description.\"}\n\ndef apply_transformation(question, transformation_description):\n    \"\"\"Applies the described transformation to the test input grid.\"\"\"\n    system_instruction = \"You are an expert at applying transformations to grids based on a feature description.\"\n    prompt = f\"\"\"\n    Given the following grid transformation problem and the transformation description, apply the transformation to the test input grid.\n\n    Problem: {question}\n    Transformation Description: {transformation_description}\n\n    Example:\n    Problem:\n    === TRAINING EXAMPLES ===\n    Input Grid:\n    [[0, 0, 0], [1, 1, 1], [0, 0, 0]]\n    Output Grid:\n    [[1, 1, 1], [0, 0, 0], [1, 1, 1]]\n    TEST INPUT:\n    [[0,0,0],[2,2,2],[0,0,0]]\n    Transformation Description: The transformation involves swapping the rows with '1' with adjacent rows.\n    Output Grid: [[2, 2, 2], [0, 0, 0], [2, 2, 2]]\n\n    Generate the output grid.\n    \"\"\"\n    output_grid = call_llm(prompt, system_instruction)\n    return output_grid\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question):\n    \"\"\"Main function to solve the grid transformation task.\"\"\"\n    try:\n        answer = solve_grid_transformation(question)\n        return answer\n    except Exception as e:\n        return f\"Error in main function: {str(e)}\"",
-  "approach_summary": "The script solves grid transformation problems using a two-step LLM approach: first, `analyze_visual_features` analyzes the problem and generates a transformation description, which is then validated to ensure it's usable, and second, `apply_transformation` applies the described transformation to produce the output grid. The script uses chain-of-thought prompting with multi-example prompts to guide the LLM. Two agents are implicitly defined via system instructions: a visual feature analyzer and a transformation applier. The functions `solve_grid_transformation`, `analyze_visual_features`, `apply_transformation`, and `call_llm` are used sequentially to breakdown the grid problem, use an LLM to solve the problem, and return the solution. The overall workflow involves analyzing visual features, validating the analysis, applying the transformation based on the analysis, and returning the final transformed grid.",
-  "sample_count": 3,
+  "explore_rate": 30,
+  "exploit_rate": 70,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script solves questions based on a given passage by:\n    1. Determining the question type with examples.\n    2. Extracting the relevant information with examples.\n    3. Generating the answer with examples.\n    \"\"\"\n\n    # Step 1: Determine the question type\n    question_type_result = determine_question_type(question)\n    if \"Error\" in question_type_result:\n        return question_type_result  # Return error message\n    question_type = question_type_result[\"question_type\"]\n\n    # Step 2: Extract relevant information from the passage\n    extracted_info_result = extract_relevant_info(question, question_type)\n    if \"Error\" in extracted_info_result:\n        return extracted_info_result\n    extracted_info = extracted_info_result[\"extracted_info\"]\n\n    # Step 3: Generate the answer\n    generated_answer_result = generate_answer(extracted_info, question_type, question)\n    if \"Error\" in generated_answer_result:\n        return generated_answer_result\n    generated_answer = generated_answer_result[\"answer\"]\n\n    return generated_answer # Directly return the generated answer\n\ndef determine_question_type(question):\n    \"\"\"Determine the type of the question (numerical, identification, etc.) with examples.\"\"\"\n    system_instruction = \"You are an expert at classifying question types.\"\n    prompt = f\"\"\"\n    Determine the type of question given the following examples. Return the type only.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: {{\"question_type\": \"Numerical\"}}\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: {{\"question_type\": \"Identification\"}}\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: {{\"question_type\": \"Comparative\"}}\n\n    Question: {question}\n    Type:\n    \"\"\"\n    try:\n        question_type_result = call_llm(prompt, system_instruction)\n        if not question_type_result:\n            return { \"Error\": \"Could not determine question type\"}\n        return {\"question_type\": question_type_result}\n    except Exception as e:\n        return {\"Error\": f\"Error: {str(e)}\"}\n\ndef extract_relevant_info(question, question_type):\n    \"\"\"Extract relevant information from the passage with examples, tailored to question type.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant information.\"\n    prompt = f\"\"\"\n    Extract relevant information from the passage based on the given question type.\n    Return the extracted information as a plain text summary.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n    Extracted Info: {{\"extracted_info\": \"Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.\"}}\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n    Extracted Info: {{\"extracted_info\": \"Player who caught the final touchdown.\"}}\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    Extracted Info: {{\"extracted_info\": \"Mass of Nu Phoenicis, Mass of Gliese 915.\"}}\n\n    Question: {question}\n    Type: {question_type}\n    Extracted Info:\n    \"\"\"\n    try:\n        extracted_info_result = call_llm(prompt, system_instruction)\n        if not extracted_info_result:\n            return {\"Error\": \"Could not extract information.\"}\n        return {\"extracted_info\": extracted_info_result}\n    except Exception as e:\n        return {\"Error\": f\"Error: {str(e)}\"}\n\ndef generate_answer(extracted_info, question_type, question):\n    \"\"\"Generate the answer based on extracted information and question type with examples.\"\"\"\n    system_instruction = \"You are an expert at generating correct answers.\"\n    prompt = f\"\"\"\n    Generate an answer to the question based on the extracted information.\n\n    Example 1:\n    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.\n    Question Type: Numerical\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: {{\"answer\": \"40 + 30 = 70 yards\"}}\n\n    Example 2:\n    Extracted Info: Player who caught the final touchdown = Mark Clayton\n    Question Type: Identification\n    Question: Who caught the final touchdown of the game?\n    Answer: {{\"answer\": \"Mark Clayton\"}}\n\n    Example 3:\n    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.\n    Question Type: Comparative\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: {{\"answer\": \"Gliese 915\"}}\n\n    Extracted Info: {extracted_info}\n    Question Type: {question_type}\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        answer_result = call_llm(prompt, system_instruction)\n        if not answer_result:\n            return {\"Error\": \"Could not generate answer.\"}\n        return {\"answer\": answer_result}\n    except Exception as e:\n        return {\"Error\": f\"Error: {str(e)}\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a chain-of-thought approach to answer questions by first determining the question type, then extracting relevant information, and finally generating the answer. It decomposes the problem into three distinct steps, each handled by a dedicated function acting as an agent with a specific role (question type classifier, information extractor, and answer generator). The `call_llm` function is used to interact with the Gemini model, using prompt engineering with examples to guide the LLM at each step. The functions are `main` which orchestrates the process, `determine_question_type` which classifies the question, `extract_relevant_info` which extracts information from the text based on the question, `generate_answer` which creates the final answer, and `call_llm` which sends and receives responses from the Gemini LLM.",
+  "sample_count": 10,
   "samples": [
     {
-      "question": "Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 5, 1, 0, 0, 0, 5, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]\n  [0, 0, 0, 0, 5, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]\n  [0, 0, 5, 0, 1, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 1, 0, 1, 5, 1, 0, 5, 0, 0, 0, 0, 0, 1, 0, 0]\n  [5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]\n  [5, 0, 5, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 3, 3, 3, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 3, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0]\n  [0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0]\n  [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 5, 0, 0, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0, 1]\n  [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 5, 0, 0, 0, 0, 0]\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1]\n  [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 5]\n  [0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [3, 3, 0]\n  [3, 3, 3]\n  [3, 0, 3]\n  [3, 3, 3]\n  [0, 3, 3]\n]\nExample 2:\nInput Grid:\n[\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0]\n  [0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 4, 0]\n  [4, 4, 4]\n  [0, 4, 4]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 1, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 8, 0, 0, 0, 0, 0, 0, 1, 1, 0]\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 1, 3, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 0, 0, 0, 0, 0, 0, 8, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 8]\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 8, 0, 8, 0, 0, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8]\n  [0, 8, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 8, 0, 3]\n  [0, 0, 0, 1, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 3, 0, 0, 0, 8, 0, 0, 3, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 1, 8, 0, 0, 3, 0, 0, 0, 0, 8, 3, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 1, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 2, 2, 2, 0, 8, 3, 0, 0, 0, 0]\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 8, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 3, 0, 0, 0, 0, 8, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 8, 0, 8, 0, 0, 1, 1, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0]\n  [0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 8, 0, 3, 0, 3, 0, 0]\n  [0, 0, 1, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 8, 0, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 8, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3]\n]\n\nTransform the test input according to the pattern shown in the training examples.",
-      "answer": "[[0,2,2,2],[2,2,0,2],[2,2,0,2],[0,2,2,2]]",
-      "id": "example_35",
+      "question": "PASSAGE: The War on Terror, spanning decades, is a multi-trillion-dollar war. According to the Costs of War Project at Brown University's Watson Institute, the War on Terror will have cost $5.6 trillion for operations between 2001-2018 plus anticipated future costs of veterans' care. According to the Soufan Group in July 2015, the U.S. government was spending $9.4 million per day in operations against ISIS in Syria and Iraq. A March 2011 Congressional report estimated war spending through the fiscal year 2011 at $1.2 trillion, and future spending through 2021  at $1.8 trillion. A June 2011 academic report covering additional areas of war spending estimated it through 2011 at $2.7 trillion, and long-term spending at $5.4 trillion including interest.\n\nQUESTION: How many total years did the $5.6 trillion for operations on the War on Terror account for?",
+      "answer": "7",
+      "id": "example_76",
       "meta": {
-        "source": "ARC",
-        "filename": "1f85a75f.json"
+        "source": "jsonl_dataset",
+        "original_passage": "The War on Terror, spanning decades, is a multi-trillion-dollar war. According to the Costs of War Project at Brown University's Watson Institute, the War on Terror will have cost $5.6 trillion for operations between 2001-2018 plus anticipated future costs of veterans' care. According to the Soufan Group in July 2015, the U.S. government was spending $9.4 million per day in operations against ISIS in Syria and Iraq. A March 2011 Congressional report estimated war spending through the fiscal year 2011 at $1.2 trillion, and future spending through 2021  at $1.8 trillion. A June 2011 academic report covering additional areas of war spending estimated it through 2011 at $2.7 trillion, and long-term spending at $5.4 trillion including interest.",
+        "original_question": "How many total years did the $5.6 trillion for operations on the War on Terror account for?",
+        "original_answer_data": {
+          "spans": [
+            "7"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 713
       }
     },
     {
-      "question": "Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 2, 0, 0, 6, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [2, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 6]\n  [0, 0, 0, 4, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 4, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 2, 0, 0, 6, 0, 0, 0, 0]\n  [0, 2, 0, 0, 0, 0, 6, 0, 0, 0]\n  [2, 0, 0, 0, 0, 0, 0, 6, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 6, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 6]\n  [0, 0, 0, 4, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 4, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 4, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 4, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [9, 0, 0, 0, 0, 0, 0, 3, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 8, 0, 0, 3]\n  [0, 0, 0, 9, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 7, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 8, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 7]\n]\n\nOutput Grid:\n[\n  [9, 0, 0, 0, 0, 0, 0, 3, 0, 0]\n  [0, 9, 0, 0, 0, 0, 0, 0, 3, 0]\n  [0, 0, 9, 0, 0, 0, 8, 0, 0, 3]\n  [0, 0, 0, 9, 0, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 8, 0, 0, 0, 0, 0]\n  [0, 0, 0, 8, 0, 7, 0, 0, 0, 0]\n  [0, 0, 8, 0, 0, 0, 7, 0, 0, 0]\n  [0, 8, 0, 0, 0, 0, 0, 7, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 7, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 7]\n]\nExample 3:\nInput Grid:\n[\n  [0, 0, 0, 6, 0, 8, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 4, 0, 0, 0, 0, 0, 0, 0]\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 8]\n  [0, 0, 0, 0, 9, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 4, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\nOutput Grid:\n[\n  [0, 0, 0, 6, 0, 8, 0, 0, 0, 0]\n  [0, 0, 6, 0, 0, 0, 8, 0, 0, 0]\n  [0, 6, 4, 0, 0, 0, 0, 8, 0, 0]\n  [6, 0, 0, 4, 0, 0, 0, 0, 8, 0]\n  [0, 0, 0, 0, 4, 0, 0, 0, 0, 8]\n  [0, 0, 0, 0, 9, 4, 0, 0, 0, 0]\n  [0, 0, 0, 9, 0, 0, 4, 0, 0, 0]\n  [0, 0, 9, 0, 0, 0, 0, 0, 0, 0]\n  [0, 9, 0, 0, 0, 0, 0, 0, 0, 0]\n  [9, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 0, 3, 0, 0, 9]\n  [7, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 3, 0, 0, 9, 0, 0, 0]\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 4]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 6, 0, 0, 7, 0, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.",
-      "answer": "[[0,0,0,0,0,0,3,0,0,9],[7,0,0,0,0,3,0,0,9,0],[0,7,0,0,3,0,0,9,0,0],[0,0,7,3,0,0,9,0,0,0],[6,0,0,7,0,0,0,0,0,0],[0,6,0,0,7,0,0,0,0,4],[0,0,6,0,0,7,0,0,4,0],[0,0,0,6,0,0,7,4,0,0],[0,0,0,0,0,0,4,0,0,0],[0,0,0,0,0,4,0,0,0,0]]",
-      "id": "example_36",
+      "question": "PASSAGE: After the defeat in Tampere, the Red Guards began a slow retreat eastwards. As the German army seized Helsinki, the White Army shifted the military focus to Vyborg area, where 18,500 Whites advanced against 15,000 defending Reds. General Mannerheim's war plan had been revised as a result of the Battle for Tampere, a civilian, industrial town. He aimed to avoid new, complex city combat in Vyborg, an old military fortress. The J\u00e4ger detachments tried to tie down and destroy the Red force outside the town. The Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus on 20-26 April, but the decisive blow remained to be dealt in Vyborg. The final attack began on late 27 April with a heavy J\u00e4ger artillery barrage. The Reds' defence collapsed gradually, and eventually the Whites conquered Patterinm\u00e4ki\u2014the Reds' symbolic last stand of the 1918 uprising\u2014in the early hours of 29 April 1918. In total, 400 Whites died, and 500-600 Reds perished and 12,000-15,000 were captured.\n\nQUESTION: How many days was the time span where the Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus?",
+      "answer": "6",
+      "id": "example_77",
       "meta": {
-        "source": "ARC",
-        "filename": "1f876c06.json"
+        "source": "jsonl_dataset",
+        "original_passage": "After the defeat in Tampere, the Red Guards began a slow retreat eastwards. As the German army seized Helsinki, the White Army shifted the military focus to Vyborg area, where 18,500 Whites advanced against 15,000 defending Reds. General Mannerheim's war plan had been revised as a result of the Battle for Tampere, a civilian, industrial town. He aimed to avoid new, complex city combat in Vyborg, an old military fortress. The J\u00e4ger detachments tried to tie down and destroy the Red force outside the town. The Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus on 20-26 April, but the decisive blow remained to be dealt in Vyborg. The final attack began on late 27 April with a heavy J\u00e4ger artillery barrage. The Reds' defence collapsed gradually, and eventually the Whites conquered Patterinm\u00e4ki\u2014the Reds' symbolic last stand of the 1918 uprising\u2014in the early hours of 29 April 1918. In total, 400 Whites died, and 500-600 Reds perished and 12,000-15,000 were captured.",
+        "original_question": "How many days was the time span where the Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus?",
+        "original_answer_data": {
+          "spans": [
+            "6"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 891
       }
     },
     {
-      "question": "Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 2, 2, 0, 0, 1]\n  [0, 1, 1, 0, 2, 2, 0, 0, 0]\n  [0, 1, 1, 0, 0, 0, 0, 2, 2]\n  [0, 0, 0, 0, 0, 0, 0, 2, 2]\n  [1, 0, 2, 2, 0, 0, 0, 0, 0]\n  [0, 0, 2, 2, 0, 1, 1, 0, 0]\n  [0, 0, 0, 0, 0, 1, 1, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 1, 0, 0, 0, 0, 0, 0, 1]\n]\n\nOutput Grid:\n[\n  [1, 1, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [1, 1, 0, 2, 0, 0, 0, 0, 2]\n  [1, 1, 0, 0, 0, 1, 1, 0, 0]\n  [0, 0, 0, 2, 0, 1, 1, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 1]\n  [0, 1, 1, 0, 2, 2, 0, 0, 0]\n  [0, 1, 1, 0, 2, 2, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 2, 2, 0, 1, 1, 0]\n  [0, 1, 0, 2, 2, 0, 1, 1, 0]\n]\n\nOutput Grid:\n[\n  [1, 1, 1, 1, 0]\n]\nExample 3:\nInput Grid:\n[\n  [2, 2, 0, 1, 1, 0, 0, 0, 0]\n  [2, 2, 0, 1, 1, 0, 0, 1, 1]\n  [1, 0, 0, 0, 0, 0, 0, 1, 1]\n  [0, 2, 2, 0, 0, 0, 0, 0, 0]\n  [0, 2, 2, 0, 1, 1, 0, 1, 0]\n  [0, 0, 0, 0, 1, 1, 0, 0, 0]\n  [0, 0, 0, 0, 2, 0, 0, 0, 0]\n  [0, 1, 1, 0, 0, 0, 0, 2, 2]\n  [0, 1, 1, 0, 0, 1, 0, 2, 2]\n]\n\nOutput Grid:\n[\n  [1, 1, 1, 1, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 2, 2, 0, 1]\n  [1, 1, 0, 1, 0, 2, 2, 0, 0]\n  [1, 1, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 1, 0, 0]\n  [0, 2, 2, 0, 0, 1, 1, 0, 0]\n  [0, 2, 2, 0, 0, 0, 0, 0, 0]\n  [1, 0, 0, 0, 0, 0, 2, 2, 0]\n  [2, 2, 0, 1, 1, 0, 2, 2, 0]\n  [2, 2, 0, 1, 1, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.",
-      "answer": "[[1,1,1,0,0]]",
-      "id": "example_37",
+      "question": "PASSAGE: Hoping to rebound from their loss to the Raiders, the Broncos traveled to Heinz Field to face the Pittsburgh Steelers. On the Broncos' first offensive possession, running back Ronnie Hillman committed a fumble deep in their own territory, and the Steelers capitalized two plays later, with a 2-yard touchdown run by running back DeAngelo Williams. The Broncos reeled off 20 unanswered points, with quarterback Brock Osweiler throwing a pair of touchdown passes - an 18-yarder to wide receiver Demaryius Thomas and a 61-yarder to wide receiver Emmanuel Sanders, followed in the second quarter by Osweiler scrambling for a 7-yard touchdown. The latter score came after the Broncos' defense intercepted Steelers' quarterback Ben Roethlisberger, and also had a missed extra-point attempt by placekicker Brandon McManus. The Steelers then marched down the field, but had to settle for a 24-yard field goal by placekicker Chris Boswell. The Broncos then increased their lead to 27-10, with Osweiler connecting with Thomas on a 6-yard touchdown pass at the 2-minute warning. However, it would be the Broncos' final scoring play of the game, as the offense was shut out in the second half for the third consecutive week. The Steelers pulled to within 27-13, with Boswell kicking a 41-yard field goal just before halftime. Midway through the third quarter, Roethlisberger connected with wide receiver Antonio Brown on a 9-yard touchdown. Later in the third quarter, Broncos' return specialist Jordan Norwood returned a punt 71 yards for a touchdown; however, the touchdown was nullified by an illegal substitution penalty. Following a Broncos' three-and-out, the Steelers tied the game early in the fourth quarter, with Roethlisberger throwing a 9-yard touchdown pass to wide receiver Markus Wheaton. Each team proceeded to trade punt on their next two possessions, and with just over five minutes remaining, Osweiler was intercepted by Steelers' linebacker Ryan Shazier at the Broncos' 37-yard line, and three plays later, the Steelers re-claimed the lead, with a 23-yard touchdown pass from Roethlisberger to Brown. The Broncos then marched down to the Steelers' 36-yard line with 2:17 remaining, but turned the football over on downs. Just before the two-minute warning, the Steelers were attempting to run out the clock, however, Roethlisberger chose to pass the football, and was intercepted by linebacker Brandon Marshall just before the two-minute warning, giving the Broncos one last possession. However, Osweiler threw four straight incompletions, and the Steelers ran out the clock.\n\nQUESTION: Who scored more points, the Steelers or the Broncos?",
+      "answer": "Steelers",
+      "id": "example_78",
       "meta": {
-        "source": "ARC",
-        "filename": "1fad071e.json"
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their loss to the Raiders, the Broncos traveled to Heinz Field to face the Pittsburgh Steelers. On the Broncos' first offensive possession, running back Ronnie Hillman committed a fumble deep in their own territory, and the Steelers capitalized two plays later, with a 2-yard touchdown run by running back DeAngelo Williams. The Broncos reeled off 20 unanswered points, with quarterback Brock Osweiler throwing a pair of touchdown passes - an 18-yarder to wide receiver Demaryius Thomas and a 61-yarder to wide receiver Emmanuel Sanders, followed in the second quarter by Osweiler scrambling for a 7-yard touchdown. The latter score came after the Broncos' defense intercepted Steelers' quarterback Ben Roethlisberger, and also had a missed extra-point attempt by placekicker Brandon McManus. The Steelers then marched down the field, but had to settle for a 24-yard field goal by placekicker Chris Boswell. The Broncos then increased their lead to 27-10, with Osweiler connecting with Thomas on a 6-yard touchdown pass at the 2-minute warning. However, it would be the Broncos' final scoring play of the game, as the offense was shut out in the second half for the third consecutive week. The Steelers pulled to within 27-13, with Boswell kicking a 41-yard field goal just before halftime. Midway through the third quarter, Roethlisberger connected with wide receiver Antonio Brown on a 9-yard touchdown. Later in the third quarter, Broncos' return specialist Jordan Norwood returned a punt 71 yards for a touchdown; however, the touchdown was nullified by an illegal substitution penalty. Following a Broncos' three-and-out, the Steelers tied the game early in the fourth quarter, with Roethlisberger throwing a 9-yard touchdown pass to wide receiver Markus Wheaton. Each team proceeded to trade punt on their next two possessions, and with just over five minutes remaining, Osweiler was intercepted by Steelers' linebacker Ryan Shazier at the Broncos' 37-yard line, and three plays later, the Steelers re-claimed the lead, with a 23-yard touchdown pass from Roethlisberger to Brown. The Broncos then marched down to the Steelers' 36-yard line with 2:17 remaining, but turned the football over on downs. Just before the two-minute warning, the Steelers were attempting to run out the clock, however, Roethlisberger chose to pass the football, and was intercepted by linebacker Brandon Marshall just before the two-minute warning, giving the Broncos one last possession. However, Osweiler threw four straight incompletions, and the Steelers ran out the clock.",
+        "original_question": "Who scored more points, the Steelers or the Broncos?",
+        "original_answer_data": {
+          "spans": [
+            "Steelers"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 76
+      }
+    },
+    {
+      "question": "PASSAGE: Frederick had been King of Jerusalem\u2014and as such claimed suzerainty over Cyprus\u2014in right of his wife Isabella II until her death in 1228. That year he arrived first in Cyprus, where he antagonised the nobles, and then in Jerusalem, where he stayed until 1229, leaving in humiliating circumstances after having produced an anti-imperialist reaction in the people. In 1231 he sent Riccardo Filangieri as his marshal. His attempt to assert his authority was opposed by John of Ibelin, the Old Lord of Beirut, who had been regent until Frederick's arrival. On John's death in 1236 the war was taken up by his son Balian. In 1239 Philip of Montfort assumed the leadership of the opposition. Though the ecclesiastical hierarchy and the Knights Templar supported the nobility, the Teutonic Knights and Knights Hospitaller supported Filangieri. In general his rights as regent were recognised but his practical power was denied on the basis of the Assizes and the Haute Cour. His headquarters were in Tyre and he had the allegiance of Bohemond V, Prince of Antioch and Count of Tripoli. He also held the Holy City of Jerusalem itself, which had been negotiated away from the Saracens by Frederick. So long as the Ibelins controlled the opposition, Filangieri could count on the support of their enemies as well. The Italian cities were also divided between the two factions: Pisa supported Filangieri and Genoa the Ibelins. The Ibelins controlled Beirut, Arsuf, and Caesarea as well as the old capital of Acre. In 1231 the citizens of Acre formed a commune with their headquarters at the church of Saint Andrew's in order to unify their opposition to Filangieri. In 1232 John of Ibelin was elected its mayor.\n\nQUESTION: Who died first John of Ibelin or Isabella II?",
+      "answer": "Isabella II",
+      "id": "example_79",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Frederick had been King of Jerusalem\u2014and as such claimed suzerainty over Cyprus\u2014in right of his wife Isabella II until her death in 1228. That year he arrived first in Cyprus, where he antagonised the nobles, and then in Jerusalem, where he stayed until 1229, leaving in humiliating circumstances after having produced an anti-imperialist reaction in the people. In 1231 he sent Riccardo Filangieri as his marshal. His attempt to assert his authority was opposed by John of Ibelin, the Old Lord of Beirut, who had been regent until Frederick's arrival. On John's death in 1236 the war was taken up by his son Balian. In 1239 Philip of Montfort assumed the leadership of the opposition. Though the ecclesiastical hierarchy and the Knights Templar supported the nobility, the Teutonic Knights and Knights Hospitaller supported Filangieri. In general his rights as regent were recognised but his practical power was denied on the basis of the Assizes and the Haute Cour. His headquarters were in Tyre and he had the allegiance of Bohemond V, Prince of Antioch and Count of Tripoli. He also held the Holy City of Jerusalem itself, which had been negotiated away from the Saracens by Frederick. So long as the Ibelins controlled the opposition, Filangieri could count on the support of their enemies as well. The Italian cities were also divided between the two factions: Pisa supported Filangieri and Genoa the Ibelins. The Ibelins controlled Beirut, Arsuf, and Caesarea as well as the old capital of Acre. In 1231 the citizens of Acre formed a commune with their headquarters at the church of Saint Andrew's in order to unify their opposition to Filangieri. In 1232 John of Ibelin was elected its mayor.",
+        "original_question": "Who died first John of Ibelin or Isabella II?",
+        "original_answer_data": {
+          "spans": [
+            "Isabella II"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 911
+      }
+    },
+    {
+      "question": "PASSAGE: The 1991 Washington Redskins season started with a franchise-record 11 straight victories. Also during the season, \"The Hogs (American football)\", under the coaching of Redskins offensive line coach Joe Bugel, allowed a league low and franchise record nine sacks \u2013 the third lowest total in NFL history. The 1991 Redskins offense also dominated under the brilliant coaching of offensive minded head football coach Joe Gibbs scoring 485 points which was the most by any team in the 1991 NFL season. The 1991 Redskins defense was also dominant under the coaching of defensive coordinator and guru Richie Petitbon, giving up only 224 total points which was second best of any team in the NFL in 1991, while also not allowing a single point to opponents in 3 of the 16 games played that season. After posting a 14\u20132 record, the Redskins made and dominated the 1991\u201392 NFL playoffs, beating the 1991 Atlanta Falcons season and 1991 Detroit Lions season by a combined score of 64\u201317.  On January 26, 1992, the Redskins won Super Bowl XXVI by defeating the Buffalo Bills 37\u201324 with Mark Rypien winning the games Super Bowl MVP award. After the Super Bowl, the Redskins set another franchise record by sending eight players to the Pro Bowl. The 1991 Washington Redskins season are widely considered one of the best teams in NFL history.\n\nQUESTION: How many points did the Redskins win Super Bowl XXVI by?",
+      "answer": "13",
+      "id": "example_80",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The 1991 Washington Redskins season started with a franchise-record 11 straight victories. Also during the season, \"The Hogs (American football)\", under the coaching of Redskins offensive line coach Joe Bugel, allowed a league low and franchise record nine sacks \u2013 the third lowest total in NFL history. The 1991 Redskins offense also dominated under the brilliant coaching of offensive minded head football coach Joe Gibbs scoring 485 points which was the most by any team in the 1991 NFL season. The 1991 Redskins defense was also dominant under the coaching of defensive coordinator and guru Richie Petitbon, giving up only 224 total points which was second best of any team in the NFL in 1991, while also not allowing a single point to opponents in 3 of the 16 games played that season. After posting a 14\u20132 record, the Redskins made and dominated the 1991\u201392 NFL playoffs, beating the 1991 Atlanta Falcons season and 1991 Detroit Lions season by a combined score of 64\u201317.  On January 26, 1992, the Redskins won Super Bowl XXVI by defeating the Buffalo Bills 37\u201324 with Mark Rypien winning the games Super Bowl MVP award. After the Super Bowl, the Redskins set another franchise record by sending eight players to the Pro Bowl. The 1991 Washington Redskins season are widely considered one of the best teams in NFL history.",
+        "original_question": "How many points did the Redskins win Super Bowl XXVI by?",
+        "original_answer_data": {
+          "spans": [
+            "13"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 792
+      }
+    },
+    {
+      "question": "PASSAGE: In 2000 there were 512,253 households out of which 31.70% had children under the age of 18 living with them, 48.70% were married couples living together, 11.80% had a female householder with no husband present, and 33.70% were non-families. 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older. The average household size was 2.65 and the average family size was 3.17.\n\nQUESTION: which household was most common?",
+      "answer": "married couples living together",
+      "id": "example_81",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In 2000 there were 512,253 households out of which 31.70% had children under the age of 18 living with them, 48.70% were married couples living together, 11.80% had a female householder with no husband present, and 33.70% were non-families. 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older. The average household size was 2.65 and the average family size was 3.17.",
+        "original_question": "which household was most common?",
+        "original_answer_data": {
+          "spans": [
+            "married couples living together"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 508
+      }
+    },
+    {
+      "question": "PASSAGE: On March 26, 2008, Ludia (in connection with Ubisoft) launched The Price Is Right video game for PC. A version for the Wii and Nintendo DS platforms was released in September 2008, while a version for the iOS (Apple) was released in November 2008. The shows announcer, Fields, was the host of the computer version. The virtual set in the game resembles the set used in seasons 31 to 34. Ludia announced that all three platforms will receive a new version of the video game that was previewed at the Target Bullseye Lounge during the Electronic Entertainment Expo trade show on June 2-4, 2009. The Price Is Right 2010 Edition was released on September 22, 2009. In the fall of 2010, Ludia developed a multi-player version for Facebook. A third Ludia adaptation, The Price Is Right Decades, featuring set designs, pricing games and prizes taken from the 1970s through 2000s; was initially released for the Wii in October 2011, with an Xbox 360 and iOS release following in November and December. The Price Is Right 2010 Edition and The Price Is Right Decades have also been released as downloads within the PlayStation Store for the PlayStation 3 in May 2010 and April 2012, respectively. Irwin Toys released an electronic tabletop version in 2008 featuring Contestants Row, the Big Wheel, a physical Plinko board with chips, Showcases and seven pricing games. Jakks Pacific released a Plug It in & Play TV Games version of The Price Is Right in 2009, featuring Carey and Fields.\n\nQUESTION: How many months after the initial release was The Price is Right's new version previewed at the Target Bullseye Lounge?",
+      "answer": "15",
+      "id": "example_82",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "On March 26, 2008, Ludia (in connection with Ubisoft) launched The Price Is Right video game for PC. A version for the Wii and Nintendo DS platforms was released in September 2008, while a version for the iOS (Apple) was released in November 2008. The shows announcer, Fields, was the host of the computer version. The virtual set in the game resembles the set used in seasons 31 to 34. Ludia announced that all three platforms will receive a new version of the video game that was previewed at the Target Bullseye Lounge during the Electronic Entertainment Expo trade show on June 2-4, 2009. The Price Is Right 2010 Edition was released on September 22, 2009. In the fall of 2010, Ludia developed a multi-player version for Facebook. A third Ludia adaptation, The Price Is Right Decades, featuring set designs, pricing games and prizes taken from the 1970s through 2000s; was initially released for the Wii in October 2011, with an Xbox 360 and iOS release following in November and December. The Price Is Right 2010 Edition and The Price Is Right Decades have also been released as downloads within the PlayStation Store for the PlayStation 3 in May 2010 and April 2012, respectively. Irwin Toys released an electronic tabletop version in 2008 featuring Contestants Row, the Big Wheel, a physical Plinko board with chips, Showcases and seven pricing games. Jakks Pacific released a Plug It in & Play TV Games version of The Price Is Right in 2009, featuring Carey and Fields.",
+        "original_question": "How many months after the initial release was The Price is Right's new version previewed at the Target Bullseye Lounge?",
+        "original_answer_data": {
+          "spans": [
+            "15"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 177
+      }
+    },
+    {
+      "question": "PASSAGE: Troops of Montenegro supported the revolt and captured 12 Ottoman soldiers and imprisoned them in Podgorica. The first serious attempt of the Ottoman government to suppress the revolt resulted with the Battle of De\u00e7iq. Terenzio Tocci gathered the Mirdite chieftains on 26 April 1911 in Orosh, proclaimed the independence of Albania, raised the flag of Albania  and established the provisional government. Shefqet Turgut Pasha wanted to meet this threat and returned to the region with 8.000 soldiers. As soon as he reached Shkod\u00ebr on 11 May, he issued a general proclamation which declared martial law and offered an amnesty for all rebels  if they immediately return to their homes. After Ottoman troops entered the area Tocci fled the empire abandoning his activities. On 14 May, three days after his poclamation, Shefqet Turgut Pasha ordered his troops to seize De\u010di\u0107, hill that overlooked Tuzi. Sixty Albanian chieftains rejected Turgut Pasha's proclamation on their meeting in Podgorica on 18 May. After almost a month of intense fightings rebels were trapped and their only choices were either to die fighting, to surrender or to flee to Montenegro. Most of the rebels chose to flee to Montenegro which became a base for large number of rebels determined to attack the Ottoman Empire. Ismail Kemal Bey and Tiranli Cemal bey traveled from Italy to Montenegro at the end of May and met the rebels to convince them to adopt the nationalistic agenda which they eventually did. On 12 June Porte prematurely proclaimed that the revolt had ended.\n\nQUESTION: How many months after the chieftains rejected Turgut Pasha's proclamation did Porte proclaim the revolt had ended?",
+      "answer": "1",
+      "id": "example_83",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Troops of Montenegro supported the revolt and captured 12 Ottoman soldiers and imprisoned them in Podgorica. The first serious attempt of the Ottoman government to suppress the revolt resulted with the Battle of De\u00e7iq. Terenzio Tocci gathered the Mirdite chieftains on 26 April 1911 in Orosh, proclaimed the independence of Albania, raised the flag of Albania  and established the provisional government. Shefqet Turgut Pasha wanted to meet this threat and returned to the region with 8.000 soldiers. As soon as he reached Shkod\u00ebr on 11 May, he issued a general proclamation which declared martial law and offered an amnesty for all rebels  if they immediately return to their homes. After Ottoman troops entered the area Tocci fled the empire abandoning his activities. On 14 May, three days after his poclamation, Shefqet Turgut Pasha ordered his troops to seize De\u010di\u0107, hill that overlooked Tuzi. Sixty Albanian chieftains rejected Turgut Pasha's proclamation on their meeting in Podgorica on 18 May. After almost a month of intense fightings rebels were trapped and their only choices were either to die fighting, to surrender or to flee to Montenegro. Most of the rebels chose to flee to Montenegro which became a base for large number of rebels determined to attack the Ottoman Empire. Ismail Kemal Bey and Tiranli Cemal bey traveled from Italy to Montenegro at the end of May and met the rebels to convince them to adopt the nationalistic agenda which they eventually did. On 12 June Porte prematurely proclaimed that the revolt had ended.",
+        "original_question": "How many months after the chieftains rejected Turgut Pasha's proclamation did Porte proclaim the revolt had ended?",
+        "original_answer_data": {
+          "spans": [
+            "1"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 842
+      }
+    },
+    {
+      "question": "PASSAGE: As of the census of 2000, there were 1,623,018 people, 654,445 households, and 411,645 families residing in the county. The population density was 1,346 people per square mile (520/km\u00b2). There were 741,043 housing units at an average density of 615 per square mile (237/km\u00b2). The racial makeup of the county was 70.57% Race (United States Census) (58% were Non-Hispanic), 20.54% Race (United States Census) or Race (United States Census), 0.24% Race (United States Census), 2.25% Race (United States Census), 0.06% Race (United States Census), 3.00% from Race (United States Census), and 3.35% from two or more races. 16.74% of the population were Race (United States Census) or Race (United States Census) of any race.\n\nQUESTION: which had less, housing units or households?",
+      "answer": "households",
+      "id": "example_84",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "As of the census of 2000, there were 1,623,018 people, 654,445 households, and 411,645 families residing in the county. The population density was 1,346 people per square mile (520/km\u00b2). There were 741,043 housing units at an average density of 615 per square mile (237/km\u00b2). The racial makeup of the county was 70.57% Race (United States Census) (58% were Non-Hispanic), 20.54% Race (United States Census) or Race (United States Census), 0.24% Race (United States Census), 2.25% Race (United States Census), 0.06% Race (United States Census), 3.00% from Race (United States Census), and 3.35% from two or more races. 16.74% of the population were Race (United States Census) or Race (United States Census) of any race.",
+        "original_question": "which had less, housing units or households?",
+        "original_answer_data": {
+          "spans": [
+            "households"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 200
+      }
+    },
+    {
+      "question": "PASSAGE: David Carr threw for 167 yards and ran for 48 more, and the Texans defeated the Jaguars 13-10 to snap a 12-game road losing streak. The Texans upset their AFC South rivals for the second time in four weeks and won on the road for the first time since December 2004. David Garrard, making his third consecutive start in place of Byron Leftwich, was intercepted four times. Two came after Matt Jones bobbled perfect passes. Ernest Wilford also dropped two balls, including a deep one that could have been a touchdown. Carr directed a 70-yard drive to start the game and had two key runs. Wali Lundy scored from 1 yard, then Houston took advantage of Garrard's first turnover to make it 10-0. DeMeco Ryans pressured Garrard and forced a floater over the middle. Morlon Greenwood picked it off, setting up Kris Brown's 25-yard field goal.\n\nQUESTION: How many total points were scored by the end of the game?",
+      "answer": "23",
+      "id": "example_85",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "David Carr threw for 167 yards and ran for 48 more, and the Texans defeated the Jaguars 13-10 to snap a 12-game road losing streak. The Texans upset their AFC South rivals for the second time in four weeks and won on the road for the first time since December 2004. David Garrard, making his third consecutive start in place of Byron Leftwich, was intercepted four times. Two came after Matt Jones bobbled perfect passes. Ernest Wilford also dropped two balls, including a deep one that could have been a touchdown. Carr directed a 70-yard drive to start the game and had two key runs. Wali Lundy scored from 1 yard, then Houston took advantage of Garrard's first turnover to make it 10-0. DeMeco Ryans pressured Garrard and forced a floater over the middle. Morlon Greenwood picked it off, setting up Kris Brown's 25-yard field goal.",
+        "original_question": "How many total points were scored by the end of the game?",
+        "original_answer_data": {
+          "spans": [
+            "23"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 765
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "ARC",
-      "filename": "1f85a75f.json"
+      "source": "jsonl_dataset",
+      "original_passage": "The War on Terror, spanning decades, is a multi-trillion-dollar war. According to the Costs of War Project at Brown University's Watson Institute, the War on Terror will have cost $5.6 trillion for operations between 2001-2018 plus anticipated future costs of veterans' care. According to the Soufan Group in July 2015, the U.S. government was spending $9.4 million per day in operations against ISIS in Syria and Iraq. A March 2011 Congressional report estimated war spending through the fiscal year 2011 at $1.2 trillion, and future spending through 2021  at $1.8 trillion. A June 2011 academic report covering additional areas of war spending estimated it through 2011 at $2.7 trillion, and long-term spending at $5.4 trillion including interest.",
+      "original_question": "How many total years did the $5.6 trillion for operations on the War on Terror account for?",
+      "original_answer_data": {
+        "spans": [
+          "7"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 713
     },
     {
-      "source": "ARC",
-      "filename": "1f876c06.json"
+      "source": "jsonl_dataset",
+      "original_passage": "After the defeat in Tampere, the Red Guards began a slow retreat eastwards. As the German army seized Helsinki, the White Army shifted the military focus to Vyborg area, where 18,500 Whites advanced against 15,000 defending Reds. General Mannerheim's war plan had been revised as a result of the Battle for Tampere, a civilian, industrial town. He aimed to avoid new, complex city combat in Vyborg, an old military fortress. The J\u00e4ger detachments tried to tie down and destroy the Red force outside the town. The Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus on 20-26 April, but the decisive blow remained to be dealt in Vyborg. The final attack began on late 27 April with a heavy J\u00e4ger artillery barrage. The Reds' defence collapsed gradually, and eventually the Whites conquered Patterinm\u00e4ki\u2014the Reds' symbolic last stand of the 1918 uprising\u2014in the early hours of 29 April 1918. In total, 400 Whites died, and 500-600 Reds perished and 12,000-15,000 were captured.",
+      "original_question": "How many days was the time span where the Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus?",
+      "original_answer_data": {
+        "spans": [
+          "6"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 891
     },
     {
-      "source": "ARC",
-      "filename": "1fad071e.json"
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their loss to the Raiders, the Broncos traveled to Heinz Field to face the Pittsburgh Steelers. On the Broncos' first offensive possession, running back Ronnie Hillman committed a fumble deep in their own territory, and the Steelers capitalized two plays later, with a 2-yard touchdown run by running back DeAngelo Williams. The Broncos reeled off 20 unanswered points, with quarterback Brock Osweiler throwing a pair of touchdown passes - an 18-yarder to wide receiver Demaryius Thomas and a 61-yarder to wide receiver Emmanuel Sanders, followed in the second quarter by Osweiler scrambling for a 7-yard touchdown. The latter score came after the Broncos' defense intercepted Steelers' quarterback Ben Roethlisberger, and also had a missed extra-point attempt by placekicker Brandon McManus. The Steelers then marched down the field, but had to settle for a 24-yard field goal by placekicker Chris Boswell. The Broncos then increased their lead to 27-10, with Osweiler connecting with Thomas on a 6-yard touchdown pass at the 2-minute warning. However, it would be the Broncos' final scoring play of the game, as the offense was shut out in the second half for the third consecutive week. The Steelers pulled to within 27-13, with Boswell kicking a 41-yard field goal just before halftime. Midway through the third quarter, Roethlisberger connected with wide receiver Antonio Brown on a 9-yard touchdown. Later in the third quarter, Broncos' return specialist Jordan Norwood returned a punt 71 yards for a touchdown; however, the touchdown was nullified by an illegal substitution penalty. Following a Broncos' three-and-out, the Steelers tied the game early in the fourth quarter, with Roethlisberger throwing a 9-yard touchdown pass to wide receiver Markus Wheaton. Each team proceeded to trade punt on their next two possessions, and with just over five minutes remaining, Osweiler was intercepted by Steelers' linebacker Ryan Shazier at the Broncos' 37-yard line, and three plays later, the Steelers re-claimed the lead, with a 23-yard touchdown pass from Roethlisberger to Brown. The Broncos then marched down to the Steelers' 36-yard line with 2:17 remaining, but turned the football over on downs. Just before the two-minute warning, the Steelers were attempting to run out the clock, however, Roethlisberger chose to pass the football, and was intercepted by linebacker Brandon Marshall just before the two-minute warning, giving the Broncos one last possession. However, Osweiler threw four straight incompletions, and the Steelers ran out the clock.",
+      "original_question": "Who scored more points, the Steelers or the Broncos?",
+      "original_answer_data": {
+        "spans": [
+          "Steelers"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 76
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Frederick had been King of Jerusalem\u2014and as such claimed suzerainty over Cyprus\u2014in right of his wife Isabella II until her death in 1228. That year he arrived first in Cyprus, where he antagonised the nobles, and then in Jerusalem, where he stayed until 1229, leaving in humiliating circumstances after having produced an anti-imperialist reaction in the people. In 1231 he sent Riccardo Filangieri as his marshal. His attempt to assert his authority was opposed by John of Ibelin, the Old Lord of Beirut, who had been regent until Frederick's arrival. On John's death in 1236 the war was taken up by his son Balian. In 1239 Philip of Montfort assumed the leadership of the opposition. Though the ecclesiastical hierarchy and the Knights Templar supported the nobility, the Teutonic Knights and Knights Hospitaller supported Filangieri. In general his rights as regent were recognised but his practical power was denied on the basis of the Assizes and the Haute Cour. His headquarters were in Tyre and he had the allegiance of Bohemond V, Prince of Antioch and Count of Tripoli. He also held the Holy City of Jerusalem itself, which had been negotiated away from the Saracens by Frederick. So long as the Ibelins controlled the opposition, Filangieri could count on the support of their enemies as well. The Italian cities were also divided between the two factions: Pisa supported Filangieri and Genoa the Ibelins. The Ibelins controlled Beirut, Arsuf, and Caesarea as well as the old capital of Acre. In 1231 the citizens of Acre formed a commune with their headquarters at the church of Saint Andrew's in order to unify their opposition to Filangieri. In 1232 John of Ibelin was elected its mayor.",
+      "original_question": "Who died first John of Ibelin or Isabella II?",
+      "original_answer_data": {
+        "spans": [
+          "Isabella II"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 911
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The 1991 Washington Redskins season started with a franchise-record 11 straight victories. Also during the season, \"The Hogs (American football)\", under the coaching of Redskins offensive line coach Joe Bugel, allowed a league low and franchise record nine sacks \u2013 the third lowest total in NFL history. The 1991 Redskins offense also dominated under the brilliant coaching of offensive minded head football coach Joe Gibbs scoring 485 points which was the most by any team in the 1991 NFL season. The 1991 Redskins defense was also dominant under the coaching of defensive coordinator and guru Richie Petitbon, giving up only 224 total points which was second best of any team in the NFL in 1991, while also not allowing a single point to opponents in 3 of the 16 games played that season. After posting a 14\u20132 record, the Redskins made and dominated the 1991\u201392 NFL playoffs, beating the 1991 Atlanta Falcons season and 1991 Detroit Lions season by a combined score of 64\u201317.  On January 26, 1992, the Redskins won Super Bowl XXVI by defeating the Buffalo Bills 37\u201324 with Mark Rypien winning the games Super Bowl MVP award. After the Super Bowl, the Redskins set another franchise record by sending eight players to the Pro Bowl. The 1991 Washington Redskins season are widely considered one of the best teams in NFL history.",
+      "original_question": "How many points did the Redskins win Super Bowl XXVI by?",
+      "original_answer_data": {
+        "spans": [
+          "13"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 792
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In 2000 there were 512,253 households out of which 31.70% had children under the age of 18 living with them, 48.70% were married couples living together, 11.80% had a female householder with no husband present, and 33.70% were non-families. 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older. The average household size was 2.65 and the average family size was 3.17.",
+      "original_question": "which household was most common?",
+      "original_answer_data": {
+        "spans": [
+          "married couples living together"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 508
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "On March 26, 2008, Ludia (in connection with Ubisoft) launched The Price Is Right video game for PC. A version for the Wii and Nintendo DS platforms was released in September 2008, while a version for the iOS (Apple) was released in November 2008. The shows announcer, Fields, was the host of the computer version. The virtual set in the game resembles the set used in seasons 31 to 34. Ludia announced that all three platforms will receive a new version of the video game that was previewed at the Target Bullseye Lounge during the Electronic Entertainment Expo trade show on June 2-4, 2009. The Price Is Right 2010 Edition was released on September 22, 2009. In the fall of 2010, Ludia developed a multi-player version for Facebook. A third Ludia adaptation, The Price Is Right Decades, featuring set designs, pricing games and prizes taken from the 1970s through 2000s; was initially released for the Wii in October 2011, with an Xbox 360 and iOS release following in November and December. The Price Is Right 2010 Edition and The Price Is Right Decades have also been released as downloads within the PlayStation Store for the PlayStation 3 in May 2010 and April 2012, respectively. Irwin Toys released an electronic tabletop version in 2008 featuring Contestants Row, the Big Wheel, a physical Plinko board with chips, Showcases and seven pricing games. Jakks Pacific released a Plug It in & Play TV Games version of The Price Is Right in 2009, featuring Carey and Fields.",
+      "original_question": "How many months after the initial release was The Price is Right's new version previewed at the Target Bullseye Lounge?",
+      "original_answer_data": {
+        "spans": [
+          "15"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 177
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Troops of Montenegro supported the revolt and captured 12 Ottoman soldiers and imprisoned them in Podgorica. The first serious attempt of the Ottoman government to suppress the revolt resulted with the Battle of De\u00e7iq. Terenzio Tocci gathered the Mirdite chieftains on 26 April 1911 in Orosh, proclaimed the independence of Albania, raised the flag of Albania  and established the provisional government. Shefqet Turgut Pasha wanted to meet this threat and returned to the region with 8.000 soldiers. As soon as he reached Shkod\u00ebr on 11 May, he issued a general proclamation which declared martial law and offered an amnesty for all rebels  if they immediately return to their homes. After Ottoman troops entered the area Tocci fled the empire abandoning his activities. On 14 May, three days after his poclamation, Shefqet Turgut Pasha ordered his troops to seize De\u010di\u0107, hill that overlooked Tuzi. Sixty Albanian chieftains rejected Turgut Pasha's proclamation on their meeting in Podgorica on 18 May. After almost a month of intense fightings rebels were trapped and their only choices were either to die fighting, to surrender or to flee to Montenegro. Most of the rebels chose to flee to Montenegro which became a base for large number of rebels determined to attack the Ottoman Empire. Ismail Kemal Bey and Tiranli Cemal bey traveled from Italy to Montenegro at the end of May and met the rebels to convince them to adopt the nationalistic agenda which they eventually did. On 12 June Porte prematurely proclaimed that the revolt had ended.",
+      "original_question": "How many months after the chieftains rejected Turgut Pasha's proclamation did Porte proclaim the revolt had ended?",
+      "original_answer_data": {
+        "spans": [
+          "1"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 842
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "As of the census of 2000, there were 1,623,018 people, 654,445 households, and 411,645 families residing in the county. The population density was 1,346 people per square mile (520/km\u00b2). There were 741,043 housing units at an average density of 615 per square mile (237/km\u00b2). The racial makeup of the county was 70.57% Race (United States Census) (58% were Non-Hispanic), 20.54% Race (United States Census) or Race (United States Census), 0.24% Race (United States Census), 2.25% Race (United States Census), 0.06% Race (United States Census), 3.00% from Race (United States Census), and 3.35% from two or more races. 16.74% of the population were Race (United States Census) or Race (United States Census) of any race.",
+      "original_question": "which had less, housing units or households?",
+      "original_answer_data": {
+        "spans": [
+          "households"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 200
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "David Carr threw for 167 yards and ran for 48 more, and the Texans defeated the Jaguars 13-10 to snap a 12-game road losing streak. The Texans upset their AFC South rivals for the second time in four weeks and won on the road for the first time since December 2004. David Garrard, making his third consecutive start in place of Byron Leftwich, was intercepted four times. Two came after Matt Jones bobbled perfect passes. Ernest Wilford also dropped two balls, including a deep one that could have been a touchdown. Carr directed a 70-yard drive to start the game and had two key runs. Wali Lundy scored from 1 yard, then Houston took advantage of Garrard's first turnover to make it 10-0. DeMeco Ryans pressured Garrard and forced a floater over the middle. Morlon Greenwood picked it off, setting up Kris Brown's 25-yard field goal.",
+      "original_question": "How many total points were scored by the end of the game?",
+      "original_answer_data": {
+        "spans": [
+          "23"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 765
     }
   ],
   "example_indices": [
-    35,
-    36,
-    37
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85
   ],
   "results": [
     {
       "success": true,
-      "answer": "```python\ndef transform_grid(input_grid):\n    \"\"\"Transforms the input grid to a 5x3 output grid based on the described pattern.\"\"\"\n\n    output_grid = [[0 for _ in range(3)] for _ in range(5)]\n\n    # Define the input grid dimensions\n    input_rows = len(input_grid)\n    input_cols = len(input_grid[0])\n\n    # Calculate the subgrid dimensions and offsets\n    subgrid_rows = input_rows // 5\n    subgrid_cols = input_cols // 3\n\n    # Iterate through the output grid\n    for i in range(5):\n        for j in range(3):\n            # Calculate the starting row and column for the subgrid\n            start_row = i * subgrid_rows\n            start_col = j * subgrid_cols\n\n            # Find the maximum value within the subgrid\n            max_value = 0\n            for row in range(start_row, min(start_row + subgrid_rows, input_rows)):\n                for col in range(start_col, min(start_col + subgrid_cols, input_cols)):\n                    max_value = max(max_value, input_grid[row][col])\n\n            # Assign the maximum value to the output grid\n            output_grid[i][j] = max_value\n\n    return output_grid\n```\n\n```python\ninput_grid = [\n  [0, 0, 1, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 8, 0, 0, 0, 0, 0, 0, 1, 1, 0],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 1, 3, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 0, 0, 8, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 8],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 8, 0, 8, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8],\n  [0, 8, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 8, 0, 3],\n  [0, 0, 0, 1, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 3, 0, 0, 0, 8, 0, 0, 3, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 1, 8, 0, 0, 3, 0, 0, 0, 0, 8, 3, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 1, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 2, 2, 2, 0, 8, 3, 0, 0, 0, 0],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 8, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 8, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 3, 0, 0, 0, 0, 8, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 8, 0, 8, 0, 0, 1, 1, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\n  [0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 8, 0, 3, 0, 3, 0, 0],\n  [0, 0, 1, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 8, 0, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3]\n]\n\noutput_grid = transform_grid(input_grid)\n\nfor row in output_grid:\n    print(row)\n```",
-      "output": "ANSWER_START\n```python\ndef transform_grid(input_grid):\n    \"\"\"Transforms the input grid to a 5x3 output grid based on the described pattern.\"\"\"\n\n    output_grid = [[0 for _ in range(3)] for _ in range(5)]\n\n    # Define the input grid dimensions\n    input_rows = len(input_grid)\n    input_cols = len(input_grid[0])\n\n    # Calculate the subgrid dimensions and offsets\n    subgrid_rows = input_rows // 5\n    subgrid_cols = input_cols // 3\n\n    # Iterate through the output grid\n    for i in range(5):\n        for j in range(3):\n            # Calculate the starting row and column for the subgrid\n            start_row = i * subgrid_rows\n            start_col = j * subgrid_cols\n\n            # Find the maximum value within the subgrid\n            max_value = 0\n            for row in range(start_row, min(start_row + subgrid_rows, input_rows)):\n                for col in range(start_col, min(start_col + subgrid_cols, input_cols)):\n                    max_value = max(max_value, input_grid[row][col])\n\n            # Assign the maximum value to the output grid\n            output_grid[i][j] = max_value\n\n    return output_grid\n```\n\n```python\ninput_grid = [\n  [0, 0, 1, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 8, 0, 0, 0, 0, 0, 0, 1, 1, 0],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 1, 3, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 0, 0, 8, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 8],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 8, 0, 8, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8],\n  [0, 8, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 8, 0, 3],\n  [0, 0, 0, 1, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 3, 0, 0, 0, 8, 0, 0, 3, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 1, 8, 0, 0, 3, 0, 0, 0, 0, 8, 3, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 1, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 2, 2, 2, 0, 8, 3, 0, 0, 0, 0],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 8, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 8, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 3, 0, 0, 0, 0, 8, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 8, 0, 8, 0, 0, 1, 1, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\n  [0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 8, 0, 3, 0, 3, 0, 0],\n  [0, 0, 1, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 8, 0, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3]\n]\n\noutput_grid = transform_grid(input_grid)\n\nfor row in output_grid:\n    print(row)\n```\n\n\nANSWER_END\n",
+      "answer": "{\"answer\": \"2018 - 2001 = 17 years\"}",
+      "output": "ANSWER_START\n{\"answer\": \"2018 - 2001 = 17 years\"}\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer provides code to transform an input grid into a 5x3 output grid based on the maximum value within subgrids. However, the expected output should be a 5x3 grid, but the golden answer is a 4x4 grid. Additionally, even if the grids were the same size, the numbers don't agree, so the answers are not equivalent."
+        "explanation": "The system answer shows the calculation, but the result of the calculation (17) is not equivalent to the golden answer (7)."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "```python\ndef transform_grid(grid):\n    rows = len(grid)\n    cols = len(grid[0])\n    output_grid = [row[:] for row in grid]  # Create a deep copy\n\n    for r in range(rows):\n        for c in range(cols):\n            if grid[r][c] != 0:\n                value = grid[r][c]\n                for i in range(1, min(rows - r, c + 1)):\n                    output_grid[r + i][c - i] = value\n    return output_grid\n```\n\n```python\ninput_grid = [\n  [0, 0, 0, 0, 0, 0, 3, 0, 0, 9],\n  [7, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 3, 0, 0, 9, 0, 0, 0],\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 4],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 6, 0, 0, 7, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\n]\n\noutput_grid = transform_grid(input_grid)\n\nfor row in output_grid:\n    print(row)\n```",
-      "output": "ANSWER_START\n```python\ndef transform_grid(grid):\n    rows = len(grid)\n    cols = len(grid[0])\n    output_grid = [row[:] for row in grid]  # Create a deep copy\n\n    for r in range(rows):\n        for c in range(cols):\n            if grid[r][c] != 0:\n                value = grid[r][c]\n                for i in range(1, min(rows - r, c + 1)):\n                    output_grid[r + i][c - i] = value\n    return output_grid\n```\n\n```python\ninput_grid = [\n  [0, 0, 0, 0, 0, 0, 3, 0, 0, 9],\n  [7, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 3, 0, 0, 9, 0, 0, 0],\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 4],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 6, 0, 0, 7, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\n]\n\noutput_grid = transform_grid(input_grid)\n\nfor row in output_grid:\n    print(row)\n```\nANSWER_END\n",
+      "answer": "{\"answer\": \"26 - 20 = 6 days\"}",
+      "output": "ANSWER_START\n{\"answer\": \"26 - 20 = 6 days\"}\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The code in the system answer produces the same output as the golden answer, as verified by running the code and comparing the result to the golden answer."
+        "explanation": "The system answer contains the correct numerical answer (6) within the equation. While it includes the calculation, the final result matches the golden answer."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "```python\n[\n  [1, 1, 1, 1, 0]\n]\n```",
-      "output": "ANSWER_START\n```python\n[\n  [1, 1, 1, 1, 0]\n]\n```\nANSWER_END\n",
+      "answer": "{\"answer\": \"Steelers\"}",
+      "output": "ANSWER_START\n{\"answer\": \"Steelers\"}\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
-        "match": false,
+        "match": true,
         "confidence": 1,
-        "explanation": "The arrays are different. The system answer has four 1s followed by a 0, while the golden answer has three 1s followed by two 0s. Even though there is some overlap, the difference in the number of 1s and 0s results in them being different."
+        "explanation": "The system answer and the golden answer both indicate the same team, 'Steelers'."
       },
-      "match": false
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "{\"answer\": \"Isabella II\"}",
+      "output": "ANSWER_START\n{\"answer\": \"Isabella II\"}\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer and the golden answer are identical, referring to the same person, Isabella II."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "{\"answer\": \"37 - 24 = 13 points\"}",
+      "output": "ANSWER_START\n{\"answer\": \"37 - 24 = 13 points\"}\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer shows the equation that leads to the answer of 13 and the golden answer is 13."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "{\"answer\": \"married couples living together\"}",
+      "output": "ANSWER_START\n{\"answer\": \"married couples living together\"}\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers state 'married couples living together' which is semantically identical."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "{\"answer\": \"The initial release was in March 2008, and the preview was in June 2009, which is 1 year and 3 months later, or 15 months. \"}",
+      "output": "ANSWER_START\n{\"answer\": \"The initial release was in March 2008, and the preview was in June 2009, which is 1 year and 3 months later, or 15 months. \"}\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer provides the reasoning for how it arrived at the answer of 15 months. Although it includes extra information, the final answer (15) is semantically equivalent to the golden answer (15)."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "{\"answer\": \"The chieftains rejected Turgut Pasha's proclamation on May 18th and Porte proclaimed the revolt had ended on June 12th. This is less than one month.\"}",
+      "output": "ANSWER_START\n{\"answer\": \"The chieftains rejected Turgut Pasha's proclamation on May 18th and Porte proclaimed the revolt had ended on June 12th. This is less than one month.\"}\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer indicates that the time between May 18th and June 12th is less than one month, which aligns with the golden answer indicating it is correct."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "{\"answer\": \"households\"}",
+      "output": "ANSWER_START\n{\"answer\": \"households\"}\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer and the golden answer are identical."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "{\"answer\": \"13 + 10 = 23 points\"}",
+      "output": "ANSWER_START\n{\"answer\": \"13 + 10 = 23 points\"}\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer contains the correct calculation and arrives at the golden answer of 23."
+      },
+      "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.3333333333333333,
-    "correct_count": 1,
-    "total_count": 3,
+    "accuracy": 0.9,
+    "correct_count": 9,
+    "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "```python\ndef transform_grid(input_grid):\n    \"\"\"Transforms the input grid to a 5x3 output grid based on the described pattern.\"\"\"\n\n    output_grid = [[0 for _ in range(3)] for _ in range(5)]\n\n    # Define the input grid dimensions\n    input_rows = len(input_grid)\n    input_cols = len(input_grid[0])\n\n    # Calculate the subgrid dimensions and offsets\n    subgrid_rows = input_rows // 5\n    subgrid_cols = input_cols // 3\n\n    # Iterate through the output grid\n    for i in range(5):\n        for j in range(3):\n            # Calculate the starting row and column for the subgrid\n            start_row = i * subgrid_rows\n            start_col = j * subgrid_cols\n\n            # Find the maximum value within the subgrid\n            max_value = 0\n            for row in range(start_row, min(start_row + subgrid_rows, input_rows)):\n                for col in range(start_col, min(start_col + subgrid_cols, input_cols)):\n                    max_value = max(max_value, input_grid[row][col])\n\n            # Assign the maximum value to the output grid\n            output_grid[i][j] = max_value\n\n    return output_grid\n```\n\n```python\ninput_grid = [\n  [0, 0, 1, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 8, 0, 0, 0, 0, 0, 0, 1, 1, 0],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 1, 3, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 0, 0, 8, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 8],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 8, 0, 8, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8],\n  [0, 8, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 8, 0, 3],\n  [0, 0, 0, 1, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 3, 0, 0, 0, 8, 0, 0, 3, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 1, 8, 0, 0, 3, 0, 0, 0, 0, 8, 3, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 1, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 2, 2, 2, 0, 8, 3, 0, 0, 0, 0],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 8, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 8, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 3, 0, 0, 0, 0, 8, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 8, 0, 8, 0, 0, 1, 1, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\n  [0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 8, 0, 3, 0, 3, 0, 0],\n  [0, 0, 1, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 8, 0, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3]\n]\n\noutput_grid = transform_grid(input_grid)\n\nfor row in output_grid:\n    print(row)\n```",
-        "golden_answer": "[[0,2,2,2],[2,2,0,2],[2,2,0,2],[0,2,2,2]]",
-        "output": "ANSWER_START\n```python\ndef transform_grid(input_grid):\n    \"\"\"Transforms the input grid to a 5x3 output grid based on the described pattern.\"\"\"\n\n    output_grid = [[0 for _ in range(3)] for _ in range(5)]\n\n    # Define the input grid dimensions\n    input_rows = len(input_grid)\n    input_cols = len(input_grid[0])\n\n    # Calculate the subgrid dimensions and offsets\n    subgrid_rows = input_rows // 5\n    subgrid_cols = input_cols // 3\n\n    # Iterate through the output grid\n    for i in range(5):\n        for j in range(3):\n            # Calculate the starting row and column for the subgrid\n            start_row = i * subgrid_rows\n            start_col = j * subgrid_cols\n\n            # Find the maximum value within the subgrid\n            max_value = 0\n            for row in range(start_row, min(start_row + subgrid_rows, input_rows)):\n                for col in range(start_col, min(start_col + subgrid_cols, input_cols)):\n                    max_value = max(max_value, input_grid[row][col])\n\n            # Assign the maximum value to the output grid\n            output_grid[i][j] = max_value\n\n    return output_grid\n```\n\n```python\ninput_grid = [\n  [0, 0, 1, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 8, 0, 0, 0, 0, 0, 0, 1, 1, 0],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 1, 3, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 0, 0, 8, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 8],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 8, 0, 8, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8],\n  [0, 8, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 8, 0, 3],\n  [0, 0, 0, 1, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 3, 0, 0, 0, 8, 0, 0, 3, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 1, 8, 0, 0, 3, 0, 0, 0, 0, 8, 3, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 1, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 2, 2, 2, 0, 8, 3, 0, 0, 0, 0],\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 8, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 8, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 3, 0, 0, 0, 0, 8, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 8, 0, 8, 0, 0, 1, 1, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\n  [0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 8, 0, 3, 0, 3, 0, 0],\n  [0, 0, 1, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 8, 0, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 8, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3]\n]\n\noutput_grid = transform_grid(input_grid)\n\nfor row in output_grid:\n    print(row)\n```\n\n\nANSWER_END\n",
+        "system_answer": "{\"answer\": \"2018 - 2001 = 17 years\"}",
+        "golden_answer": "7",
+        "output": "ANSWER_START\n{\"answer\": \"2018 - 2001 = 17 years\"}\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer provides code to transform an input grid into a 5x3 output grid based on the maximum value within subgrids. However, the expected output should be a 5x3 grid, but the golden answer is a 4x4 grid. Additionally, even if the grids were the same size, the numbers don't agree, so the answers are not equivalent."
+          "explanation": "The system answer shows the calculation, but the result of the calculation (17) is not equivalent to the golden answer (7)."
         },
         "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "```python\ndef transform_grid(grid):\n    rows = len(grid)\n    cols = len(grid[0])\n    output_grid = [row[:] for row in grid]  # Create a deep copy\n\n    for r in range(rows):\n        for c in range(cols):\n            if grid[r][c] != 0:\n                value = grid[r][c]\n                for i in range(1, min(rows - r, c + 1)):\n                    output_grid[r + i][c - i] = value\n    return output_grid\n```\n\n```python\ninput_grid = [\n  [0, 0, 0, 0, 0, 0, 3, 0, 0, 9],\n  [7, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 3, 0, 0, 9, 0, 0, 0],\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 4],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 6, 0, 0, 7, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\n]\n\noutput_grid = transform_grid(input_grid)\n\nfor row in output_grid:\n    print(row)\n```",
-        "golden_answer": "[[0,0,0,0,0,0,3,0,0,9],[7,0,0,0,0,3,0,0,9,0],[0,7,0,0,3,0,0,9,0,0],[0,0,7,3,0,0,9,0,0,0],[6,0,0,7,0,0,0,0,0,0],[0,6,0,0,7,0,0,0,0,4],[0,0,6,0,0,7,0,0,4,0],[0,0,0,6,0,0,7,4,0,0],[0,0,0,0,0,0,4,0,0,0],[0,0,0,0,0,4,0,0,0,0]]",
-        "output": "ANSWER_START\n```python\ndef transform_grid(grid):\n    rows = len(grid)\n    cols = len(grid[0])\n    output_grid = [row[:] for row in grid]  # Create a deep copy\n\n    for r in range(rows):\n        for c in range(cols):\n            if grid[r][c] != 0:\n                value = grid[r][c]\n                for i in range(1, min(rows - r, c + 1)):\n                    output_grid[r + i][c - i] = value\n    return output_grid\n```\n\n```python\ninput_grid = [\n  [0, 0, 0, 0, 0, 0, 3, 0, 0, 9],\n  [7, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 3, 0, 0, 9, 0, 0, 0],\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 4],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 6, 0, 0, 7, 0, 0, 0],\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\n]\n\noutput_grid = transform_grid(input_grid)\n\nfor row in output_grid:\n    print(row)\n```\nANSWER_END\n",
+        "system_answer": "{\"answer\": \"26 - 20 = 6 days\"}",
+        "golden_answer": "6",
+        "output": "ANSWER_START\n{\"answer\": \"26 - 20 = 6 days\"}\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The code in the system answer produces the same output as the golden answer, as verified by running the code and comparing the result to the golden answer."
+          "explanation": "The system answer contains the correct numerical answer (6) within the equation. While it includes the calculation, the final result matches the golden answer."
         }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "```python\n[\n  [1, 1, 1, 1, 0]\n]\n```",
-        "golden_answer": "[[1,1,1,0,0]]",
-        "output": "ANSWER_START\n```python\n[\n  [1, 1, 1, 1, 0]\n]\n```\nANSWER_END\n",
-        "match": false,
+        "system_answer": "{\"answer\": \"Steelers\"}",
+        "golden_answer": "Steelers",
+        "output": "ANSWER_START\n{\"answer\": \"Steelers\"}\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The arrays are different. The system answer has four 1s followed by a 0, while the golden answer has three 1s followed by two 0s. Even though there is some overlap, the difference in the number of 1s and 0s results in them being different."
-        },
-        "capability_failures": []
+          "explanation": "The system answer and the golden answer both indicate the same team, 'Steelers'."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "{\"answer\": \"Isabella II\"}",
+        "golden_answer": "Isabella II",
+        "output": "ANSWER_START\n{\"answer\": \"Isabella II\"}\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer and the golden answer are identical, referring to the same person, Isabella II."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "{\"answer\": \"37 - 24 = 13 points\"}",
+        "golden_answer": "13",
+        "output": "ANSWER_START\n{\"answer\": \"37 - 24 = 13 points\"}\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer shows the equation that leads to the answer of 13 and the golden answer is 13."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "{\"answer\": \"married couples living together\"}",
+        "golden_answer": "married couples living together",
+        "output": "ANSWER_START\n{\"answer\": \"married couples living together\"}\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers state 'married couples living together' which is semantically identical."
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "{\"answer\": \"The initial release was in March 2008, and the preview was in June 2009, which is 1 year and 3 months later, or 15 months. \"}",
+        "golden_answer": "15",
+        "output": "ANSWER_START\n{\"answer\": \"The initial release was in March 2008, and the preview was in June 2009, which is 1 year and 3 months later, or 15 months. \"}\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer provides the reasoning for how it arrived at the answer of 15 months. Although it includes extra information, the final answer (15) is semantically equivalent to the golden answer (15)."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "{\"answer\": \"The chieftains rejected Turgut Pasha's proclamation on May 18th and Porte proclaimed the revolt had ended on June 12th. This is less than one month.\"}",
+        "golden_answer": "1",
+        "output": "ANSWER_START\n{\"answer\": \"The chieftains rejected Turgut Pasha's proclamation on May 18th and Porte proclaimed the revolt had ended on June 12th. This is less than one month.\"}\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer indicates that the time between May 18th and June 12th is less than one month, which aligns with the golden answer indicating it is correct."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "{\"answer\": \"households\"}",
+        "golden_answer": "households",
+        "output": "ANSWER_START\n{\"answer\": \"households\"}\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer and the golden answer are identical."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "{\"answer\": \"13 + 10 = 23 points\"}",
+        "golden_answer": "23",
+        "output": "ANSWER_START\n{\"answer\": \"13 + 10 = 23 points\"}\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer contains the correct calculation and arrives at the golden answer of 23."
+        }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nNone\n\n## STRENGTHS\n*   The system can generate code to perform grid transformations based on provided training examples.\n*   The system demonstrates an understanding of basic grid manipulations (finding maximum values within subgrids, copying grids).\n\n## WEAKNESSES\n*   The system struggles to generalize the pattern to unseen examples. This is evident in sample IDs 0 and 2.\n*   The system seems to have difficulty determining the correct dimensions/size of the output grid (sample ID 0). It uses the length/width of the provided grid to generate the output.\n*   The system misinterprets what calculations to do to populate the grids (both sample IDs 0 and 2).\n\n## CRITICAL BOTTLENECKS\n*   **Pattern Generalization:** The inability to extract and apply the underlying transformation logic to new, unseen grid configurations.\n*   **Output Dimensions:** The system is not determining the output dimensions correctly.\n\n## ERROR PATTERNS\n*   The system frequently fails to accurately map the transformation logic learned from training examples to the test input, resulting in incorrect output grids.\n*   The system has trouble understanding the output size required for unseen examples.\n\n## PRIMARY ISSUE\nThe system's core issue is its inability to accurately generalize the transformation logic from the training examples to the test input. It seems to either misinterpret the pattern or incorrectly apply it to the test input, leading to mismatched values in the output grid.\n\n## IMPROVEMENT AREAS\n*   **Pattern Recognition:** Improve the pattern recognition capabilities of the system, enabling it to identify the core transformation logic from the training examples. This might involve techniques such as feature extraction, relationship mapping, or symbolic reasoning.\n*   **Output Dimension Determination:** The system needs a better mechanism for determining the output dimensions based on the training examples.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Enhanced Pattern Extraction:** Implement a more robust pattern extraction mechanism. This could involve analyzing the differences between the input and output grids in the training examples to identify key transformation rules. Try breaking down grids into subgrids.\n2.  **Focus on Grid Features**: Change from trying to derive subgrids into features. Look at individual data point locations in the grid, and try to understand how the training examples can be used to populate the final grid.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information\\_extraction: Failed - Misinterpreted output grid dimensions.\n    *   solution\\_generation: Failed - Generated incorrect output grid values.\n    *   solution\\_verification: Failed - Did not verify solution against provided training examples.\n*   **Sample ID 2:**\n    *   information\\_extraction: Failed - Misinterpreted output grid values.\n    *   solution\\_generation: Failed - Generated incorrect output grid values.\n    *   solution\\_verification: Failed - Did not verify solution against provided training examples.\n",
-      "strengths": [
-        "The system can generate code to perform grid transformations based on provided training examples.",
-        "The system demonstrates an understanding of basic grid manipulations (finding maximum values within subgrids, copying grids)."
-      ],
-      "weaknesses": [
-        "The system struggles to generalize the pattern to unseen examples. This is evident in sample IDs 0 and 2.",
-        "The system seems to have difficulty determining the correct dimensions/size of the output grid (sample ID 0). It uses the length/width of the provided grid to generate the output.",
-        "The system misinterprets what calculations to do to populate the grids (both sample IDs 0 and 2)."
-      ],
-      "primary_issue": "The system's core issue is its inability to accurately generalize the transformation logic from the training examples to the test input. It seems to either misinterpret the pattern or incorrectly apply it to the test input, leading to mismatched values in the output grid.",
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error cases or success cases.\n\n## STRENGTHS\n1.  **Numerical Calculation:** The system can accurately perform basic arithmetic operations like addition and subtraction to arrive at numerical answers.\n2.  **Information Extraction:** The system can extract relevant numerical values and entities from the text.\n3.  **Logical Reasoning:** The system can successfully perform basic logical comparisons and date-related reasoning when it identifies the correct pieces of information.\n\n## WEAKNESSES\n1.  **Misinterpretation of Question Intent:** The system struggles to understand the precise intent of the question and, therefore, extracts the wrong information from the passage for its calculations.\n2.  **Inability to Distinguish Relevant vs. Irrelevant Information:** The system seems to lack the ability to discern the most important information required to answer the question from the provided text, especially when faced with multiple numerical data points.\n3.  **Lack of Contextual Understanding:** The system needs better contextual understanding of the problem.\n\n## CRITICAL BOTTLENECKS\n1.  **Question Understanding and Information Selection:** The system is failing to select the correct data to perform calculations on, indicating a problem with question understanding and linking the correct part of the passage to the question.\n2.  **Prioritization of Information:** Lacking strategy in handling competing information within the passage. The system isn't capable of weighing information to determine which details are most pertinent.\n\n## ERROR PATTERNS\nThe primary error pattern is misinterpretation of the question's intent leading to incorrect information extraction. The system extracts numerical values that are related to the question keywords, but are not the precise values needed to answer the question.\n\n## PRIMARY ISSUE\nThe primary issue is a flawed strategy for mapping the question to the specific numerical data within the passage that is relevant for calculation. The current approach seems to rely too heavily on keyword matching without sufficient contextual understanding of the question's intent.\n\n## IMPROVEMENT AREAS\n1.  **Question Intent Analysis:** Implement a more sophisticated module that analyzes the question and understands the type of information required to answer it. This module should identify the key entities and relationships that are being queried.\n2.  **Contextual Information Selection:** Develop a method for identifying and prioritizing relevant information within the passage based on the question's intent. This may involve techniques like semantic similarity scoring, dependency parsing, or named entity recognition.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement Semantic Parsing:** Utilize semantic parsing techniques to better understand the meaning of both the question and the passage. This can help to identify the correct numerical values and operations needed to arrive at the answer.\n2.  **Develop a Scoring Mechanism for Information Relevance:** Implement a system that scores the relevance of different pieces of information in the passage based on their relationship to the question. This score can be used to prioritize information during extraction and calculation.\n3.  **Fine-tune a Language Model:** Fine-tune a pre-trained language model specifically for question answering tasks that involve numerical reasoning. This can improve the model's ability to understand the nuances of natural language and extract the correct information.\n4.  **Enhance Output Explanations:** The explanations provided should explicitly state *why* certain information was selected and other information was discarded, demonstrating a clear decision-making process.\n\n## CAPABILITY MAPPING\n*   **Sample ID: 0**\n    *   information_extraction: Failed to extract the relevant information.\n    *   decision_making: Failed to choose the correct years to use for determining the duration.\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The primary issue is a flawed strategy for mapping the question to the specific numerical data within the passage that is relevant for calculation. The current approach seems to rely too heavily on keyword matching without sufficient contextual understanding of the question's intent.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a thorough capability report based on the provided performance summary, error analysis, sample execution outputs, and your guidance:\n\n## CAPABILITY REPORT\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.33 (1/3)\n*   Error samples: 2/3\n\n**ERROR ANALYSIS REPORT (Provided):**\n\n## RUNTIME ERRORS\n\nNone\n\n## STRENGTHS\n\n*   The system can generate code to perform grid transformations based on provided training examples.\n*   The system demonstrates an understanding of basic grid manipulations (finding maximum values within subgrids, copying grids).\n\n## WEAKNESSES\n\n*   The system struggles to generalize the pattern to unseen examples. This is evident in sample IDs 0 and 2.\n*   The system seems to have difficulty determining the correct dimensions/size of the output grid (sample ID 0). It uses the length/width of the provided grid to generate the output.\n*   The system misinterprets what calculations to do to populate the grids (both sample IDs 0 and 2).\n\n## CRITICAL BOTTLENECKS\n\n*   **Pattern Generalization:** The inability to extract and apply the underlying transformation logic to new, unseen grid configurations.\n*   **Output Dimensions:** The system is not determining the output dimensions correctly.\n\n## ERROR PATTERNS\n\n*   The system frequently fails to accurately map the transformation logic learned from training examples to the test input, resulting in incorrect output grids.\n*   The system has trouble understanding the output size required for unseen examples.\n\n## PRIMARY ISSUE\n\nThe system's core issue is its inability to accurately generalize the transformation logic from the training examples to the test input. It seems to either misinterpret the pattern or incorrectly apply it to the test input, leading to mismatched values in the output grid.\n\n## IMPROVEMENT AREAS\n\n*   **Pattern Recognition:** Improve the pattern recognition capabilities of the system, enabling it to identify the core transformation logic from the training examples. This might involve techniques such as feature extraction, relationship mapping, or symbolic reasoning.\n*   **Output Dimension Determination:** The system needs a better mechanism for determining the output dimensions based on the training examples.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Enhanced Pattern Extraction:** Implement a more robust pattern extraction mechanism. This could involve analyzing the differences between the input and output grids in the training examples to identify key transformation rules. Try breaking down grids into subgrids.\n2.  **Focus on Grid Features**: Change from trying to derive subgrids into features. Look at individual data point locations in the grid, and try to understand how the training examples can be used to populate the final grid.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   information\\_extraction: Failed - Misinterpreted output grid dimensions.\n    *   solution\\_generation: Failed - Generated incorrect output grid values.\n    *   solution\\_verification: Failed - Did not verify solution against provided training examples.\n*   **Sample ID 2:**\n    *   information\\_extraction: Failed - Misinterpreted output grid values.\n    *   solution\\_generation: Failed - Generated incorrect output grid values.\n    *   solution\\_verification: Failed - Did not verify solution against provided training examples.\n\n## SAMPLE EXECUTION OUTPUTS:\n\n[\n  \"ANSWER_START\\n```python\\ndef transform_grid(input_grid):\\n    \\\"\\\"\\\"Transforms the input grid to a 5x3 output grid based on the described pattern.\\\"\\\"\\\"\\n\\n    output_grid = [[0 for _ in range(3)] for _ in range(5)]\\n\\n    # Define the input grid dimensions\\n    input_rows = len(input_grid)\\n    input_cols = len(input_grid[0])\\n\\n    # Calculate the subgrid dimensions and offsets\\n    subgrid_rows = input_rows // 5\\n    subgrid_cols = input_cols // 3\\n\\n    # Iterate through the output grid\\n    for i in range(5):\\n        for j in range(3):\\n            # Calculate the starting row and column for the subgrid\\n            start_row = i * subgrid_rows\\n            start_col = j * subgrid_cols\\n\\n            # Find the maximum value within the subgrid\\n            max_value = 0\\n            for row in range(start_row, min(start_row + subgrid_rows, input_rows)):\\n                for col in range(start_col, min(start_col + subgrid_cols, input_cols)):\\n                    max_value = max(max_value, input_grid[row][col])\\n\\n            # Assign the maximum value to the output grid\\n            output_grid[i][j] = max_value\\n\\n    return output_grid\\n```\\n\\n```python\\ninput_grid = [\\n  [0, 0, 1, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 8, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 8, 0, 0, 0, 0, 0, 0, 1, 1, 0],\\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 1, 3, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 8, 0, 0, 0, 0, 0, 0, 8, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 8],\\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 8, 0, 8, 0, 0, 3],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8],\\n  [0, 8, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 8, 0, 3],\\n  [0, 0, 0, 1, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 3, 0, 0, 0, 8, 0, 0, 3, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 1, 8, 0, 0, 3, 0, 0, 0, 0, 8, 3, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 1, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 2, 2, 2, 0, 8, 3, 0, 0, 0, 0],\\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 8, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 8, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 3, 0, 0, 0, 0, 8, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 8, 0, 8, 0, 0, 1, 1, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\\n  [0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 8, 0, 3, 0, 3, 0, 0],\\n  [0, 0, 1, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 8, 0, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 8, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3]\\n]\\n\\noutput_grid = transform_grid(input_grid)\\n\\nfor row in output_grid:\\n    print(row)\\n```\\n\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\n```python\\ndef transform_grid(grid):\\n    rows = len(grid)\\n    cols = len(grid[0])\\n    output_grid = [row[:] for row in grid]  # Create a deep copy\\n\\n    for r in range(rows):\\n        for c in range(cols):\\n            if grid[r][c] != 0:\\n                value = grid[r][c]\\n                for i in range(1, min(rows - r, c + 1)):\\n                    output_grid[r + i][c - i] = value\\n    return output_grid\\n```\\n\\n```python\\ninput_grid = [\\n  [0, 0, 0, 0, 0, 0, 3, 0, 0, 9],\\n  [7, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 3, 0, 0, 9, 0, 0, 0],\\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 4],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 6, 0, 0, 7, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\\n]\\n\\noutput_grid = transform_grid(input_grid)\\n\\nfor row in output_grid:\\n    print(row)\\n```\\nANSWER_END\\n\",\n  \"ANSWER_START\\n```python\\n[\\n  [1, 1, 1, 1, 0]\\n]\\n```\\nANSWER_END\\n\"\n]\n\n## EXECUTION ANALYSIS\n\n*   **Sample ID 0:** The generated code attempts to create a 5x3 grid and populate it by finding the maximum value within subgrids of the input grid.  However, it uses the *input* grid's dimensions to calculate the subgrid sizes, which is incorrect.  The execution demonstrates the system's misunderstanding of how to derive the output dimensions and correctly map the input grid information to the output grid.  The code itself is syntactically correct and runnable, but semantically flawed.\n*   **Sample ID 1:** The code creates a copy of the original grid, and attempts to cascade the original values diagonally downwards and to the left if a value is non-zero. This approach makes more sense than the prior one, and has the advantage of not shrinking the original grid size.\n*   **Sample ID 2:** The generated code produces a very short array that bears no resemblance to the problem specification.  The reason for this is unclear, but the code generated demonstrates a failure to extract the problem requirements from the input.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a *limited* capability in solving grid transformation problems.  It can generate runnable code and exhibits some understanding of grid manipulations (finding maximums, copying). However, it *fails* at generalizing patterns from training examples to new inputs, accurately determining output dimensions, and ensuring the generated code aligns with the problem's constraints. The accuracy of 33% reflects this limited success.\n\n## KEY STRENGTHS\n\n*   **Code Generation:** Ability to generate syntactically correct Python code.\n*   **Basic Grid Operations:**  Understanding of fundamental grid manipulations like finding maximums and copying.\n*   **Adaptability:** The system can respond to instructions to solve the grid generation task.\n\n## KEY WEAKNESSES\n\n*   **Pattern Generalization:**  Struggles to apply learned transformations to unseen data. This is the most significant bottleneck.\n*   **Output Dimension Determination:**  Fails to correctly infer the required dimensions of the output grid.\n*   **Problem Understanding:** Has difficulty extracting the proper constraints for grid transformation.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to improve is **Pattern Generalization**.  Without this, the system cannot reliably solve new grid transformation problems, regardless of its ability to generate code or perform basic grid operations.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Feature-Based Approach:** Instead of directly trying to divide the grids into subgrids, change the model to focus on more general features. Examples include counting the number of unique elements, the number of rows that each element appears in, or specific locations of the elements.\n2.  **Augment Training Data:** Increase the diversity of training examples, specifically focusing on variations in grid sizes and transformation patterns. Include examples with different output dimensions.\n3.  **Implement a Solution Verification Mechanism**: Add a mechanism for the system to evaluate its generated solutions based on the input training examples. This could involve comparing the generated output with the expected output for the training examples.\n\n## CAPABILITY TREND\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, given the low accuracy and the critical weaknesses identified, the system is currently operating at a **stable** level with significant room for improvement. After the actionable recommendations are implemented, the trend can be accurately assessed.\n",
-      "strengths": [
-        "The system can generate code to perform grid transformations based on provided training examples.",
-        "The system demonstrates an understanding of basic grid manipulations (finding maximum values within subgrids, copying grids)."
-      ],
-      "weaknesses": [
-        "The system struggles to generalize the pattern to unseen examples. This is evident in sample IDs 0 and 2.",
-        "The system seems to have difficulty determining the correct dimensions/size of the output grid (sample ID 0). It uses the length/width of the provided grid to generate the output.",
-        "The system misinterprets what calculations to do to populate the grids (both sample IDs 0 and 2)."
-      ],
+      "text_report": "## AI System Capability Report\n\n**Based on the provided performance summary, error analysis, and sample execution outputs, the following capability assessment is provided:**\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal a pattern of numerical calculation errors stemming from incorrect information extraction.\n\n*   **Example 1 (Error Sample):** The desired calculation was to determine a duration. Instead of identifying and subtracting the correct start and end dates, the system selected unrelated numbers, leading to a calculation that is arithmetically correct but contextually meaningless. The output provides the calculation `2018 - 2001 = 17 years`, which is incorrect.\n*   **Example 2 (Success Sample):** The system can perform accurate subtraction when the correct inputs are identified and extracted.\n*   **Example 3 (Success Sample):** The system correctly identifies relevant categorical information in the text.\n\nThis analysis confirms the weakness identified in the error analysis: the system's struggle to understand question intent and select the appropriate information. The system exhibits a propensity to extract values related to keywords but without understanding the contextual relationship to the question.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates basic numerical reasoning and information extraction capabilities but struggles with contextual understanding and question interpretation. It can perform calculations accurately *if* provided with the correct inputs, but it frequently fails to identify those inputs in the first place. Overall, the system is promising but needs substantial improvement in understanding the nuances of natural language.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Calculation:** Accurate execution of arithmetic operations (addition, subtraction). This needs to be preserved as it is a fundamental requirement.\n*   **Categorical Information Extraction:** Successful extraction of non-numerical entities (e.g., team names).\n\n### KEY WEAKNESSES\n\n*   **Contextual Understanding:** Significant deficiency in understanding the context of questions and passages. This is the root cause of most observed errors.\n*   **Intent Recognition:** Failure to accurately determine the precise information requested in a question.\n*   **Information Prioritization:** Inability to prioritize relevant information over irrelevant data points.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Understanding and Question Intent Analysis**. All other improvements are contingent upon addressing this fundamental weakness. The system must better interpret the question and map it to the relevant parts of the provided text.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Question Decomposition Strategy:** Break down complex questions into simpler sub-questions. This allows the system to focus on specific aspects of the question and extract relevant information more effectively. For example, the \"duration\" question should be decomposed into \"find the start date\" and \"find the end date\" before attempting to calculate the difference.\n\n2.  **Develop a Context-Aware Information Selection Module:** Instead of relying solely on keyword matching, implement a module that considers the context of the question and passage when selecting relevant information. This could involve techniques like semantic similarity scoring, dependency parsing, or knowledge graph integration. Specifically:\n    *   **Semantic Similarity Scoring:** Calculate the semantic similarity between the question and different sentences or phrases in the passage. Prioritize information from sentences with high similarity scores.\n    *   **Dependency Parsing:** Use dependency parsing to identify the relationships between words in the question and passage. This can help to determine which entities and concepts are most relevant to the question.\n\n3.  **Enhance Error Feedback Mechanism:** For each incorrect answer, provide detailed feedback on *why* the answer was wrong and *how* the system arrived at that answer. This will help the system learn from its mistakes and improve its accuracy over time. Use the identified error patterns to create targeted training examples that address specific weaknesses.\n\n4.  **Implement a Rule-Based System for Numerical Unit Handling:** Create a rule-based system that understands different units of measurement (e.g., years, months, days) and can convert between them if necessary. This will help to ensure that the system is performing calculations on compatible units.\n\n### CAPABILITY TREND\n\nBased on the current performance, the system's capabilities are currently **stable but with significant room for improvement**. While the system demonstrates some proficiency in basic tasks, its lack of contextual understanding prevents it from consistently delivering accurate results. Addressing the identified weaknesses is critical for unlocking the system's full potential and achieving meaningful performance gains.\n",
+      "strengths": [],
+      "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nNone\n\n## STRENGTHS\n*   The system can generate code to perform grid transformations based on provided training examples.\n*   The system demonstrates an understanding of basic grid manipulations (finding maximum values within subgrids, copying grids).\n\n## WEAKNESSES\n*   The system struggles to generalize the pattern to unseen examples. This is evident in sample IDs 0 and 2.\n*   The system seems to have difficulty determining the correct dimensions/size of the output grid (sample ID 0). It uses the length/width of the provided grid to generate the output.\n*   The system misinterprets what calculations to do to populate the grids (both sample IDs 0 and 2).\n\n## CRITICAL BOTTLENECKS\n*   **Pattern Generalization:** The inability to extract and apply the underlying transformation logic to new, unseen grid configurations.\n*   **Output Dimensions:** The system is not determining the output dimensions correctly.\n\n## ERROR PATTERNS\n*   The system frequently fails to accurately map the transformation logic learned from training examples to the test input, resulting in incorrect output grids.\n*   The system has trouble understanding the output size required for unseen examples.\n\n## PRIMARY ISSUE\nThe system's core issue is its inability to accurately generalize the transformation logic from the training examples to the test input. It seems to either misinterpret the pattern or incorrectly apply it to the test input, leading to mismatched values in the output grid.\n\n## IMPROVEMENT AREAS\n*   **Pattern Recognition:** Improve the pattern recognition capabilities of the system, enabling it to identify the core transformation logic from the training examples. This might involve techniques such as feature extraction, relationship mapping, or symbolic reasoning.\n*   **Output Dimension Determination:** The system needs a better mechanism for determining the output dimensions based on the training examples.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Enhanced Pattern Extraction:** Implement a more robust pattern extraction mechanism. This could involve analyzing the differences between the input and output grids in the training examples to identify key transformation rules. Try breaking down grids into subgrids.\n2.  **Focus on Grid Features**: Change from trying to derive subgrids into features. Look at individual data point locations in the grid, and try to understand how the training examples can be used to populate the final grid.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information\\_extraction: Failed - Misinterpreted output grid dimensions.\n    *   solution\\_generation: Failed - Generated incorrect output grid values.\n    *   solution\\_verification: Failed - Did not verify solution against provided training examples.\n*   **Sample ID 2:**\n    *   information\\_extraction: Failed - Misinterpreted output grid values.\n    *   solution\\_generation: Failed - Generated incorrect output grid values.\n    *   solution\\_verification: Failed - Did not verify solution against provided training examples.\n",
-    "capability_report_text": "Okay, here's a thorough capability report based on the provided performance summary, error analysis, sample execution outputs, and your guidance:\n\n## CAPABILITY REPORT\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.33 (1/3)\n*   Error samples: 2/3\n\n**ERROR ANALYSIS REPORT (Provided):**\n\n## RUNTIME ERRORS\n\nNone\n\n## STRENGTHS\n\n*   The system can generate code to perform grid transformations based on provided training examples.\n*   The system demonstrates an understanding of basic grid manipulations (finding maximum values within subgrids, copying grids).\n\n## WEAKNESSES\n\n*   The system struggles to generalize the pattern to unseen examples. This is evident in sample IDs 0 and 2.\n*   The system seems to have difficulty determining the correct dimensions/size of the output grid (sample ID 0). It uses the length/width of the provided grid to generate the output.\n*   The system misinterprets what calculations to do to populate the grids (both sample IDs 0 and 2).\n\n## CRITICAL BOTTLENECKS\n\n*   **Pattern Generalization:** The inability to extract and apply the underlying transformation logic to new, unseen grid configurations.\n*   **Output Dimensions:** The system is not determining the output dimensions correctly.\n\n## ERROR PATTERNS\n\n*   The system frequently fails to accurately map the transformation logic learned from training examples to the test input, resulting in incorrect output grids.\n*   The system has trouble understanding the output size required for unseen examples.\n\n## PRIMARY ISSUE\n\nThe system's core issue is its inability to accurately generalize the transformation logic from the training examples to the test input. It seems to either misinterpret the pattern or incorrectly apply it to the test input, leading to mismatched values in the output grid.\n\n## IMPROVEMENT AREAS\n\n*   **Pattern Recognition:** Improve the pattern recognition capabilities of the system, enabling it to identify the core transformation logic from the training examples. This might involve techniques such as feature extraction, relationship mapping, or symbolic reasoning.\n*   **Output Dimension Determination:** The system needs a better mechanism for determining the output dimensions based on the training examples.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Enhanced Pattern Extraction:** Implement a more robust pattern extraction mechanism. This could involve analyzing the differences between the input and output grids in the training examples to identify key transformation rules. Try breaking down grids into subgrids.\n2.  **Focus on Grid Features**: Change from trying to derive subgrids into features. Look at individual data point locations in the grid, and try to understand how the training examples can be used to populate the final grid.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   information\\_extraction: Failed - Misinterpreted output grid dimensions.\n    *   solution\\_generation: Failed - Generated incorrect output grid values.\n    *   solution\\_verification: Failed - Did not verify solution against provided training examples.\n*   **Sample ID 2:**\n    *   information\\_extraction: Failed - Misinterpreted output grid values.\n    *   solution\\_generation: Failed - Generated incorrect output grid values.\n    *   solution\\_verification: Failed - Did not verify solution against provided training examples.\n\n## SAMPLE EXECUTION OUTPUTS:\n\n[\n  \"ANSWER_START\\n```python\\ndef transform_grid(input_grid):\\n    \\\"\\\"\\\"Transforms the input grid to a 5x3 output grid based on the described pattern.\\\"\\\"\\\"\\n\\n    output_grid = [[0 for _ in range(3)] for _ in range(5)]\\n\\n    # Define the input grid dimensions\\n    input_rows = len(input_grid)\\n    input_cols = len(input_grid[0])\\n\\n    # Calculate the subgrid dimensions and offsets\\n    subgrid_rows = input_rows // 5\\n    subgrid_cols = input_cols // 3\\n\\n    # Iterate through the output grid\\n    for i in range(5):\\n        for j in range(3):\\n            # Calculate the starting row and column for the subgrid\\n            start_row = i * subgrid_rows\\n            start_col = j * subgrid_cols\\n\\n            # Find the maximum value within the subgrid\\n            max_value = 0\\n            for row in range(start_row, min(start_row + subgrid_rows, input_rows)):\\n                for col in range(start_col, min(start_col + subgrid_cols, input_cols)):\\n                    max_value = max(max_value, input_grid[row][col])\\n\\n            # Assign the maximum value to the output grid\\n            output_grid[i][j] = max_value\\n\\n    return output_grid\\n```\\n\\n```python\\ninput_grid = [\\n  [0, 0, 1, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 8, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 8, 0, 0, 0, 0, 0, 0, 1, 1, 0],\\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 1, 3, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 8, 0, 0, 0, 0, 0, 0, 8, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 8],\\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 8, 0, 8, 0, 0, 3],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8],\\n  [0, 8, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 8, 0, 3],\\n  [0, 0, 0, 1, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 3, 0, 0, 0, 8, 0, 0, 3, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 1, 8, 0, 0, 3, 0, 0, 0, 0, 8, 3, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 1, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 2, 2, 2, 0, 8, 3, 0, 0, 0, 0],\\n  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 8, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 8, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 3, 0, 0, 0, 0, 8, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 8, 0, 8, 0, 0, 1, 1, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],\\n  [0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 8, 0, 3, 0, 3, 0, 0],\\n  [0, 0, 1, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 8, 0, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 8, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3]\\n]\\n\\noutput_grid = transform_grid(input_grid)\\n\\nfor row in output_grid:\\n    print(row)\\n```\\n\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\n```python\\ndef transform_grid(grid):\\n    rows = len(grid)\\n    cols = len(grid[0])\\n    output_grid = [row[:] for row in grid]  # Create a deep copy\\n\\n    for r in range(rows):\\n        for c in range(cols):\\n            if grid[r][c] != 0:\\n                value = grid[r][c]\\n                for i in range(1, min(rows - r, c + 1)):\\n                    output_grid[r + i][c - i] = value\\n    return output_grid\\n```\\n\\n```python\\ninput_grid = [\\n  [0, 0, 0, 0, 0, 0, 3, 0, 0, 9],\\n  [7, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 3, 0, 0, 9, 0, 0, 0],\\n  [6, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 4],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 6, 0, 0, 7, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],\\n  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]\\n]\\n\\noutput_grid = transform_grid(input_grid)\\n\\nfor row in output_grid:\\n    print(row)\\n```\\nANSWER_END\\n\",\n  \"ANSWER_START\\n```python\\n[\\n  [1, 1, 1, 1, 0]\\n]\\n```\\nANSWER_END\\n\"\n]\n\n## EXECUTION ANALYSIS\n\n*   **Sample ID 0:** The generated code attempts to create a 5x3 grid and populate it by finding the maximum value within subgrids of the input grid.  However, it uses the *input* grid's dimensions to calculate the subgrid sizes, which is incorrect.  The execution demonstrates the system's misunderstanding of how to derive the output dimensions and correctly map the input grid information to the output grid.  The code itself is syntactically correct and runnable, but semantically flawed.\n*   **Sample ID 1:** The code creates a copy of the original grid, and attempts to cascade the original values diagonally downwards and to the left if a value is non-zero. This approach makes more sense than the prior one, and has the advantage of not shrinking the original grid size.\n*   **Sample ID 2:** The generated code produces a very short array that bears no resemblance to the problem specification.  The reason for this is unclear, but the code generated demonstrates a failure to extract the problem requirements from the input.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a *limited* capability in solving grid transformation problems.  It can generate runnable code and exhibits some understanding of grid manipulations (finding maximums, copying). However, it *fails* at generalizing patterns from training examples to new inputs, accurately determining output dimensions, and ensuring the generated code aligns with the problem's constraints. The accuracy of 33% reflects this limited success.\n\n## KEY STRENGTHS\n\n*   **Code Generation:** Ability to generate syntactically correct Python code.\n*   **Basic Grid Operations:**  Understanding of fundamental grid manipulations like finding maximums and copying.\n*   **Adaptability:** The system can respond to instructions to solve the grid generation task.\n\n## KEY WEAKNESSES\n\n*   **Pattern Generalization:**  Struggles to apply learned transformations to unseen data. This is the most significant bottleneck.\n*   **Output Dimension Determination:**  Fails to correctly infer the required dimensions of the output grid.\n*   **Problem Understanding:** Has difficulty extracting the proper constraints for grid transformation.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to improve is **Pattern Generalization**.  Without this, the system cannot reliably solve new grid transformation problems, regardless of its ability to generate code or perform basic grid operations.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Feature-Based Approach:** Instead of directly trying to divide the grids into subgrids, change the model to focus on more general features. Examples include counting the number of unique elements, the number of rows that each element appears in, or specific locations of the elements.\n2.  **Augment Training Data:** Increase the diversity of training examples, specifically focusing on variations in grid sizes and transformation patterns. Include examples with different output dimensions.\n3.  **Implement a Solution Verification Mechanism**: Add a mechanism for the system to evaluate its generated solutions based on the input training examples. This could involve comparing the generated output with the expected output for the training examples.\n\n## CAPABILITY TREND\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, given the low accuracy and the critical weaknesses identified, the system is currently operating at a **stable** level with significant room for improvement. After the actionable recommendations are implemented, the trend can be accurately assessed.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error cases or success cases.\n\n## STRENGTHS\n1.  **Numerical Calculation:** The system can accurately perform basic arithmetic operations like addition and subtraction to arrive at numerical answers.\n2.  **Information Extraction:** The system can extract relevant numerical values and entities from the text.\n3.  **Logical Reasoning:** The system can successfully perform basic logical comparisons and date-related reasoning when it identifies the correct pieces of information.\n\n## WEAKNESSES\n1.  **Misinterpretation of Question Intent:** The system struggles to understand the precise intent of the question and, therefore, extracts the wrong information from the passage for its calculations.\n2.  **Inability to Distinguish Relevant vs. Irrelevant Information:** The system seems to lack the ability to discern the most important information required to answer the question from the provided text, especially when faced with multiple numerical data points.\n3.  **Lack of Contextual Understanding:** The system needs better contextual understanding of the problem.\n\n## CRITICAL BOTTLENECKS\n1.  **Question Understanding and Information Selection:** The system is failing to select the correct data to perform calculations on, indicating a problem with question understanding and linking the correct part of the passage to the question.\n2.  **Prioritization of Information:** Lacking strategy in handling competing information within the passage. The system isn't capable of weighing information to determine which details are most pertinent.\n\n## ERROR PATTERNS\nThe primary error pattern is misinterpretation of the question's intent leading to incorrect information extraction. The system extracts numerical values that are related to the question keywords, but are not the precise values needed to answer the question.\n\n## PRIMARY ISSUE\nThe primary issue is a flawed strategy for mapping the question to the specific numerical data within the passage that is relevant for calculation. The current approach seems to rely too heavily on keyword matching without sufficient contextual understanding of the question's intent.\n\n## IMPROVEMENT AREAS\n1.  **Question Intent Analysis:** Implement a more sophisticated module that analyzes the question and understands the type of information required to answer it. This module should identify the key entities and relationships that are being queried.\n2.  **Contextual Information Selection:** Develop a method for identifying and prioritizing relevant information within the passage based on the question's intent. This may involve techniques like semantic similarity scoring, dependency parsing, or named entity recognition.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement Semantic Parsing:** Utilize semantic parsing techniques to better understand the meaning of both the question and the passage. This can help to identify the correct numerical values and operations needed to arrive at the answer.\n2.  **Develop a Scoring Mechanism for Information Relevance:** Implement a system that scores the relevance of different pieces of information in the passage based on their relationship to the question. This score can be used to prioritize information during extraction and calculation.\n3.  **Fine-tune a Language Model:** Fine-tune a pre-trained language model specifically for question answering tasks that involve numerical reasoning. This can improve the model's ability to understand the nuances of natural language and extract the correct information.\n4.  **Enhance Output Explanations:** The explanations provided should explicitly state *why* certain information was selected and other information was discarded, demonstrating a clear decision-making process.\n\n## CAPABILITY MAPPING\n*   **Sample ID: 0**\n    *   information_extraction: Failed to extract the relevant information.\n    *   decision_making: Failed to choose the correct years to use for determining the duration.\n",
+    "capability_report_text": "## AI System Capability Report\n\n**Based on the provided performance summary, error analysis, and sample execution outputs, the following capability assessment is provided:**\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal a pattern of numerical calculation errors stemming from incorrect information extraction.\n\n*   **Example 1 (Error Sample):** The desired calculation was to determine a duration. Instead of identifying and subtracting the correct start and end dates, the system selected unrelated numbers, leading to a calculation that is arithmetically correct but contextually meaningless. The output provides the calculation `2018 - 2001 = 17 years`, which is incorrect.\n*   **Example 2 (Success Sample):** The system can perform accurate subtraction when the correct inputs are identified and extracted.\n*   **Example 3 (Success Sample):** The system correctly identifies relevant categorical information in the text.\n\nThis analysis confirms the weakness identified in the error analysis: the system's struggle to understand question intent and select the appropriate information. The system exhibits a propensity to extract values related to keywords but without understanding the contextual relationship to the question.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates basic numerical reasoning and information extraction capabilities but struggles with contextual understanding and question interpretation. It can perform calculations accurately *if* provided with the correct inputs, but it frequently fails to identify those inputs in the first place. Overall, the system is promising but needs substantial improvement in understanding the nuances of natural language.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Calculation:** Accurate execution of arithmetic operations (addition, subtraction). This needs to be preserved as it is a fundamental requirement.\n*   **Categorical Information Extraction:** Successful extraction of non-numerical entities (e.g., team names).\n\n### KEY WEAKNESSES\n\n*   **Contextual Understanding:** Significant deficiency in understanding the context of questions and passages. This is the root cause of most observed errors.\n*   **Intent Recognition:** Failure to accurately determine the precise information requested in a question.\n*   **Information Prioritization:** Inability to prioritize relevant information over irrelevant data points.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Understanding and Question Intent Analysis**. All other improvements are contingent upon addressing this fundamental weakness. The system must better interpret the question and map it to the relevant parts of the provided text.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Question Decomposition Strategy:** Break down complex questions into simpler sub-questions. This allows the system to focus on specific aspects of the question and extract relevant information more effectively. For example, the \"duration\" question should be decomposed into \"find the start date\" and \"find the end date\" before attempting to calculate the difference.\n\n2.  **Develop a Context-Aware Information Selection Module:** Instead of relying solely on keyword matching, implement a module that considers the context of the question and passage when selecting relevant information. This could involve techniques like semantic similarity scoring, dependency parsing, or knowledge graph integration. Specifically:\n    *   **Semantic Similarity Scoring:** Calculate the semantic similarity between the question and different sentences or phrases in the passage. Prioritize information from sentences with high similarity scores.\n    *   **Dependency Parsing:** Use dependency parsing to identify the relationships between words in the question and passage. This can help to determine which entities and concepts are most relevant to the question.\n\n3.  **Enhance Error Feedback Mechanism:** For each incorrect answer, provide detailed feedback on *why* the answer was wrong and *how* the system arrived at that answer. This will help the system learn from its mistakes and improve its accuracy over time. Use the identified error patterns to create targeted training examples that address specific weaknesses.\n\n4.  **Implement a Rule-Based System for Numerical Unit Handling:** Create a rule-based system that understands different units of measurement (e.g., years, months, days) and can convert between them if necessary. This will help to ensure that the system is performing calculations on compatible units.\n\n### CAPABILITY TREND\n\nBased on the current performance, the system's capabilities are currently **stable but with significant room for improvement**. While the system demonstrates some proficiency in basic tasks, its lack of contextual understanding prevents it from consistently delivering accurate results. Addressing the identified weaknesses is critical for unlocking the system's full potential and achieving meaningful performance gains.\n"
   },
-  "progressive_testing": null,
-  "execution_time": 88.65708708763123,
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 6,
+    "accuracy": 0.6,
+    "results": [
+      {
+        "success": true,
+        "answer": "{\"answer\": \"1792 - 1766 = 26 years\"}",
+        "output": "ANSWER_START\n{\"answer\": \"1792 - 1766 = 26 years\"}\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "26",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer clearly shows the calculation and arrives at the correct answer of 26."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "{\"answer\": \"12,000 + 20,000 = 32,000 to 30,000 + 30,000 = 60,000\"}",
+        "output": "ANSWER_START\n{\"answer\": \"12,000 + 20,000 = 32,000 to 30,000 + 30,000 = 60,000\"}\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "60000",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer shows a calculation with different numbers which leads to a different final result than the golden answer."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "{\"answer\": \"23.20 + 7.70 + 27.00 + 14.10 = 72 percent\"}",
+        "output": "ANSWER_START\n{\"answer\": \"23.20 + 7.70 + 27.00 + 14.10 = 72 percent\"}\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "72",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer shows the calculation leading to 72 percent, which is equivalent to the golden answer of 72."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "{\"answer\": \"Darren Sharper\"}",
+        "output": "ANSWER_START\n{\"answer\": \"Darren Sharper\"}\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "Darren Sharper",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer provides the same information as the golden answer. The difference is only the use of quotation marks."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "{\"answer\": \"Daunte Culpepper got sacked more times.\"}",
+        "output": "ANSWER_START\n{\"answer\": \"Daunte Culpepper got sacked more times.\"}\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "sacked more times",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer states 'Daunte Culpepper got sacked more times,' which is semantically equivalent to the golden answer 'sacked more times.'"
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "{\"answer\": \"794 - 411 = 383 million\"}",
+        "output": "ANSWER_START\n{\"answer\": \"794 - 411 = 383 million\"}\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "383",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer shows the calculation and result, which matches the golden answer of 383."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "{\"answer\": \"1 touchdown\"}",
+        "output": "ANSWER_START\n{\"answer\": \"1 touchdown\"}\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "3",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers are not equivalent. The golden answer '3' represents the number of touchdowns. The system answer '1 touchdown' suggests a single touchdown, which is a different quantity."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "{\"answer\": \"75 yards\"}",
+        "output": "ANSWER_START\n{\"answer\": \"75 yards\"}\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "75",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer \"75 yards\" and the golden answer \"75\" both refer to the same numerical value. The inclusion of \"yards\" as a unit doesn't change the underlying numerical answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "{\"answer\": \"2\"}",
+        "output": "ANSWER_START\n{\"answer\": \"2\"}\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "3",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer \"2\" is not equal to the golden answer \"3\"."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "{\"answer\": \"The passage does not mention the percentage of Christians, so it is impossible to calculate the percentage point difference between Muslims and Christians.\"}",
+        "output": "ANSWER_START\n{\"answer\": \"The passage does not mention the percentage of Christians, so it is impossible to calculate the percentage point difference between Muslims and Christians.\"}\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "30",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer states that it's impossible to calculate the percentage point difference based on the passage, while the golden answer provides a numerical value (30). These answers contradict each other, as one claims the information is unavailable and the other provides a specific answer."
+        },
+        "match": false
+      }
+    ]
+  },
+  "execution_time": 87.17126321792603,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

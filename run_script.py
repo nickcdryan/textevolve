@@ -191,7 +191,7 @@ def parse_arguments():
         "--loader",
         "-l",
         type=str,
-        choices=["arc", "json", "custom"],
+        choices=["arc", "json", "jsonl", "custom"],
         default="arc",
         help="Type of dataset loader to use (default: arc)")
 
@@ -201,14 +201,14 @@ def parse_arguments():
         "-if",
         type=str,
         default="input",
-        help="Field name for input data in JSON loader (default: input)")
+        help="Field name for input data in JSON/JSONL loader (default: input)")
 
     parser.add_argument(
         "--output-field",
         "-of",
         type=str,
         default="output",
-        help="Field name for output data in JSON loader (default: output)")
+        help="Field name for output data in JSON/JSONL loader (default: output)")
 
     parser.add_argument(
         "--example-prefix",
@@ -216,6 +216,19 @@ def parse_arguments():
         type=str,
         default="",
         help="Prefix for example keys in JSON loader (default: none)")
+
+    # JSONL loader options
+    parser.add_argument(
+        "--passage-field",
+        type=str,
+        default="passage",
+        help="Field name for passage text in JSONL loader (default: passage)")
+
+    parser.add_argument(
+        "--answer-extraction",
+        type=str,
+        default="spans",
+        help="Field to extract from nested answer data in JSONL loader (default: spans)")
 
     # General options
     parser.add_argument(
@@ -231,7 +244,6 @@ def parse_arguments():
         help=f"Random seed for dataset shuffling (default: {RANDOM_SEED})")
 
     return parser.parse_args()
-
 
 if __name__ == "__main__":
     # Parse command-line arguments
@@ -263,6 +275,15 @@ if __name__ == "__main__":
 
         if args.example_prefix:
             loader_config["example_prefix"] = args.example_prefix
+
+    # Add JSONL loader specific parameters
+    elif args.loader == "jsonl":
+        loader_config.update({
+            "input_field": args.input_field,
+            "output_field": args.output_field,
+            "passage_field": args.passage_field,
+            "answer_extraction": args.answer_extraction
+        })
 
     # Run the agent
     run_agent(args.iterations, loader_config)

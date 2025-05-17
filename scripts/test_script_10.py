@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 10,
-        "sample_id": "example_37",
-        "question": 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 2, 2, 0, 0, 1]\n  [0, 1, 1, 0, 2, 2, 0, 0, 0]\n  [0, 1, 1, 0, 0, 0, 0, 2, 2]\n  [0, 0, 0, 0, 0, 0, 0, 2, 2]\n  [1, 0, 2, 2, 0, 0, 0, 0, 0]\n  [0, 0, 2, 2, 0, 1, 1, 0, 0]\n  [0, 0, 0, 0, 0, 1, 1, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 1, 0, 0, 0, 0, 0, 0, 1]\n]\n\nOutput Grid:\n[\n  [1, 1, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [1, 1, 0, 2, 0, 0, 0, 0, 2]\n  [1, 1, 0, 0, 0, 1, 1, 0, 0]\n  [0, 0, 0, 2, 0, 1, 1, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 1]\n  [0, 1, 1, 0, 2, 2, 0, 0, 0]\n  [0, 1, 1, 0, 2, 2, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 2, 2, 0, 1, 1, 0]\n  [0, 1, 0, 2, 2, 0, 1, 1, 0]\n]\n\nOutput Grid:\n[\n  [1, 1, 1, 1, 0]\n]\nExample 3:\nInput Grid:\n[\n  [2, 2, 0, 1, 1, 0, 0, 0, 0]\n  [2, 2, 0, 1, 1, 0, 0, 1, 1]\n  [1, 0, 0, 0, 0, 0, 0, 1, 1]\n  [0, 2, 2, 0, 0, 0, 0, 0, 0]\n  [0, 2, 2, 0, 1, 1, 0, 1, 0]\n  [0, 0, 0, 0, 1, 1, 0, 0, 0]\n  [0, 0, 0, 0, 2, 0, 0, 0, 0]\n  [0, 1, 1, 0, 0, 0, 0, 2, 2]\n  [0, 1, 1, 0, 0, 1, 0, 2, 2]\n]\n\nOutput Grid:\n[\n  [1, 1, 1, 1, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 2, 2, 0, 1]\n  [1, 1, 0, 1, 0, 2, 2, 0, 0]\n  [1, 1, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 1, 0, 0]\n  [0, 2, 2, 0, 0, 1, 1, 0, 0]\n  [0, 2, 2, 0, 0, 0, 0, 0, 0]\n  [1, 0, 0, 0, 0, 0, 2, 2, 0]\n  [2, 2, 0, 1, 1, 0, 2, 2, 0]\n  [2, 2, 0, 1, 1, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+        "sample_id": "d1f13dc6-2a84-4cb2-87ab-e94224e7c645",
+        "question": 'PASSAGE: The Church of Ireland, at 2.7% of the population, is the second largest Christian denomination. Membership declined throughout the twentieth century, but experienced an increase early in the 21st century, as have other small Christian denominations. Significant Protestant denominations are the Presbyterian Church and Methodist Church. Immigration has contributed to a growth in Hindu and Muslim populations. In percentage terms, Orthodox Christianity and Islam were the fastest growing religions, with increases of 100% and 70% respectively. Ireland\'s patron saints are Saint Patrick, Saint Bridget and Saint Columba. Saint Patrick is the only one commonly recognised as the patron saint. Saint Patrick\'s Day is celebrated on 17 March in Ireland and abroad as the Irish national day, with parades and other celebrations. As with other predominantly Catholic European states, Ireland underwent a period of legal secularisation in the late twentieth century. In 1972, the article of the Constitution naming specific religious groups was deleted by the Fifth Amendment in a referendum. Article 44 remains in the Constitution: "The State acknowledges that the homage of public worship is due to Almighty God. It shall hold His Name in reverence, and shall respect and honour religion." The article also establishes freedom of religion, prohibits endowment of any religion, prohibits the state from religious discrimination, and requires the state to treat religious and non-religious schools in a non-prejudicial manner. Religious studies was introduced as an optional Junior Certificate subject in 2001. Although many schools are run by religious organisations, a secularist trend is occurring among younger generations.\n\nQUESTION: How many percentage points difference was there between Muslims and Christians?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 10,
-            "sample_id": "example_37",
+            "sample_id": "d1f13dc6-2a84-4cb2-87ab-e94224e7c645",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'Grid Transformation Task\n\n=== TRAINING EXAMPLES ===\n\nExample 1:\nInput Grid:\n[\n  [0, 0, 0, 0, 2, 2, 0, 0, 1]\n  [0, 1, 1, 0, 2, 2, 0, 0, 0]\n  [0, 1, 1, 0, 0, 0, 0, 2, 2]\n  [0, 0, 0, 0, 0, 0, 0, 2, 2]\n  [1, 0, 2, 2, 0, 0, 0, 0, 0]\n  [0, 0, 2, 2, 0, 1, 1, 0, 0]\n  [0, 0, 0, 0, 0, 1, 1, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 1, 0, 0, 0, 0, 0, 0, 1]\n]\n\nOutput Grid:\n[\n  [1, 1, 0, 0, 0]\n]\nExample 2:\nInput Grid:\n[\n  [1, 1, 0, 2, 0, 0, 0, 0, 2]\n  [1, 1, 0, 0, 0, 1, 1, 0, 0]\n  [0, 0, 0, 2, 0, 1, 1, 0, 0]\n  [0, 0, 0, 0, 0, 0, 0, 0, 1]\n  [0, 1, 1, 0, 2, 2, 0, 0, 0]\n  [0, 1, 1, 0, 2, 2, 0, 0, 2]\n  [0, 0, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 2, 2, 0, 1, 1, 0]\n  [0, 1, 0, 2, 2, 0, 1, 1, 0]\n]\n\nOutput Grid:\n[\n  [1, 1, 1, 1, 0]\n]\nExample 3:\nInput Grid:\n[\n  [2, 2, 0, 1, 1, 0, 0, 0, 0]\n  [2, 2, 0, 1, 1, 0, 0, 1, 1]\n  [1, 0, 0, 0, 0, 0, 0, 1, 1]\n  [0, 2, 2, 0, 0, 0, 0, 0, 0]\n  [0, 2, 2, 0, 1, 1, 0, 1, 0]\n  [0, 0, 0, 0, 1, 1, 0, 0, 0]\n  [0, 0, 0, 0, 2, 0, 0, 0, 0]\n  [0, 1, 1, 0, 0, 0, 0, 2, 2]\n  [0, 1, 1, 0, 0, 1, 0, 2, 2]\n]\n\nOutput Grid:\n[\n  [1, 1, 1, 1, 0]\n]\n\n=== TEST INPUT ===\n[\n  [0, 0, 0, 0, 0, 2, 2, 0, 1]\n  [1, 1, 0, 1, 0, 2, 2, 0, 0]\n  [1, 1, 0, 0, 0, 0, 0, 0, 0]\n  [0, 0, 0, 0, 0, 1, 1, 0, 0]\n  [0, 2, 2, 0, 0, 1, 1, 0, 0]\n  [0, 2, 2, 0, 0, 0, 0, 0, 0]\n  [1, 0, 0, 0, 0, 0, 2, 2, 0]\n  [2, 2, 0, 1, 1, 0, 2, 2, 0]\n  [2, 2, 0, 1, 1, 0, 0, 0, 0]\n]\n\nTransform the test input according to the pattern shown in the training examples.'
+    question = 'PASSAGE: The Church of Ireland, at 2.7% of the population, is the second largest Christian denomination. Membership declined throughout the twentieth century, but experienced an increase early in the 21st century, as have other small Christian denominations. Significant Protestant denominations are the Presbyterian Church and Methodist Church. Immigration has contributed to a growth in Hindu and Muslim populations. In percentage terms, Orthodox Christianity and Islam were the fastest growing religions, with increases of 100% and 70% respectively. Ireland\'s patron saints are Saint Patrick, Saint Bridget and Saint Columba. Saint Patrick is the only one commonly recognised as the patron saint. Saint Patrick\'s Day is celebrated on 17 March in Ireland and abroad as the Irish national day, with parades and other celebrations. As with other predominantly Catholic European states, Ireland underwent a period of legal secularisation in the late twentieth century. In 1972, the article of the Constitution naming specific religious groups was deleted by the Fifth Amendment in a referendum. Article 44 remains in the Constitution: "The State acknowledges that the homage of public worship is due to Almighty God. It shall hold His Name in reverence, and shall respect and honour religion." The article also establishes freedom of religion, prohibits endowment of any religion, prohibits the state from religious discrimination, and requires the state to treat religious and non-religious schools in a non-prejudicial manner. Religious studies was introduced as an optional Junior Certificate subject in 2001. Although many schools are run by religious organisations, a secularist trend is occurring among younger generations.\n\nQUESTION: How many percentage points difference was there between Muslims and Christians?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 10,
-            "sample_id": "example_37",
+            "sample_id": "d1f13dc6-2a84-4cb2-87ab-e94224e7c645",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 10,
-            "sample_id": "example_37",
+            "sample_id": "d1f13dc6-2a84-4cb2-87ab-e94224e7c645",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

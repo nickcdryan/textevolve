@@ -2,90 +2,152 @@ import os
 import re
 import math
 
-def solve_grid_transformation(question):
-    """Solves a grid transformation problem using a novel LLM-driven approach."""
+def main(question):
+    """
+    This script solves questions based on a given passage by:
+    1. Analyzing the question type (numerical, logical, etc.).
+    2. Extracting the relevant information from the passage.
+    3. Generating and verifying the answer with LLM.
 
-    # HYPOTHESIS: Instead of extracting explicit rules, can we get the LLM to generate multiple plausible output grids, 
-    # and then use a secondary LLM to select the most likely one, acting as an ensemble? This tests whether the LLM can do
-    # direct pattern matching better than rule extraction.
-
-    # Step 1: Generate multiple output grids
-    num_grids = 3  # Generate multiple candidate grids
-    generated_grids = generate_multiple_grids(question, num_grids)
-
-    # Step 2: Select the best grid using a secondary LLM
-    best_grid = select_best_grid(question, generated_grids)
-
-    return best_grid
-
-def generate_multiple_grids(question, num_grids):
-    """Generates multiple possible output grids using the LLM."""
-    system_instruction = "You are an expert grid transformer that generates multiple plausible output grids based on given examples."
-    grids = []
-
-    for i in range(num_grids):
-        prompt = f"""
-        Given the following grid transformation problem, generate a plausible output grid.
-        Consider different possible transformation patterns and generate a UNIQUE, plausible output.
-        This is attempt {i+1}/{num_grids}, so consider a different pattern from previous attempts.
-
-        Example 1:
-        Input Grid:
-        [[0, 1, 0], [1, 1, 0], [0, 1, 0]]
-        Output Grid:
-        [[0, 2, 0], [2, 2, 0], [0, 2, 0]]
-
-        Example 2:
-        Input Grid:
-        [[1, 1, 1], [0, 0, 0], [1, 1, 1]]
-        Output Grid:
-        [[2, 2, 2], [0, 0, 0], [2, 2, 2]]
-
-        Problem:
-        {question}
-
-        Output Grid:
-        """
-
-        output_grid = call_llm(prompt, system_instruction)
-        grids.append(output_grid)
-    return grids
-
-def select_best_grid(question, generated_grids):
-    """Selects the best output grid from a list of generated grids using an LLM."""
-    system_instruction = "You are an expert grid evaluator that selects the best output grid based on the problem description."
-    prompt = f"""
-    Given the following grid transformation problem and a list of generated output grids, select the best one.
-    Consider the transformation patterns in the examples and select the grid that best follows those patterns.
-
-    Example:
-    Problem:
-    Grid Transformation Task
-    Input Grid:
-    [[0, 1, 0], [1, 1, 0], [0, 1, 0]]
-    Output Grid Options:
-    1: [[0, 2, 0], [2, 2, 0], [0, 2, 0]]
-    2: [[0, 2, 0], [2, 0, 2], [0, 2, 0]]
-    Best Grid: 1 (Correct transformation from 1 to 2 in the input grid)
-
-    Problem:
-    {question}
-
-    Output Grid Options:
-    {chr(10).join([f"{i+1}: {grid}" for i, grid in enumerate(generated_grids)])}
-
-    Best Grid (Enter the number corresponding to best grid):
+    This approach uses a chain-of-thought process with specific verification steps at each stage
+    to ensure accuracy. The primary hypothesis is that focusing on the intent of the question
+    before diving into extraction will lead to better results.
     """
 
-    best_grid_number = call_llm(prompt, system_instruction)
+    # Step 1: Determine the question type
+    question_type = determine_question_type(question)
+    if "Error" in question_type:
+        return question_type  # Return error message
+
+    # Step 2: Extract relevant information from the passage
+    extracted_info = extract_relevant_info(question, question_type)
+    if "Error" in extracted_info:
+        return extracted_info
+
+    # Step 3: Generate the answer
+    generated_answer = generate_answer(extracted_info, question_type)
+    if "Error" in generated_answer:
+        return generated_answer
+
+    # Step 4: Verify the generated answer
+    verified_answer = verify_answer(generated_answer, question)
+    if "Error" in verified_answer:
+        return verified_answer
+
+    return verified_answer
+
+def determine_question_type(question):
+    """Determine the type of the question (numerical, logical, etc.)."""
+    system_instruction = "You are an expert at classifying question types."
+    prompt = f"""
+    Determine the type of question given the following examples. Return the type only.
+
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+
+    Question: {question}
+    Type:
+    """
     try:
-        best_grid_index = int(best_grid_number) - 1
-        if 0 <= best_grid_index < len(generated_grids):
-            return generated_grids[best_grid_index]
-        else:
-            return "Error: Invalid grid number."
-    except ValueError:
-        return "Error: Invalid grid number format."
+        question_type = call_llm(prompt, system_instruction)
+        if not question_type:
+            return "Error: Could not determine question type"
+        return question_type
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def extract_relevant_info(question, question_type):
+    """Extract relevant information from the passage."""
+    system_instruction = "You are an expert at extracting relevant information."
+    prompt = f"""
+    Extract relevant information from the question based on the given question type.
+    Return the extracted information as a plain text summary.
+
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Type: Numerical
+    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Type: Identification
+    Extracted Info: Player who caught the final touchdown.
+
+    Question: {question}
+    Type: {question_type}
+    Extracted Info:
+    """
+    try:
+        extracted_info = call_llm(prompt, system_instruction)
+        if not extracted_info:
+            return "Error: Could not extract information."
+        return extracted_info
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def generate_answer(extracted_info, question_type):
+    """Generate the answer based on extracted information and question type."""
+    system_instruction = "You are an expert at generating correct answers."
+    prompt = f"""
+    Generate an answer to the question based on the extracted information.
+
+    Example 1:
+    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
+    Question Type: Numerical
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: Find yards for each event and add them.
+
+    Example 2:
+    Extracted Info: Player who caught the final touchdown.
+    Question Type: Identification
+    Question: Who caught the final touchdown of the game?
+    Answer: Identify the player.
+
+    Extracted Info: {extracted_info}
+    Question Type: {question_type}
+    Question: {question}
+    Answer:
+    """
+    try:
+        answer = call_llm(prompt, system_instruction)
+        if not answer:
+            return "Error: Could not generate answer."
+        return answer
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def verify_answer(generated_answer, question):
+    """Verify the generated answer to ensure correctness."""
+    system_instruction = "You are an expert at verifying the correctness of answers."
+    prompt = f"""
+    Verify if the generated answer is correct and makes sense given the question.
+
+    Example 1:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Generated Answer: Find yards for each event and add them.
+    Is Correct: Verify that the required information to "Find yards for each event and add them" is known and possible.
+
+    Example 2:
+    Question: Who caught the final touchdown of the game?
+    Generated Answer: Identify the player.
+    Is Correct: Verify that it makes sense to "Identify the player"
+
+    Question: {question}
+    Generated Answer: {generated_answer}
+    Is Correct:
+    """
+    try:
+        is_correct = call_llm(prompt, system_instruction)
+        if not is_correct:
+            return "Error: Could not verify answer."
+        return is_correct
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -115,11 +177,3 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
-
-def main(question):
-    """Main function to solve the grid transformation task."""
-    try:
-        answer = solve_grid_transformation(question)
-        return answer
-    except Exception as e:
-        return f"Error in main function: {str(e)}"

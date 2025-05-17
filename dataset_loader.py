@@ -406,6 +406,106 @@ class CustomDatasetLoader(DatasetLoader):
         return example.get("answer", "")
 
 
+class JSONLDatasetLoader(DatasetLoader):
+    """Loader for JSONL datasets with configurable field mapping"""
+
+    def __init__(self, 
+                 dataset_path: str,
+                 input_field: str = "question",
+                 output_field: str = "answers_spans",
+                 passage_field: str = "passage",
+                 answer_extraction: str = "spans",  # Field within answers_spans to extract
+                 shuffle: bool = True, 
+                 random_seed: int = 42,
+                 **kwargs):  # Added **kwargs to accept any additional parameters
+        """
+        Initialize the JSONL dataset loader
+
+        Args:
+            dataset_path: Path to the dataset JSONL file
+            input_field: Field name containing the question
+            output_field: Field name containing the answer data
+            passage_field: Field name containing the context passage
+            answer_extraction: Key for extracting the answer from answer_field (e.g., 'spans')
+            shuffle: Whether to shuffle examples
+            random_seed: Random seed for shuffling
+            **kwargs: Additional arguments that might be passed
+        """
+        self.input_field = input_field
+        self.output_field = output_field
+        self.passage_field = passage_field
+        self.answer_extraction = answer_extraction
+        super().__init__(dataset_path, shuffle, random_seed)
+
+    def _load_examples(self):
+        """Load examples from JSONL dataset file and convert to universal format"""
+        import json
+
+        try:
+            # JSONL format has one JSON object per line
+            examples = []
+            with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f):
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        # Parse the JSON object from this line
+                        example = json.loads(line)
+
+                        # Extract passage and question
+                        passage = example.get(self.passage_field, "")
+                        question = example.get(self.input_field, "")
+
+                        # For the DROP dataset, answers are in a nested structure
+                        # Extract the answer based on the specified extraction method
+                        answer_data = example.get(self.output_field, {})
+
+                        # Get the first answer span (or other specified extraction field)
+                        answer = ""
+                        if isinstance(answer_data, dict) and self.answer_extraction in answer_data:
+                            # If it's a list, take the first item
+                            spans = answer_data.get(self.answer_extraction, [])
+                            if spans and isinstance(spans, list):
+                                answer = spans[0]
+                            else:
+                                answer = str(spans)
+                        else:
+                            # Fallback: use the whole answer_data as a string
+                            answer = str(answer_data)
+
+                        # Combine passage and question for the standard "question" field
+                        formatted_question = f"PASSAGE: {passage}\n\nQUESTION: {question}"
+
+                        # Create standardized example with universal field names
+                        examples.append({
+                            "id": example.get("query_id", f"example_{line_num}"),
+                            "question": formatted_question,  # Standard field: "question"
+                            "answer": answer,                # Standard field: "answer"
+                            "meta": {
+                                "source": "jsonl_dataset",
+                                "original_passage": passage,
+                                "original_question": question,
+                                "original_answer_data": answer_data,
+                                "line_number": line_num
+                            }
+                        })
+
+                    except json.JSONDecodeError:
+                        print(f"Warning: Invalid JSON on line {line_num+1}, skipping")
+                    except Exception as e:
+                        print(f"Warning: Error processing line {line_num+1}: {e}")
+
+            self.examples = examples
+            print(f"Loaded {len(examples)} examples from JSONL dataset")
+
+            if not self.examples:
+                raise ValueError("No valid examples found in dataset")
+
+        except Exception as e:
+            raise ValueError(f"Error loading JSONL dataset: {e}")
+
 
 # Factory function to create the appropriate loader
 def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
@@ -423,6 +523,8 @@ def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
         return ARCDatasetLoader(**kwargs)
     elif loader_type.lower() == "json":
         return JSONDatasetLoader(**kwargs)
+    elif loader_type.lower() == "jsonl":
+        return JSONLDatasetLoader(**kwargs)
     elif loader_type.lower() == "custom":
         return CustomDatasetLoader(**kwargs)
     else:
