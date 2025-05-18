@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 6,
-        "sample_id": "example_50",
-        "question": "PASSAGE: Hoping to rebound from their divisional road loss to the Chiefs, the Broncos went home for a Week 5 interconference duel with the Tampa Bay Buccaneers.  In the first quarter, Denver trailed early as Bucs kicker Matt Bryant got a 33-yard field goal.  In the second quarter, the Broncos took the lead as kicker Matt Prater got a 55-yard and a 40-yard field goal.  Tampa Bay would tie the game at halftime as Bryant kicked a 31-yard field goal.  In the third quarter, Denver took a big lead as QB Jay Cutler completed a 10-yard TD pass to WR Brandon Stokley.  In the fourth quarter, the Broncos increased its lead as Prater nailed a 27-yard field goal.  The Buccaneers would try to rally as QB Jeff Garcia completed a 7-yard TD pass to WR Ike Hilliard.  Fortunately, Denver recovered the onside kick and drained the clock.\n\nQUESTION: How many yards longer was Bryant's first field goal over his second one?"
+        "sample_id": "a1dba09b-112a-4007-8d10-98c77b186b44",
+        "question": "PASSAGE: Some overtures were made by Thailand to establish trade relations with France in 1840 and 1851. In 1856 Napoleon III sent an embassy, led by Charles de Montigny, to King Mongkut. A treaty was signed on 15 August 1856, to facilitate trade, guarantee religious freedom, and grant French warships access to Bangkok. In June 1861, French warships brought a Thai embassy to France, led by Phya Sripipat . In the meantime, France was establishing a foothold in neighbouring Vietnam, putting it on a collision course with Siam. Under the orders of Napoleon III, French gunships under Rigault de Genouilly attacked the port of Da Nang in 1858, causing significant damage, and holding the city for a few months. de Gnouilly sailed south and captured the poorly defended city of Saigon in 1859. From 1859 to 1867, French troops expanded their control over all six provinces on the Mekong delta and formed a French Colony, Cochin China. In 1863, France and King Norodom of Cambodia signed a treaty of protection with France, which transferred the country from Siamese and Vietnamese overlordship to French colonial rule. A new treaty was signed between France and Siam on 15 July 1867.\n\nQUESTION: How many years passed between the 1856 treaty and de Genouilly's capture of Saigon?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 6,
-            "sample_id": "example_50",
+            "sample_id": "a1dba09b-112a-4007-8d10-98c77b186b44",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Hoping to rebound from their divisional road loss to the Chiefs, the Broncos went home for a Week 5 interconference duel with the Tampa Bay Buccaneers.  In the first quarter, Denver trailed early as Bucs kicker Matt Bryant got a 33-yard field goal.  In the second quarter, the Broncos took the lead as kicker Matt Prater got a 55-yard and a 40-yard field goal.  Tampa Bay would tie the game at halftime as Bryant kicked a 31-yard field goal.  In the third quarter, Denver took a big lead as QB Jay Cutler completed a 10-yard TD pass to WR Brandon Stokley.  In the fourth quarter, the Broncos increased its lead as Prater nailed a 27-yard field goal.  The Buccaneers would try to rally as QB Jeff Garcia completed a 7-yard TD pass to WR Ike Hilliard.  Fortunately, Denver recovered the onside kick and drained the clock.\n\nQUESTION: How many yards longer was Bryant's first field goal over his second one?"
+    question = "PASSAGE: Some overtures were made by Thailand to establish trade relations with France in 1840 and 1851. In 1856 Napoleon III sent an embassy, led by Charles de Montigny, to King Mongkut. A treaty was signed on 15 August 1856, to facilitate trade, guarantee religious freedom, and grant French warships access to Bangkok. In June 1861, French warships brought a Thai embassy to France, led by Phya Sripipat . In the meantime, France was establishing a foothold in neighbouring Vietnam, putting it on a collision course with Siam. Under the orders of Napoleon III, French gunships under Rigault de Genouilly attacked the port of Da Nang in 1858, causing significant damage, and holding the city for a few months. de Gnouilly sailed south and captured the poorly defended city of Saigon in 1859. From 1859 to 1867, French troops expanded their control over all six provinces on the Mekong delta and formed a French Colony, Cochin China. In 1863, France and King Norodom of Cambodia signed a treaty of protection with France, which transferred the country from Siamese and Vietnamese overlordship to French colonial rule. A new treaty was signed between France and Siam on 15 July 1867.\n\nQUESTION: How many years passed between the 1856 treaty and de Genouilly's capture of Saigon?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 6,
-            "sample_id": "example_50",
+            "sample_id": "a1dba09b-112a-4007-8d10-98c77b186b44",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 6,
-            "sample_id": "example_50",
+            "sample_id": "a1dba09b-112a-4007-8d10-98c77b186b44",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

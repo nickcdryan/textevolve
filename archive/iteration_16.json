@@ -1,0 +1,507 @@
+{
+  "iteration": 16,
+  "timestamp": "2025-05-17T20:44:37.758044",
+  "strategy": "Exploration",
+  "explore_rate": 50,
+  "exploit_rate": 50,
+  "batch_size": 5,
+  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    This script takes a question and applies a \"Dual Verification with Iterative Refinement\" approach.\n    The hypothesis is that by having two independent LLM calls verify the extracted information and synthesized answer,\n    we can improve the overall accuracy and robustness of the system. Also, we will be trying a completely new decomposition, the QA decomposition.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into question/answer pairs to guide extraction\n        decomposition_result = decompose_question_answer(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in QA decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on QA pairs with verification\n        information_extraction_result = extract_information(question, decomposition_result[\"qa_pairs\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information with verification\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question_answer(question, max_attempts=3):\n    \"\"\"Decompose the main question into question/answer pairs to guide extraction.\"\"\"\n    system_instruction = \"You are an expert at creating question/answer pairs from a question.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into question and expected answer skeleton pairs.\n        This decomposition helps to understand what information should be extracted.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Question/Answer pairs:\n        1. Q: How many yards was Chris Johnson's first touchdown? A: [number] yards\n        2. Q: How many yards was Jason Hanson's first field goal? A: [number] yards\n        3. Q: What is the sum of those two values? A: [number] yards\n\n        Example 2:\n        Question: Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?\n        Question/Answer pairs:\n        1. Q: When was the Chinese invasion of Tibet? A: [date]\n        2. Q: When did the outbreak of the Xinhai Revolution occur? A: [date]\n        3. Q: Which of the two dates is later? A: [event]\n\n        Question: {question}\n        Question/Answer pairs:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        verification_prompt = f\"\"\"\n        Verify if these question and answer pairs are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Question/Answer pairs: {decomposition_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Question/Answer pairs: 1. Q: How many yards was Chris Johnson's first touchdown? A: [number] yards 2. Q: How many yards was Jason Hanson's first field goal? A: [number] yards 3. Q: What is the sum of those two values? A: [number] yards\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"qa_pairs\": decomposition_result}\n        else:\n            print(f\"QA decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to create valid question/answer pairs successfully.\"}\n\ndef extract_information(question, qa_pairs, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the question/answer pairs with dual verification.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its question/answer pairs, extract the relevant information.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Question/Answer pairs:\n        1. Q: How many yards was Chris Johnson's first touchdown? A: [number] yards\n        2. Q: How many yards was Jason Hanson's first field goal? A: [number] yards\n        3. Q: What is the sum of those two values? A: [number] yards\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Original Question: {question}\n        Question/Answer pairs: {qa_pairs}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the question/answer pairs.\n\n        Original Question: {question}\n        Question/Answer pairs: {qa_pairs}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Question/Answer pairs: 1. Q: How many yards was Chris Johnson's first touchdown? A: [number] yards 2. Q: How many yards was Jason Hanson's first field goal? A: [number] yards 3. Q: What is the sum of those two values? A: [number] yards\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n\n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information with dual verification.\"\"\"\n    system_instruction = \"You are an answer synthesis expert.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script implements a \"Dual Verification with Iterative Refinement\" approach to answer questions using LLMs by decomposing the problem into question/answer pairs. It uses an \"information extraction expert\" and an \"answer synthesis expert\". The process involves three main steps: `decompose_question_answer` to create question/answer pairs, `extract_information` to retrieve relevant information based on these pairs, and `synthesize_answer` to generate the final answer, with each step including a verification stage. Each of these functions uses the `call_llm` function in order to prompt the LLM and retrieve a response.",
+  "sample_count": 5,
+  "samples": [
+    {
+      "question": "PASSAGE: After the first three possessions of the game ended in punts, the Patriots marched 62 yards to the Bills 14-yard line, but the drive ended with Gostkowski missing a 36-yard field goal. On the third play of the Bills resulting possession, though, Kyle Orton was intercepted by Jamie Collins at the Patriots 39-yard line. The Patriots marched 61 yards in just five plays to take the lead on a 1-yard touchdown pass from Brady to Tim Wright. After both teams punted, the Bills lugged 67 yards in just under 5 minutes to tie the game 7-7 on a Kyle Orton touchdown pass to Robert Woods. After a Patriots three-and-out, Orton was strip-sacked by Chandler Jones with Jones recovering at the Bills 24. The Patriots didn't gain a single yard, however, but Gostkowski was successful on a 42-yard field goal try. With 0:06 seconds left in the half, the Bills were attempting to run out the clock, but McCourty stripped C. J. Spiller with Zach Moore recovering at the Bills 42. Brady hit Edelman on a quick 7 yards pass and Gostkowski kicked a 53-yarder for a 13-7 lead at the half. After receiving the opening kickoff of the second half the Patriots reached the Bills 43 in just five plays before Brady launched a bomb to Brian Tyms for a 43-yard touchdown, increasing the New England lead to 20-7. The Bills struck right back with a 13 play, 80-yard drive in just under 7 minutes, culminating in Fred Jackson scoring on a 1-yard touchdown run. The Patriots marched 56 yards on their next possession with Gostkowski adding a 40-yard field goal to increase the lead to 23-14. After a Bills punt Brady led the Patriots down the field and, with just over 6 minutes remaining, found his favorite target, Gronkowski, for a 17-yard touchdown, but the play was nullified for an offensive holding penalty on Jordan Devey. This would prove to just be a delay, because Brady threw an 18-yard touchdown pass to LaFell two plays later, capping a 12 play, 80-yard drive. The Patriots now led 30-14 and looked to be well on their way to victory. However, the Bills wouldn't go away quietly. Kyle Orton calmly engineered an 8 play, 80-yard drive, aided by a 35-yard completion on 4th-and-2, that ended in his 8-yard touchdown pass to Chris Hogan, with a successful two-point conversion, trimming the deficit to one possession, 30-22. Starting at the Patriots 7, Brady converted a 3rd-and-16 with a 17-yard completion to Gronkowski, and a few plays later found LaFell on a medium pass, who turned upfield and raced down the sideline for a 56-yard touchdown, increasing the Patriots lead to 37-22. The Bills reached their own 42 on their final drive, but a sack by Rob Ninkovich and an incomplete pass intended for Scott Chandler on 4th-and-9 officially sealed the deal. Brady completed 27 of 37 passes for 361 yards, with 4 touchdowns and no interceptions. Kyle Orton was equally very impressive, finishing the game  24 of 38 for 299 yards, with 2 TDs and 1 INT. With 4 catches for 97 yards and 2 touchdowns, LaFell continued to be the Patriots awaited deep-threat at wide receiver. Both teams struggled to run the football. Stevan Ridley ran for only 23 yards on 10 carries, while Fred Jackson ran for only 26 yards on 10 carries. Unfortunately, it was later learned the Patriots lost Stevan Ridley and linebacker Jerod Mayo to season ending injuries.\n\nQUESTION: What yard line did both teams score from?",
+      "answer": "1-yard",
+      "id": "example_121",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After the first three possessions of the game ended in punts, the Patriots marched 62 yards to the Bills 14-yard line, but the drive ended with Gostkowski missing a 36-yard field goal. On the third play of the Bills resulting possession, though, Kyle Orton was intercepted by Jamie Collins at the Patriots 39-yard line. The Patriots marched 61 yards in just five plays to take the lead on a 1-yard touchdown pass from Brady to Tim Wright. After both teams punted, the Bills lugged 67 yards in just under 5 minutes to tie the game 7-7 on a Kyle Orton touchdown pass to Robert Woods. After a Patriots three-and-out, Orton was strip-sacked by Chandler Jones with Jones recovering at the Bills 24. The Patriots didn't gain a single yard, however, but Gostkowski was successful on a 42-yard field goal try. With 0:06 seconds left in the half, the Bills were attempting to run out the clock, but McCourty stripped C. J. Spiller with Zach Moore recovering at the Bills 42. Brady hit Edelman on a quick 7 yards pass and Gostkowski kicked a 53-yarder for a 13-7 lead at the half. After receiving the opening kickoff of the second half the Patriots reached the Bills 43 in just five plays before Brady launched a bomb to Brian Tyms for a 43-yard touchdown, increasing the New England lead to 20-7. The Bills struck right back with a 13 play, 80-yard drive in just under 7 minutes, culminating in Fred Jackson scoring on a 1-yard touchdown run. The Patriots marched 56 yards on their next possession with Gostkowski adding a 40-yard field goal to increase the lead to 23-14. After a Bills punt Brady led the Patriots down the field and, with just over 6 minutes remaining, found his favorite target, Gronkowski, for a 17-yard touchdown, but the play was nullified for an offensive holding penalty on Jordan Devey. This would prove to just be a delay, because Brady threw an 18-yard touchdown pass to LaFell two plays later, capping a 12 play, 80-yard drive. The Patriots now led 30-14 and looked to be well on their way to victory. However, the Bills wouldn't go away quietly. Kyle Orton calmly engineered an 8 play, 80-yard drive, aided by a 35-yard completion on 4th-and-2, that ended in his 8-yard touchdown pass to Chris Hogan, with a successful two-point conversion, trimming the deficit to one possession, 30-22. Starting at the Patriots 7, Brady converted a 3rd-and-16 with a 17-yard completion to Gronkowski, and a few plays later found LaFell on a medium pass, who turned upfield and raced down the sideline for a 56-yard touchdown, increasing the Patriots lead to 37-22. The Bills reached their own 42 on their final drive, but a sack by Rob Ninkovich and an incomplete pass intended for Scott Chandler on 4th-and-9 officially sealed the deal. Brady completed 27 of 37 passes for 361 yards, with 4 touchdowns and no interceptions. Kyle Orton was equally very impressive, finishing the game  24 of 38 for 299 yards, with 2 TDs and 1 INT. With 4 catches for 97 yards and 2 touchdowns, LaFell continued to be the Patriots awaited deep-threat at wide receiver. Both teams struggled to run the football. Stevan Ridley ran for only 23 yards on 10 carries, while Fred Jackson ran for only 26 yards on 10 carries. Unfortunately, it was later learned the Patriots lost Stevan Ridley and linebacker Jerod Mayo to season ending injuries.",
+        "original_question": "What yard line did both teams score from?",
+        "original_answer_data": {
+          "spans": [
+            "1-yard"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 417
+      }
+    },
+    {
+      "question": "PASSAGE: Next, the Lions stayed at home for a Week 14 NFC North rematch with newly signed veteran quarterback Daunte Culpepper's former team, the Minnesota Vikings.  In the first quarter, Detroit was on the board first as kicker Jason Hanson got a 25-yard field goal.  In the second quarter, the Lions increased their lead as Hanson got a 23-yard field goal. The Vikings would close out the half as kicker Ryan Longwell got a 35-yard field goal. During the first half, Moran Norris was ejected by referee Jerome Boger for throwing a punch at Minnesota's Napoleon Harris. In the third quarter, Minnesota took the lead as RB Chester Taylor got a 17-yard TD run. Detroit would respond with former Vikings QB Daunte Culpepper completing a 70-yard TD pass to WR Calvin Johnson. However, Minnesota got the lead again as QB Tarvaris Jackson completed an 11-yard TD pass to TE Visanthe Shiancoe.  In the fourth quarter, the Lions tried to rally as Hanson made a 39-yard field goal.  However, the Vikings pulled away as Longwell nailed a 50-yard field goal.\n\nQUESTION: How many yards difference exists between Ryan Longwell's longest and shortest field goal?",
+      "answer": "15",
+      "id": "example_122",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Next, the Lions stayed at home for a Week 14 NFC North rematch with newly signed veteran quarterback Daunte Culpepper's former team, the Minnesota Vikings.  In the first quarter, Detroit was on the board first as kicker Jason Hanson got a 25-yard field goal.  In the second quarter, the Lions increased their lead as Hanson got a 23-yard field goal. The Vikings would close out the half as kicker Ryan Longwell got a 35-yard field goal. During the first half, Moran Norris was ejected by referee Jerome Boger for throwing a punch at Minnesota's Napoleon Harris. In the third quarter, Minnesota took the lead as RB Chester Taylor got a 17-yard TD run. Detroit would respond with former Vikings QB Daunte Culpepper completing a 70-yard TD pass to WR Calvin Johnson. However, Minnesota got the lead again as QB Tarvaris Jackson completed an 11-yard TD pass to TE Visanthe Shiancoe.  In the fourth quarter, the Lions tried to rally as Hanson made a 39-yard field goal.  However, the Vikings pulled away as Longwell nailed a 50-yard field goal.",
+        "original_question": "How many yards difference exists between Ryan Longwell's longest and shortest field goal?",
+        "original_answer_data": {
+          "spans": [
+            "15"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 660
+      }
+    },
+    {
+      "question": "PASSAGE: The average number of residents per living room was 0.59 which is about equal to the cantonal average of 0.58 per room. In this case, a room is defined as space of a housing unit of at least  as normal bedrooms, dining rooms, living rooms, kitchens and habitable cellars and attics. About 10.5% of the total households were owner occupied, or in other words did not pay rent (though they may have a Mortgage loan or a rent-to-own agreement). , there were 86,371 private households in the municipality, and an average of 1.8 persons per household.  There were 44,469 households that consist of only one person and 2,842 households with five or more people.  Out of a total of 88,646 households that answered this question, 50.2% were households made up of just one person and there were 451 adults who lived with their parents.  Of the rest of the households, there are 20,472 married couples without children, 14,554 married couples with children There were 4,318 single parents with a child or children.  There were 2,107 households that were made up of unrelated people and 2,275 households that were made up of some sort of institution or another collective housing.\n\nQUESTION: How many more households were there with couples married without children than households married with children?",
+      "answer": "5918",
+      "id": "example_123",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The average number of residents per living room was 0.59 which is about equal to the cantonal average of 0.58 per room. In this case, a room is defined as space of a housing unit of at least  as normal bedrooms, dining rooms, living rooms, kitchens and habitable cellars and attics. About 10.5% of the total households were owner occupied, or in other words did not pay rent (though they may have a Mortgage loan or a rent-to-own agreement). , there were 86,371 private households in the municipality, and an average of 1.8 persons per household.  There were 44,469 households that consist of only one person and 2,842 households with five or more people.  Out of a total of 88,646 households that answered this question, 50.2% were households made up of just one person and there were 451 adults who lived with their parents.  Of the rest of the households, there are 20,472 married couples without children, 14,554 married couples with children There were 4,318 single parents with a child or children.  There were 2,107 households that were made up of unrelated people and 2,275 households that were made up of some sort of institution or another collective housing.",
+        "original_question": "How many more households were there with couples married without children than households married with children?",
+        "original_answer_data": {
+          "spans": [
+            "5918"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 198
+      }
+    },
+    {
+      "question": "PASSAGE: Still searching for their first win of the year, the Dolphins returned home for a Week 7 AFC East duel with the undefeated New England Patriots.  In the first quarter, Miami's struggles continued as Patriots QB Tom Brady completed a 30-yard TD pass to WR Dont&#233; Stallworth and a 2-yard TD pass to TE Kyle Brady.  In the second quarter, the Dolphins got their only score of the half with QB Cleo Lemon getting a 4-yard TD run.  Afterwards, New England continued its pounding with CB Willie Andrews returning a kickoff 77 yards for a touchdown, along with Brady and WR Randy Moss hooking up with each other on a 35-yard and a 50-yard TD pass.  The Patriots would end the half with Brady hooking up with WR Wes Welker on a 14-yard TD pass. After a scoreless third quarter, Miami tried to make a comeback in the fourth quarter.  It began with RB Patrick Cobbs getting a 1-yard TD run, along with DE Jason Taylor returning an interception 36 yards for a touchdown.  However, New England made sure that they sealed their victory with Brady hooking up with Welker again on a 16-yard TD pass.  Afterwards, the 'Fins ended the game with RB Jesse Chatman getting a 7-yard TD run. With the loss, not only did the Dolphins fall to 0-7 for the first time in franchise history, but they also lost RB Ronnie Brown for the year, as he tore his ACL in the third quarter while trying to stop an interception return.\n\nQUESTION: How many TD passes did Tom Brady complete?",
+      "answer": "6",
+      "id": "example_124",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Still searching for their first win of the year, the Dolphins returned home for a Week 7 AFC East duel with the undefeated New England Patriots.  In the first quarter, Miami's struggles continued as Patriots QB Tom Brady completed a 30-yard TD pass to WR Dont&#233; Stallworth and a 2-yard TD pass to TE Kyle Brady.  In the second quarter, the Dolphins got their only score of the half with QB Cleo Lemon getting a 4-yard TD run.  Afterwards, New England continued its pounding with CB Willie Andrews returning a kickoff 77 yards for a touchdown, along with Brady and WR Randy Moss hooking up with each other on a 35-yard and a 50-yard TD pass.  The Patriots would end the half with Brady hooking up with WR Wes Welker on a 14-yard TD pass. After a scoreless third quarter, Miami tried to make a comeback in the fourth quarter.  It began with RB Patrick Cobbs getting a 1-yard TD run, along with DE Jason Taylor returning an interception 36 yards for a touchdown.  However, New England made sure that they sealed their victory with Brady hooking up with Welker again on a 16-yard TD pass.  Afterwards, the 'Fins ended the game with RB Jesse Chatman getting a 7-yard TD run. With the loss, not only did the Dolphins fall to 0-7 for the first time in franchise history, but they also lost RB Ronnie Brown for the year, as he tore his ACL in the third quarter while trying to stop an interception return.",
+        "original_question": "How many TD passes did Tom Brady complete?",
+        "original_answer_data": {
+          "spans": [
+            "6"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 585
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their dominating home win over the Rams, the Jets flew to Gillette Stadium for a Week 11 AFC East rematch with the New England Patriots on Thursday Night Football.  In the first quarter, New York took flight as QB Brett Favre completed a 7-yard TD pass to RB Leon Washington.  The Patriots would respond with kicker Stephen Gostkowski getting a 42-yard field goal.  The Jets would increase their lead as kicker Jay Feely made a 22-yard field goal.  In the second quarter, New England would answer with Gostkowski making a 31-yard field goal, yet New York immediately replied as Washington returned the kickoff 92 yards for a touchdown.  Later, the Jets added onto their lead as Favre completed a 15-yard TD pass to WR Jerricho Cotchery to give the Jets a commanding 24-6 lead. The Patriots would get back into the game by closing out the half with a  QB Matt Cassel 19-yard TD pass to WR Jabar Gaffney. In the third quarter, New England hacked away at New York's lead as Cassel completed a 10-yard TD pass to TE Benjamin Watson (along with a 2-point conversion pass to Gaffney) on the final play of the 3rd quarter.  In the fourth quarter, the Patriots completely erased the Jets' 18-point lead with Gostkowski kicking a 47-yard field goal.  New York would answer with RB Thomas Jones getting a 1-yard TD run, but New England tied the game with Cassel completing a 16-yard TD pass to WR Randy Moss, who had beaten Ty Law as time expired.  In overtime,  the Jets took the kickoff and marched straight down the field to win on Feely's 34-yard field goal. The drive included some clutch throws by Favre, particularly a connection with Dustin Keller on 3rd-and-17 from deep in the Jets' zone. It was Favre's 42nd game-winning drive in the fourth quarter or overtime in his career. Washington was selected as AFC special teams player of the week for the first time in his career. His 92-yard touchdown was the fourth kick return TD of his career, surpassing Justin Miller for the club record.\n\nQUESTION: How many yards were each of Gostkowski's field goals?",
+      "answer": "42-yard",
+      "id": "example_125",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their dominating home win over the Rams, the Jets flew to Gillette Stadium for a Week 11 AFC East rematch with the New England Patriots on Thursday Night Football.  In the first quarter, New York took flight as QB Brett Favre completed a 7-yard TD pass to RB Leon Washington.  The Patriots would respond with kicker Stephen Gostkowski getting a 42-yard field goal.  The Jets would increase their lead as kicker Jay Feely made a 22-yard field goal.  In the second quarter, New England would answer with Gostkowski making a 31-yard field goal, yet New York immediately replied as Washington returned the kickoff 92 yards for a touchdown.  Later, the Jets added onto their lead as Favre completed a 15-yard TD pass to WR Jerricho Cotchery to give the Jets a commanding 24-6 lead. The Patriots would get back into the game by closing out the half with a  QB Matt Cassel 19-yard TD pass to WR Jabar Gaffney. In the third quarter, New England hacked away at New York's lead as Cassel completed a 10-yard TD pass to TE Benjamin Watson (along with a 2-point conversion pass to Gaffney) on the final play of the 3rd quarter.  In the fourth quarter, the Patriots completely erased the Jets' 18-point lead with Gostkowski kicking a 47-yard field goal.  New York would answer with RB Thomas Jones getting a 1-yard TD run, but New England tied the game with Cassel completing a 16-yard TD pass to WR Randy Moss, who had beaten Ty Law as time expired.  In overtime,  the Jets took the kickoff and marched straight down the field to win on Feely's 34-yard field goal. The drive included some clutch throws by Favre, particularly a connection with Dustin Keller on 3rd-and-17 from deep in the Jets' zone. It was Favre's 42nd game-winning drive in the fourth quarter or overtime in his career. Washington was selected as AFC special teams player of the week for the first time in his career. His 92-yard touchdown was the fourth kick return TD of his career, surpassing Justin Miller for the club record.",
+        "original_question": "How many yards were each of Gostkowski's field goals?",
+        "original_answer_data": {
+          "spans": [
+            "42-yard",
+            "31-yard",
+            "47-yard"
+          ],
+          "types": [
+            "span",
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 325
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After the first three possessions of the game ended in punts, the Patriots marched 62 yards to the Bills 14-yard line, but the drive ended with Gostkowski missing a 36-yard field goal. On the third play of the Bills resulting possession, though, Kyle Orton was intercepted by Jamie Collins at the Patriots 39-yard line. The Patriots marched 61 yards in just five plays to take the lead on a 1-yard touchdown pass from Brady to Tim Wright. After both teams punted, the Bills lugged 67 yards in just under 5 minutes to tie the game 7-7 on a Kyle Orton touchdown pass to Robert Woods. After a Patriots three-and-out, Orton was strip-sacked by Chandler Jones with Jones recovering at the Bills 24. The Patriots didn't gain a single yard, however, but Gostkowski was successful on a 42-yard field goal try. With 0:06 seconds left in the half, the Bills were attempting to run out the clock, but McCourty stripped C. J. Spiller with Zach Moore recovering at the Bills 42. Brady hit Edelman on a quick 7 yards pass and Gostkowski kicked a 53-yarder for a 13-7 lead at the half. After receiving the opening kickoff of the second half the Patriots reached the Bills 43 in just five plays before Brady launched a bomb to Brian Tyms for a 43-yard touchdown, increasing the New England lead to 20-7. The Bills struck right back with a 13 play, 80-yard drive in just under 7 minutes, culminating in Fred Jackson scoring on a 1-yard touchdown run. The Patriots marched 56 yards on their next possession with Gostkowski adding a 40-yard field goal to increase the lead to 23-14. After a Bills punt Brady led the Patriots down the field and, with just over 6 minutes remaining, found his favorite target, Gronkowski, for a 17-yard touchdown, but the play was nullified for an offensive holding penalty on Jordan Devey. This would prove to just be a delay, because Brady threw an 18-yard touchdown pass to LaFell two plays later, capping a 12 play, 80-yard drive. The Patriots now led 30-14 and looked to be well on their way to victory. However, the Bills wouldn't go away quietly. Kyle Orton calmly engineered an 8 play, 80-yard drive, aided by a 35-yard completion on 4th-and-2, that ended in his 8-yard touchdown pass to Chris Hogan, with a successful two-point conversion, trimming the deficit to one possession, 30-22. Starting at the Patriots 7, Brady converted a 3rd-and-16 with a 17-yard completion to Gronkowski, and a few plays later found LaFell on a medium pass, who turned upfield and raced down the sideline for a 56-yard touchdown, increasing the Patriots lead to 37-22. The Bills reached their own 42 on their final drive, but a sack by Rob Ninkovich and an incomplete pass intended for Scott Chandler on 4th-and-9 officially sealed the deal. Brady completed 27 of 37 passes for 361 yards, with 4 touchdowns and no interceptions. Kyle Orton was equally very impressive, finishing the game  24 of 38 for 299 yards, with 2 TDs and 1 INT. With 4 catches for 97 yards and 2 touchdowns, LaFell continued to be the Patriots awaited deep-threat at wide receiver. Both teams struggled to run the football. Stevan Ridley ran for only 23 yards on 10 carries, while Fred Jackson ran for only 26 yards on 10 carries. Unfortunately, it was later learned the Patriots lost Stevan Ridley and linebacker Jerod Mayo to season ending injuries.",
+      "original_question": "What yard line did both teams score from?",
+      "original_answer_data": {
+        "spans": [
+          "1-yard"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 417
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Next, the Lions stayed at home for a Week 14 NFC North rematch with newly signed veteran quarterback Daunte Culpepper's former team, the Minnesota Vikings.  In the first quarter, Detroit was on the board first as kicker Jason Hanson got a 25-yard field goal.  In the second quarter, the Lions increased their lead as Hanson got a 23-yard field goal. The Vikings would close out the half as kicker Ryan Longwell got a 35-yard field goal. During the first half, Moran Norris was ejected by referee Jerome Boger for throwing a punch at Minnesota's Napoleon Harris. In the third quarter, Minnesota took the lead as RB Chester Taylor got a 17-yard TD run. Detroit would respond with former Vikings QB Daunte Culpepper completing a 70-yard TD pass to WR Calvin Johnson. However, Minnesota got the lead again as QB Tarvaris Jackson completed an 11-yard TD pass to TE Visanthe Shiancoe.  In the fourth quarter, the Lions tried to rally as Hanson made a 39-yard field goal.  However, the Vikings pulled away as Longwell nailed a 50-yard field goal.",
+      "original_question": "How many yards difference exists between Ryan Longwell's longest and shortest field goal?",
+      "original_answer_data": {
+        "spans": [
+          "15"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 660
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The average number of residents per living room was 0.59 which is about equal to the cantonal average of 0.58 per room. In this case, a room is defined as space of a housing unit of at least  as normal bedrooms, dining rooms, living rooms, kitchens and habitable cellars and attics. About 10.5% of the total households were owner occupied, or in other words did not pay rent (though they may have a Mortgage loan or a rent-to-own agreement). , there were 86,371 private households in the municipality, and an average of 1.8 persons per household.  There were 44,469 households that consist of only one person and 2,842 households with five or more people.  Out of a total of 88,646 households that answered this question, 50.2% were households made up of just one person and there were 451 adults who lived with their parents.  Of the rest of the households, there are 20,472 married couples without children, 14,554 married couples with children There were 4,318 single parents with a child or children.  There were 2,107 households that were made up of unrelated people and 2,275 households that were made up of some sort of institution or another collective housing.",
+      "original_question": "How many more households were there with couples married without children than households married with children?",
+      "original_answer_data": {
+        "spans": [
+          "5918"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 198
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Still searching for their first win of the year, the Dolphins returned home for a Week 7 AFC East duel with the undefeated New England Patriots.  In the first quarter, Miami's struggles continued as Patriots QB Tom Brady completed a 30-yard TD pass to WR Dont&#233; Stallworth and a 2-yard TD pass to TE Kyle Brady.  In the second quarter, the Dolphins got their only score of the half with QB Cleo Lemon getting a 4-yard TD run.  Afterwards, New England continued its pounding with CB Willie Andrews returning a kickoff 77 yards for a touchdown, along with Brady and WR Randy Moss hooking up with each other on a 35-yard and a 50-yard TD pass.  The Patriots would end the half with Brady hooking up with WR Wes Welker on a 14-yard TD pass. After a scoreless third quarter, Miami tried to make a comeback in the fourth quarter.  It began with RB Patrick Cobbs getting a 1-yard TD run, along with DE Jason Taylor returning an interception 36 yards for a touchdown.  However, New England made sure that they sealed their victory with Brady hooking up with Welker again on a 16-yard TD pass.  Afterwards, the 'Fins ended the game with RB Jesse Chatman getting a 7-yard TD run. With the loss, not only did the Dolphins fall to 0-7 for the first time in franchise history, but they also lost RB Ronnie Brown for the year, as he tore his ACL in the third quarter while trying to stop an interception return.",
+      "original_question": "How many TD passes did Tom Brady complete?",
+      "original_answer_data": {
+        "spans": [
+          "6"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 585
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their dominating home win over the Rams, the Jets flew to Gillette Stadium for a Week 11 AFC East rematch with the New England Patriots on Thursday Night Football.  In the first quarter, New York took flight as QB Brett Favre completed a 7-yard TD pass to RB Leon Washington.  The Patriots would respond with kicker Stephen Gostkowski getting a 42-yard field goal.  The Jets would increase their lead as kicker Jay Feely made a 22-yard field goal.  In the second quarter, New England would answer with Gostkowski making a 31-yard field goal, yet New York immediately replied as Washington returned the kickoff 92 yards for a touchdown.  Later, the Jets added onto their lead as Favre completed a 15-yard TD pass to WR Jerricho Cotchery to give the Jets a commanding 24-6 lead. The Patriots would get back into the game by closing out the half with a  QB Matt Cassel 19-yard TD pass to WR Jabar Gaffney. In the third quarter, New England hacked away at New York's lead as Cassel completed a 10-yard TD pass to TE Benjamin Watson (along with a 2-point conversion pass to Gaffney) on the final play of the 3rd quarter.  In the fourth quarter, the Patriots completely erased the Jets' 18-point lead with Gostkowski kicking a 47-yard field goal.  New York would answer with RB Thomas Jones getting a 1-yard TD run, but New England tied the game with Cassel completing a 16-yard TD pass to WR Randy Moss, who had beaten Ty Law as time expired.  In overtime,  the Jets took the kickoff and marched straight down the field to win on Feely's 34-yard field goal. The drive included some clutch throws by Favre, particularly a connection with Dustin Keller on 3rd-and-17 from deep in the Jets' zone. It was Favre's 42nd game-winning drive in the fourth quarter or overtime in his career. Washington was selected as AFC special teams player of the week for the first time in his career. His 92-yard touchdown was the fourth kick return TD of his career, surpassing Justin Miller for the club record.",
+      "original_question": "How many yards were each of Gostkowski's field goals?",
+      "original_answer_data": {
+        "spans": [
+          "42-yard",
+          "31-yard",
+          "47-yard"
+        ],
+        "types": [
+          "span",
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 325
+    }
+  ],
+  "example_indices": [
+    121,
+    122,
+    123,
+    124,
+    125
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "The Patriots scored from the 1-yard line, 43-yard line, 18-yard line, and 56-yard line. The Bills scored from the 8-yard line.",
+      "output": "ANSWER_START\nThe Patriots scored from the 1-yard line, 43-yard line, 18-yard line, and 56-yard line. The Bills scored from the 8-yard line.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_16.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer lists the 1-yard line as one of the places the Patriots scored from, which is the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "15",
+      "output": "ANSWER_START\n15\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_16.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "5,918",
+      "output": "ANSWER_START\n5,918\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_16.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The answers are numerically equivalent. The system answer includes a comma, which is a common formatting choice."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Tom Brady completed 6 TD passes.",
+      "output": "ANSWER_START\nTom Brady completed 6 TD passes.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_16.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer contains the golden answer as part of a more detailed answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Gostkowski's field goals were 42 yards, 31 yards, and 47 yards.",
+      "output": "ANSWER_START\nGostkowski's field goals were 42 yards, 31 yards, and 47 yards.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_16.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer lists multiple field goal distances, while the golden answer only specifies one. Therefore, the system answer does not convey the same information as the golden answer."
+      },
+      "match": false
+    }
+  ],
+  "performance": {
+    "accuracy": 0.8,
+    "correct_count": 4,
+    "total_count": 5,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "The Patriots scored from the 1-yard line, 43-yard line, 18-yard line, and 56-yard line. The Bills scored from the 8-yard line.",
+        "golden_answer": "1-yard",
+        "output": "ANSWER_START\nThe Patriots scored from the 1-yard line, 43-yard line, 18-yard line, and 56-yard line. The Bills scored from the 8-yard line.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer lists the 1-yard line as one of the places the Patriots scored from, which is the golden answer."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "15",
+        "golden_answer": "15",
+        "output": "ANSWER_START\n15\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "5,918",
+        "golden_answer": "5918",
+        "output": "ANSWER_START\n5,918\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The answers are numerically equivalent. The system answer includes a comma, which is a common formatting choice."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "Tom Brady completed 6 TD passes.",
+        "golden_answer": "6",
+        "output": "ANSWER_START\nTom Brady completed 6 TD passes.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer contains the golden answer as part of a more detailed answer."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "Gostkowski's field goals were 42 yards, 31 yards, and 47 yards.",
+        "golden_answer": "42-yard",
+        "output": "ANSWER_START\nGostkowski's field goals were 42 yards, 31 yards, and 47 yards.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer lists multiple field goal distances, while the golden answer only specifies one. Therefore, the system answer does not convey the same information as the golden answer."
+        },
+        "capability_failures": []
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\n\nThere are no runtime errors found in the provided data.\n\n## STRENGTHS\n\n*   **Information Extraction:** The system demonstrates a good ability to extract relevant numerical information from the text, as seen in the successful cases where it correctly identifies distances, quantities, and other numerical values.\n*   **Answering with Supporting Context:** The system often provides the answer within a sentence that gives context. This can be helpful.\n*   **Basic Arithmetic:** The system is capable of performing basic arithmetic, as evidenced by the successful computation of the difference between two field goal lengths.\n\n## WEAKNESSES\n\n*   **Over-generation:** The system tends to over-generate answers, including information that is not directly requested or is redundant. It lists all instances it can find instead of filtering to the specific requirement.\n*   **Lack of Precision:** Even when identifying relevant information, the system can lack precision in selecting the specific data point requested.\n\n## CRITICAL BOTTLENECKS\n\n*   **Over-generation of potential answers without sufficient filtering**: The system extracts relevant information but fails to apply specific constraints to narrow down the answer to only what is requested in the question.\n*   **Lack of Granularity on Answer Selection:** The system struggles to extract *only* what is requested in the question, often including additional, unnecessary details or multiple instances when only one is required.\n\n## ERROR PATTERNS\n\n*   **Listing Multiple Instances:** The most prominent error pattern is the listing of multiple instances when the question implies a single answer. This occurs when the system extracts all instances of a certain entity (e.g., Gostkowski's field goals) without filtering down to the specific instance required by the question (e.g., a single field goal distance).\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's tendency to over-generate potential answers by listing *all* instances it can find in the passage related to the question, instead of filtering down to the *specific* information being requested by the question. This over-generation leads to answers that are too broad and include irrelevant or redundant details, failing to address the core query precisely.\n\n## IMPROVEMENT AREAS\n\n*   **Question Understanding**: Better parsing of the question to identify the exact piece of information requested. The system needs to distinguish between questions that ask for *all* instances of something versus those that ask for *a specific* instance.\n*   **Contextual Filtering**: Incorporating a more robust filtering mechanism to narrow down the extracted information based on the specific context and constraints implied by the question.\n*   **Answer Selection**: Implementing a selection process that prioritizes single, direct answers when the question implies or explicitly requests only one answer.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Enhance Question Parsing**: Improve the question parsing module to identify keywords and grammatical structures that indicate whether a question requires a single answer, multiple answers, or a summary of all instances.\n2.  **Implement Contextual Filtering**: Add a contextual filtering layer to the information extraction module. This layer would use the parsed question to filter the extracted information, removing irrelevant or redundant details. For example, if the question asks \"How many yards were *each* of Gostkowski's field goals?\", the system should identify that the question is explicitly asking for all of them. Conversely, if the question were \"What was Gostkowski's longest field goal?\", the system must be able to extract the specific field goal that is longest.\n3.  **Prioritize Single Answers**: Modify the answer selection module to prioritize single, direct answers when the question implies a single answer. If multiple instances are found, the system should analyze them and select the one that best fits the question's criteria. For example, the selection process should utilize maximum/minimum value finding when necessary.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 4:**\n    *   information_extraction: Partially successful, extracted the yardages of multiple field goals, but failed to isolate just one.\n    *   constraint_handling: Failed to apply the constraint of finding a *specific* distance instead of all.\n    *   solution_generation: Over-generated potential solutions.\n    *   solution_verification: Failed to verify that the answer matches the intent of the question.\n    *   decision_making: Made an incorrect decision on the best solution by including all distances rather than a single one.\n",
+      "strengths": [
+        "Information Extraction:** The system demonstrates a good ability to extract relevant numerical information from the text, as seen in the successful cases where it correctly identifies distances, quantities, and other numerical values.",
+        "Answering with Supporting Context:** The system often provides the answer within a sentence that gives context. This can be helpful.",
+        "Basic Arithmetic:** The system is capable of performing basic arithmetic, as evidenced by the successful computation of the difference between two field goal lengths."
+      ],
+      "weaknesses": [
+        "Over-generation:** The system tends to over-generate answers, including information that is not directly requested or is redundant. It lists all instances it can find instead of filtering to the specific requirement.",
+        "Lack of Precision:** Even when identifying relevant information, the system can lack precision in selecting the specific data point requested."
+      ],
+      "primary_issue": "The primary issue is the system's tendency to over-generate potential answers by listing *all* instances it can find in the passage related to the question, instead of filtering down to the *specific* information being requested by the question. This over-generation leads to answers that are too broad and include irrelevant or redundant details, failing to address the core query precisely.",
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "Okay, I've analyzed the provided performance summary, error analysis report, sample execution outputs, and improvement suggestions to generate a comprehensive capability report for your AI system.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe provided execution outputs confirm the weaknesses identified in the error analysis.  Here's a breakdown:\n\n*   **Output 1:**  The system clearly exhibits over-generation. The passage lists scoring plays from multiple yard lines when the question likely asked for something more specific. The response doesn't show any filtering or understanding of the underlying task.\n*   **Output 2:** The system answers \"15\". Without context, it is difficult to assess, but indicates that it is capable of providing single answer extraction.\n*   **Output 3:** The system answers \"5,918\". Without context, it is difficult to assess, but indicates that it is capable of providing single answer extraction.\n\nThis supports the primary issue: the system extracts relevant information, but it lacks the ability to refine its selection based on implicit constraints. The system just \"dumps\" everything it finds.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a *moderate* capability in information extraction and basic arithmetic. It's able to identify relevant pieces of information from the input text. However, its capabilities are significantly hampered by a lack of precision, an over-reliance on providing all extracted information, and poor constraint handling. The system struggles to produce *only* the specific information requested.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** The system can successfully extract numerical data and other relevant information from text. This is a foundation to build upon.\n*   **Basic Arithmetic:** Demonstrated ability to perform simple calculations is a valuable asset.\n\n### KEY WEAKNESSES\n\n*   **Over-generation of Answers:** The system includes extraneous or redundant information, listing multiple instances when a single answer is implied or requested.\n*   **Lack of Precision in Answer Selection:** The system fails to select the specific data point required by the question, leading to overly broad and unhelpful responses.\n*   **Poor Constraint Handling:** The system does not adequately apply constraints implied within the question to filter extracted information effectively.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Filtering**. This will directly address the over-generation problem and improve the precision of the system's answers.  Without proper contextual filtering, the information extraction strengths are rendered significantly less useful.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Question-Type Classification**: Introduce a module that classifies questions based on the expected answer type (single, multiple, summary, etc.). This will inform subsequent processing steps.  For example, identify if the question uses language like \"the longest\", \"each\", or \"how many total\" to understand how the answer should be structured.\n2.  **Develop a Constraint-Based Filtering Module**: Create a module that uses the parsed question and semantic understanding to define constraints on the extracted information.  This module should:\n    *   Identify keywords that indicate specific requirements (e.g., \"longest\" implies a maximum value).\n    *   Recognize implicit relationships between entities in the question and the relevant information.\n    *   Filter the extracted information to include only data that satisfies these constraints.\n3.  **Refine Answer Selection with Ranking**:  Implement a ranking system within the answer selection module. This system should score potential answers based on:\n    *   Relevance to the question (based on keywords and semantic understanding).\n    *   Accuracy (avoiding contradictions with information in the context).\n    *   Precision (avoiding inclusion of unnecessary information).\n    *   Preference for single answers when appropriate.\n\n    The ranking should be customizable based on the question type (identified in recommendation #1).\n\n### CAPABILITY TREND\n\nBased on the error analysis and execution outputs, the capability trend is currently **STABLE**. The system demonstrates basic information extraction, but its core weaknesses are preventing it from achieving higher accuracy and usefulness. Implementing the recommendations above should lead to an **IMPROVING** trend in the next iteration.\n",
+      "strengths": [
+        "Information Extraction:** The system demonstrates a good ability to extract relevant numerical information from the text, as seen in the successful cases where it correctly identifies distances, quantities, and other numerical values.",
+        "Answering with Supporting Context:** The system often provides the answer within a sentence that gives context. This can be helpful.",
+        "Basic Arithmetic:** The system is capable of performing basic arithmetic, as evidenced by the successful computation of the difference between two field goal lengths."
+      ],
+      "weaknesses": [
+        "Over-generation:** The system tends to over-generate answers, including information that is not directly requested or is redundant. It lists all instances it can find instead of filtering to the specific requirement.",
+        "Lack of Precision:** Even when identifying relevant information, the system can lack precision in selecting the specific data point requested."
+      ],
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\n\nThere are no runtime errors found in the provided data.\n\n## STRENGTHS\n\n*   **Information Extraction:** The system demonstrates a good ability to extract relevant numerical information from the text, as seen in the successful cases where it correctly identifies distances, quantities, and other numerical values.\n*   **Answering with Supporting Context:** The system often provides the answer within a sentence that gives context. This can be helpful.\n*   **Basic Arithmetic:** The system is capable of performing basic arithmetic, as evidenced by the successful computation of the difference between two field goal lengths.\n\n## WEAKNESSES\n\n*   **Over-generation:** The system tends to over-generate answers, including information that is not directly requested or is redundant. It lists all instances it can find instead of filtering to the specific requirement.\n*   **Lack of Precision:** Even when identifying relevant information, the system can lack precision in selecting the specific data point requested.\n\n## CRITICAL BOTTLENECKS\n\n*   **Over-generation of potential answers without sufficient filtering**: The system extracts relevant information but fails to apply specific constraints to narrow down the answer to only what is requested in the question.\n*   **Lack of Granularity on Answer Selection:** The system struggles to extract *only* what is requested in the question, often including additional, unnecessary details or multiple instances when only one is required.\n\n## ERROR PATTERNS\n\n*   **Listing Multiple Instances:** The most prominent error pattern is the listing of multiple instances when the question implies a single answer. This occurs when the system extracts all instances of a certain entity (e.g., Gostkowski's field goals) without filtering down to the specific instance required by the question (e.g., a single field goal distance).\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's tendency to over-generate potential answers by listing *all* instances it can find in the passage related to the question, instead of filtering down to the *specific* information being requested by the question. This over-generation leads to answers that are too broad and include irrelevant or redundant details, failing to address the core query precisely.\n\n## IMPROVEMENT AREAS\n\n*   **Question Understanding**: Better parsing of the question to identify the exact piece of information requested. The system needs to distinguish between questions that ask for *all* instances of something versus those that ask for *a specific* instance.\n*   **Contextual Filtering**: Incorporating a more robust filtering mechanism to narrow down the extracted information based on the specific context and constraints implied by the question.\n*   **Answer Selection**: Implementing a selection process that prioritizes single, direct answers when the question implies or explicitly requests only one answer.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Enhance Question Parsing**: Improve the question parsing module to identify keywords and grammatical structures that indicate whether a question requires a single answer, multiple answers, or a summary of all instances.\n2.  **Implement Contextual Filtering**: Add a contextual filtering layer to the information extraction module. This layer would use the parsed question to filter the extracted information, removing irrelevant or redundant details. For example, if the question asks \"How many yards were *each* of Gostkowski's field goals?\", the system should identify that the question is explicitly asking for all of them. Conversely, if the question were \"What was Gostkowski's longest field goal?\", the system must be able to extract the specific field goal that is longest.\n3.  **Prioritize Single Answers**: Modify the answer selection module to prioritize single, direct answers when the question implies a single answer. If multiple instances are found, the system should analyze them and select the one that best fits the question's criteria. For example, the selection process should utilize maximum/minimum value finding when necessary.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 4:**\n    *   information_extraction: Partially successful, extracted the yardages of multiple field goals, but failed to isolate just one.\n    *   constraint_handling: Failed to apply the constraint of finding a *specific* distance instead of all.\n    *   solution_generation: Over-generated potential solutions.\n    *   solution_verification: Failed to verify that the answer matches the intent of the question.\n    *   decision_making: Made an incorrect decision on the best solution by including all distances rather than a single one.\n",
+    "capability_report_text": "Okay, I've analyzed the provided performance summary, error analysis report, sample execution outputs, and improvement suggestions to generate a comprehensive capability report for your AI system.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe provided execution outputs confirm the weaknesses identified in the error analysis.  Here's a breakdown:\n\n*   **Output 1:**  The system clearly exhibits over-generation. The passage lists scoring plays from multiple yard lines when the question likely asked for something more specific. The response doesn't show any filtering or understanding of the underlying task.\n*   **Output 2:** The system answers \"15\". Without context, it is difficult to assess, but indicates that it is capable of providing single answer extraction.\n*   **Output 3:** The system answers \"5,918\". Without context, it is difficult to assess, but indicates that it is capable of providing single answer extraction.\n\nThis supports the primary issue: the system extracts relevant information, but it lacks the ability to refine its selection based on implicit constraints. The system just \"dumps\" everything it finds.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a *moderate* capability in information extraction and basic arithmetic. It's able to identify relevant pieces of information from the input text. However, its capabilities are significantly hampered by a lack of precision, an over-reliance on providing all extracted information, and poor constraint handling. The system struggles to produce *only* the specific information requested.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** The system can successfully extract numerical data and other relevant information from text. This is a foundation to build upon.\n*   **Basic Arithmetic:** Demonstrated ability to perform simple calculations is a valuable asset.\n\n### KEY WEAKNESSES\n\n*   **Over-generation of Answers:** The system includes extraneous or redundant information, listing multiple instances when a single answer is implied or requested.\n*   **Lack of Precision in Answer Selection:** The system fails to select the specific data point required by the question, leading to overly broad and unhelpful responses.\n*   **Poor Constraint Handling:** The system does not adequately apply constraints implied within the question to filter extracted information effectively.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Filtering**. This will directly address the over-generation problem and improve the precision of the system's answers.  Without proper contextual filtering, the information extraction strengths are rendered significantly less useful.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Question-Type Classification**: Introduce a module that classifies questions based on the expected answer type (single, multiple, summary, etc.). This will inform subsequent processing steps.  For example, identify if the question uses language like \"the longest\", \"each\", or \"how many total\" to understand how the answer should be structured.\n2.  **Develop a Constraint-Based Filtering Module**: Create a module that uses the parsed question and semantic understanding to define constraints on the extracted information.  This module should:\n    *   Identify keywords that indicate specific requirements (e.g., \"longest\" implies a maximum value).\n    *   Recognize implicit relationships between entities in the question and the relevant information.\n    *   Filter the extracted information to include only data that satisfies these constraints.\n3.  **Refine Answer Selection with Ranking**:  Implement a ranking system within the answer selection module. This system should score potential answers based on:\n    *   Relevance to the question (based on keywords and semantic understanding).\n    *   Accuracy (avoiding contradictions with information in the context).\n    *   Precision (avoiding inclusion of unnecessary information).\n    *   Preference for single answers when appropriate.\n\n    The ranking should be customizable based on the question type (identified in recommendation #1).\n\n### CAPABILITY TREND\n\nBased on the error analysis and execution outputs, the capability trend is currently **STABLE**. The system demonstrates basic information extraction, but its core weaknesses are preventing it from achieving higher accuracy and usefulness. Implementing the recommendations above should lead to an **IMPROVING** trend in the next iteration.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 9,
+    "accuracy": 0.9,
+    "results": [
+      {
+        "success": true,
+        "answer": "91.5%",
+        "output": "ANSWER_START\n91.5%\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "91.5",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value. The system answer includes a percentage sign, which doesn't change the underlying numerical meaning."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "3,456 + 5,806 = 9,262. 12,190 - 9,262 = 2,928.\nFinal Answer: 2,928",
+        "output": "ANSWER_START\n3,456 + 5,806 = 9,262. 12,190 - 9,262 = 2,928.\nFinal Answer: 2,928\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "2928",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer shows the correct arithmetic steps and arrives at the final answer of 2,928, which matches the golden answer of 2928. The difference in formatting (comma vs. no comma) does not change the numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1756",
+        "output": "ANSWER_START\n1756\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "1756",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and represent the same numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "31",
+        "output": "ANSWER_START\n31\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "31",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "37.5%",
+        "output": "ANSWER_START\n37.5%\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "37.5",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value, 37.5. The presence of the percentage sign in the system answer does not change the value conveyed."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Elizabeth's actions and support of Moray prevented reconciliation in Scotland.",
+        "output": "ANSWER_START\nElizabeth's actions and support of Moray prevented reconciliation in Scotland.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "support of Moray",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer indicates that Elizabeth's support of Moray had a certain impact, which means it contains 'support of Moray' as an element. This is the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1 yard",
+        "output": "ANSWER_START\n1 yard\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer is '1', which is a number, while the system answer is '1 yard', which is a unit of length. These are not the same, even if they share the number '1'."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "The Burmese army left Vientiane first.",
+        "output": "ANSWER_START\nThe Burmese army left Vientiane first.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "Burmese army left Vientiane",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The addition of \"first\" doesn't change the fundamental meaning. The system answer still conveys that the Burmese army left Vientiane."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The region of his throat.",
+        "output": "ANSWER_START\nThe region of his throat.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "his throat",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers refer to the same body part: the throat. The addition of \"The region of\" doesn't change the meaning in this context."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Ryan Longwell kicked 2 field goals.",
+        "output": "ANSWER_START\nRyan Longwell kicked 2 field goals.\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_16.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer states that Ryan Longwell kicked 2 field goals, which implies the answer to the question is 2."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 90.32700610160828,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

@@ -1,436 +1,246 @@
 {
   "iteration": 14,
-  "timestamp": "2025-05-17T13:21:46.382285",
+  "timestamp": "2025-05-17T20:34:33.047602",
   "strategy": "Exploitation",
-  "explore_rate": 20,
-  "exploit_rate": 80,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script solves questions based on a given passage by:\n    1. Determining the question type with examples.\n    2. Extracting the relevant information with examples.\n    3. Generating the answer with examples.\n    \"\"\"\n\n    # Step 1: Determine the question type\n    question_type = determine_question_type(question)\n    if \"Error\" in question_type:\n        return question_type  # Return error message\n\n    # Step 2: Extract relevant information from the passage\n    extracted_info = extract_relevant_info(question, question_type, question)  # Pass question to extract_relevant_info\n    if \"Error\" in extracted_info:\n        return extracted_info\n\n    # Step 3: Generate the answer\n    generated_answer = generate_answer(extracted_info, question_type, question)\n    if \"Error\" in generated_answer:\n        return generated_answer\n\n    return generated_answer # Directly return the generated answer\n\ndef determine_question_type(question):\n    \"\"\"Determine the type of the question (numerical, identification, etc.) with examples.\"\"\"\n    system_instruction = \"You are an expert at classifying question types.\"\n    prompt = f\"\"\"\n    Determine the type of question given the following examples. Return the type only.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    \n    Example 4:\n    Question: What are the top two longest field goals made?\n    Type: Ranking\n    \n    Question: {question}\n    Type:\n    \"\"\"\n    try:\n        question_type = call_llm(prompt, system_instruction)\n        if not question_type:\n            return \"Error: Could not determine question type\"\n        return question_type\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef extract_relevant_info(question, question_type, question_text):\n    \"\"\"Extract relevant information from the passage with examples, tailored to question type.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant information, tailored to the question type. Focus on conciseness.\"\n    prompt = f\"\"\"\n    Extract relevant information from the passage based on the given question type.\n    Return the extracted information as a plain text summary. Be EXTREMELY CONCISE.\n    Passage: {question_text}\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n    Extracted Info: Player who caught the final touchdown.\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.\n    \n    Example 4:\n    Question: What are the top two longest field goals made?\n    Type: Ranking\n    Extracted Info: All field goal distances, sort from greatest to least, take top two.\n\n    Question: {question}\n    Type: {question_type}\n    Extracted Info:\n    \"\"\"\n    try:\n        extracted_info = call_llm(prompt, system_instruction)\n        if not extracted_info:\n            return \"Error: Could not extract information.\"\n        return extracted_info\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef generate_answer(extracted_info, question_type, question):\n    \"\"\"Generate the answer based on extracted information and question type with examples.\"\"\"\n    system_instruction = \"You are an expert at generating correct answers. Be concise.\"\n    prompt = f\"\"\"\n    Generate an answer to the question based on the extracted information. Be EXTREMELY CONCISE.\n\n    Example 1:\n    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.\n    Question Type: Numerical\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: 70 yards\n\n    Example 2:\n    Extracted Info: Player who caught the final touchdown = Mark Clayton\n    Question Type: Identification\n    Question: Who caught the final touchdown of the game?\n    Answer: Mark Clayton\n\n    Example 3:\n    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.\n    Question Type: Comparative\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: Gliese 915\n\n    Example 4:\n    Extracted Info: All field goal distances: 41, 39, 37, 30.  Sorted top two: 41, 39.\n    Question Type: Ranking\n    Question: What are the top two longest field goals made?\n    Answer: 41, 39\n    \n    Extracted Info: {extracted_info}\n    Question Type: {question_type}\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        answer = call_llm(prompt, system_instruction)\n        if not answer:\n            return \"Error: Could not generate answer.\"\n        return answer\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a multi-stage approach with LLMs to answer questions. It decomposes the problem into determining the question type, extracting relevant information, and generating the final answer. Three agent roles are used implicitly: a question type classifier, an information extractor, and an answer generator. The functions used are `main`, `determine_question_type`, `extract_relevant_info`, `generate_answer`, and `call_llm`. The `main` function orchestrates the process by calling `determine_question_type` to get the type, then `extract_relevant_info` using the determined type, and finally `generate_answer` to produce the answer, leveraging `call_llm` in each step to interact with the LLM.",
-  "sample_count": 10,
+  "explore_rate": 70,
+  "exploit_rate": 30,
+  "batch_size": 5,
+  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.\n    Addresses weaknesses in temporal reasoning and contextual understanding.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n\n        Example 3:\n        Question: What percent of Hispaniola did the germans own?\n        Sub-questions:\n        1. What percentage of Hispaniola's commerce was controlled by Germans?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Sub-questions: 1. What percentage of Hispaniola's commerce was controlled by Germans?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Sub-questions:\n        1. What percentage of Hispaniola's commerce was controlled by Germans?\n        Extracted Information:\n        German nationals controlled about 80 percent of the country's international commerce.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Sub-questions: 1. What percentage of Hispaniola's commerce was controlled by Germans?\n        Extracted Information: German nationals controlled about 80 percent of the country's international commerce.\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Extracted Information: German nationals controlled about 80 percent of the country's international commerce.\n        Final Answer: 80\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Synthesized Answer: 80\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script implements a question-answering system using chain-of-thought reasoning, where the problem is decomposed into sub-questions, information extraction, and answer synthesis. It employs three distinct agent roles: a question decomposer, an information extraction expert, and an answer synthesis expert, each responsible for a specific stage of the process. The functions `decompose_question`, `extract_information`, and `synthesize_answer` use the `call_llm` function to interact with the LLM, and each function also validates its results with the LLM before proceeding to the next stage. The overall workflow involves decomposing the initial question, extracting relevant information to answer sub-questions, synthesizing these answers into a final response, and then returning the final answer.",
+  "sample_count": 5,
   "samples": [
     {
-      "question": "PASSAGE: As of the census of 2010, 295,803 people, 125,752 households, and 62,915 families resided in the city. The population density was 1,042.8 people per square mile (353.5/km\u00b2). The 135,160 housing units averaged 408.3/mi\u00b2 (157.6/km\u00b2). The Race and ethnicity in the United States Census of the city was 75.7% White Americans, 14.5% African Americans, 0.3% Native Americans in the United States, 3.2% Asian Americans, 0.03% Pacific Islander, 1.21% from other races, and 2.5% from two or more races. Hispanic or Latinos of any race were 6.9% of the population.\n\nQUESTION: How many in percent from the census weren't White American?",
-      "answer": "24.3",
-      "id": "example_116",
+      "question": "PASSAGE: In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.\n\nQUESTION: Which countries on the 2014 Summer tour were scheduled for more than one date?",
+      "answer": "France",
+      "id": "example_106",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "As of the census of 2010, 295,803 people, 125,752 households, and 62,915 families resided in the city. The population density was 1,042.8 people per square mile (353.5/km\u00b2). The 135,160 housing units averaged 408.3/mi\u00b2 (157.6/km\u00b2). The Race and ethnicity in the United States Census of the city was 75.7% White Americans, 14.5% African Americans, 0.3% Native Americans in the United States, 3.2% Asian Americans, 0.03% Pacific Islander, 1.21% from other races, and 2.5% from two or more races. Hispanic or Latinos of any race were 6.9% of the population.",
-        "original_question": "How many in percent from the census weren't White American?",
+        "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
+        "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
         "original_answer_data": {
           "spans": [
-            "24.3"
+            "France",
+            "Germany"
           ],
           "types": [
-            "number"
+            "span",
+            "span"
           ]
         },
-        "line_number": 832
+        "line_number": 984
       }
     },
     {
-      "question": "PASSAGE: Coming off their Sunday night road win over the Packers, the Cowboys went home for a Week 4 NFC East showdown with the Washington Redskins.  In the first quarter, the 'Boys shot first as QB Tony Romo completed a 21-yard TD pass to TE Jason Witten.  In the second quarter, the Redskins took the lead as QB Jason Campbell completed a 3-yard TD pass to WR James Thrash and a 2-yard TD pass to WR Antwaan Randle El, along with kicker Shaun Suisham getting a 20-yard field goal.  Dallas closed out the half with kicker Nick Folk getting a 36-yard field goal. In the third quarter, the Cowboys tied the game with Romo completing a 10-yard TD pass to WR Terrell Owens.  Washington would respond with Suisham kicking a 33-yard field goal.  In the fourth quarter, the Redskins increased their lead with Suisham nailing a 33-yard and a 29-yard field goal.  The 'Boys tried to rally as Romo completed an 11-yard TD pass to WR Miles Austin.  However, Dallas' onside kick attempt failed, preserving the Redskins' win.\n\nQUESTION: How many yards shorter was Jason Campbell 's second touchdown pass compared to his first?",
-      "answer": "1",
-      "id": "example_117",
+      "question": "PASSAGE: Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.\n\nQUESTION: Which player threw the first TD pass of the game?",
+      "answer": "Kyle Orton",
+      "id": "example_107",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Coming off their Sunday night road win over the Packers, the Cowboys went home for a Week 4 NFC East showdown with the Washington Redskins.  In the first quarter, the 'Boys shot first as QB Tony Romo completed a 21-yard TD pass to TE Jason Witten.  In the second quarter, the Redskins took the lead as QB Jason Campbell completed a 3-yard TD pass to WR James Thrash and a 2-yard TD pass to WR Antwaan Randle El, along with kicker Shaun Suisham getting a 20-yard field goal.  Dallas closed out the half with kicker Nick Folk getting a 36-yard field goal. In the third quarter, the Cowboys tied the game with Romo completing a 10-yard TD pass to WR Terrell Owens.  Washington would respond with Suisham kicking a 33-yard field goal.  In the fourth quarter, the Redskins increased their lead with Suisham nailing a 33-yard and a 29-yard field goal.  The 'Boys tried to rally as Romo completed an 11-yard TD pass to WR Miles Austin.  However, Dallas' onside kick attempt failed, preserving the Redskins' win.",
-        "original_question": "How many yards shorter was Jason Campbell 's second touchdown pass compared to his first?",
+        "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
+        "original_question": "Which player threw the first TD pass of the game?",
         "original_answer_data": {
           "spans": [
-            "1"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 812
-      }
-    },
-    {
-      "question": "PASSAGE: Giorgi-Malakia Abashidze   was a Georgian nobleman and King of Imereti as George VI  from 1702 to 1707. He was a member of the prominent Abashidze family. The youngest son of Prince Paata Abashidze, he was served as a priest until about 1684 when he entered politics after the death of his elder brother Paata Abashidze and began aggressively expanding his patrimonial fiefdom. He dispossessed the Chkheidze family of Shorapani, and the Agiashvili of Tsutskhvati, and took control of the royal domain in Upper Imereti. His daughter, Tamar, was married to the two successive kings of Imereti, Alexander IV and George V. During the reign of the latter monarch, Abashidze effectively ran the government and acted as an all-powerful kingmaker. In 1699, he gave his daughter Anika in marriage to King Simon of Imereti, but they divorced in 1700. In 1701, Abashidze compelled King Mamia of Imereti to abdicate and seized the throne for himself. He managed to establish a degree of stability in Imereti and ceased to pay tribute to the Ottoman Empire, triggering a military response in 1703. He also patronized culture and learning. Deposed after a revolt by the nobles, in favour of the rightful Bagrationi king George VII, Abashidze took refuge at the court of Vakhtang VI of Kartli in Tbilisi. He died there in 1722, and was buried in the Katskhi monastery in Imereti.\n\nQUESTION: How many years after leaving the throne did Giorgi-Malakia Abashidze die?",
-      "answer": "15",
-      "id": "example_118",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Giorgi-Malakia Abashidze   was a Georgian nobleman and King of Imereti as George VI  from 1702 to 1707. He was a member of the prominent Abashidze family. The youngest son of Prince Paata Abashidze, he was served as a priest until about 1684 when he entered politics after the death of his elder brother Paata Abashidze and began aggressively expanding his patrimonial fiefdom. He dispossessed the Chkheidze family of Shorapani, and the Agiashvili of Tsutskhvati, and took control of the royal domain in Upper Imereti. His daughter, Tamar, was married to the two successive kings of Imereti, Alexander IV and George V. During the reign of the latter monarch, Abashidze effectively ran the government and acted as an all-powerful kingmaker. In 1699, he gave his daughter Anika in marriage to King Simon of Imereti, but they divorced in 1700. In 1701, Abashidze compelled King Mamia of Imereti to abdicate and seized the throne for himself. He managed to establish a degree of stability in Imereti and ceased to pay tribute to the Ottoman Empire, triggering a military response in 1703. He also patronized culture and learning. Deposed after a revolt by the nobles, in favour of the rightful Bagrationi king George VII, Abashidze took refuge at the court of Vakhtang VI of Kartli in Tbilisi. He died there in 1722, and was buried in the Katskhi monastery in Imereti.",
-        "original_question": "How many years after leaving the throne did Giorgi-Malakia Abashidze die?",
-        "original_answer_data": {
-          "spans": [
-            "15"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 962
-      }
-    },
-    {
-      "question": "PASSAGE: The Lions hoped to keep their slim lead for the NFC North division title. Playing against the Ravens, Detroit would rally in the first quarter before Baltimore's Justin Tucker kicked three field goals to give his team a halftime lead, 9-7. After trailing 12-10 in the third quarter, the Lions would take a 16-12 lead with another touchdown and a failed 2-point conversion. Turnovers again doomed the Lions. Matthew Stafford threw an interception, the third Lions turnover, late in the game, with Detroit clinging to a 16-15 lead. That would give Justin Tucker a chance at a 61-yard field goal, which he converted to give Baltimore an 18-16 victory. With the shocking loss, the Lions fell to 7-7 and third place within their division.\n\nQUESTION: How many field goals did Justin Tucker make in the 2nd half?",
-      "answer": "1",
-      "id": "example_119",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Lions hoped to keep their slim lead for the NFC North division title. Playing against the Ravens, Detroit would rally in the first quarter before Baltimore's Justin Tucker kicked three field goals to give his team a halftime lead, 9-7. After trailing 12-10 in the third quarter, the Lions would take a 16-12 lead with another touchdown and a failed 2-point conversion. Turnovers again doomed the Lions. Matthew Stafford threw an interception, the third Lions turnover, late in the game, with Detroit clinging to a 16-15 lead. That would give Justin Tucker a chance at a 61-yard field goal, which he converted to give Baltimore an 18-16 victory. With the shocking loss, the Lions fell to 7-7 and third place within their division.",
-        "original_question": "How many field goals did Justin Tucker make in the 2nd half?",
-        "original_answer_data": {
-          "spans": [
-            "1"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 421
-      }
-    },
-    {
-      "question": "PASSAGE: Although Satsunan literally means the south of Satsuma Province, the north-eastern group of the \u014csumi Islands formed Tane Province for a brief period in the 8th and 9th centuries and then were merged into \u014csumi Province. The Tokara Islands and the northwestern group of the \u014csumi Islands belonged to Kawanabe District of Satsuma Province. The Amami Islands paid tribute to the Ryukyu Kingdom to the South until they were put under direct control in the late 16th century, but were conquered in 1609 by the Satsuma Domain. In 1879, the Amami Islands became \u014cshima District of Kagoshima Prefecture. The Tokara Islands and the north-western group of the \u014csumi Islands were transferred to \u014cshima District in 1897, and then to Kagoshima District in 1973. After World War II, the Tokara and Amami Islands were put under United States military occupation, which formed the Government of the Northern Ryukyus. The Japanese government fiercely contested the Amami Islands being affiliated with the word \"Ryukyu\", believing that it would lead to a later return of the islands to their control. The Tokara Islands were returned to Japan in 1952, which were followed by the Amami Islands in December 1953.\n\nQUESTION: How many years were between Osumi Islands being transferred, and Kagoshima District being transferred?",
-      "answer": "6",
-      "id": "example_120",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Although Satsunan literally means the south of Satsuma Province, the north-eastern group of the \u014csumi Islands formed Tane Province for a brief period in the 8th and 9th centuries and then were merged into \u014csumi Province. The Tokara Islands and the northwestern group of the \u014csumi Islands belonged to Kawanabe District of Satsuma Province. The Amami Islands paid tribute to the Ryukyu Kingdom to the South until they were put under direct control in the late 16th century, but were conquered in 1609 by the Satsuma Domain. In 1879, the Amami Islands became \u014cshima District of Kagoshima Prefecture. The Tokara Islands and the north-western group of the \u014csumi Islands were transferred to \u014cshima District in 1897, and then to Kagoshima District in 1973. After World War II, the Tokara and Amami Islands were put under United States military occupation, which formed the Government of the Northern Ryukyus. The Japanese government fiercely contested the Amami Islands being affiliated with the word \"Ryukyu\", believing that it would lead to a later return of the islands to their control. The Tokara Islands were returned to Japan in 1952, which were followed by the Amami Islands in December 1953.",
-        "original_question": "How many years were between Osumi Islands being transferred, and Kagoshima District being transferred?",
-        "original_answer_data": {
-          "spans": [
-            "6"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 340
-      }
-    },
-    {
-      "question": "PASSAGE: Rookie cornerback Jason Verrett intercepted Oakland Raiders rookie quarterback Derek Carr at the San Diego 5 with 1:13 remaining in the game to seal a 31-28 Chargers win on the road. San Diego had gone ahead with 1:56 to play on a 1-yard touchdown run by Oliver. Verrett's first career interception helped the Chargers extend their winning streak to five, while Oakland suffered its 11th straight defeat. The Chargers 5-1 start to begin the season was their best since 2002. Carr threw a 77-yard TD pass to Andre Holmes in the opening minute of the game, and he and Rivers both threw two touchdowns in the first half for a 14-14 tie at halftime. In the third quarter, a 54-yard Novak field goal was nullified by a Chargers holding penalty. On fourth-and-35, Weddle threw an incomplete pass on a fake punt, giving the Raiders excellent field position; Oakland then scored on a 47-yard TD pass from Carr to Brice Butler. The Chargers responded with a Gates score on a 1-yard pass from Rivers, and the game was tied at 21 to begin the fourth quarter. Oakland took the lead again after Carr found Holmes for a 6-yard TD with 10 minutes left. On the following possession, Rivers completed the first four passes for 70 yards, which led to a 30-yard field goal by Novak. The Chargers defense forced a three-and-out, when Allen&#8212;filling in for an injured Royal&#8212;returned the punt 29 yards to the Oakland 39. With 4:49 remaining, Rivers led the six-play game-winning TD drive which culminated with four straight runs by Oliver for 29 yards. The Raiders had the ball on the Chargers 45 on second-and-one, when Carr threw deep for Butler, but Verrett leaped for an acrobatic sideline interception. Verrett had left the game earlier in the third quarter after tearing his left labrum in three places while diving for a pass. Oliver ran for 101 yards in the game, and Rivers threw for 313 yards and three touchdowns. For Rivers, it was an NFL-record fifth straight game with at least a 120 passer rating. Verrett grew up a Raiders fan in nearby Fairfield, California. About 100 of his friends and family attended the game, including his brother, who works for the Raiders.\n\nQUESTION: Who was injured",
-      "answer": "Verrett",
-      "id": "example_121",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Rookie cornerback Jason Verrett intercepted Oakland Raiders rookie quarterback Derek Carr at the San Diego 5 with 1:13 remaining in the game to seal a 31-28 Chargers win on the road. San Diego had gone ahead with 1:56 to play on a 1-yard touchdown run by Oliver. Verrett's first career interception helped the Chargers extend their winning streak to five, while Oakland suffered its 11th straight defeat. The Chargers 5-1 start to begin the season was their best since 2002. Carr threw a 77-yard TD pass to Andre Holmes in the opening minute of the game, and he and Rivers both threw two touchdowns in the first half for a 14-14 tie at halftime. In the third quarter, a 54-yard Novak field goal was nullified by a Chargers holding penalty. On fourth-and-35, Weddle threw an incomplete pass on a fake punt, giving the Raiders excellent field position; Oakland then scored on a 47-yard TD pass from Carr to Brice Butler. The Chargers responded with a Gates score on a 1-yard pass from Rivers, and the game was tied at 21 to begin the fourth quarter. Oakland took the lead again after Carr found Holmes for a 6-yard TD with 10 minutes left. On the following possession, Rivers completed the first four passes for 70 yards, which led to a 30-yard field goal by Novak. The Chargers defense forced a three-and-out, when Allen&#8212;filling in for an injured Royal&#8212;returned the punt 29 yards to the Oakland 39. With 4:49 remaining, Rivers led the six-play game-winning TD drive which culminated with four straight runs by Oliver for 29 yards. The Raiders had the ball on the Chargers 45 on second-and-one, when Carr threw deep for Butler, but Verrett leaped for an acrobatic sideline interception. Verrett had left the game earlier in the third quarter after tearing his left labrum in three places while diving for a pass. Oliver ran for 101 yards in the game, and Rivers threw for 313 yards and three touchdowns. For Rivers, it was an NFL-record fifth straight game with at least a 120 passer rating. Verrett grew up a Raiders fan in nearby Fairfield, California. About 100 of his friends and family attended the game, including his brother, who works for the Raiders.",
-        "original_question": "Who was injured",
-        "original_answer_data": {
-          "spans": [
-            "Verrett"
+            "Kyle Orton"
           ],
           "types": [
             "span"
           ]
         },
-        "line_number": 183
+        "line_number": 851
       }
     },
     {
-      "question": "PASSAGE: The area was once territory of the Norridgewock Indians, a band of the Abenaki nation. Early visitors describe extensive fields cleared for cultivation. The tribe also fished the Kennebec River. French Jesuits established an early mission at the village, which was located at Old Point. But Father Sebastien Rale , appointed missionary in 1694, was suspected of abetting the tribe's raids on English settlements. Governor Joseph Dudley put a price on his head. British troops attacked the village in 1705 and again in 1722, but both times Father Rale escaped into the woods. But on August 23, 1724, during Father Rale's War, soldiers attacked the village unexpectedly, killing 26 warriors and wounding 14, with 150 survivors fleeing to Canada. Among the dead was Father Rale. Settled by English colonists about 1773, the land would be surveyed in 1791. In 1775, Benedict Arnold and his troops would march through Norridgewock Plantation, as it was known, on their way to the ill-fated Battle of Quebec.   The town had originally been settled under the name \"Norridgewock Falls.\" This was later changed to \"Bernardstown,\" after the major land owning family, the Bernards. It was then officially incorporated on March 7, 1804, the town was named after United States president James Madison. Farming was an early industry, with hay and cattle the principal products. The native rock is slate, and a quarry was established to extract it. Because of the region's abundant forests, lumbering developed as an industry, with four sawmills operated by water power on the Kennebec. Here the Norridgewock Falls drop 90 feet  over a mile, which attracted other manufacturers as well. In the 19th century, the small mill town had factories which produced carriages, window sash, window blinds, doors and coffins.\n\nQUESTION: How many more survivors left the village than were wounded?",
-      "answer": "136",
-      "id": "example_122",
+      "question": "PASSAGE: The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.\n\nQUESTION: How many total people died in the fight on February 10, 1756?",
+      "answer": "1515",
+      "id": "example_108",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "The area was once territory of the Norridgewock Indians, a band of the Abenaki nation. Early visitors describe extensive fields cleared for cultivation. The tribe also fished the Kennebec River. French Jesuits established an early mission at the village, which was located at Old Point. But Father Sebastien Rale , appointed missionary in 1694, was suspected of abetting the tribe's raids on English settlements. Governor Joseph Dudley put a price on his head. British troops attacked the village in 1705 and again in 1722, but both times Father Rale escaped into the woods. But on August 23, 1724, during Father Rale's War, soldiers attacked the village unexpectedly, killing 26 warriors and wounding 14, with 150 survivors fleeing to Canada. Among the dead was Father Rale. Settled by English colonists about 1773, the land would be surveyed in 1791. In 1775, Benedict Arnold and his troops would march through Norridgewock Plantation, as it was known, on their way to the ill-fated Battle of Quebec.   The town had originally been settled under the name \"Norridgewock Falls.\" This was later changed to \"Bernardstown,\" after the major land owning family, the Bernards. It was then officially incorporated on March 7, 1804, the town was named after United States president James Madison. Farming was an early industry, with hay and cattle the principal products. The native rock is slate, and a quarry was established to extract it. Because of the region's abundant forests, lumbering developed as an industry, with four sawmills operated by water power on the Kennebec. Here the Norridgewock Falls drop 90 feet  over a mile, which attracted other manufacturers as well. In the 19th century, the small mill town had factories which produced carriages, window sash, window blinds, doors and coffins.",
-        "original_question": "How many more survivors left the village than were wounded?",
+        "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
+        "original_question": "How many total people died in the fight on February 10, 1756?",
         "original_answer_data": {
           "spans": [
-            "136"
+            "1515"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 997
+        "line_number": 345
       }
     },
     {
-      "question": "PASSAGE: As of 2008, the French national institute of statistics INSEE estimated that 11.8 million foreign-born immigrants and their direct descendants (limited to second-generation born in France) lived in France representing 19% of the countrys population. More than 5.5 million are of European origin and about 4 million of Maghrebis origin (20% of Algerian origin and 15% of Moroccan or Tunisian origin). Immigrants aged 18 to 50 count for 2.7 million (10% of population age 18\u201350) and 5 million for all ages (8% of population). The second-generation immigrants aged 18 to 50 make up 3.1 million (12% of 18\u201350) and 6.5 million for all ages (11% of population). Without considering citizenship at birth, people not born in metropolitan France and their direct descendants made up 30% of the population aged 18\u201350 in metropolitan France as of 2008.\n\nQUESTION: Are there more people of European origin or of Maghrebis origin?",
-      "answer": "European origin",
-      "id": "example_123",
+      "question": "PASSAGE: After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.\n\nQUESTION: How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
+      "answer": "14",
+      "id": "example_109",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "As of 2008, the French national institute of statistics INSEE estimated that 11.8 million foreign-born immigrants and their direct descendants (limited to second-generation born in France) lived in France representing 19% of the countrys population. More than 5.5 million are of European origin and about 4 million of Maghrebis origin (20% of Algerian origin and 15% of Moroccan or Tunisian origin). Immigrants aged 18 to 50 count for 2.7 million (10% of population age 18\u201350) and 5 million for all ages (8% of population). The second-generation immigrants aged 18 to 50 make up 3.1 million (12% of 18\u201350) and 6.5 million for all ages (11% of population). Without considering citizenship at birth, people not born in metropolitan France and their direct descendants made up 30% of the population aged 18\u201350 in metropolitan France as of 2008.",
-        "original_question": "Are there more people of European origin or of Maghrebis origin?",
+        "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
+        "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
         "original_answer_data": {
           "spans": [
-            "European origin"
+            "14"
           ],
           "types": [
-            "span"
+            "number"
           ]
         },
-        "line_number": 422
+        "line_number": 403
       }
     },
     {
-      "question": "PASSAGE: Built on the west bank of the Rio Cobre, the town lies thirteen miles from Kingston on the main road.  Its history was shaped by two significant colonial periods: Spanish rule from 1534-1655 and the English from 1655-1872. After that the capital was relocated to Kingston. The Anglican Church took over the 16th century cathedral. The historic architecture and street names mark the colonial history, such as Red Church and White Church streets, symbolic of the Spanish chapels of the red and white cross, as well as Monk Street, in reference to the monastery that once stood nearby. Nugent and Manchester streets were named for the British Colonial Governors, George Nugent and William Montagu, 5th Duke of Manchester. King Street runs past the King's House, the governor's residence, and Constitution Street, near to the Square, refers to the island's former administrative centre. Regency buildings in the town centre include the Rodney Memorial and the fa\u00e7ade of the Old King's House, which was the residence of the governors until 1872.\n\nQUESTION: Who ruled the town longer, the English or the Spanish?",
-      "answer": "the English",
-      "id": "example_124",
+      "question": "PASSAGE: In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.\n\nQUESTION: How many percent of amputees in India did had an onset of disability over the age of 14?",
+      "answer": "89.7",
+      "id": "example_110",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Built on the west bank of the Rio Cobre, the town lies thirteen miles from Kingston on the main road.  Its history was shaped by two significant colonial periods: Spanish rule from 1534-1655 and the English from 1655-1872. After that the capital was relocated to Kingston. The Anglican Church took over the 16th century cathedral. The historic architecture and street names mark the colonial history, such as Red Church and White Church streets, symbolic of the Spanish chapels of the red and white cross, as well as Monk Street, in reference to the monastery that once stood nearby. Nugent and Manchester streets were named for the British Colonial Governors, George Nugent and William Montagu, 5th Duke of Manchester. King Street runs past the King's House, the governor's residence, and Constitution Street, near to the Square, refers to the island's former administrative centre. Regency buildings in the town centre include the Rodney Memorial and the fa\u00e7ade of the Old King's House, which was the residence of the governors until 1872.",
-        "original_question": "Who ruled the town longer, the English or the Spanish?",
+        "original_passage": "In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.",
+        "original_question": "How many percent of amputees in India did had an onset of disability over the age of 14?",
         "original_answer_data": {
           "spans": [
-            "the English"
+            "89.7"
           ],
           "types": [
-            "span"
+            "number"
           ]
         },
-        "line_number": 181
-      }
-    },
-    {
-      "question": "PASSAGE: The 1994 Monaco Grand Prix was a Formula One motor race held on 15 May 1994 at the Circuit de Monaco, Monte Carlo. It was the fourth race of the 1994 Formula One season, and the first following the deaths of Ayrton Senna and Roland Ratzenberger at the San Marino Grand Prix two weeks previously. The 78-lap race was won by Michael Schumacher driving a Benetton-Ford, his fourth victory from the first four races of 1994. Martin Brundle finished second in a McLaren-Peugeot, with Gerhard Berger third in a Ferrari.\n\nQUESTION: When was the San Marino Grand Prix held?",
-      "answer": "1 May 1994",
-      "id": "example_125",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The 1994 Monaco Grand Prix was a Formula One motor race held on 15 May 1994 at the Circuit de Monaco, Monte Carlo. It was the fourth race of the 1994 Formula One season, and the first following the deaths of Ayrton Senna and Roland Ratzenberger at the San Marino Grand Prix two weeks previously. The 78-lap race was won by Michael Schumacher driving a Benetton-Ford, his fourth victory from the first four races of 1994. Martin Brundle finished second in a McLaren-Peugeot, with Gerhard Berger third in a Ferrari.",
-        "original_question": "When was the San Marino Grand Prix held?",
-        "original_answer_data": {
-          "spans": [
-            "1 May 1994"
-          ],
-          "types": [
-            "date"
-          ]
-        },
-        "line_number": 904
+        "line_number": 226
       }
     }
   ],
   "samples_metadata": [
     {
       "source": "jsonl_dataset",
-      "original_passage": "As of the census of 2010, 295,803 people, 125,752 households, and 62,915 families resided in the city. The population density was 1,042.8 people per square mile (353.5/km\u00b2). The 135,160 housing units averaged 408.3/mi\u00b2 (157.6/km\u00b2). The Race and ethnicity in the United States Census of the city was 75.7% White Americans, 14.5% African Americans, 0.3% Native Americans in the United States, 3.2% Asian Americans, 0.03% Pacific Islander, 1.21% from other races, and 2.5% from two or more races. Hispanic or Latinos of any race were 6.9% of the population.",
-      "original_question": "How many in percent from the census weren't White American?",
+      "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
+      "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
       "original_answer_data": {
         "spans": [
-          "24.3"
+          "France",
+          "Germany"
         ],
         "types": [
-          "number"
+          "span",
+          "span"
         ]
       },
-      "line_number": 832
+      "line_number": 984
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "Coming off their Sunday night road win over the Packers, the Cowboys went home for a Week 4 NFC East showdown with the Washington Redskins.  In the first quarter, the 'Boys shot first as QB Tony Romo completed a 21-yard TD pass to TE Jason Witten.  In the second quarter, the Redskins took the lead as QB Jason Campbell completed a 3-yard TD pass to WR James Thrash and a 2-yard TD pass to WR Antwaan Randle El, along with kicker Shaun Suisham getting a 20-yard field goal.  Dallas closed out the half with kicker Nick Folk getting a 36-yard field goal. In the third quarter, the Cowboys tied the game with Romo completing a 10-yard TD pass to WR Terrell Owens.  Washington would respond with Suisham kicking a 33-yard field goal.  In the fourth quarter, the Redskins increased their lead with Suisham nailing a 33-yard and a 29-yard field goal.  The 'Boys tried to rally as Romo completed an 11-yard TD pass to WR Miles Austin.  However, Dallas' onside kick attempt failed, preserving the Redskins' win.",
-      "original_question": "How many yards shorter was Jason Campbell 's second touchdown pass compared to his first?",
+      "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
+      "original_question": "Which player threw the first TD pass of the game?",
       "original_answer_data": {
         "spans": [
-          "1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 812
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Giorgi-Malakia Abashidze   was a Georgian nobleman and King of Imereti as George VI  from 1702 to 1707. He was a member of the prominent Abashidze family. The youngest son of Prince Paata Abashidze, he was served as a priest until about 1684 when he entered politics after the death of his elder brother Paata Abashidze and began aggressively expanding his patrimonial fiefdom. He dispossessed the Chkheidze family of Shorapani, and the Agiashvili of Tsutskhvati, and took control of the royal domain in Upper Imereti. His daughter, Tamar, was married to the two successive kings of Imereti, Alexander IV and George V. During the reign of the latter monarch, Abashidze effectively ran the government and acted as an all-powerful kingmaker. In 1699, he gave his daughter Anika in marriage to King Simon of Imereti, but they divorced in 1700. In 1701, Abashidze compelled King Mamia of Imereti to abdicate and seized the throne for himself. He managed to establish a degree of stability in Imereti and ceased to pay tribute to the Ottoman Empire, triggering a military response in 1703. He also patronized culture and learning. Deposed after a revolt by the nobles, in favour of the rightful Bagrationi king George VII, Abashidze took refuge at the court of Vakhtang VI of Kartli in Tbilisi. He died there in 1722, and was buried in the Katskhi monastery in Imereti.",
-      "original_question": "How many years after leaving the throne did Giorgi-Malakia Abashidze die?",
-      "original_answer_data": {
-        "spans": [
-          "15"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 962
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Lions hoped to keep their slim lead for the NFC North division title. Playing against the Ravens, Detroit would rally in the first quarter before Baltimore's Justin Tucker kicked three field goals to give his team a halftime lead, 9-7. After trailing 12-10 in the third quarter, the Lions would take a 16-12 lead with another touchdown and a failed 2-point conversion. Turnovers again doomed the Lions. Matthew Stafford threw an interception, the third Lions turnover, late in the game, with Detroit clinging to a 16-15 lead. That would give Justin Tucker a chance at a 61-yard field goal, which he converted to give Baltimore an 18-16 victory. With the shocking loss, the Lions fell to 7-7 and third place within their division.",
-      "original_question": "How many field goals did Justin Tucker make in the 2nd half?",
-      "original_answer_data": {
-        "spans": [
-          "1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 421
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Although Satsunan literally means the south of Satsuma Province, the north-eastern group of the \u014csumi Islands formed Tane Province for a brief period in the 8th and 9th centuries and then were merged into \u014csumi Province. The Tokara Islands and the northwestern group of the \u014csumi Islands belonged to Kawanabe District of Satsuma Province. The Amami Islands paid tribute to the Ryukyu Kingdom to the South until they were put under direct control in the late 16th century, but were conquered in 1609 by the Satsuma Domain. In 1879, the Amami Islands became \u014cshima District of Kagoshima Prefecture. The Tokara Islands and the north-western group of the \u014csumi Islands were transferred to \u014cshima District in 1897, and then to Kagoshima District in 1973. After World War II, the Tokara and Amami Islands were put under United States military occupation, which formed the Government of the Northern Ryukyus. The Japanese government fiercely contested the Amami Islands being affiliated with the word \"Ryukyu\", believing that it would lead to a later return of the islands to their control. The Tokara Islands were returned to Japan in 1952, which were followed by the Amami Islands in December 1953.",
-      "original_question": "How many years were between Osumi Islands being transferred, and Kagoshima District being transferred?",
-      "original_answer_data": {
-        "spans": [
-          "6"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 340
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Rookie cornerback Jason Verrett intercepted Oakland Raiders rookie quarterback Derek Carr at the San Diego 5 with 1:13 remaining in the game to seal a 31-28 Chargers win on the road. San Diego had gone ahead with 1:56 to play on a 1-yard touchdown run by Oliver. Verrett's first career interception helped the Chargers extend their winning streak to five, while Oakland suffered its 11th straight defeat. The Chargers 5-1 start to begin the season was their best since 2002. Carr threw a 77-yard TD pass to Andre Holmes in the opening minute of the game, and he and Rivers both threw two touchdowns in the first half for a 14-14 tie at halftime. In the third quarter, a 54-yard Novak field goal was nullified by a Chargers holding penalty. On fourth-and-35, Weddle threw an incomplete pass on a fake punt, giving the Raiders excellent field position; Oakland then scored on a 47-yard TD pass from Carr to Brice Butler. The Chargers responded with a Gates score on a 1-yard pass from Rivers, and the game was tied at 21 to begin the fourth quarter. Oakland took the lead again after Carr found Holmes for a 6-yard TD with 10 minutes left. On the following possession, Rivers completed the first four passes for 70 yards, which led to a 30-yard field goal by Novak. The Chargers defense forced a three-and-out, when Allen&#8212;filling in for an injured Royal&#8212;returned the punt 29 yards to the Oakland 39. With 4:49 remaining, Rivers led the six-play game-winning TD drive which culminated with four straight runs by Oliver for 29 yards. The Raiders had the ball on the Chargers 45 on second-and-one, when Carr threw deep for Butler, but Verrett leaped for an acrobatic sideline interception. Verrett had left the game earlier in the third quarter after tearing his left labrum in three places while diving for a pass. Oliver ran for 101 yards in the game, and Rivers threw for 313 yards and three touchdowns. For Rivers, it was an NFL-record fifth straight game with at least a 120 passer rating. Verrett grew up a Raiders fan in nearby Fairfield, California. About 100 of his friends and family attended the game, including his brother, who works for the Raiders.",
-      "original_question": "Who was injured",
-      "original_answer_data": {
-        "spans": [
-          "Verrett"
+          "Kyle Orton"
         ],
         "types": [
           "span"
         ]
       },
-      "line_number": 183
+      "line_number": 851
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "The area was once territory of the Norridgewock Indians, a band of the Abenaki nation. Early visitors describe extensive fields cleared for cultivation. The tribe also fished the Kennebec River. French Jesuits established an early mission at the village, which was located at Old Point. But Father Sebastien Rale , appointed missionary in 1694, was suspected of abetting the tribe's raids on English settlements. Governor Joseph Dudley put a price on his head. British troops attacked the village in 1705 and again in 1722, but both times Father Rale escaped into the woods. But on August 23, 1724, during Father Rale's War, soldiers attacked the village unexpectedly, killing 26 warriors and wounding 14, with 150 survivors fleeing to Canada. Among the dead was Father Rale. Settled by English colonists about 1773, the land would be surveyed in 1791. In 1775, Benedict Arnold and his troops would march through Norridgewock Plantation, as it was known, on their way to the ill-fated Battle of Quebec.   The town had originally been settled under the name \"Norridgewock Falls.\" This was later changed to \"Bernardstown,\" after the major land owning family, the Bernards. It was then officially incorporated on March 7, 1804, the town was named after United States president James Madison. Farming was an early industry, with hay and cattle the principal products. The native rock is slate, and a quarry was established to extract it. Because of the region's abundant forests, lumbering developed as an industry, with four sawmills operated by water power on the Kennebec. Here the Norridgewock Falls drop 90 feet  over a mile, which attracted other manufacturers as well. In the 19th century, the small mill town had factories which produced carriages, window sash, window blinds, doors and coffins.",
-      "original_question": "How many more survivors left the village than were wounded?",
+      "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
+      "original_question": "How many total people died in the fight on February 10, 1756?",
       "original_answer_data": {
         "spans": [
-          "136"
+          "1515"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 997
+      "line_number": 345
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "As of 2008, the French national institute of statistics INSEE estimated that 11.8 million foreign-born immigrants and their direct descendants (limited to second-generation born in France) lived in France representing 19% of the countrys population. More than 5.5 million are of European origin and about 4 million of Maghrebis origin (20% of Algerian origin and 15% of Moroccan or Tunisian origin). Immigrants aged 18 to 50 count for 2.7 million (10% of population age 18\u201350) and 5 million for all ages (8% of population). The second-generation immigrants aged 18 to 50 make up 3.1 million (12% of 18\u201350) and 6.5 million for all ages (11% of population). Without considering citizenship at birth, people not born in metropolitan France and their direct descendants made up 30% of the population aged 18\u201350 in metropolitan France as of 2008.",
-      "original_question": "Are there more people of European origin or of Maghrebis origin?",
+      "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
+      "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
       "original_answer_data": {
         "spans": [
-          "European origin"
+          "14"
         ],
         "types": [
-          "span"
+          "number"
         ]
       },
-      "line_number": 422
+      "line_number": 403
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "Built on the west bank of the Rio Cobre, the town lies thirteen miles from Kingston on the main road.  Its history was shaped by two significant colonial periods: Spanish rule from 1534-1655 and the English from 1655-1872. After that the capital was relocated to Kingston. The Anglican Church took over the 16th century cathedral. The historic architecture and street names mark the colonial history, such as Red Church and White Church streets, symbolic of the Spanish chapels of the red and white cross, as well as Monk Street, in reference to the monastery that once stood nearby. Nugent and Manchester streets were named for the British Colonial Governors, George Nugent and William Montagu, 5th Duke of Manchester. King Street runs past the King's House, the governor's residence, and Constitution Street, near to the Square, refers to the island's former administrative centre. Regency buildings in the town centre include the Rodney Memorial and the fa\u00e7ade of the Old King's House, which was the residence of the governors until 1872.",
-      "original_question": "Who ruled the town longer, the English or the Spanish?",
+      "original_passage": "In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.",
+      "original_question": "How many percent of amputees in India did had an onset of disability over the age of 14?",
       "original_answer_data": {
         "spans": [
-          "the English"
+          "89.7"
         ],
         "types": [
-          "span"
+          "number"
         ]
       },
-      "line_number": 181
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The 1994 Monaco Grand Prix was a Formula One motor race held on 15 May 1994 at the Circuit de Monaco, Monte Carlo. It was the fourth race of the 1994 Formula One season, and the first following the deaths of Ayrton Senna and Roland Ratzenberger at the San Marino Grand Prix two weeks previously. The 78-lap race was won by Michael Schumacher driving a Benetton-Ford, his fourth victory from the first four races of 1994. Martin Brundle finished second in a McLaren-Peugeot, with Gerhard Berger third in a Ferrari.",
-      "original_question": "When was the San Marino Grand Prix held?",
-      "original_answer_data": {
-        "spans": [
-          "1 May 1994"
-        ],
-        "types": [
-          "date"
-        ]
-      },
-      "line_number": 904
+      "line_number": 226
     }
   ],
   "example_indices": [
-    116,
-    117,
-    118,
-    119,
-    120,
-    121,
-    122,
-    123,
-    124,
-    125
+    106,
+    107,
+    108,
+    109,
+    110
   ],
   "results": [
     {
       "success": true,
-      "answer": "24.3%",
-      "output": "ANSWER_START\n24.3%\n\nANSWER_END\n",
+      "answer": "France and Germany",
+      "output": "ANSWER_START\nFrance and Germany\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_14.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer includes Germany, which is not present in the golden answer. Therefore, the answers do not convey the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Kyle Orton",
+      "output": "ANSWER_START\nKyle Orton\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The answers convey the same numerical value. The presence of the percentage sign in the system answer doesn't change the value."
+        "explanation": "Both answers are exactly the same."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "1 yard",
-      "output": "ANSWER_START\n1 yard\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The golden answer is the numerical value '1'. The system answer is '1 yard'. While both contain the number 1, the system answer provides a unit 'yard' which changes the meaning and makes the answers not semantically equivalent."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "15 years",
-      "output": "ANSWER_START\n15 years\n\nANSWER_END\n",
+      "answer": "1,515",
+      "output": "ANSWER_START\n1,515\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers represent the same numerical value, with the system answer including the unit of measurement (years), which is implied in the context."
+        "explanation": "Both answers represent the same numerical value, with one using a comma as a thousands separator and the other omitting it. They are numerically equivalent."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "2",
-      "output": "ANSWER_START\n2\n\nANSWER_END\n",
+      "answer": "6",
+      "output": "ANSWER_START\n6\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The answers 2 and 1 are different numerical values, thus they do not convey the same information."
+        "explanation": "The system answer (6) and the golden answer (14) are distinct numerical values, indicating different information. Therefore, they do not communicate the same meaning."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "76 years",
-      "output": "ANSWER_START\n76 years\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer '76 years' and the golden answer '6' are completely different numerical values and do not convey the same information."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Royal",
-      "output": "ANSWER_START\nRoyal\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The answers 'Royal' and 'Verrett' are distinct names and do not convey the same information."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "136",
-      "output": "ANSWER_START\n136\n\nANSWER_END\n",
+      "answer": "89.7",
+      "output": "ANSWER_START\n89.7\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": true,
@@ -438,205 +248,250 @@
         "explanation": "Both answers are identical numerical values."
       },
       "match": true
-    },
-    {
-      "success": true,
-      "answer": "European origin",
-      "output": "ANSWER_START\nEuropean origin\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers explicitly state 'European origin', indicating the same information."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "English",
-      "output": "ANSWER_START\nEnglish\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 0.8,
-        "explanation": "The system answer 'English' can be interpreted as referring to 'the English' language, although the article 'the' is missing. While the golden answer is slightly more precise, the core meaning is the same."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Two weeks prior.",
-      "output": "ANSWER_START\nTwo weeks prior.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The answers do not convey the same information. \"Two weeks prior\" is relative and does not provide a specific date, while \"1 May 1994\" is a specific date. Without context to establish a reference point, \"two weeks prior\" is meaningless."
-      },
-      "match": false
     }
   ],
   "performance": {
-    "accuracy": 0.5,
-    "correct_count": 5,
-    "total_count": 10,
+    "accuracy": 0.6,
+    "correct_count": 3,
+    "total_count": 5,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "24.3%",
-        "golden_answer": "24.3",
-        "output": "ANSWER_START\n24.3%\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The answers convey the same numerical value. The presence of the percentage sign in the system answer doesn't change the value."
-        }
-      },
-      {
-        "sample_id": 1,
-        "success": true,
-        "system_answer": "1 yard",
-        "golden_answer": "1",
-        "output": "ANSWER_START\n1 yard\n\nANSWER_END\n",
+        "system_answer": "France and Germany",
+        "golden_answer": "France",
+        "output": "ANSWER_START\nFrance and Germany\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The golden answer is the numerical value '1'. The system answer is '1 yard'. While both contain the number 1, the system answer provides a unit 'yard' which changes the meaning and makes the answers not semantically equivalent."
+          "explanation": "The system answer includes Germany, which is not present in the golden answer. Therefore, the answers do not convey the same information."
         },
         "capability_failures": []
       },
       {
-        "sample_id": 2,
+        "sample_id": 1,
         "success": true,
-        "system_answer": "15 years",
-        "golden_answer": "15",
-        "output": "ANSWER_START\n15 years\n\nANSWER_END\n",
+        "system_answer": "Kyle Orton",
+        "golden_answer": "Kyle Orton",
+        "output": "ANSWER_START\nKyle Orton\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers represent the same numerical value, with the system answer including the unit of measurement (years), which is implied in the context."
+          "explanation": "Both answers are exactly the same."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "1,515",
+        "golden_answer": "1515",
+        "output": "ANSWER_START\n1,515\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value, with one using a comma as a thousands separator and the other omitting it. They are numerically equivalent."
         }
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "2",
-        "golden_answer": "1",
-        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "system_answer": "6",
+        "golden_answer": "14",
+        "output": "ANSWER_START\n6\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The answers 2 and 1 are different numerical values, thus they do not convey the same information."
+          "explanation": "The system answer (6) and the golden answer (14) are distinct numerical values, indicating different information. Therefore, they do not communicate the same meaning."
         },
         "capability_failures": []
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "76 years",
-        "golden_answer": "6",
-        "output": "ANSWER_START\n76 years\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer '76 years' and the golden answer '6' are completely different numerical values and do not convey the same information."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "Royal",
-        "golden_answer": "Verrett",
-        "output": "ANSWER_START\nRoyal\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The answers 'Royal' and 'Verrett' are distinct names and do not convey the same information."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "136",
-        "golden_answer": "136",
-        "output": "ANSWER_START\n136\n\nANSWER_END\n",
+        "system_answer": "89.7",
+        "golden_answer": "89.7",
+        "output": "ANSWER_START\n89.7\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
           "explanation": "Both answers are identical numerical values."
         }
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "European origin",
-        "golden_answer": "European origin",
-        "output": "ANSWER_START\nEuropean origin\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers explicitly state 'European origin', indicating the same information."
-        }
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "English",
-        "golden_answer": "the English",
-        "output": "ANSWER_START\nEnglish\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 0.8,
-          "explanation": "The system answer 'English' can be interpreted as referring to 'the English' language, although the article 'the' is missing. While the golden answer is slightly more precise, the core meaning is the same."
-        }
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "Two weeks prior.",
-        "golden_answer": "1 May 1994",
-        "output": "ANSWER_START\nTwo weeks prior.\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The answers do not convey the same information. \"Two weeks prior\" is relative and does not provide a specific date, while \"1 May 1994\" is a specific date. Without context to establish a reference point, \"two weeks prior\" is meaningless."
-        },
-        "capability_failures": []
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nNo runtime errors were found in the provided 'output' fields.\n\n## STRENGTHS\n1.  **Numerical Value Extraction:** The system can successfully extract numerical values from the text and use them in calculations, as demonstrated in success cases 0, 2, and 6.\n2.  **Comparative Reasoning:** The system can perform simple comparative reasoning to identify which option is greater, as seen in success cases 7 and 8.\n\n## WEAKNESSES\n1.  **Unit Handling and Semantic Equivalence:** The system often includes units (e.g., \"yard,\" \"years\") when only the numerical value is required, causing incorrect answers (Error Case 1, 4). This shows a lack of understanding of semantic equivalence in numerical answers.\n2.  **Temporal Reasoning and Context Dependency:** The system struggles with relative temporal references like \"Two weeks prior\" (Error Case 9) and fails to ground them in the passage's specific dates, leading to incorrect answers. The inability to understand the timeline prevents the accurate calculation of the time difference in sample 4.\n3.  **Inaccurate information extraction**: The system sometimes misidentifies key pieces of information required to answer the question, such as mistaking Royal as injured instead of Verrett. This indicates a breakdown in accurately parsing and extracting the required details from the given text.\n\n## CRITICAL BOTTLENECKS\n1.  **Lack of Semantic Understanding in Numerical Answers:** The system does not distinguish between numerical values and their units or understand when a numerical value alone is sufficient.\n2.  **Weak Temporal Reasoning:** The system struggles with understanding and reasoning about time, especially relative references and the calculation of durations.\n\n## ERROR PATTERNS\n1.  **Numerical Value + Unit vs. Numerical Value Only:** In multiple cases, the system provides an answer with units (e.g., \"76 years\") when only the numerical value (e.g., \"6\") is expected.\n2.  **Misinterpretation of Temporal References:** The system fails to correctly interpret relative time references and incorporate them into date/time calculations.\n3. **Inaccurate information extraction**: The system fails to identify the correct entity (e.g. Royal vs. Verrett) needed to answer the question.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's **inability to distinguish between providing a numerical value alone and a numerical value with a unit**, coupled with **weakness in grounding temporal references and extracting the correct information**.\n\n## IMPROVEMENT AREAS\n1.  **Numerical Answer Formatting:** Implement a post-processing step that removes units from numerical answers unless explicitly requested in the question.\n2.  **Temporal Reasoning Module:** Develop a more robust temporal reasoning module that can handle relative time references, date calculations, and durations.\n3.  **Enhance information extraction**: Implement more effective extraction techniques that capture correct entities and relevant relationships in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Post-processing Unit Removal:** Add a rule to remove units from numerical answers unless the question explicitly asks for them (e.g., \"How many *years*...?\"). This could involve using regular expressions or a dictionary of common units to identify and remove them.\n2.  **Temporal Reference Resolution:** Implement a module that identifies temporal references (e.g., \"two weeks prior\") and resolves them to specific dates using the context of the passage. This might involve identifying anchor dates and calculating offsets.\n3.  **Keyword and entity association**: Create a method to associate keywords and entities. For example, the word \"injured\" should create a dependency on identifying the injured entity.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 1:** constraint_handling, solution_verification\n*   **Sample ID 3:** information_extraction\n*   **Sample ID 4:** information_extraction, constraint_handling, solution_verification\n*   **Sample ID 5:** information_extraction\n*   **Sample ID 9:** information_extraction, constraint_handling, solution_generation\n",
-      "strengths": [],
-      "weaknesses": [],
-      "primary_issue": "The most critical problem is the system's **inability to distinguish between providing a numerical value alone and a numerical value with a unit**, coupled with **weakness in grounding temporal references and extracting the correct information**.",
+      "text_report": "## RUNTIME ERRORS\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) present in the provided error cases.\n\n## STRENGTHS\n*   The system demonstrates the ability to extract information from the passage and answer questions correctly when the logic is straightforward (Success Cases 1, 2, and 4).\n*   The system can perform basic arithmetic and comparisons when extracting numerical answers (Success Cases 2 and 4).\n\n## WEAKNESSES\n*   The system struggles with questions requiring precise extraction and filtering of information with multiple conditions (Error Case 0). It includes extraneous information, indicating a difficulty in isolating the exact information requested by the question.\n*   The system fails in more complex arithmetic operations requiring comparing values extracted from the passage (Error Case 3). It miscalculates the difference between field goal lengths.\n\n## CRITICAL BOTTLENECKS\n*   **Complex Information Extraction & Filtering:** The system's ability to precisely isolate information based on multiple criteria is a major bottleneck.\n*   **Arithmetic Reasoning:** The system struggles with calculations involving extracted numerical values.\n\n## ERROR PATTERNS\n*   **Incomplete Filtering:** The system tends to include irrelevant information in its answers, suggesting inadequate filtering based on question constraints.\n*   **Arithmetic Errors:** Incorrect calculations on extracted numerical data point to problems in arithmetic reasoning.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to accurately extract and filter information based on multiple conditions and perform accurate arithmetic calculation based on this information. Specifically, when a question requires combining information extraction with even simple arithmetic operations, the system tends to fail.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction and Filtering:** Enhance the system's ability to precisely extract the information requested by the question, excluding extraneous details. This requires improving the understanding of conditional statements in questions.\n*   **Arithmetic Reasoning:** Improve the system's accuracy in performing arithmetic calculations on extracted numerical data.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement more robust filtering mechanisms:** Refine the information extraction module to utilize more precise filtering based on question keywords and constraints. This might involve using dependency parsing to better understand the relationships between words in the question and passage.\n2.  **Develop a dedicated arithmetic reasoning module:** Implement a separate module specifically for handling arithmetic operations. This module should be able to identify the relevant numbers, understand the required operation, and perform the calculation accurately. Add unit tests to specifically evaluate this module.\n3.  **Detailed Logging:** For debugging, include a more granular logging system that captures each step of the reasoning process. This would involve logging information about what keywords are being identified, how it's filtering the information, the extracted numeric data, and the operations it is performing.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making. The system extracted the countries scheduled but failed to filter by \"more than one date\" accurately, and so the final answer was incorrect.\n*   **Sample ID 3:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making. The system successfully extracted the relevant field goal lengths, but it incorrectly calculated the difference.\n",
+      "strengths": [
+        "The system demonstrates the ability to extract information from the passage and answer questions correctly when the logic is straightforward (Success Cases 1, 2, and 4).",
+        "The system can perform basic arithmetic and comparisons when extracting numerical answers (Success Cases 2 and 4)."
+      ],
+      "weaknesses": [
+        "The system struggles with questions requiring precise extraction and filtering of information with multiple conditions (Error Case 0). It includes extraneous information, indicating a difficulty in isolating the exact information requested by the question.",
+        "The system fails in more complex arithmetic operations requiring comparing values extracted from the passage (Error Case 3). It miscalculates the difference between field goal lengths."
+      ],
+      "primary_issue": "The most critical problem is the system's inability to accurately extract and filter information based on multiple conditions and perform accurate arithmetic calculation based on this information. Specifically, when a question requires combining information extraction with even simple arithmetic operations, the system tends to fail.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## CAPABILITY ASSESSMENT REPORT\n\nHere's a comprehensive capability assessment of your AI system based on the provided performance summary, error analysis, sample outputs, and your requests.\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal several key issues that align with the weaknesses identified in the error analysis report:\n\n*   **Output 1:** The output `ANSWER_START\\n24.3%\\n\\nANSWER_END\\n` itself is not an error but confirms the system's ability to extract relevant numerical data. However, without the question or ground truth, it's impossible to verify if the extracted value is correct in the context of the question.\n*   **Output 2:** The output `ANSWER_START\\n1 yard\\n\\nANSWER_END\\n` demonstrates the previously highlighted issue of including units when only the numerical value might be required. It indicates a lack of understanding regarding the specific needs of the query and an over-reliance on verbatim extraction.\n*   **Output 3:** The output `ANSWER_START\\n15 years\\n\\nANSWER_END\\n` reinforces the pattern of returning numerical values with units. It is crucial to understand whether the question requires only \"15\" or \"15 years\".\n\nThese sample outputs highlight the pressing need for refining answer formatting and context awareness.\n\n### CAPABILITY ASSESSMENT\n\nOverall, the AI system exhibits a rudimentary capability for information extraction and simple numerical processing. However, its ability to provide correct and contextually appropriate answers is hampered by limitations in semantic understanding, temporal reasoning, and answer formatting. The system demonstrates the *ability* to extract information but struggles with the *understanding* of what to extract and *how* to format it for optimal usability.\n\n### KEY STRENGTHS\n\n*   **Numerical Value Extraction:** The system can locate and extract numerical values from text, a fundamental requirement for many analytical tasks.\n*   **Rudimentary Comparative Reasoning:** The system displays some basic ability to identify greater/lesser relationships.\n\n### KEY WEAKNESSES\n\n*   **Unit Handling:** Incorrectly including units in numerical answers when they are not needed.\n*   **Temporal Reasoning:** Difficulty understanding and processing relative temporal references.\n*   **Inaccurate Information Extraction:** Misidentifying/mistaking information critical to answering the question.\n*   **Lack of Semantic Understanding**: Failure to identify context and understand the question.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **unit handling and semantic answer formatting**. Addressing this weakness will directly improve answer accuracy and relevance across various question types. It's the most readily addressable issue with a high potential for immediate impact.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Post-Processing Unit Removal (Priority: High):**\n    *   Develop a rule-based or machine learning-based module to identify and remove units from numerical answers unless the question explicitly requests them.\n    *   Start with a simple regular expression-based approach, targeting common units (e.g., \"years,\" \"yards,\" \"miles,\" \"%\") and refining the module based on error analysis.\n    *   Create a training dataset of questions paired with ideal answer formats (with and without units) and fine-tune a smaller model to predict if the unit is needed.\n2.  **Enhance Temporal Reference Resolution (Priority: Medium):**\n    *   Develop a temporal reasoning module that identifies temporal references (e.g., \"two weeks prior,\" \"next month\") and resolves them to specific dates within the context of the passage.\n    *   Begin by identifying anchor dates in the passage (explicitly stated dates) and calculating offsets from these anchors.\n3.  **Improve Information Extraction by using Keyword association (Priority: Medium):**\n    *   Develop Keyword Association by assigning each keyword to it's respective entity. For example, keyword `injured` can be assigned to the injured entity.\n4. **Question Contextualization and Semantic Understanding (Priority: High)**\n    * Develop a module for contextual analysis to identify the question's requirements.\n    * Add a rule-based system that takes in the results of this module and checks if the answer aligns with the question's requirements.\n\n### CAPABILITY TREND\n\nBased on the provided information, it is difficult to definitively assess the capability trend. The system demonstrates some fundamental capabilities but is significantly hindered by its inability to handle units and temporal reasoning correctly. The trend is currently **stable but low**. Implementing the recommended improvements will be essential to initiate an upward trend. Further iteration and improvements will increase capabilities.\n",
-      "strengths": [],
-      "weaknesses": [],
+      "text_report": "Okay, here is a comprehensive capability assessment report for your AI system, based on the provided performance summary, error analysis, sample execution outputs, and other considerations:\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs confirm the Error Analysis Report. Specifically:\n\n*   **Sample ID 0 (France and Germany):** The output correctly identifies countries, but it fails to adhere to the \"more than one date\" constraint. This reflects the weakness in complex information extraction and filtering. The fact that countries *were* identified at all shows a partial capability, but the filtering component clearly failed. The output included both countries regardless of whether their schedules matched the criteria. This highlights a breakdown in filtering logic.\n*   **Sample ID 3 (1,515):** This output is an incorrect numerical answer, consistent with the identified weaknesses in arithmetic reasoning. The output reflects the total number of yards thrown (1515) in the provided context rather than the difference between field goal lengths (53 and 51 yards). This suggests the system may not have even attempted to calculate the difference, or perhaps it extracted incorrect values in the first place.\n\n### CAPABILITY ASSESSMENT\n\nThe system exhibits a baseline capability for information extraction and question answering, particularly when questions are straightforward. However, its capabilities degrade significantly when questions involve complex filtering criteria or require arithmetic operations on extracted values. The most pressing problem is the system's inability to accurately combine information extraction with arithmetic reasoning. This significantly limits its applicability to real-world scenarios where questions often require both.\n\n### KEY STRENGTHS\n\n*   **Basic Information Extraction:** The system can extract entities and facts from the given context when the extraction criteria are straightforward.\n*   **Question Understanding:** The system can generally understand the intent of the questions, even if it sometimes fails to answer them correctly.\n\n### KEY WEAKNESSES\n\n*   **Complex Information Filtering:**  The system struggles to accurately filter extracted information based on multiple conditions and constraints, resulting in extraneous or irrelevant information being included in the answer.\n*   **Arithmetic Reasoning with Extracted Data:** The system exhibits significant weaknesses in performing accurate arithmetic operations on values extracted from the text.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Complex Information Filtering**.  While arithmetic reasoning is important, it's predicated on the system first being able to accurately extract the relevant information to perform those calculations on. If the input data is incorrect, the calculation will inevitably be wrong, no matter how precise the calculation itself is.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Multi-Stage Filtering Process:**  Break down the filtering process into multiple, explicit stages. This will allow for more targeted error analysis and debugging. For example:\n    *   *Stage 1: Initial Extraction:* Extract all entities of the required type (e.g., all countries).\n    *   *Stage 2: Condition Evaluation:* Evaluate each extracted entity against each constraint in the question. Use Boolean logic to represent whether each condition is met for each entity.\n    *   *Stage 3: Final Filtering:*  Select only the entities that satisfy *all* the conditions.\n2.  **Integrate Dependency Parsing:** Use dependency parsing to understand the grammatical relationships between words in the question and the passage. This can help the system to better identify the constraints and their scope. Focus especially on understanding how quantifiers (e.g., \"more than one\") apply to different parts of the question.\n3.  **Develop Unit Tests for the Filtering Module:** Create a suite of unit tests specifically designed to test the filtering module in isolation. These tests should cover a range of scenarios with varying complexity and different types of constraints.\n4.  **Data Augmentation for Filtering:** Augment the training data with more examples that specifically target complex filtering scenarios. These examples should be designed to challenge the system's ability to identify and apply constraints. Generate synthetic data if necessary.\n\n### CAPABILITY TREND\n\nBased on the error analysis and execution outputs, the system shows a stable, but inadequate performance level. Without focused improvements, the system will likely continue to struggle with questions requiring combined information extraction, filtering and arithmetic reasoning. Implementing the actionable recommendations should, in the next iteration, show a positive trend in information extraction capabilities, leading to improvements in arithmetic reasoning.\n",
+      "strengths": [
+        "The system demonstrates the ability to extract information from the passage and answer questions correctly when the logic is straightforward (Success Cases 1, 2, and 4).",
+        "The system can perform basic arithmetic and comparisons when extracting numerical answers (Success Cases 2 and 4)."
+      ],
+      "weaknesses": [
+        "The system struggles with questions requiring precise extraction and filtering of information with multiple conditions (Error Case 0). It includes extraneous information, indicating a difficulty in isolating the exact information requested by the question.",
+        "The system fails in more complex arithmetic operations requiring comparing values extracted from the passage (Error Case 3). It miscalculates the difference between field goal lengths."
+      ],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors were found in the provided 'output' fields.\n\n## STRENGTHS\n1.  **Numerical Value Extraction:** The system can successfully extract numerical values from the text and use them in calculations, as demonstrated in success cases 0, 2, and 6.\n2.  **Comparative Reasoning:** The system can perform simple comparative reasoning to identify which option is greater, as seen in success cases 7 and 8.\n\n## WEAKNESSES\n1.  **Unit Handling and Semantic Equivalence:** The system often includes units (e.g., \"yard,\" \"years\") when only the numerical value is required, causing incorrect answers (Error Case 1, 4). This shows a lack of understanding of semantic equivalence in numerical answers.\n2.  **Temporal Reasoning and Context Dependency:** The system struggles with relative temporal references like \"Two weeks prior\" (Error Case 9) and fails to ground them in the passage's specific dates, leading to incorrect answers. The inability to understand the timeline prevents the accurate calculation of the time difference in sample 4.\n3.  **Inaccurate information extraction**: The system sometimes misidentifies key pieces of information required to answer the question, such as mistaking Royal as injured instead of Verrett. This indicates a breakdown in accurately parsing and extracting the required details from the given text.\n\n## CRITICAL BOTTLENECKS\n1.  **Lack of Semantic Understanding in Numerical Answers:** The system does not distinguish between numerical values and their units or understand when a numerical value alone is sufficient.\n2.  **Weak Temporal Reasoning:** The system struggles with understanding and reasoning about time, especially relative references and the calculation of durations.\n\n## ERROR PATTERNS\n1.  **Numerical Value + Unit vs. Numerical Value Only:** In multiple cases, the system provides an answer with units (e.g., \"76 years\") when only the numerical value (e.g., \"6\") is expected.\n2.  **Misinterpretation of Temporal References:** The system fails to correctly interpret relative time references and incorporate them into date/time calculations.\n3. **Inaccurate information extraction**: The system fails to identify the correct entity (e.g. Royal vs. Verrett) needed to answer the question.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's **inability to distinguish between providing a numerical value alone and a numerical value with a unit**, coupled with **weakness in grounding temporal references and extracting the correct information**.\n\n## IMPROVEMENT AREAS\n1.  **Numerical Answer Formatting:** Implement a post-processing step that removes units from numerical answers unless explicitly requested in the question.\n2.  **Temporal Reasoning Module:** Develop a more robust temporal reasoning module that can handle relative time references, date calculations, and durations.\n3.  **Enhance information extraction**: Implement more effective extraction techniques that capture correct entities and relevant relationships in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Post-processing Unit Removal:** Add a rule to remove units from numerical answers unless the question explicitly asks for them (e.g., \"How many *years*...?\"). This could involve using regular expressions or a dictionary of common units to identify and remove them.\n2.  **Temporal Reference Resolution:** Implement a module that identifies temporal references (e.g., \"two weeks prior\") and resolves them to specific dates using the context of the passage. This might involve identifying anchor dates and calculating offsets.\n3.  **Keyword and entity association**: Create a method to associate keywords and entities. For example, the word \"injured\" should create a dependency on identifying the injured entity.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 1:** constraint_handling, solution_verification\n*   **Sample ID 3:** information_extraction\n*   **Sample ID 4:** information_extraction, constraint_handling, solution_verification\n*   **Sample ID 5:** information_extraction\n*   **Sample ID 9:** information_extraction, constraint_handling, solution_generation\n",
-    "capability_report_text": "## CAPABILITY ASSESSMENT REPORT\n\nHere's a comprehensive capability assessment of your AI system based on the provided performance summary, error analysis, sample outputs, and your requests.\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal several key issues that align with the weaknesses identified in the error analysis report:\n\n*   **Output 1:** The output `ANSWER_START\\n24.3%\\n\\nANSWER_END\\n` itself is not an error but confirms the system's ability to extract relevant numerical data. However, without the question or ground truth, it's impossible to verify if the extracted value is correct in the context of the question.\n*   **Output 2:** The output `ANSWER_START\\n1 yard\\n\\nANSWER_END\\n` demonstrates the previously highlighted issue of including units when only the numerical value might be required. It indicates a lack of understanding regarding the specific needs of the query and an over-reliance on verbatim extraction.\n*   **Output 3:** The output `ANSWER_START\\n15 years\\n\\nANSWER_END\\n` reinforces the pattern of returning numerical values with units. It is crucial to understand whether the question requires only \"15\" or \"15 years\".\n\nThese sample outputs highlight the pressing need for refining answer formatting and context awareness.\n\n### CAPABILITY ASSESSMENT\n\nOverall, the AI system exhibits a rudimentary capability for information extraction and simple numerical processing. However, its ability to provide correct and contextually appropriate answers is hampered by limitations in semantic understanding, temporal reasoning, and answer formatting. The system demonstrates the *ability* to extract information but struggles with the *understanding* of what to extract and *how* to format it for optimal usability.\n\n### KEY STRENGTHS\n\n*   **Numerical Value Extraction:** The system can locate and extract numerical values from text, a fundamental requirement for many analytical tasks.\n*   **Rudimentary Comparative Reasoning:** The system displays some basic ability to identify greater/lesser relationships.\n\n### KEY WEAKNESSES\n\n*   **Unit Handling:** Incorrectly including units in numerical answers when they are not needed.\n*   **Temporal Reasoning:** Difficulty understanding and processing relative temporal references.\n*   **Inaccurate Information Extraction:** Misidentifying/mistaking information critical to answering the question.\n*   **Lack of Semantic Understanding**: Failure to identify context and understand the question.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **unit handling and semantic answer formatting**. Addressing this weakness will directly improve answer accuracy and relevance across various question types. It's the most readily addressable issue with a high potential for immediate impact.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Post-Processing Unit Removal (Priority: High):**\n    *   Develop a rule-based or machine learning-based module to identify and remove units from numerical answers unless the question explicitly requests them.\n    *   Start with a simple regular expression-based approach, targeting common units (e.g., \"years,\" \"yards,\" \"miles,\" \"%\") and refining the module based on error analysis.\n    *   Create a training dataset of questions paired with ideal answer formats (with and without units) and fine-tune a smaller model to predict if the unit is needed.\n2.  **Enhance Temporal Reference Resolution (Priority: Medium):**\n    *   Develop a temporal reasoning module that identifies temporal references (e.g., \"two weeks prior,\" \"next month\") and resolves them to specific dates within the context of the passage.\n    *   Begin by identifying anchor dates in the passage (explicitly stated dates) and calculating offsets from these anchors.\n3.  **Improve Information Extraction by using Keyword association (Priority: Medium):**\n    *   Develop Keyword Association by assigning each keyword to it's respective entity. For example, keyword `injured` can be assigned to the injured entity.\n4. **Question Contextualization and Semantic Understanding (Priority: High)**\n    * Develop a module for contextual analysis to identify the question's requirements.\n    * Add a rule-based system that takes in the results of this module and checks if the answer aligns with the question's requirements.\n\n### CAPABILITY TREND\n\nBased on the provided information, it is difficult to definitively assess the capability trend. The system demonstrates some fundamental capabilities but is significantly hindered by its inability to handle units and temporal reasoning correctly. The trend is currently **stable but low**. Implementing the recommended improvements will be essential to initiate an upward trend. Further iteration and improvements will increase capabilities.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) present in the provided error cases.\n\n## STRENGTHS\n*   The system demonstrates the ability to extract information from the passage and answer questions correctly when the logic is straightforward (Success Cases 1, 2, and 4).\n*   The system can perform basic arithmetic and comparisons when extracting numerical answers (Success Cases 2 and 4).\n\n## WEAKNESSES\n*   The system struggles with questions requiring precise extraction and filtering of information with multiple conditions (Error Case 0). It includes extraneous information, indicating a difficulty in isolating the exact information requested by the question.\n*   The system fails in more complex arithmetic operations requiring comparing values extracted from the passage (Error Case 3). It miscalculates the difference between field goal lengths.\n\n## CRITICAL BOTTLENECKS\n*   **Complex Information Extraction & Filtering:** The system's ability to precisely isolate information based on multiple criteria is a major bottleneck.\n*   **Arithmetic Reasoning:** The system struggles with calculations involving extracted numerical values.\n\n## ERROR PATTERNS\n*   **Incomplete Filtering:** The system tends to include irrelevant information in its answers, suggesting inadequate filtering based on question constraints.\n*   **Arithmetic Errors:** Incorrect calculations on extracted numerical data point to problems in arithmetic reasoning.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to accurately extract and filter information based on multiple conditions and perform accurate arithmetic calculation based on this information. Specifically, when a question requires combining information extraction with even simple arithmetic operations, the system tends to fail.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction and Filtering:** Enhance the system's ability to precisely extract the information requested by the question, excluding extraneous details. This requires improving the understanding of conditional statements in questions.\n*   **Arithmetic Reasoning:** Improve the system's accuracy in performing arithmetic calculations on extracted numerical data.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement more robust filtering mechanisms:** Refine the information extraction module to utilize more precise filtering based on question keywords and constraints. This might involve using dependency parsing to better understand the relationships between words in the question and passage.\n2.  **Develop a dedicated arithmetic reasoning module:** Implement a separate module specifically for handling arithmetic operations. This module should be able to identify the relevant numbers, understand the required operation, and perform the calculation accurately. Add unit tests to specifically evaluate this module.\n3.  **Detailed Logging:** For debugging, include a more granular logging system that captures each step of the reasoning process. This would involve logging information about what keywords are being identified, how it's filtering the information, the extracted numeric data, and the operations it is performing.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making. The system extracted the countries scheduled but failed to filter by \"more than one date\" accurately, and so the final answer was incorrect.\n*   **Sample ID 3:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making. The system successfully extracted the relevant field goal lengths, but it incorrectly calculated the difference.\n",
+    "capability_report_text": "Okay, here is a comprehensive capability assessment report for your AI system, based on the provided performance summary, error analysis, sample execution outputs, and other considerations:\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs confirm the Error Analysis Report. Specifically:\n\n*   **Sample ID 0 (France and Germany):** The output correctly identifies countries, but it fails to adhere to the \"more than one date\" constraint. This reflects the weakness in complex information extraction and filtering. The fact that countries *were* identified at all shows a partial capability, but the filtering component clearly failed. The output included both countries regardless of whether their schedules matched the criteria. This highlights a breakdown in filtering logic.\n*   **Sample ID 3 (1,515):** This output is an incorrect numerical answer, consistent with the identified weaknesses in arithmetic reasoning. The output reflects the total number of yards thrown (1515) in the provided context rather than the difference between field goal lengths (53 and 51 yards). This suggests the system may not have even attempted to calculate the difference, or perhaps it extracted incorrect values in the first place.\n\n### CAPABILITY ASSESSMENT\n\nThe system exhibits a baseline capability for information extraction and question answering, particularly when questions are straightforward. However, its capabilities degrade significantly when questions involve complex filtering criteria or require arithmetic operations on extracted values. The most pressing problem is the system's inability to accurately combine information extraction with arithmetic reasoning. This significantly limits its applicability to real-world scenarios where questions often require both.\n\n### KEY STRENGTHS\n\n*   **Basic Information Extraction:** The system can extract entities and facts from the given context when the extraction criteria are straightforward.\n*   **Question Understanding:** The system can generally understand the intent of the questions, even if it sometimes fails to answer them correctly.\n\n### KEY WEAKNESSES\n\n*   **Complex Information Filtering:**  The system struggles to accurately filter extracted information based on multiple conditions and constraints, resulting in extraneous or irrelevant information being included in the answer.\n*   **Arithmetic Reasoning with Extracted Data:** The system exhibits significant weaknesses in performing accurate arithmetic operations on values extracted from the text.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Complex Information Filtering**.  While arithmetic reasoning is important, it's predicated on the system first being able to accurately extract the relevant information to perform those calculations on. If the input data is incorrect, the calculation will inevitably be wrong, no matter how precise the calculation itself is.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Multi-Stage Filtering Process:**  Break down the filtering process into multiple, explicit stages. This will allow for more targeted error analysis and debugging. For example:\n    *   *Stage 1: Initial Extraction:* Extract all entities of the required type (e.g., all countries).\n    *   *Stage 2: Condition Evaluation:* Evaluate each extracted entity against each constraint in the question. Use Boolean logic to represent whether each condition is met for each entity.\n    *   *Stage 3: Final Filtering:*  Select only the entities that satisfy *all* the conditions.\n2.  **Integrate Dependency Parsing:** Use dependency parsing to understand the grammatical relationships between words in the question and the passage. This can help the system to better identify the constraints and their scope. Focus especially on understanding how quantifiers (e.g., \"more than one\") apply to different parts of the question.\n3.  **Develop Unit Tests for the Filtering Module:** Create a suite of unit tests specifically designed to test the filtering module in isolation. These tests should cover a range of scenarios with varying complexity and different types of constraints.\n4.  **Data Augmentation for Filtering:** Augment the training data with more examples that specifically target complex filtering scenarios. These examples should be designed to challenge the system's ability to identify and apply constraints. Generate synthetic data if necessary.\n\n### CAPABILITY TREND\n\nBased on the error analysis and execution outputs, the system shows a stable, but inadequate performance level. Without focused improvements, the system will likely continue to struggle with questions requiring combined information extraction, filtering and arithmetic reasoning. Implementing the actionable recommendations should, in the next iteration, show a positive trend in information extraction capabilities, leading to improvements in arithmetic reasoning.\n"
   },
-  "progressive_testing": null,
-  "execution_time": 56.704209089279175,
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 9,
+    "accuracy": 0.9,
+    "results": [
+      {
+        "success": true,
+        "answer": "1. 25.60% under the age of 18\n2. 32.20% from 25 to 44\n3. 22.30% from 45 to 64",
+        "output": "ANSWER_START\n1. 25.60% under the age of 18\n2. 32.20% from 25 to 44\n3. 22.30% from 45 to 64\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "under the age of 18",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the golden answer, 'under the age of 18', as the first point, along with additional information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "13",
+        "output": "ANSWER_START\n13\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "13",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, '13'."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (2)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "4.  8",
+        "output": "ANSWER_START\n4.  8\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "4.8",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer presents two distinct numbers (4 and 8), whereas the golden answer specifies a single number (4.8). These are not semantically equivalent."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "54",
+        "output": "ANSWER_START\n54\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "54",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 54."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "8",
+        "output": "ANSWER_START\n8\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "8",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 8."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, 2."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "16",
+        "output": "ANSWER_START\n16\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "16",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 16."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1",
+        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The answers are identical."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Sebastian Janikowski",
+        "output": "ANSWER_START\nSebastian Janikowski\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "Sebastian Janikowski",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same name."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 89.56730079650879,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

@@ -407,7 +407,8 @@ class CustomDatasetLoader(DatasetLoader):
 
 
 class JSONLDatasetLoader(DatasetLoader):
-    """Loader for JSONL datasets with configurable field mapping"""
+    """Loader for JSONL datasets with configurable field mapping
+    Used for DROP"""
 
     def __init__(self, 
                  dataset_path: str,
@@ -462,18 +463,15 @@ class JSONLDatasetLoader(DatasetLoader):
                         # Extract the answer based on the specified extraction method
                         answer_data = example.get(self.output_field, {})
 
-                        # Get the first answer span (or other specified extraction field)
+                        # Get all answer spans (instead of just the first one)
                         answer = ""
                         if isinstance(answer_data, dict) and self.answer_extraction in answer_data:
-                            # If it's a list, take the first item
                             spans = answer_data.get(self.answer_extraction, [])
                             if spans and isinstance(spans, list):
-                                answer = spans[0]
+                                # Join all spans with a comma and space instead of taking just the first item
+                                answer = ", ".join(spans)
                             else:
                                 answer = str(spans)
-                        else:
-                            # Fallback: use the whole answer_data as a string
-                            answer = str(answer_data)
 
                         # Combine passage and question for the standard "question" field
                         formatted_question = f"PASSAGE: {passage}\n\nQUESTION: {question}"

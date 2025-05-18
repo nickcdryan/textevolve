@@ -1,152 +1,221 @@
 import os
 import re
-import math
 
 def main(question):
     """
-    This script solves questions based on a given passage by:
-    1. Determining the question type with examples.
-    2. Extracting the relevant information with examples.
-    3. Generating the answer with examples.
-    """
-
-    # Step 1: Determine the question type
-    question_type = determine_question_type(question)
-    if "Error" in question_type:
-        return question_type  # Return error message
-
-    # Step 2: Extract relevant information from the passage
-    extracted_info = extract_relevant_info(question, question_type)
-    if "Error" in extracted_info:
-        return extracted_info
-
-    # Step 3: Generate the answer
-    generated_answer = generate_answer(extracted_info, question_type, question)
-    if "Error" in generated_answer:
-        return generated_answer
-
-    return generated_answer # Directly return the generated answer
-
-def determine_question_type(question):
-    """Determine the type of the question (numerical, identification, etc.) with examples."""
-    system_instruction = "You are an expert at classifying question types."
-    prompt = f"""
-    Determine the type of question given the following examples. Return the type only.
-
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: Numerical
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: Identification
-
-    Example 3:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Type: Comparative
-    
-    Example 4:
-    Question: Who died first John of Ibelin or Isabella II?
-    Type: Sequencing
-
-    Question: {question}
-    Type:
+    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.
+    This approach builds upon prior attempts to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.
     """
     try:
-        question_type = call_llm(prompt, system_instruction)
-        if not question_type:
-            return "Error: Could not determine question type"
-        return question_type
+        # Step 1: Decompose the question into sub-questions.
+        decomposition_result = decompose_question(question)
+        if not decomposition_result.get("is_valid"):
+            return f"Error in question decomposition: {decomposition_result.get('validation_feedback')}"
+        
+        # Step 2: Extract relevant information based on sub-questions.
+        information_extraction_result = extract_information(question, decomposition_result["sub_questions"])
+        if not information_extraction_result.get("is_valid"):
+            return f"Error in information extraction: {information_extraction_result.get('validation_feedback')}"
+
+        # Step 3: Synthesize the answer from extracted information.
+        answer_synthesis_result = synthesize_answer(question, information_extraction_result["extracted_info"])
+        if not answer_synthesis_result.get("is_valid"):
+            return f"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}"
+        
+        return answer_synthesis_result["answer"]
+
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"An unexpected error occurred: {str(e)}"
 
-def extract_relevant_info(question, question_type):
-    """Extract relevant information from the passage with examples, tailored to question type."""
-    system_instruction = "You are an expert at extracting relevant information."
-    prompt = f"""
-    Extract relevant information from the passage based on the given question type.
-    Return the extracted information as a plain text summary.
-
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: Numerical
-    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: Identification
-    Extracted Info: Player who caught the final touchdown.
-
-    Example 3:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Type: Comparative
-    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.
+def decompose_question(question, max_attempts=3):
+    """Decompose the main question into smaller, answerable sub-questions."""
+    system_instruction = "You are an expert question decomposer."
     
-    Example 4:
-    Question: Who died first John of Ibelin or Isabella II?
-    Type: Sequencing
-    Extracted Info: Date of death of John of Ibelin, Date of death of Isabella II.
+    for attempt in range(max_attempts):
+        decomposition_prompt = f"""
+        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.
 
-    Question: {question}
-    Type: {question_type}
-    Extracted Info:
-    """
-    try:
-        extracted_info = call_llm(prompt, system_instruction)
-        if not extracted_info:
-            return "Error: Could not extract information."
-        return extracted_info
-    except Exception as e:
-        return f"Error: {str(e)}"
+        Example 1:
+        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Sub-questions:
+        1. How many yards was Chris Johnson's first touchdown?
+        2. How many yards was Jason Hanson's first field goal?
+        3. What is the sum of those two values?
 
-def generate_answer(extracted_info, question_type, question):
-    """Generate the answer based on extracted information and question type with examples."""
-    system_instruction = "You are an expert at generating correct answers."
-    prompt = f"""
-    Generate an answer to the question based on the extracted information.
+        Example 2:
+        Question: Who caught the final touchdown of the game?
+        Sub-questions:
+        1. Who scored the final touchdown of the game?
 
-    Example 1:
-    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.
-    Question Type: Numerical
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Answer: 40 + 30 = 70 yards
+        Example 3:
+        Question: Who had more casualties, the Colonists or the Abenakis?
+        Sub-questions:
+        1. How many casualties did the Colonists have?
+        2. How many casualties did the Abenakis have?
+        3. Who had more?
 
-    Example 2:
-    Extracted Info: Player who caught the final touchdown = Mark Clayton
-    Question Type: Identification
-    Question: Who caught the final touchdown of the game?
-    Answer: Mark Clayton
+        Question: {question}
+        Sub-questions:
+        """
+        
+        decomposition_result = call_llm(decomposition_prompt, system_instruction)
+        
+        # Verify if the decomposition is valid
+        verification_prompt = f"""
+        Verify if these sub-questions are valid and sufficient to answer the original question.
 
-    Example 3:
-    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.
-    Question Type: Comparative
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Answer: Gliese 915
+        Original Question: {question}
+        Sub-questions: {decomposition_result}
+
+        Example 1:
+        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?
+        Validation: Valid
+
+        Example 2:
+        Original Question: Who caught the final touchdown of the game?
+        Sub-questions: 1. Who scored the final touchdown of the game?
+        Validation: Valid
+        
+        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
+        
+        if "valid" in verification_result.lower():
+            return {"is_valid": True, "sub_questions": decomposition_result}
+        else:
+            print(f"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            
+    return {"is_valid": False, "validation_feedback": "Failed to decompose the question successfully."}
+
+def extract_information(question, sub_questions, max_attempts=3):
+    """Extract relevant information from the passage based on the sub-questions."""
+    system_instruction = "You are an information extraction expert."
     
-    Example 4:
-    Extracted Info: Date of death of John of Ibelin = 1236, Date of death of Isabella II = 1228.
-    Question Type: Sequencing
-    Question: Who died first John of Ibelin or Isabella II?
-    Answer: Isabella II
+    for attempt in range(max_attempts):
+        extraction_prompt = f"""
+        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.
 
-    Extracted Info: {extracted_info}
-    Question Type: {question_type}
-    Question: {question}
-    Answer:
-    """
-    try:
-        answer = call_llm(prompt, system_instruction)
-        if not answer:
-            return "Error: Could not generate answer."
-        return answer
-    except Exception as e:
-        return f"Error: {str(e)}"
+        Example 1:
+        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Sub-questions:
+        1. How many yards was Chris Johnson's first touchdown?
+        2. How many yards was Jason Hanson's first field goal?
+        Extracted Information:
+        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
+
+        Example 2:
+        Original Question: Who caught the final touchdown of the game?
+        Sub-questions:
+        1. Who scored the final touchdown of the game?
+        Extracted Information:
+        Wes Welker caught the final touchdown of the game.
+
+        Original Question: {question}
+        Sub-questions: {sub_questions}
+        Extracted Information:
+        """
+        
+        extracted_info = call_llm(extraction_prompt, system_instruction)
+        
+        # Validate information extraction
+        verification_prompt = f"""
+        Verify if the extracted information is relevant and sufficient to answer the sub-questions.
+
+        Original Question: {question}
+        Sub-questions: {sub_questions}
+        Extracted Information: {extracted_info}
+
+        Example 1:
+        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?
+        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
+        Validation: Valid
+
+        Example 2:
+        Original Question: Who caught the final touchdown of the game?
+        Sub-questions: 1. Who scored the final touchdown of the game?
+        Extracted Information: Wes Welker caught the final touchdown of the game.
+        Validation: Valid
+
+        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
+        
+        if "valid" in verification_result.lower():
+            return {"is_valid": True, "extracted_info": extracted_info}
+        else:
+            print(f"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            
+    return {"is_valid": False, "validation_feedback": "Failed to extract relevant information successfully."}
+
+def synthesize_answer(question, extracted_info, max_attempts=3):
+    """Synthesize the answer from the extracted information to answer the main question."""
+    system_instruction = "You are an answer synthesis expert. If the extracted information contains numbers, perform any necessary calculations to derive the final answer."
+
+    for attempt in range(max_attempts):
+        synthesis_prompt = f"""
+        Given the original question and the extracted information, synthesize the final answer.
+
+        Example 1:
+        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
+        Final Answer: 59 yards
+
+        Example 2:
+        Original Question: Who caught the final touchdown of the game?
+        Extracted Information: Wes Welker caught the final touchdown of the game.
+        Final Answer: Wes Welker
+
+        Example 3:
+        Original Question: Who had more casualties, the Colonists or the Abenakis?
+        Extracted Information: Colonists had 3 casualties. Abenakis had at least 31 casualties.
+        Final Answer: Abenakis
+
+        Original Question: {question}
+        Extracted Information: {extracted_info}
+        Final Answer:
+        """
+        
+        answer = call_llm(synthesis_prompt, system_instruction)
+
+        # Answer checker
+        verification_prompt = f"""
+        Check if the answer is correct and answers the original question fully.
+
+        Original Question: {question}
+        Synthesized Answer: {answer}
+
+        Example 1:
+        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Synthesized Answer: 59 yards
+        Validation: Valid
+
+        Example 2:
+        Original Question: Who caught the final touchdown of the game?
+        Synthesized Answer: Wes Welker
+        Validation: Valid
+
+        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
+
+        if "valid" in verification_result.lower():
+            return {"is_valid": True, "answer": answer}
+        else:
+            print(f"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            
+    return {"is_valid": False, "validation_feedback": "Failed to synthesize a valid answer."}
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
+        import os  # Import the os module
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))

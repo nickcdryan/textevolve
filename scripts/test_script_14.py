@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 14,
-        "sample_id": "example_125",
-        "question": 'PASSAGE: The 1994 Monaco Grand Prix was a Formula One motor race held on 15 May 1994 at the Circuit de Monaco, Monte Carlo. It was the fourth race of the 1994 Formula One season, and the first following the deaths of Ayrton Senna and Roland Ratzenberger at the San Marino Grand Prix two weeks previously. The 78-lap race was won by Michael Schumacher driving a Benetton-Ford, his fourth victory from the first four races of 1994. Martin Brundle finished second in a McLaren-Peugeot, with Gerhard Berger third in a Ferrari.\n\nQUESTION: When was the San Marino Grand Prix held?'
+        "sample_id": "24f366fc-2b74-4a2c-99e2-3370c6f565ae",
+        "question": "PASSAGE: Coming off their upset road win over the Broncos, the Raiders went home for a Week 13 AFC West rematch with the Kansas City Chiefs. In the first quarter, Oakland struck first as kicker Sebastian Janikowski got a 25-yard field goal. The Chiefs would respond with kicker Connor Barth getting a 38-yard field goal. In the second quarter, Kansas City took the lead as CB Maurice Leggett returned a fumble (who was from a trick play on a field goal attempt) 67 yards for a touchdown. In the third quarter, Oakland responded with RB Justin Fargas getting a 1-yard TD run. In the fourth quarter, the Chiefs replied with RB Larry Johnson getting a 2-yard TD run, along with Barth making a 27-yard field goal. The Raiders tried to come back as Janikowski nailed a 51-yard field goal, but Kansas City's defense was too much to overcome.\n\nQUESTION: Which player scored the last points of the game?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 14,
-            "sample_id": "example_125",
+            "sample_id": "24f366fc-2b74-4a2c-99e2-3370c6f565ae",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: The 1994 Monaco Grand Prix was a Formula One motor race held on 15 May 1994 at the Circuit de Monaco, Monte Carlo. It was the fourth race of the 1994 Formula One season, and the first following the deaths of Ayrton Senna and Roland Ratzenberger at the San Marino Grand Prix two weeks previously. The 78-lap race was won by Michael Schumacher driving a Benetton-Ford, his fourth victory from the first four races of 1994. Martin Brundle finished second in a McLaren-Peugeot, with Gerhard Berger third in a Ferrari.\n\nQUESTION: When was the San Marino Grand Prix held?'
+    question = "PASSAGE: Coming off their upset road win over the Broncos, the Raiders went home for a Week 13 AFC West rematch with the Kansas City Chiefs. In the first quarter, Oakland struck first as kicker Sebastian Janikowski got a 25-yard field goal. The Chiefs would respond with kicker Connor Barth getting a 38-yard field goal. In the second quarter, Kansas City took the lead as CB Maurice Leggett returned a fumble (who was from a trick play on a field goal attempt) 67 yards for a touchdown. In the third quarter, Oakland responded with RB Justin Fargas getting a 1-yard TD run. In the fourth quarter, the Chiefs replied with RB Larry Johnson getting a 2-yard TD run, along with Barth making a 27-yard field goal. The Raiders tried to come back as Janikowski nailed a 51-yard field goal, but Kansas City's defense was too much to overcome.\n\nQUESTION: Which player scored the last points of the game?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 14,
-            "sample_id": "example_125",
+            "sample_id": "24f366fc-2b74-4a2c-99e2-3370c6f565ae",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 14,
-            "sample_id": "example_125",
+            "sample_id": "24f366fc-2b74-4a2c-99e2-3370c6f565ae",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

@@ -1,190 +1,219 @@
 ```
-# Dataset-Specific Research Log: Question Answering on Sports/Statistical Texts
+# DATASET-SPECIFIC LEARNINGS & EXPERIMENT LOG
 
-This document serves as a running log of our research and findings specific to the task of question answering on a dataset consisting of short sports reports or statistical summaries followed by fact-based questions.
+This document tracks our evolving understanding and experimental findings related to the question answering task on the current dataset. It serves as a long-term memory to guide future research and development efforts.
 
 ## 1. DATASET PATTERNS & CHARACTERISTICS
 
-*   **Passage Structure:** Each example consists of a passage of text followed by a question, separated by "\n\nQUESTION: ". The passages describe sports events, statistical summaries, or other fact-based scenarios.
-*   **Passage Density:** The passages are often dense with information, requiring precise identification of relevant facts amidst irrelevant details (e.g., crime rate passage with multiple cities and rates).
-*   **Question Types:**
-    *   **Who:** Asks for a person performing an action (e.g., "Who kicked the field goal?").
-    *   **How many:** Asks for a count (e.g., "How many rushing touchdowns did he have?"). The answer may be a single number, list, or calculation.
-    *   **Calculation:** Asks for a result of a simple numerical operation (e.g., "How many total yards did the team gain?").
-    *   **Comparative (Numerical):** Compares two entities based on a numerical attribute (e.g., "Which team had more passing yards, the Bears or the Packers?").
-    *   **Which Player (Action-Based):** Asks "which player" performed a specific action (e.g., "Which player threw the touchdown pass?").
-    *   **Date Related:** Asks about dates of events.
-    *   **Value identification:** Asks for exact quantity of something (e.g., "How many total points were scored...").
-    *   **Reason Identification:** Asks for the "why" behind a specific event.
-    *   **Temporal Reasoning & Numeric Anchoring:** Requires temporal reasoning (e.g., "How many months did...") often involving calculations based on dates/durations. Passages embed relevant numeric values (years, counts, scores) close to entity mentions.
-    *   **Event Sequencing and Ordering:** Requires determining the order of events.
-    *   **Numerical Reasoning with Date/Time Context:** Questions requiring numerical reasoning with specific attention to dates, years, or time spans mentioned in the passage. The context of these numbers is crucial.
-    *   **Proportional Reasoning:** Some questions require understanding proportions or fractions, then converting them to percentages.
-*   **Question Diversity:** Questions are diverse (dates, names, quantities, comparisons, reasons).
-*   **Numerical Answer Emphasis:** A significant portion of the questions require a numerical answer derived from the passage, often involving calculations or identification of specific numerical facts.
-*   **Numerical Reasoning Emphasis:** The dataset heavily features questions requiring numerical reasoning, including addition, subtraction, and comparison of values extracted from the passage. Many questions ask for totals, differences, or comparisons.
-*   **Multi-Step Reasoning:** Some questions implicitly require multiple steps (e.g., identifying *all* cities with rates below a threshold).
-*   **Multi-Source Information Integration:** Passages often contain information from multiple sources, requiring correctly identifying the scope and relevance of each source to answer the question accurately.
-*   **Implicit Information and Calculation:** Some questions don't directly state the calculation needed; it must be inferred from the question's intent (e.g., "How many years..." implies a subtraction of years).
-*   **Answer Types:** Answers are short (name, number, phrase) directly from the passage, fact-based, and unambiguous.
-*   **Passage Length Variability:** Passages vary in length/complexity. Longer passages and complex questions can lead to failures.
-*   **Domain Knowledge:** Basic sports understanding is helpful but not required.
-*   **Implicit Relationship Understanding:** Some questions require understanding implicit relationships (e.g., "How many years after...").
-*   **Complex Passages with Multiple Facts:** Passages contain a high density of factual information.
-*   **Named Entity Dependency:** Questions heavily rely on correctly identifying and associating named entities.
-*   **Mixed Question Types:** The dataset contains a mix of question types.
-*   **Sports Game Summaries & Calculation/Comparison Questions:** Dataset heavily features summaries of sports games with questions involving calculation/comparison.
-*   **Varied Numerical Information:** Numerical information is presented in varied ways (explicitly stated or implied by scores).
-*   **Passage Topic Variability:** Passages vary in topic, spanning history, sports, and potentially other domains.
-*   **Implicit Unit Understanding:** Many questions require implicit understanding of units (e.g., months, years, points). Questions frequently omit units, requiring the system to infer them from context.
-*   **Explicit References:** Many questions require pinpointing specific details directly mentioned in the provided passage.
-*   **Granular Detail:** The questions often target very specific pieces of information, such as particular locations, quantities, or names, not broader summaries.
+*   **General:**
+    *   The dataset consists of passages describing events (primarily American football games or political events), followed by fact-based questions requiring information retrieval directly from the passage. No external knowledge is needed.
+    *   Questions often involve numerical reasoning (arithmetic, comparisons), general knowledge application, and date/time calculations.
+    *   Passages can be lengthy, requiring careful reading. Case sensitivity is observed.
+    *   Questions often involve comparing or relating two or more pieces of information in the passage, frequently asking for numerical information (quantities, dates, names), requiring precise extraction and comparison.
+    *   Passages often present multiple entities or events; questions require distinguishing between them and relating correct information.
+    *   Questions may require synthesizing information from multiple sentences or inferring from disparate facts.
+    *   Many questions involve interpreting percentages or proportions, requiring correct identification of the base number.
+    *   Questions often test the understanding of specific terminology within the passage's context.
+    *   The dataset presents questions that require **numerical reasoning and contextual linking**. Many questions ask for percentage differences or values derived from information spread across sentences.
+    *   Questions frequently involve **extracting and comparing numerical values**. The system needs to identify the correct numerical values from the passage and perform arithmetic operations.
+    *   The dataset contains questions where the **answer is not explicitly stated** but requires inferential reasoning based on the context provided in the passage. Sometimes the answer can't be found in the text.
+    *   **Complex Reasoning:** The questions frequently require integrating information from multiple parts of the passage, going beyond simple fact retrieval.
+    *   Questions frequently ask for specific values, but the system sometimes hallucinates other relevant pieces of information when it should've been concise.
+    *   Questions require precise information extraction.
+    *   Answers are usually directly stated but may require simple comparisons (e.g., "more than," "less than") or filtering based on numerical thresholds.
+    *   The passages contain a mix of quantitative data (percentages, numbers) and categorical information (names of groups, industries).
+    *   Questions often involve identifying groups or categories that meet specific quantitative criteria.
+    *   There is a strong emphasis on accurate value extraction, with the need to isolate and compare specific numbers (percentages in the racial makeup question, employment numbers in the industry comparison).
+    *   **Calculation/Extraction Focus:** A significant portion of the questions require performing calculations (e.g., summing scores) or extracting specific numerical data from the passage rather than just simple fact retrieval. The model often fails to present the *result* of the calculation, instead restating *what* calculation needs to be done.
+    *   **Implicit Information:** The questions frequently require synthesizing information from multiple parts of the passage. The necessary facts are not always explicitly stated in one sentence.
+
+*   **Sports Context:** The dataset heavily features sports passages, often game recaps or summaries. The questions frequently ask about specific numerical details like yardage, scores, or player statistics. Passages are dense with numbers, requiring precise parsing. Basic sports terminology (football positions, scoring) is needed. Questions about sports narratives can induce errors because they require understanding of event order and accurate extraction of details.
+    *   Questions are primarily fact-retrieval based on a single passage of text describing a sports game (American football).
+    *   Questions frequently ask about specific players and their actions during the game (e.g., who scored, who intercepted, how many points).
+    *   **Sports-Related Numerical Data:** A noticeable portion of the dataset revolves around sports passages and numerical details (scores, yardage, etc.), making accurate numerical reasoning critical.
+
+*   **Multiple Relevant Instances:** Questions often implicitly require the model to identify *all* instances of a particular event or object within the passage (e.g., "What yard line did both teams score from?").
+*   **Implicit Comparisons/Filters:** Some questions demand the model to perform a calculation (e.g., difference, sum) or filter based on a condition after extracting information (e.g., "How many more households were there with couples married without children than households married with children?").
+
+*   **Entity Relationship Extraction:**
+    *   The dataset presents questions requiring identifying relationships between entities within a passage. The target relationship often involves actions (e.g., seizing power, causing casualties) and the entities involved (agent and target).
+    *   Questions frequently require pinpointing the target/subject of an action, even when multiple related entities are mentioned in close proximity. This demands precise understanding of sentence structure and pronoun references. The model confuses the person who *preceded* the power seizure with the *victim* of the power seizure (e.g., confusing King William II of Sicily with Queen Joan). The system fails to correctly identify the subject of an action.
+    *   The passages are concise, but contain sufficient detail that incorrect attribution is easy.
+
+*   **Date/Time Reasoning:**
+    *   A recurring pattern is the need to calculate durations (years, months, days) based on dates or time spans mentioned in the passage. This requires precise arithmetic and attention to inclusivity/exclusivity. A significant portion of the questions requires understanding and comparing dates and events described in the passage. The questions often ask "Which happened later?" or require calculating time differences. A recurring failure mode involves incorrect calculation of the number of months between two dates mentioned in the passage.
+    *   **Temporal Reasoning:** Some questions require understanding and comparing events that occur at different times in the passage. Chronological order of events is important. Time-related keywords (e.g., "final," "first," "later," "second") help narrow the search.
+    *   The passages contain a lot of temporal information (first quarter, second quarter, etc.) which is crucial for answering many of the questions.
+
+*   **Explicit Information Retrieval:** The questions often require directly extracting and processing information explicitly stated in the passage.
+*   **Numeric Answers:** Many questions seek numeric answers, making them easily verifiable but also sensitive to arithmetic errors.
+*   **Question Structure:** All questions follow the format: `"PASSAGE:\n[passage text]\n\nQUESTION: [question text]"`. Many questions involve numerical reasoning and comparison.
+*   **Answer Structure:** Answers are typically short phrases, numbers, or names.
+*   **Passage Structure:** Passages vary in content (sports summaries, scientific descriptions like astronomy, political events). Passages are dense with numbers.
+*   **Domain Knowledge:** General reading comprehension is crucial. For demographic examples, basic understanding of fertility rates is needed.
+*   **Question Types:** Entity Extraction, Numerical Comparison, Counting.
+*   **Reasoning Types:** Direct Extraction, Simple Arithmetic, Logical Deduction, Multi-Sentence Reasoning.
+*   **Non-Obvious Patterns:** Chronological order of events is important. Time-related keywords help narrow the search.
+*   **Edge Cases/Complexities:** Passages with ambiguous or contradictory information; questions requiring more complex arithmetic operations; questions with implicit rather than explicit answers; handling of units consistently.
 
 ## 2. EFFECTIVE TASK-SPECIFIC STRATEGIES
 
-*   **Chain-of-Thought Decomposition:** Decomposing the problem into smaller, well-defined functions (`determine_question_type`, `extract_relevant_info`, `generate_answer`) is generally effective. This modularity likely helps in focusing the LLM's reasoning at each step. The chain-of-thought method helped to decompose the question into its required parts.
-*   **LLM-Driven Modularity:** Using the LLM for each stage (question type determination, information extraction, and answer generation), rather than hard-coded rules, provides the flexibility needed to handle the diversity of question types.
-*   **Directly Tie Extraction to Question Type:** Tailor the information extraction process to the specific question type identified. This improves efficiency and accuracy.
-*   **Specialized Agents for CoT:** The Chain-of-Thought (CoT) approach, using specialized agents for question type classification, information extraction, and answer generation, is effective *when it works correctly*. This breaks down the complex task into smaller, manageable steps. However, reliability needs to be assessed with more data.
-*   **Chain-of-Thought Prompting with Examples:** The CoT structure with explicit examples seems promising, likely helping ground the LLM in the specific task by guiding it towards mimicking the format and content of the examples.
-*   **Explicit Examples Effectiveness:** The use of explicit examples within the prompts for each stage helps guide the LLM towards the correct output format.
-*   **Explicit Date Extraction:** When dealing with date/time-related questions, focus on explicitly extracting all date/time mentions from the passage first. This creates a pool of potentially relevant values.
-*   **Three-Step Approach Soundness:** The overall three-step approach (question type determination, information extraction, answer generation) seems fundamentally sound. The *structure* of the solution is effective, but the *implementation* within each step needs refinement.
-*   **Effective Information Extraction:** The information extraction module is somewhat effective in pinpointing the relevant text spans within the passage. This is crucial given the information density of the passages.
+*   **Decompose, Extract, Synthesize:** A modular approach utilizing a question decomposer, information extraction expert, and answer synthesis expert shows promise.
+*   **Chain-of-Thought Reasoning (CoT):** Improves interpretability and helps guide the model to extract the right type of information and perform simple comparisons. The ability to break down the question seems to reduce irrelevant information. Effectiveness is limited by the system's ability to accurately understand the question's intent and extract relevant numerical data. While conceptually sound, it doesn't guarantee accurate numerical reasoning or adherence to concise answer formats, even with validation steps.
+*   **Zero-Shot Reasoning:** Directly ask the LLM to answer the question based on the passage, using a well-crafted prompt.
+*   **Question-Type Determination and Specialized Processing:** Determine the question type (numerical vs. general) and use specialized processing. Failure in question type determination renders the entire system useless.
+*   **LLM-Driven Techniques with Verification:** Combining LLM-driven techniques with verification steps at each stage is a successful pattern. Validation is inadequate for semantic errors. Explicit validation steps included in the script (within `decompose_question`, `extract_information`, and `synthesize_answer`) contribute to maintaining accuracy and filtering potentially incorrect extractions. However, these validations do not always succeed.
+*   **Dual Verification with Iterative Refinement:** Appears promising, providing a solid base for improvement, but may be too sensitive and identifies a wide range of related answers.
+*   **Dynamic Approach Selection:** Adapting the strategy based on the type of question being asked proves important.
+*   **Validating intermediate steps:** Decomposition and extraction likely contributes to the overall accuracy.
+*   **Providing examples in LLM prompts improves performance.** Explicit examples in the prompt, while intended to guide the LLM, are not always sufficient to overcome the numerical reasoning and over-inclusion issues.
+*   **Explicitly prompting the LLM to show its work (intermediate calculations) helps in debugging.**
+*   **Question Clarification & Focused Extraction:** Clarifying the question's intent before extraction *should* ideally improve precision.
+*   **Iterative Question Refinement with Contextual Expansion (Ineffective in current implementation):** The "Iterative Question Refinement with Contextual Expansion" strategy, in its current implementation, is ineffective for this dataset. The low accuracy and consistent error patterns indicate a fundamental flaw in the approach's ability to translate understanding into execution (Iteration 21).
 
 ## 3. COMMON FAILURE MODES ON THIS DATASET
 
-*   **Difficulty Locating Relevant Information:** Especially for longer passages, finding the specific sentence or phrase containing the answer can be challenging.
-*   **Incorrect Entity Identification:** Misidentifying the entities (players, teams) referred to in the question within the passage.
-*   **Numerical Calculation Errors:** Performing the wrong numerical calculation or misinterpreting the wording of the question leading to incorrect arithmetic. The system fails to perform simple arithmetic correctly.
-*   **Stuck in Verification Loop (Generic Answer):** The system gets stuck in a planning or verification stage instead of executing the task, producing canned responses. This indicates a breakdown between task identification and task execution.
-*   **Inability to Extract and Compare Numerical Values:** When presented with comparative questions, the system fails to extract the relevant numerical values from the passage and perform the necessary comparison.
-*   **Failure to Identify Specific Actors in Complex Scenarios:** In questions asking about a specific player's action within a game summary, the system gets stuck on "verifying" the identification of the player instead of extracting the name associated with the event from the passage.
-*   **Script Errors:** NameError: name 'question' is not defined. This occurred during script repair. The variable 'question' was not defined in the scope where it was being used.
-*   **Lack of Error Information:** The primary failure mode currently is the lack of error data. Without knowing *why* the system fails, it's impossible to pinpoint specific weaknesses.
-*   **Sensitivity to passage and question complexity:** Longer passages and more complex questions (requiring multi-step reasoning or implicit relationship understanding) can lead to failures.
-*   **Incorrect Temporal Calculation:** Failing to accurately extract and process temporal information. Example: The system incorrectly calculated the number of months between February and December. System struggles to accurately extract and perform calculations with temporal information. It may misinterpret time references, leading to incorrect answers. Example: "How many years were between Osumi Islands being transferred, and Kagoshima District being transferred?" expected "6", actual "76 years".
-*   **Misinterpreting Point Differentials:** Failing to extract scores and calculate the difference. Example: For example, in the question about the Falcons' lead at halftime, the model failed to correctly determine the point difference based on the passage.
-*   **Erroneous Event Sequencing:** Difficulty in identifying the order of events and their relative timing based on the passage.
-*   **Entity Confusion:** The model incorrectly identifies the relevant entities or confuses their relationships.
-*   **Poor Numerical Extraction & Calculation:** The system struggles to extract the *correct* numbers required for calculations. It extracts irrelevant numbers or misinterprets the relationships between them.
-*   **Inadequate Temporal Reasoning:** The system seems to have a weak understanding of temporal relations expressed in the text.
-*   **Indiscriminate Information Extraction:** The root cause is the "expert at extracting relevant information" agent isn't precise enough. It extracts too much information, and the subsequent steps are unable to filter and use only the necessary parts.
-*   **Inaccurate Numerical Reasoning:** The model frequently fails to correctly identify the relevant numerical values and perform the required calculations (addition, subtraction, etc.).
-*   **Contextual Misunderstanding of Units:** The model struggles to consistently apply the correct units in its calculations and answers, demonstrating a lack of contextual awareness.
-*   **Over-Extraction:** The most prominent failure mode is the tendency to include *more* information than strictly necessary to answer the question.
-*   **Incorrect Arithmetic Operations:** The system sometimes performs arithmetic when it's not required or combines numbers that shouldn't be combined.
-*   **Failure to Distinguish Different Roles/Attributes:** The system fails to differentiate between different attributes of the same entity.
-*   **LLM Reliance on Explicit Instructions:** The LLM relies heavily on the system instructions provided in the prompt.
-*   **Need for Improved Contextual Understanding:** The low accuracy underscores the need for enhancing the system's contextual understanding capabilities.
-*   **Inaccurate Numerical Extraction & Comparison:** The system struggles to accurately identify and compare numerical values.
-*   **Incorrect Date Span Calculation:** Correctly identifying the start and end years but failing to correctly calculate the difference or misinterpreting what that difference represents in the context of the question.
-*   **Lack of Temporal Reasoning:** The model struggles with temporal reasoning and understanding implied time relationships. It can identify dates but fails to link them correctly to the event or period the question refers to.
-*   **Limitations of Keyword-Based Information Extraction:** Reliance on keywords alone for information extraction is insufficient. A deeper understanding of the question's temporal and logical intent is required.
-*   **Incorrect Level of Detail:** The primary failure mode is providing answers at an inappropriate level of detail, specifically missing the required numeric specificity (e.g., providing the event of a touchdown pass without specifying the yardage when the question asks for yardage). The LLM in the current form has a hard time mapping to the *exact* requirement of the question.
-*   **Lack of Unit Awareness:** The LLM may be missing the association of units (yards, points) with numeric values extracted from the passage, leading to incomplete answers.
-*   **Inflexible Answer Matching:** The system's primary failure stems from its rigid answer-matching criteria. Even when the core numerical answer is correct, the inclusion of extra explanatory text or minor formatting variations (e.g., including a "%" sign) leads to incorrect classifications. This highlights a lack of robustness in the evaluation process. Example: Correctly calculating 5.5 but including "%" makes it wrong.
-*   **Over-Strictness on Exact Phrases:** The model struggles when the answer requires interpreting a relationship that's conceptually correct but doesn't perfectly match the question's wording.
-*   **Implicit Constraint Neglect:** Overlooking implicit constraints within the question. Example: Asked "Which countries on the 2014 Summer tour were scheduled for more than one date?", it returns both "France" and "Germany," failing to recognize that the question is only asking for countries. This shows failure to filter the extracted countries properly.
-*   **Arithmetic Errors After Correct Extraction:** Even when the relevant numerical values are correctly identified, arithmetic errors in the final calculation lead to incorrect answers.
-*   **Unit Mismatch:** The system frequently fails to distinguish between a numerical value alone and a numerical value with its unit (e.g., "1" vs. "1 yard"). This occurs because the `generate_answer` function does not reliably strip units when the expected answer is only the numerical value. Example: "How many yards shorter was Jason Campbell 's second touchdown pass compared to his first?" expected "1", actual "1 yard".
-*   **Scope Confusion:** The system can fail to correctly isolate the time period or subject that the question is actually asking about within the passage, as seen in the question about Justin Tucker's field goals.
+*   **API Connectivity Failure:** Inability to connect to the Gemini API, preventing any processing.
+*   **General Script Errors:** `NameError: name 'call_llm' is not defined`.
+*   **Root Cause: Incorrect Question Type Determination:** The `determine_question_type()` function consistently returns an error. The question type determination module is a single point of failure.
+*   **Temporal Reasoning Errors:** Incorrectly ordering events, calculating time differences, and making off-by-one errors in duration calculation. Misinterpretation of Inclusion/Exclusion. Difficulty determining the *first* or *last* instance of an event.
+*   **Answer Synthesis Failure:** Inability to synthesize a valid answer, even when the correct information is extracted. Struggles to provide complete answers, especially when context, units, or modifiers are needed. Struggles to filter out irrelevant entities.
+*   **Over-generation of Instances:** The "Dual Verification with Iterative Refinement" approach often retrieves *all* possible instances related to the question from the passage, even when not all are directly relevant. This leads to overly detailed and noisy answers. Inability to apply precise constraints during information extraction. The system identifies both players who intercepted passes, but the question implicitly or explicitly only asks for one (Over-inclusive Extraction).
+*   **Lack of Aggregation/Filtering:** The system struggles to perform necessary filtering or aggregation after extracting the information.
+*   **Sports narrative complexity:** Requires understanding of event order and accurate extraction of details.
+*   **Validation sensitivity:** Validation checks can be overly strict, but are still often insufficient. The validation step isn't always effective in catching and correcting numerical or over-inclusion errors. Validation may be too simplistic and the final answer may still be wrong. LLM validation is also ineffective as the LLM struggles to distinguish between a description of a calculation and the calculated result.
+*   **Information Extraction Failure:** Inaccurate or incomplete extracted information. Pulls *additional* correct information when only *specific* information is requested. Numerical extraction errors.
+*   **Ambiguous Passages:** Passages with ambiguous or contradictory information.
+*   **Missing Information:** If the answer cannot be found in the passage. LLM incorrectly claims that information is missing when it's present in the passage. This suggests an issue with information extraction and entity recognition, possibly due to the complexity of the passage or the way the question is phrased (Iteration 21).
+*   **Lack of Arithmetic Reasoning:** Inability to perform arithmetic operations, particularly simple addition.
+*   **Calculation errors:** Performing incorrect arithmetic operations on extracted numbers. Struggles with simple arithmetic (e.g., subtraction). The LLM may not be performing the calculation accurately or extracting the correct numbers to begin with.
+*   **Synthesis errors:** Generating a response that is not a coherent or accurate answer to the question.
+*   **Question type misclassification**.
+*   **Unit Handling:** Lack of proper unit handling leads to incomplete or misinterpreted answers.
+*   **Misinterpretation of Question Intent**.
+*   **Incorrect Numerical Calculation.**
+*   **Lack of Verification:** Lacks a final answer verification step to check the reasonableness of the answer.
+*   **Numerical Extraction in Dense Passages:** Difficulty in accurately extracting numerical values and associating them with the correct entities.
+*    **Incorrect Subject Identification:** The system fails to correctly identify the subject of an action.
+*   **Proximity Bias:** The LLM seems to exhibit proximity bias, selecting entities mentioned closer to the action verb.
+*   **Lack of Deep Understanding of Numerical Comparisons:** Appears to sometimes fail to associate the numbers with the correct context, leading to incorrect comparisons.
+*   **Lack of "Who" Question Understanding:** The system does not appear to know how to resolve "who" questions.
+*   **Semantic Equivalence:** Errors occur when the system gives an answer that is not semantically equivalent to the reference answer, for example, "Novgorod" vs "Novgorodians".
+*   **Misinterpretation of context**.
+*   **Incorrect extractions**.
+*   **Incorrect formatting:** Added extra spaces in the answer.
+*   **Over-Inclusion of Information:** The system includes unnecessary or incorrect information in the answer, deviating from the precise requirement of the question. The LLM might lack precise instruction following skills, be unsure of what information is truly needed, or it might try to "over-answer" to be helpful (but missing the goal). *Example: In the "racial groups" question, including "White American" when only the highest percentage is requested. The group is present in the passage but doesn't meet the implicit filtering criteria.* The "greediness" issue suggests an over-reliance on potentially valid details, even if they aren't strictly required. This might stem from the LLM's general knowledge or tendency to provide comprehensive answers rather than minimal, targeted ones.
+*   **"Description Instead of Value" Error:** The primary failure mode is the LLM identifying the *correct operation to perform* or the *correct information to extract* but failing to actually *execute* that operation and provide the numerical answer or extracted entity. For example, it correctly identifies that it needs to sum the scores from the second half, but it then outputs "Total score in the second half of the game" instead of the calculated total. This indicates a breakdown in the final execution or synthesis step (Iteration 21).
+*   **Multi-Step Reasoning Breakdown:** When questions require multi-step reasoning (e.g., identifying multiple touchdowns and then the player who scored more than one), the system struggles to maintain accuracy across all steps. It might correctly identify individual events but fail to synthesize them to answer the overall question (Iteration 21).
 
 ## 4. EXPERIMENT LOG & FINDINGS
 
-*   **2025-05-17 12:44:34:** Initial Dataset Analysis: Comprehensive breakdown of data characteristics, challenges, potential approaches, creative insights, and implementation recommendations. Key recommendations included: (1) Keyword Matching, (2) Sentence Similarity, (3) Information Extraction with Rules, (4) LLM-based Question Answering. Also included a sample prompt structure for text based techniques.
-*   **2025-05-17 12:44:44:** SCRIPT ERROR ENCOUNTERED: NameError: name 'question' is not defined. This occurred during script repair in the `generate_answer` function. The variable 'question' was not properly passed or defined within that function's scope.
-*   **Iteration 0 Findings:** Chain-of-thought decomposition into question type classification, information extraction, answer generation, and verification was *ineffective*. The sequential chain, as implemented, led to premature "verification" steps that prevented the system from generating concrete answers. The system exhibited an over-reliance on verification, hindering progress. Accuracy was very low.
-*   **Iteration 1 Findings:** Chain-of-thought approach (determine type, extract info, generate answer) achieved 100% accuracy, suggesting it is well-suited for this dataset. The modularity likely helps in focusing the LLM's reasoning at each step. Removing the verification step did not negatively impact performance, suggesting it was unnecessary overhead.
-*   **Iteration 2 Findings:** CoT with specialized agents *can* achieve perfect accuracy (1.00) on a small subset, suggesting the underlying strategy has potential. However, without error data, we cannot determine how robust this approach is. The 1.00 accuracy might be a fluke on a small, easy subset of the data. Reliability is unknown.
-*   **Iteration 3 Findings:** The exploitation strategy using a decomposed approach and chain-of-thought prompting achieved only moderate accuracy (0.60). This suggests that while the overall structure is promising, the information extraction and reasoning capabilities need significant improvement.
-*   **Iteration 4 Findings:** The decompose-and-generate approach, as implemented, is not yet effective for this dataset. The accuracy of 0.80 indicates that at least one of the sub-tasks (question type classification, information extraction, answer generation) is introducing errors. The current in-context learning examples are insufficient to guide the LLM in performing the required temporal reasoning and complex entity relationship extraction.
-*   **Iteration 5 Findings:** A naive chain-of-thought implementation, without more precise extraction and reasoning, performs poorly on this dataset. The accuracy was low, indicating significant issues with information extraction and temporal reasoning.
-*   **Iteration 6 Findings:** The exploitation strategy, while aiming to leverage existing knowledge, isn't sufficient without improvements to numerical reasoning and contextual understanding. The current implementation of the decomposition approach is limited by the accuracy of its individual components, particularly in extracting and manipulating numerical information. Relying solely on the LLM for calculations, even with prompting, is unreliable for this dataset.
-*   **Iteration 7 Findings:** The high accuracy (0.90) indicates that the overall strategy of question decomposition is effective for this type of question-answering task *on this specific dataset*. The isolated error mode (over-extraction) suggests that the primary area for improvement is refining the information extraction process, rather than fundamentally altering the overall approach.
-*   **Iteration 8 Findings:** The decompose-and-generate approach needs significant improvement, as the accuracy is low. This highlights that while the overall structure may be promising, the information extraction, numerical reasoning, and contextual understanding need further enhancement.
-*   **Iteration 9 Findings:** The Chain-of-Thought approach, while conceptually sound, is insufficient on its own when the task involves numerical reasoning. The decomposition into question type, extraction, and generation does not guarantee accuracy in numerical operations.
-*   **Iteration 10 Findings:** The experiment confirmed that while the LLM can extract information, numerical reasoning and accurate calculation remain a weak point. Simply identifying relevant numbers is not enough; the system needs to perform calculations precisely.
-*   **Iteration 11 Findings:** The exploitation strategy achieved a good initial accuracy (0.90). However, the failures highlight the critical need for precise information extraction, especially with respect to numeric values and their units. The current prompt engineering in the information extraction and answer generation steps is insufficient to guarantee the correct level of detail is returned.
-*   **Iteration 12 Findings:** The current CoT approach is capable of extracting the relevant numbers from the passages and performing basic calculations, confirming the hypothesis that a modular approach can handle the complexity of the questions. However, the 70% accuracy shows that the strict evaluation method is a significant bottleneck. The system's raw numerical reasoning capabilities might be higher than what the accuracy metric suggests.
-*   **Iteration 13 Findings:** The chain-of-thought strategy has not completely solved the problems within the dataset. The model still has issues with constraint based questions, where it will overlook constraints leading to wrong answers.
-*   **Iteration 14 Findings:** The exploitation strategy (using the existing approach) reveals the limitations of the current multi-stage LLM approach. It highlights the specific weaknesses in unit handling, temporal reasoning, and contextual scope. The 50% accuracy indicates that while the general framework is partially effective, specific improvements are needed in data extraction and answer formatting.
+*   **2025-05-17 13:35:33: INITIAL DATASET ANALYSIS**: Comprehensive analysis of dataset characteristics, challenges, potential approaches, and implementation recommendations. Highlighted potential solution strategies: Keyword-Based Retrieval, LLM-Based Extraction & Reasoning, Hybrid Approach. Outlined decomposition steps: Question Analysis, Passage Filtering, Information Extraction, Answer Generation. Proposed validation techniques: Consistency Checks, Unit Analysis, Numerical Validation, Fact Verification. Prompt engineering techniques for effective text processing were proposed, including chain-of-thought prompting.
+*   **ITERATION 0:** Accuracy: 0.67. Goal: Improve performance using question decomposition and reasoning. Finding: Question decomposition has challenges with reliable answer synthesis. Frequent validation failures indicate problems with downstream steps. Sports-related questions involving temporal reasoning pose significant challenges. Insight: Validation is helpful for diagnosing system performance, specifically highlighting failures in answer synthesis.
+*   **ITERATION 1:** Accuracy: 1.00
+*   **ITERATION 2:** Accuracy: 1.00. Goal: Improve performance using question-type determination and specialized processing. Finding: High accuracy suggests question-type determination followed by specialized processing is highly effective. Dynamic approach selection emphasizes the importance of adapting the strategy based on the type of question being asked. Caveat: The lack of error cases makes it impossible to determine the system's limitations definitively.
+*   **ITERATION 3:** CoT is beneficial. Limitation: Lack of arithmetic reasoning capabilities. Individual role definitions for the LLMs (question decomposer, information extractor, answer synthesizer) needs more definition.
+*   **ITERATION 4:** Accuracy: 1.0. Goal: Improve answer completeness, focusing on context, units, and modifiers. Achieving 1.0 accuracy suggests that the overall strategy of chain-of-thought, role-based agents, and validation is effective. The primary area for improvement is in the completeness and context of the final answer.
+*   **ITERATION 5:** Chain-of-thought benefits are diminished by semantic errors in question interpretation. Verification steps are inadequate for addressing semantic errors.
+*   **ITERATION 6:** Accuracy: 0.80. Goal: Improve semantic understanding and numerical reasoning by leveraging chain-of-thought, prompt examples, and showing work. Chain-of-thought with question decomposition, information extraction, and answer synthesis showed promise. Providing examples in LLM prompts seems to improve performance. Explicitly prompting the LLM to show its work (intermediate calculations) helped in debugging. Inconsistent and unreliable arithmetic calculations are a major failure mode. The LLM sometimes fails to correctly interpret or apply units. The system lacks a final answer verification step to check the reasonableness of the answer. Arithmetic and unit errors indicate a need for more robust numerical reasoning capabilities.
+*   **ITERATION 7:** Accuracy: 0.0. Goal: Improve semantic understanding and numerical reasoning capabilities. This iteration provided no usable data due to the undefined `call_llm` function. The script is fundamentally broken without the `call_llm` function.
+*   **ITERATION 8:** Accuracy: 0.0. Goal: Improve semantic understanding and numerical reasoning capabilities. The `determine_question_type()` function consistently failed, leading to a complete system failure.
+*   **ITERATION 9:** Goal: Improve handling of date/time reasoning, specifically duration calculations. The "Reading Comprehension Expert" agent with self-debate, in its current form, is not robust enough to prevent common arithmetic errors, especially off-by-one errors in duration calculation. The agent's general reasoning capabilities are insufficient for accurate duration calculations. Self-Debate Alone Is Insufficient: The agent identifies the potential for errors but fails to consistently avoid them.
+*   **ITERATION 10:** Accuracy: 0.80
+*   **2025-05-17 20:26:38: SCRIPT ERROR:** Error detected during script repair (attempt 1): ERROR: Script requires external information to provide an answer.
+*   **2025-05-17 20:26:49: SCRIPT ERROR:** Error detected during script repair (attempt 2): ERROR: No passage provided.
+*   **ITERATION 11:** Accuracy: 0.80. Goal: Improve accuracy by clarifying the question's intent before information extraction. Clarifying the question isn't enough; the extraction phase needs to be more robust to identifying the correct entity related to a specific action. Failure Example: Incorrect subject identification. The LLM seems to exhibit proximity bias, selecting entities mentioned closer to the action verb.
+*   **ITERATION 12:** Accuracy: 0.60. Goal: Improve performance with better handling of temporal and numerical reasoning by leveraging question decomposition and validation.
+*   **ITERATION 13:** Accuracy: 0.70. Goal: Improve performance with an exploitation strategy with chain-of-thought reasoning. The use of examples in LLM prompts alone is insufficient to overcome the challenges of numerical reasoning and constraint application.
+*   **ITERATION 14:** Accuracy: 0.60. Goal: Improve performance with an exploitation strategy with chain-of-thought reasoning. The chain-of-thought approach helps, but the individual components need to be more robust, especially in handling numerical data and conditional filtering. Failure Examples: "Billy Cundiff vs. Sebastian Janikowski" question: Incorrect identification of field goal lengths. "Countries on the 2014 Summer tour" question: Incorrect inclusion of "Germany" due to failure to properly filter based on the "more than one date" condition.
+*   **ITERATION 15:** Accuracy: 0.70. Reliance on chain-of-thought prompting is not sufficient to guarantee accurate numerical extraction and calculation. Failure Examples: "How many more yards was Nate Kaeding's second field goal over his first?": The system extracted "27" instead of calculating the difference between 51 and 24. Semantic equivalence: Errors occur when the system gives an answer that is not semantically equivalent to the reference answer, for example, "Novgorod" vs "Novgorodians".
+*   **ITERATION 16:** Accuracy: 0.80. The Dual Verification with Iterative Refinement approach appears promising but needs refinement to avoid over-generation of instances and improve aggregation/filtering.
+*   **ITERATION 17:** Accuracy: 0.80. Exploitation strategy demonstrates the potential of the overall architecture. The high accuracy confirms the basic approach of question decomposition, information extraction, and answer synthesis is a viable strategy for this dataset. Improving the precision of the information extraction step is crucial for further improving performance. System identifies both players who intercepted passes, but the question implicitly or explicitly only asks for one (Over-inclusive Extraction).
+*   **2025-05-17 20:47:28: SCRIPT ERROR:** Error detected during script repair (attempt 1): ERROR: Script failed due to missing attribute in google.genai module and question decomposition failure.
+*   **2025-05-17 20:47:42: SCRIPT ERROR:** Error detected during script repair (attempt 2): ERROR: Gemini API call failed with 404 error, and question decomposition failed.
+*   **2025-05-17 20:47:53: SCRIPT ERROR:** Error detected during script repair (attempt 3): ERROR: Unexpected keyword argument 'model' and failed question decomposition.
+*   **ITERATION 18:** Due to the complete failure to connect to the LLM, no strategies were actually tested. The core failure stemmed from the inability to connect to and utilize the Gemini API. API failure resulted in a cascading failure; because question decomposition couldn't be performed, the entire pipeline halted.
+*   **ITERATION 19:** The "chain-of-thought" approach, explicit examples in the prompt, and validation steps were not sufficient to guarantee accurate numerical reasoning or adherence to concise answer formats. Example failure: The system struggled with simple arithmetic (subtraction in the provided example) when asked to calculate the difference between two field goal lengths, and it included unnecessary information in the answer.
+*   **ITERATION 20:** Accuracy: 0.80. The chain-of-thought approach with validation shows promise, but the specific failure mode of including unnecessary information highlights the need for more stringent filtering mechanisms. An example is the inclusion of "White American" in the racial groups question when only the highest percentage is required. This suggests an over-reliance on potentially valid details, even if they aren't strictly required.
+*   **ITERATION 21:** "Iterative Question Refinement with Contextual Expansion" strategy proved ineffective. A primary failure mode is the LLM identifying the correct operation to perform or the correct information to extract but failing to actually execute that operation and provide the numerical answer or extracted entity. The LLM incorrectly claims that information is missing when it's present in the passage. Multi-step reasoning also fails in this iteration. LLM-based validation steps are not effectively preventing the "description instead of value" errors from propagating.
 
 ## 5. NEXT RESEARCH DIRECTIONS
 
-*   **Prioritize Error Logging and Analysis:** The *most critical* next step is to implement robust error logging that captures the following for each failure:
-    *   The original question and passage.
-    *   The predicted question type.
-    *   The extracted information.
-    *   The generated answer.
-    *   The ground truth answer.
-    *   The exact error message or exception that occurred.
-*   **Analyze Error Data:** Once error data is available, analyze it to identify the most frequent failure modes (e.g., incorrect question type classification, poor information extraction for certain question types, hallucination during answer generation).
-*   **Targeted Improvements:** Based on the error analysis, focus on improving the weakest components of the pipeline. This might involve:
-    *   Providing more training examples for question type classification.
-    *   Refining the information extraction prompts or logic.
-    *   Improving the answer generation prompts to reduce hallucination.
-*   **Introduce Complexity & Ambiguity:** Introduce more complex or ambiguous questions to test the limits of the current approach.
-*   **Evaluate on Larger Dataset:** Evaluate the approach on a larger, more diverse dataset to ensure its robustness and generalizability.
-*   **Prompt Engineering Exploration:** Explore the impact of different prompt engineering techniques for each step (determine type, extract info, generate answer) to potentially improve efficiency or reduce reliance on the LLM.
-*   **Cost Metric Analysis:** Consider adding a cost metric (e.g., number of LLM calls) to evaluate the efficiency of the approach.
-*   **Error Case Creation:** Create error cases in the dataset to evaluate the robustness of the approach. This could involve questions with missing information, ambiguous wording, or requiring deeper inference.
-*   **Address Scope Issues:** Debug and resolve the scope issue that caused the NameError in the `generate_answer` function. Ensure that the `question` variable is properly passed and accessible within the function's scope.
-*   **Prioritize Answer Generation:** Refocus the system on generating a *tentative* answer first, even if it's potentially incorrect. Subsequent steps can then refine or correct this answer. Shift the emphasis from verification to execution.
-*   **Implement Numerical Reasoning Module:** For numerical comparison questions, incorporate a specific module designed for numerical extraction and comparison. This module should handle the parsing and comparison of numbers found in the passage.
-*   **Test on Simpler Subsets:** Before scaling, test the adapted approach on smaller, simpler subsets of the data containing only one or two question types to isolate the effectiveness of the changes.
-*   **Enhance Information Extraction Robustness:** Focus on improving the reliability of the `extract_relevant_info` function, with specific attention on numerical values and relationships, temporal phrases, and key entities. Incorporate techniques such as:
-    *   **Fine-tuning a NER (Named Entity Recognition) model:** Train a model to identify specific entities (dates, locations, people, numerical values).
-    *   **Regular Expression-based extraction:** Implement regular expressions to robustly extract numerical values and dates.
-    *   **Contextual filtering:** Add logic to filter extracted information based on keywords in the question (e.g., if the question asks about "months," prioritize extracting date ranges).
-*   **Improve Temporal Reasoning:** Implement specific modules or techniques to improve temporal reasoning. This could involve:
-    *   Developing a robust date extraction component that can identify and normalize date mentions in the passage.
-    *   Using a dedicated date calculation library or API to perform the month difference calculation.
-    *   Providing more explicit examples of temporal reasoning in the in-context learning prompts.
-    *   Explicitly demonstrate how to calculate time differences and order events in the chain-of-thought examples.
-*   **Improve Entity Extraction and Linking:** Focus on improving the accuracy of the information extraction component, especially for named entities and their relationships. This could involve:
-    *   Fine-tuning a named entity recognition (NER) model on a dataset relevant to the domain of the passages.
-    *   Using a knowledge graph or entity linking service to resolve entity ambiguities.
-    *   Adding more explicit examples of entity linking to the in-context learning prompts.
-*   **Introduce Validation Steps:** Implement validation steps after information extraction to check the reasonableness and consistency of extracted values before passing them to the answer generation phase.
-*   **Debug Sub-task Performance:** Break down the end-to-end accuracy by evaluating the performance of each sub-task independently (question type classification, information extraction, answer generation). This will help pinpoint the bottleneck in the pipeline.
-*   **Increase In-Context Examples:** Experiment with increasing the number and diversity of in-context learning examples, especially for complex reasoning tasks like temporal calculation and entity relationship identification.
-*   **Focus on Precise Information Extraction:** Condition the information extraction on a *deeper* understanding of the question's requirements. The prompt for extraction should incorporate the question's intent.
-*   **Named Entity Recognition (NER) with Type Constraints:** Use NER to identify numerical values, but *constrain* the entities based on the question type.
-*   **Relationship Extraction:** Implement a relationship extraction step to identify the *relationship* between the extracted entities and the question's targets.
-*   **Temporal Reasoning Module:** For temporal reasoning questions, consider a dedicated module that explicitly identifies and orders events within the passage.
-*   **Fine-tuning or Few-Shot Learning for Extraction:** Fine-tune a model specifically for extracting relevant information from sports summaries or use a more robust few-shot learning strategy with more diverse examples to guide the extraction agent.
-*   **Rethink Prompting:** Experiment with more detailed and directive prompts that guide the extraction and reasoning processes more explicitly. Include more detailed examples in the prompt itself.
-*   **Implement a robust numerical reasoning module:** Integrate a dedicated module for performing calculations. This could involve:
-    *   Explicitly identifying numerical values and their units during information extraction.
-    *   Using a calculator or similar tool to ensure accurate computation.
-    *   Validating the units of the final answer.
-*   **Improve Date and Time Handling:** Enhance the model's ability to parse and reason about dates and times. This could involve using a dedicated library for date calculations.
-*   **Augment Prompting with More Diverse Examples:** Provide a wider range of examples in the prompts, specifically focusing on questions that require numerical reasoning, unit conversions, and duration calculations.
-*   **Evaluate and Improve Information Extraction:** Carefully examine the output of the information extraction stage. If the correct numbers aren't being extracted in the first place, no amount of calculation will fix the problem.
-*   **Refine Information Extractor Prompt:** Modify the prompt for the `extract_relevant_info` function to explicitly emphasize extracting ONLY the information required to directly answer the question. Add negative examples showing what *not* to include (e.g., examples of over-extraction).
-    *   **Role-Based Extraction:**  Instruct the LLM to explicitly identify the *role* of each numerical value in the context of the question (e.g., "distance of the first field goal," "distance of the longest field goal").
-    *   **Contextual Similarity:** Train a smaller model (or use a few-shot prompt) to score the relevance of each sentence to the question, and then prioritize numerical values from the most relevant sentences.
-*   **Post-Processing Pruning:** Implement a post-processing step to prune the extracted information.
-*   **Evaluate Question Type Impact:** Investigate whether certain question types are more prone to over-extraction. If so, tailor the extraction prompt based on the identified question type to improve precision.
-*   **Focus Evaluation on Over-Extraction Cases:** Create a specific evaluation dataset comprised of examples where over-extraction is likely, allowing for targeted testing of the improved information extraction prompts and post-processing techniques.
-*   **Arithmetic Operation Validation:** Before performing any arithmetic operation, add a step to explicitly validate the necessity and correctness of the operation based on the question type and extracted information.
-*   **Unit Awareness:** Incorporate unit awareness into the system. Explicitly extract the units of measurement associated with each numerical value and ensure that only values with compatible units are combined in arithmetic operations. The question type determiner could be improved to extract what type of answer is expected, to guide the next steps.
-*   **Improve Question Type Classifier:** Enhance the question type classifier to better identify questions that require specific types of reasoning or information extraction, as well as the types of output. Add specific categories for questions that require numeric answers with units (e.g., "yardage question," "points difference question"). This would allow the system to tailor the information extraction and answer generation steps accordingly.
-*   **Enhance Numerical Calculation Accuracy:** Implement a more robust numerical calculation module. Instead of relying solely on the LLM for calculations, consider incorporating external tools or libraries for arithmetic operations.
-*   **Improve Temporal Reasoning:** Fine-tune the "information extraction" agent to explicitly identify and represent temporal relationships (start date, end date, duration) within the passage. Focus on understanding time spans.
-*   **Prompt Engineering for Calculation Explanation:** In the "answer generation" phase, prompt the LLM to show its reasoning *before* providing the final numerical answer.
-*   **Dataset Augmentation:** Augment the training data with more examples that specifically test numerical reasoning and temporal understanding.
-*   **Implement Unit Handling:** Within the `generate_answer` function, explicitly handle units. If the question type indicates a "yardage question," ensure the answer includes "yards." If it's a "points difference question," ensure the answer includes "points."
-*   **Add calculation capability:** Augment the `generate_answer` function to perform simple calculations based on the extracted information. If the question asks for the difference in points, extract the scores of both teams and calculate the difference before generating the answer.
-*   **Provide stricter constraints:** Re-prompt the LLM to "only provide the number of yards" when a question asks about the yards of a throw. Also, filter the LLM output and re-prompt if the LLM provides too much information.
-*   **Implement a more flexible answer matching system:** Employ fuzzy matching or semantic similarity metrics to evaluate answers. Ignore formatting differences (e.g., "%" sign, commas) and focus on the underlying numerical value.
-*   **Improve answer generation to be more concise:** Train the answer generation module to provide only the essential numerical answer without extraneous explanations, unless the question specifically asks for context.
-*   **Refine information extraction with attention to scope:** Train the information extraction model to more precisely determine what is being asked (Hispaniola vs. Haiti's Commerce), and filter irrelevant facts, as well as ensure the answer is based on the question.
-    *   **Enhance Information Extraction with Constraint Awareness:** Improve the `extract_relevant_info` step to explicitly consider both explicit and implicit constraints. This could involve adding a filtering step that removes irrelevant information based on these constraints after the initial extraction. Use additional examples in the prompt that clearly show how to filter the correct information with the specified constraint.
-    *   **Implement Explicit Numerical Comparison and Ranking:** For questions involving comparisons (longest, shortest, etc.), implement a dedicated numerical comparison module. This module should take the extracted values, sort/rank them according to the question's criteria, and then return the correct answer.
-    *   **Introduce a Verification Step:** Add a final verification step to check the plausibility of the answer, particularly for numerical answers. This could involve cross-referencing the answer against the passage to ensure it aligns with the overall context.
-*   **Refine Answer Generation:** Modify the `generate_answer` function to include a step that checks if the expected answer is strictly numerical. If so, strip any units from the generated answer.
-*   **Contextual Scope Reinforcement:** When extracting relevant information, explicitly prompt the LLM to focus on the specific entity or time period mentioned in the question to avoid mixing up information from different parts of the passage. Use few-shot examples that highlight this.
-*   **Numerical Validation:** Add a validation step where if the question asks "how many," it checks that the result is a whole number and makes logical sense. If not, retry the extraction and generation.
+*   **Address API Connectivity immediately:**
+    *   Verify API keys, authentication methods, and network configurations.
+    *   Implement Robust Error Handling: Include more specific error handling and logging around the API call to immediately identify connectivity problems with descriptive error messages.
+    *   Test API Connectivity Separately: Create a simple test to verify API connectivity.
+    *   Fallback Mechanism: Consider a fallback mechanism (e.g., a local, smaller model) to provide a basic response in case of API failures.
+*   **Address `call_llm` and `determine_question_type()` immediately:**
+    *   **Define or import `call_llm` immediately.**
+    *   **Critically, redesign/debug `determine_question_type()`.** Consider:
+        *   **More examples:** Providing significantly more examples to the LLM prompt.
+        *   **Simpler prompt:** Attempting a simpler prompt focused solely on question classification.
+        *   **Fine-tuning:** Fine-tuning a smaller, specialized LLM on question type classification.
+        *   **Direct few-shot classification:** Prompt the LLM to directly classify questions with a few examples without chain-of-thought.
+    *   **Implement Validation & Fallback:** Add validation logic to `determine_question_type()` with a fallback mechanism.
+*   **Strengthen Numerical Reasoning:**
+    *   Implement a post-processing step that uses a calculator or numerical reasoning module to verify and correct numerical calculations performed by the LLM. This external tool should be directly responsible for the calculation requested in the question.
+    *   Add prompt examples that explicitly demonstrate the desired format for numerical answers and what level of precision is expected.
+*   **Improve Answer Conciseness:**
+    *   Refine the `synthesize_answer` agent's instructions to emphasize brevity and strict adherence to the question's requirements. The instructions should directly instruct it to avoid extraneous information.
+    *   Include negative examples in the prompt that demonstrate what *not* to include in the answer (e.g., "Question: X. Incorrect Answer: X and Y. Correct Answer: X").
+*   **Enhance Validation:**
+    *   Modify the validation step to specifically check for both numerical accuracy and conciseness. The validation prompt should include explicit checks for extraneous information.
+    *   Consider using a separate LLM or a rule-based system for validation that focuses *only* on the specific criteria (numerical correctness, conciseness). This could be more reliable than relying on the same LLM that generated the initial answer.
+*   **Refine Information Extraction with Strict Constraints:** Modify the `extract_information` function to incorporate more explicit constraints based on the sub-question being answered. This could involve adding more negative examples in the prompt, or using a more sophisticated filtering mechanism. The LLM needs to be better at determining which of the two players meets the *implicit* criteria in the question.
+*   **Enhance Temporal Reasoning:** Explicitly incorporate temporal reasoning into the question decomposition and information extraction steps. When a question involves time, ensure the system identifies and uses relevant temporal clues from the passage to filter extracted information.
+*   **Improve Verification Step:** Add specific checks to the verification prompts to explicitly ask if the answer is complete and contains no extraneous information.
+*   **Introduce a Filtering/Selection Step:** Add a dedicated filtering/selection step *after* information extraction but *before* answer synthesis. This step would be responsible for applying the final constraints and selecting the most relevant information based on the question's requirements.
+*   **Error Handling:** Implement better error handling throughout the system to provide more informative debugging messages.
+*   **Analyze the results of the re-run. Focus on the accuracy of `determine_question_type`, `extract_numerical_info`, and `extract_information`.**
+*   **If the above modules are problematic, refine the prompts used by `call_llm` within each of those functions, providing more examples specific to football game summaries and question types.**
+*   **Implement Explicit Aggregation:** For questions requiring aggregation, incorporate a dedicated aggregation step in the `synthesize_answer` function.
+*   **Add Unit Verification:** Implement a module that checks the predicted unit against the expected unit based on the question.
+*   **Implement Answer Sanity Checks:** Add a final step to evaluate the answer for sanity.
+*   **Enhance training examples for numerical and unit understanding:** Fine-tune the LLM with more examples that focus on numerical reasoning and unit conversions.
+*   **Test on edge cases:** Create specific test cases that target potential arithmetic errors, incorrect unit handling, and misunderstanding of specific terminology.
+*   **Enhance Semantic Understanding.**
+*   **Improve Numerical Reasoning.**
+*   **Refine Verification Strategies:** Adapt the verification steps to specifically target potential semantic errors. Enhance Semantic Validation. Refine the validation call to the LLM to include a more robust assessment of the semantic equivalence between the system and golden answers.
+*   **Enhance the answer synthesis stage:** Modify the prompt for the answer synthesis agent to explicitly request that it include all relevant context, units, and modifiers from the original passage.
+*   **Post-processing for completeness.**
+*   **Arithmetic Reasoning Module.**
+*   **Refine Answer Synthesis Prompt.**
+*   **Include Examples of Arithmetic Reasoning in Prompts.**
+*   **Evaluate Different LLMs for Numerical Reasoning.**
+*   **Answer Synthesis Improvement.**
+*   **Refine Validation Logic.**
+*   **Evaluate Information Extraction Success.**
+*   **Dataset Split & Analysis.**
+*   **Prompt Engineering.**
+*   **Context Window Management.**
+*   **Error Analysis.**
+*   **External Knowledge Integration.**
+*   **Introduce Complexity.**
+*   **Introduce Unit Tests.**
+*   **Verification specifically for temporal calculations.**
+*   **Analyze successes.**
+*   **Refine Extraction Prompts:** Modify the `extract_information` prompt to explicitly instruct the LLM to focus on identifying the *subject* of the action described in the question, not just any related entity. Include examples of correct and incorrect subject identification.
+*   **Add Subject-Verb-Object Triplet Identification.**
+*   **Improve Clarification of "Who" questions.**
+*   **Implement a "reasoning chain".**
+*   **Add more error examples.**
+*   **Enhance Numerical Understanding and Comparison.**
+*   **Refine Validation.**
+*   **Address Quantifier Issues.**
+*   **Enhance numerical reasoning capabilities.**
+*   **Improve context understanding and constraint handling.**
+*   **Improve the answer formatting.**
+*   **Strengthen Information Extraction for Numerical Data.**
+*   **Strengthen Calculation Logic.**
+*   **Improve Conditional Filtering in Answer Synthesis.**
+*   **Dataset Augmentation (Potential):** If possible, create synthetic data or augment the existing dataset with more examples that specifically test numerical reasoning and concise answering. This would provide a more targeted training set for addressing the identified failure modes.
+*   **Explicitly train on examples involving Arithmetic Reasoning.**
+*   **Refine Answer Synthesis Validation:** Strengthen the `synthesize_answer` function's validation step to explicitly penalize or remove information that isn't *directly* required by the question. Focus on filtering based on the specific criteria outlined in the question, not just on overall relevance.
+*   **Implement a "Minimal Answer" Constraint:** Add an explicit instruction or constraint to the LLM interaction (perhaps via prompt engineering) emphasizing the need to provide the *smallest possible* set of information that answers the question accurately. For example, add "Answer the question using the fewest possible words".
+*   **Add Negative Constraints to Prompts:** Experiment with prompts that explicitly exclude the common failure mode, such as "Only list groups that exceed 30% and exclude any that do not". This may help the LLM to focus its attention on the exact filtering criterion.
+*   **Strengthen Execution/Calculation Stage:** The most critical adaptation is to reinforce the final "synthesize_answer" stage to ensure it outputs the *calculated numerical value* or *extracted entity* rather than just a description of the required action. This might involve more explicit system instructions, examples of correct output format, or a separate calculation module.
+*   **Implement Unit Tests for Calculation:** Add unit tests that explicitly check for the numerical output in the synthesize_answer phase. This is *especially* important because the LLM validation has proven insufficient to catch these errors.
+*   **Re-evaluate Problem Decomposition:** Simplify problem decomposition. Re-evaluate the problem decomposition into four distinct stages. It's possible that the strict separation is hindering the flow of information and contributing to the execution failures. Consider consolidating stages or allowing for more interaction between them.
 ```

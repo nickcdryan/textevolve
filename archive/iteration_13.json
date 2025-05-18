@@ -1,62 +1,174 @@
 {
   "iteration": 13,
-  "timestamp": "2025-05-17T13:20:11.892156",
+  "timestamp": "2025-05-17T20:32:31.279984",
   "strategy": "Exploitation",
-  "explore_rate": 20,
-  "exploit_rate": 80,
+  "explore_rate": 60,
+  "exploit_rate": 40,
   "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script solves questions based on a given passage by:\n    1. Determining the question type with examples.\n    2. Extracting the relevant information with examples.\n    3. Generating the answer with examples.\n    \"\"\"\n\n    # Step 1: Determine the question type\n    question_type = determine_question_type(question)\n    if \"Error\" in question_type:\n        return question_type  # Return error message\n\n    # Step 2: Extract relevant information from the passage\n    extracted_info = extract_relevant_info(question, question_type)\n    if \"Error\" in extracted_info:\n        return extracted_info\n\n    # Step 3: Generate the answer\n    generated_answer = generate_answer(extracted_info, question_type, question)\n    if \"Error\" in generated_answer:\n        return generated_answer\n\n    return generated_answer # Directly return the generated answer\n\ndef determine_question_type(question):\n    \"\"\"Determine the type of the question (numerical, identification, etc.) with examples.\"\"\"\n    system_instruction = \"You are an expert at classifying question types.\"\n    prompt = f\"\"\"\n    Determine the type of question given the following examples. Return the type only.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    \n    Example 4:\n    Question: Which team won the game?\n    Type: Identification\n\n    Question: {question}\n    Type:\n    \"\"\"\n    try:\n        question_type = call_llm(prompt, system_instruction)\n        if not question_type:\n            return \"Error: Could not determine question type\"\n        return question_type\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef extract_relevant_info(question, question_type):\n    \"\"\"Extract relevant information from the passage with examples, tailored to question type.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant information.\"\n    prompt = f\"\"\"\n    Extract relevant information from the passage based on the given question type.\n    Return the extracted information as a plain text summary.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n    Extracted Info: Player who caught the final touchdown.\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.\n\n    Example 4:\n    Question: Which team won the game?\n    Type: Identification\n    Extracted Info: The Seahawks won the game.\n\n    Question: {question}\n    Type: {question_type}\n    Extracted Info:\n    \"\"\"\n    try:\n        extracted_info = call_llm(prompt, system_instruction)\n        if not extracted_info:\n            return \"Error: Could not extract information.\"\n        return extracted_info\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef generate_answer(extracted_info, question_type, question):\n    \"\"\"Generate the answer based on extracted information and question type with examples.\"\"\"\n    system_instruction = \"You are an expert at generating correct answers.\"\n    prompt = f\"\"\"\n    Generate an answer to the question based on the extracted information.\n\n    Example 1:\n    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.\n    Question Type: Numerical\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: 40 + 30 = 70 yards\n\n    Example 2:\n    Extracted Info: Player who caught the final touchdown = Mark Clayton\n    Question Type: Identification\n    Question: Who caught the final touchdown of the game?\n    Answer: Mark Clayton\n\n    Example 3:\n    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.\n    Question Type: Comparative\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: Gliese 915\n    \n    Example 4:\n    Extracted Info: The Seahawks won the game.\n    Question Type: Identification\n    Question: Which team won the game?\n    Answer: Seahawks\n\n    Extracted Info: {extracted_info}\n    Question Type: {question_type}\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        answer = call_llm(prompt, system_instruction)\n        if not answer:\n            return \"Error: Could not generate answer.\"\n        return answer\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a chain-of-thought approach, decomposing the problem into determining question type, extracting relevant information, and generating the answer, using LLMs for each stage. Each stage uses the `call_llm` function, treating the LLM as an agent that classifies questions, extracts information, and answers questions, respectively, based on given examples in the prompts. The main function `main` orchestrates the process, calling `determine_question_type`, `extract_relevant_info`, and `generate_answer` sequentially and returning the final answer, with error handling at each stage.",
+  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n\t\tExample 2:\n        Question: Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?\n        Sub-questions:\n        1. When was the Chinese invasion of Tibet?\n        2. When did the outbreak of the Xinhai Revolution occur?\n        3. Which of the two dates is later?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Example 2:\n        Original Question: Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?\n        Sub-questions:\n        1. When was the Chinese invasion of Tibet?\n        2. When did the outbreak of the Xinhai Revolution occur?\n        Extracted Information:\n        The 1910 Chinese expedition to Tibet or the Chinese invasion of Tibet in 1910. after the outbreak of the Xinhai Revolution and the Xinhai Lhasa turmoil in 1911-1912\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\n        Example 2:\n        Original Question: Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?\n        Extracted Information: The 1910 Chinese expedition to Tibet or the Chinese invasion of Tibet in 1910. after the outbreak of the Xinhai Revolution and the Xinhai Lhasa turmoil in 1911-1912\n        Final Answer: n 1910 China invaded Tibet\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses chain-of-thought reasoning with LLMs to answer questions by decomposing them into sub-questions, extracting relevant information, and synthesizing a final answer. Each step involves a dedicated LLM agent (question decomposer, information extraction expert, and answer synthesis expert) that uses examples to guide the reasoning process. Each step also uses verification to ensure that the produced output is valid. The functions `decompose_question`, `extract_information`, and `synthesize_answer` orchestrate these steps, calling `call_llm` to interact with the Gemini model with specific prompts and system instructions. The overall workflow involves decomposing the initial question, extracting information related to sub-questions, and synthesizing these extractions into a complete final answer.",
   "sample_count": 10,
   "samples": [
     {
-      "question": "PASSAGE:  The Indianapolis Colts began their 2011 season at Reliant Stadium against the Houston Texans.  For the first time since the 1998 season, Peyton Manning was not under the helm at quarterback and it was recently acquired Kerry Collins that would take his position.  The game started very well for the Colts, opening up with an interception by Melvin Bullitt that allowed the Colts to take control.  However, a three and out from the offense quickly gave the Texans the ball to drive down and score a field goal and take a 3-0 lead.  Collins and the Colts offense was out of sync for much of the first quarter, fumbling two snaps and giving Houston the great field position inside of the Indianapolis 40-yard line.  After the first quarter, the Texans held a commanding 17-0 lead and were firing on all cylinders.  The second quarter continued Houston's dominance, with all three teams of the Colts failing to stop or to execute against the Texans.  At halftime, the Colts trailed Houston 34-0, the largest deficit in the entire 58-year history of the franchise.  The second half saw little action with both teams taking shorter drives and in some senses, running down the clock.  The Colts scored their first and the only points scored in the second half with a Reggie Wayne touchdown from Collins in the fourth quarter.  The Colts went on to lose to the Texans 34-7, their second straight season starting 0-1.\n\nQUESTION: How many total points were scored in the game?",
-      "answer": "41",
-      "id": "example_106",
+      "question": "PASSAGE: Between 1911 and 1915, Haiti was politically unstable: a series of political assassinations and forced exiles resulted in six presidents holding office during this period. Various revolutionary armies carried out the coups. Each was formed by cacos, or peasant militia from the mountains of the north, or who invaded along the porous Dominican border. They were enlisted by rival political factions under the promises of money, which would be paid after a successful revolution, and the opportunity to plunder. The United States was particularly apprehensive about the roles  played by Imperial Germany in the Western hemisphere. Controlling Tortuga, it had intervened in Haiti  and other Caribbean nations at several times during the previous few decades to exert its influence as a rival power. Germany was increasingly hostile to United States domination of the region under its claimed Monroe Doctrine. In the lead-up to the World War I, the strategic importance of the island of Hispaniola, with its manpower, material wealth, and port facilities, was understood by almost all navies operating in the Caribbean, including Germany and the still-neutral United States. Germany had invested in military and intelligence gathering across Hispaniola as part of a wider network of German interest in Latin America and the Caribbean during the 1890s through the 1910s. The United States' concern over Germany's ambitions was mirrored by apprehension and rivalry between American businessmen and the small German community in Haiti, which although numbering only about 200 in 1910 wielded a disproportionate amount of economic power. German nationals controlled about 80 percent of the country's international commerce. They owned and operated utilities in Cap-Ha\u00eften and Port-au-Prince, including the main wharf and a tramway in the capital, and also had built the railway serving the Plain of the Cul-de-Sac.\n\nQUESTION: what percent of Hispaniola did the germans own?",
+      "answer": "80",
+      "id": "example_96",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": " The Indianapolis Colts began their 2011 season at Reliant Stadium against the Houston Texans.  For the first time since the 1998 season, Peyton Manning was not under the helm at quarterback and it was recently acquired Kerry Collins that would take his position.  The game started very well for the Colts, opening up with an interception by Melvin Bullitt that allowed the Colts to take control.  However, a three and out from the offense quickly gave the Texans the ball to drive down and score a field goal and take a 3-0 lead.  Collins and the Colts offense was out of sync for much of the first quarter, fumbling two snaps and giving Houston the great field position inside of the Indianapolis 40-yard line.  After the first quarter, the Texans held a commanding 17-0 lead and were firing on all cylinders.  The second quarter continued Houston's dominance, with all three teams of the Colts failing to stop or to execute against the Texans.  At halftime, the Colts trailed Houston 34-0, the largest deficit in the entire 58-year history of the franchise.  The second half saw little action with both teams taking shorter drives and in some senses, running down the clock.  The Colts scored their first and the only points scored in the second half with a Reggie Wayne touchdown from Collins in the fourth quarter.  The Colts went on to lose to the Texans 34-7, their second straight season starting 0-1.",
-        "original_question": "How many total points were scored in the game?",
+        "original_passage": "Between 1911 and 1915, Haiti was politically unstable: a series of political assassinations and forced exiles resulted in six presidents holding office during this period. Various revolutionary armies carried out the coups. Each was formed by cacos, or peasant militia from the mountains of the north, or who invaded along the porous Dominican border. They were enlisted by rival political factions under the promises of money, which would be paid after a successful revolution, and the opportunity to plunder. The United States was particularly apprehensive about the roles  played by Imperial Germany in the Western hemisphere. Controlling Tortuga, it had intervened in Haiti  and other Caribbean nations at several times during the previous few decades to exert its influence as a rival power. Germany was increasingly hostile to United States domination of the region under its claimed Monroe Doctrine. In the lead-up to the World War I, the strategic importance of the island of Hispaniola, with its manpower, material wealth, and port facilities, was understood by almost all navies operating in the Caribbean, including Germany and the still-neutral United States. Germany had invested in military and intelligence gathering across Hispaniola as part of a wider network of German interest in Latin America and the Caribbean during the 1890s through the 1910s. The United States' concern over Germany's ambitions was mirrored by apprehension and rivalry between American businessmen and the small German community in Haiti, which although numbering only about 200 in 1910 wielded a disproportionate amount of economic power. German nationals controlled about 80 percent of the country's international commerce. They owned and operated utilities in Cap-Ha\u00eften and Port-au-Prince, including the main wharf and a tramway in the capital, and also had built the railway serving the Plain of the Cul-de-Sac.",
+        "original_question": "what percent of Hispaniola did the germans own?",
         "original_answer_data": {
           "spans": [
-            "41"
+            "80"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 454
+      }
+    },
+    {
+      "question": "PASSAGE: Of the built up area, industrial buildings made up 1.7% of the total area while housing and buildings made up 10.7% and transportation infrastructure made up 7.3%.  Power and water infrastructure as well as other special developed areas made up 3.5% of the area while parks, green belts and sports fields made up 1.5%.  Out of the forested land, 38.8% of the total land area is heavily forested and 1.2% is covered with orchards or small clusters of trees.  Of the agricultural land, 22.0% is used for growing crops and  12.1% is pastures.  Of the water in the municipality, 0.2% is in lakes and 0.6% is in rivers and streams.\n\nQUESTION: How many percent higher were housing and buildings over industrial buildings and water and power infrastructures?",
+      "answer": "5.5",
+      "id": "example_97",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Of the built up area, industrial buildings made up 1.7% of the total area while housing and buildings made up 10.7% and transportation infrastructure made up 7.3%.  Power and water infrastructure as well as other special developed areas made up 3.5% of the area while parks, green belts and sports fields made up 1.5%.  Out of the forested land, 38.8% of the total land area is heavily forested and 1.2% is covered with orchards or small clusters of trees.  Of the agricultural land, 22.0% is used for growing crops and  12.1% is pastures.  Of the water in the municipality, 0.2% is in lakes and 0.6% is in rivers and streams.",
+        "original_question": "How many percent higher were housing and buildings over industrial buildings and water and power infrastructures?",
+        "original_answer_data": {
+          "spans": [
+            "5.5"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 43
+        "line_number": 249
       }
     },
     {
-      "question": "PASSAGE: Coming off their bye week, the Packers flew to LP Field for a Week 9 interconference duel with the unbeaten Tennessee Titans.  In the first quarter, Green Bay trailed early as Titans kicker Rob Bironas got a 31-yard field goal.  In the second quarter, the Pack continued to trail as Bironas made a 25-yard field goal.  The Packers responded with kicker Mason Crosby getting a 23-yard field goal, along with QB Aaron Rodgers completing a 5-yard TD pass to WR Donald Driver.  Tennessee ended the half with RB Chris Johnson getting a 3-yard TD run. In the third quarter, the Titans increased their with Bironas getting a 22-yard field goal.  Green Bay would respond with Crosby getting a 25-yard field goal.  In the fourth quarter, the Pack tied the game with Crosby making a 38-yard field goal.  However, in overtime, Tennessee emerged the victor as Bironas nailed the game-winning 41-yard field goal.\n\nQUESTION: What are the top two longest field goals made?",
-      "answer": "41-yard",
-      "id": "example_107",
+      "question": "PASSAGE: As of the 2010 United States Census, there were 146,551 people, 51,214 households, and 38,614 families residing in the county. The population density was . There were 54,963 housing units at an average density of . The racial makeup of the county was 50.3% white, 41.0% black or African American, 3.0% Asian, 0.7% American Indian, 0.1% Pacific islander, 1.3% from other races, and 3.7% from two or more races. Those of Hispanic or Latino origin made up 4.3% of the population. In terms of ancestry, 12.6% were Germans, 10.8% were Irish people, 8.7% were English people, 6.3% were Americans, and 5.1% were Italians.\n\nQUESTION: How many percent were not english?",
+      "answer": "91.3",
+      "id": "example_98",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Coming off their bye week, the Packers flew to LP Field for a Week 9 interconference duel with the unbeaten Tennessee Titans.  In the first quarter, Green Bay trailed early as Titans kicker Rob Bironas got a 31-yard field goal.  In the second quarter, the Pack continued to trail as Bironas made a 25-yard field goal.  The Packers responded with kicker Mason Crosby getting a 23-yard field goal, along with QB Aaron Rodgers completing a 5-yard TD pass to WR Donald Driver.  Tennessee ended the half with RB Chris Johnson getting a 3-yard TD run. In the third quarter, the Titans increased their with Bironas getting a 22-yard field goal.  Green Bay would respond with Crosby getting a 25-yard field goal.  In the fourth quarter, the Pack tied the game with Crosby making a 38-yard field goal.  However, in overtime, Tennessee emerged the victor as Bironas nailed the game-winning 41-yard field goal.",
-        "original_question": "What are the top two longest field goals made?",
+        "original_passage": "As of the 2010 United States Census, there were 146,551 people, 51,214 households, and 38,614 families residing in the county. The population density was . There were 54,963 housing units at an average density of . The racial makeup of the county was 50.3% white, 41.0% black or African American, 3.0% Asian, 0.7% American Indian, 0.1% Pacific islander, 1.3% from other races, and 3.7% from two or more races. Those of Hispanic or Latino origin made up 4.3% of the population. In terms of ancestry, 12.6% were Germans, 10.8% were Irish people, 8.7% were English people, 6.3% were Americans, and 5.1% were Italians.",
+        "original_question": "How many percent were not english?",
         "original_answer_data": {
           "spans": [
-            "41-yard",
-            "38-yard"
+            "91.3"
           ],
           "types": [
-            "span",
+            "number"
+          ]
+        },
+        "line_number": 846
+      }
+    },
+    {
+      "question": "PASSAGE: In the county, the population was spread out with 23.5% under the age of 18, 7.8% from 18 to 24, 28.5% from 25 to 44, 25.9% from 45 to 64, and 14.2% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 93.8 males.  For every 100 females age 18 and over, there were 90.5 males.\n\nQUESTION: How many percent were not from 45 to 64?",
+      "answer": "74.1",
+      "id": "example_99",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In the county, the population was spread out with 23.5% under the age of 18, 7.8% from 18 to 24, 28.5% from 25 to 44, 25.9% from 45 to 64, and 14.2% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 93.8 males.  For every 100 females age 18 and over, there were 90.5 males.",
+        "original_question": "How many percent were not from 45 to 64?",
+        "original_answer_data": {
+          "spans": [
+            "74.1"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 279
+      }
+    },
+    {
+      "question": "PASSAGE: Australian historian Peter Shergold confirms the findings of many scholars that the standard of living for US industrial workers was higher than in Europe.  He compares wages and the standard of living in Pittsburgh with Birmingham, England. He finds that, after taking into account the cost of living , the standard of living of unskilled workers was about the same in the two cities, while skilled workers had about twice as high a standard of living. The American advantage grew over time from 1890 to 1914, and there was a heavy steady flow of skilled workers from Britain to industrial America.  Shergold revealed that skilled Americans did earn higher wages than the British, yet unskilled workers did not, while Americans worked longer hours, with a greater chance of injury, and had fewer social services. Nationwide from 1890 to 1914 the unionized wages in manufacturing rose from $17.63 a week to $21.37, and the average work week fell from 54.4 to 48.8 hours a week. The pay for all factory workers was $11.94 and $15.84 because unions reached only the more skilled factory workers.\n\nQUESTION: How many total years did the American advantage grow over time?",
+      "answer": "24",
+      "id": "example_100",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Australian historian Peter Shergold confirms the findings of many scholars that the standard of living for US industrial workers was higher than in Europe.  He compares wages and the standard of living in Pittsburgh with Birmingham, England. He finds that, after taking into account the cost of living , the standard of living of unskilled workers was about the same in the two cities, while skilled workers had about twice as high a standard of living. The American advantage grew over time from 1890 to 1914, and there was a heavy steady flow of skilled workers from Britain to industrial America.  Shergold revealed that skilled Americans did earn higher wages than the British, yet unskilled workers did not, while Americans worked longer hours, with a greater chance of injury, and had fewer social services. Nationwide from 1890 to 1914 the unionized wages in manufacturing rose from $17.63 a week to $21.37, and the average work week fell from 54.4 to 48.8 hours a week. The pay for all factory workers was $11.94 and $15.84 because unions reached only the more skilled factory workers.",
+        "original_question": "How many total years did the American advantage grow over time?",
+        "original_answer_data": {
+          "spans": [
+            "24"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 455
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their road win over the Steelers, the Colts went home for a Week 11 AFC South rematch with the Houston Texans. In the first quarter, Indianapolis trailed early as Texans kicker Kris Brown got a 28-yard field goal. The Colts responded with kicker Adam Vinatieri getting a 40-yard field goal. Houston would answer with Brown making a 34-yard field goal. In the second quarter, Indy tied the game as Vinatieri got a 39-yard field goal. The Texans retook the lead as RB Ahman Green got a 1-yard TD run. Indianapolis closed out the half as Vinatieri made a 32-yard field goal. In the third quarter, the Colts took the lead as QB Peyton Manning completed a 23-yard TD pass to RB Joseph Addai. Houston would reply as RB Steve Slaton got a 71-yard TD run, yet Indy regained the lead as Addai got a 7-yard TD run. In the fourth quarter, the Texans tried to come back as Green got a 2-yard field goal, yet Indianapolis pulled away with Vinatieri nailing a 31-yard field goal. On the Texans' final drive, QB Sage Rosenfels was intercepted by safety Melvin Bullitt (who was filling in again for the injured Bob Sanders). Ironically, it was Bullitt who picked off Rosenfels on the Texans' final drive when they played the Colts in Week 5. Manning then took a knee, preserving the Colts' third consecutive victory.\n\nQUESTION: How many yards was Adam Vinatieri's shortest field goal?",
+      "answer": "31",
+      "id": "example_101",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their road win over the Steelers, the Colts went home for a Week 11 AFC South rematch with the Houston Texans. In the first quarter, Indianapolis trailed early as Texans kicker Kris Brown got a 28-yard field goal. The Colts responded with kicker Adam Vinatieri getting a 40-yard field goal. Houston would answer with Brown making a 34-yard field goal. In the second quarter, Indy tied the game as Vinatieri got a 39-yard field goal. The Texans retook the lead as RB Ahman Green got a 1-yard TD run. Indianapolis closed out the half as Vinatieri made a 32-yard field goal. In the third quarter, the Colts took the lead as QB Peyton Manning completed a 23-yard TD pass to RB Joseph Addai. Houston would reply as RB Steve Slaton got a 71-yard TD run, yet Indy regained the lead as Addai got a 7-yard TD run. In the fourth quarter, the Texans tried to come back as Green got a 2-yard field goal, yet Indianapolis pulled away with Vinatieri nailing a 31-yard field goal. On the Texans' final drive, QB Sage Rosenfels was intercepted by safety Melvin Bullitt (who was filling in again for the injured Bob Sanders). Ironically, it was Bullitt who picked off Rosenfels on the Texans' final drive when they played the Colts in Week 5. Manning then took a knee, preserving the Colts' third consecutive victory.",
+        "original_question": "How many yards was Adam Vinatieri's shortest field goal?",
+        "original_answer_data": {
+          "spans": [
+            "31"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 901
+      }
+    },
+    {
+      "question": "PASSAGE: It was the third straight year that the Cowboys traveled to Lambeau to face the Packers. Despite Dak Prescott being picked off for the first time this season, he still managed 247 passing yards and three touchdowns. He also passed Tom Brady's all-time record of consecutive pass attempts to start a career without an interception. Ezekiel Elliott pounded the Green Bay Packers number one ranked run defense with 157 yards on 28 carries The Dallas defense dominated the Packers, forcing four Green Bay turnovers. It was the first time since 2008, and second time in franchise history that the Cowboys had won at Lambeau. With the 30-16 victory, the Cowboys went 5-1 heading into the bye week.\n\nQUESTION: How many total points were scored?",
+      "answer": "46",
+      "id": "example_102",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "It was the third straight year that the Cowboys traveled to Lambeau to face the Packers. Despite Dak Prescott being picked off for the first time this season, he still managed 247 passing yards and three touchdowns. He also passed Tom Brady's all-time record of consecutive pass attempts to start a career without an interception. Ezekiel Elliott pounded the Green Bay Packers number one ranked run defense with 157 yards on 28 carries The Dallas defense dominated the Packers, forcing four Green Bay turnovers. It was the first time since 2008, and second time in franchise history that the Cowboys had won at Lambeau. With the 30-16 victory, the Cowboys went 5-1 heading into the bye week.",
+        "original_question": "How many total points were scored?",
+        "original_answer_data": {
+          "spans": [
+            "46"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 761
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off a successful two-game homestand, the Falcons flew to Gillette Stadium for a Week 3 inter-conference battle with the New England Patriots.  Atlanta would take flight with a 26-yard field goal from Jason Elam, but the Patriots would tie the game with a 21-yard field goal from kicker Stephen Gostkowski.  New England would take the lead in the second quarter with running back Fred Taylor's 8-yard touchdown run, yet the Falcons answered with running back Michael Turner's 2-yard touchdown run.  New England would close out the half with Gostkowski's 33-yard field goal. The entire second half was completely dominated by the Patriots.  Gostkowski would nail a 22-yard field goal in the third quarter and a 33-yard field goal in the fourth quarter, while quarterback Tom Brady closed out the game with a 36-yard touchdown pass to tight end Chris Baker. With the loss, the Falcons went into their bye week at 2-1.\n\nQUESTION: Which player kicked the second longest field goal of the first quarter?",
+      "answer": "Stephen Gostkowski",
+      "id": "example_103",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off a successful two-game homestand, the Falcons flew to Gillette Stadium for a Week 3 inter-conference battle with the New England Patriots.  Atlanta would take flight with a 26-yard field goal from Jason Elam, but the Patriots would tie the game with a 21-yard field goal from kicker Stephen Gostkowski.  New England would take the lead in the second quarter with running back Fred Taylor's 8-yard touchdown run, yet the Falcons answered with running back Michael Turner's 2-yard touchdown run.  New England would close out the half with Gostkowski's 33-yard field goal. The entire second half was completely dominated by the Patriots.  Gostkowski would nail a 22-yard field goal in the third quarter and a 33-yard field goal in the fourth quarter, while quarterback Tom Brady closed out the game with a 36-yard touchdown pass to tight end Chris Baker. With the loss, the Falcons went into their bye week at 2-1.",
+        "original_question": "Which player kicked the second longest field goal of the first quarter?",
+        "original_answer_data": {
+          "spans": [
+            "Stephen Gostkowski"
+          ],
+          "types": [
             "span"
           ]
         },
-        "line_number": 504
+        "line_number": 547
       }
     },
     {
-      "question": "PASSAGE: Playing in their second game of the season, the Cincinnati Bengals had a lot of things go wrong. Playing Ohio state rivals Cleveland Browns, the defense looked the exact opposite as they did in week one. Browns quarterback Derek Anderson started and threw for 328 yards and five touchdowns. It was only the third time in NFL history that two quarterbacks had thrown at least five touchdown passes in the same game. Jamal Lewis had 215 yards rushing with one touchdown and the Browns had two receivers with over 100 yards, Braylon Edwards and Kellen Winslow. The Bengals offense tried their best to keep the team in the game, however, as Carson Palmer threw for 6 TD's and Chad Johnson caught for 209 yards. The game started out slowly in the first quarter but the second quarter saw a combined 35 points scored. It was close in the end, when the Bengals started a drive with under one minute left. They managed to get the ball to the 50-yard line when Carson Palmer was intercepted by Leigh Bodden on an intended pass for Chad Johnson. This game ended up being the eighth highest scoring game in NFL history, but not the highest scoring game between these two teams. In 2004, the Bengals beat the Browns 58-48 for the second-most combined points. The Redskins (72) and Giants (41) combined for 113 points in 1966 for the most. Q1 - CIN - 10:40 - 13-yard TD pass from Carson Palmer to Rudi Johnson (Shayne Graham kick) (CIN 7-0) Q1 - CLE - 5:02 - Phil Dawson 39-yard FG (CIN 7-3) Q1 - CLE - 0:09 - Phil Dawson 39-yard FG (CIN 7-6) Q2 - CLE - 11:02 - 17-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 13-7) Q2 - CIN - 7:40 - 23-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CIN 14-13) Q2 - CLE - 6:37 - 9-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 20-14) Q2 - CIN - 3:12 - 22-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CIN 21-20) Q2 - CLE - 1:11 - 25-yard TD pass from Derek Anderson to Kellen Winslow (Dawson kick) (CLE 27-21) Q3 - CIN - 12:13 - Shayne Graham 20-yard FG (CLE 27-24) Q3 - CLE - 8:24 - 34-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 34-24) Q3 - CIN - 6:18 - 14-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CLE 34-31) Q3 - CLE - 6:04 - Jamal Lewis 66-yard TD run (Dawson kick) (CLE 41-31) Q3 - CIN - 0:53 - 5-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CLE 41-38) Q4 - CLE - 10:07 - 37-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 48-38) Q4 - CLE - 5:47 - Phil Dawson 18-yard FG (CLE 51-38) Q4 - CIN - 3:45 - 7-yard TD pass from Carson Palmer to Glenn Holt (Graham kick) (CLE 51-45)\n\nQUESTION: How many touchdowns did Carson Palmer throw?",
+      "question": "PASSAGE: Sweden occupied the undefended Norwegian province of Jemtland, which was quickly reconquered by a counterattack by forces under command of the Norwegian governor of Tr\u00f8ndelag. The forces were unwilling to launch a counterattack on Swedish land. In 1564 the Swedes marched under Claude Collart and re-occupied Jemtland, as well as Herjedalen and Tr\u00f8ndelag, including the city of Trondheim. Initially facing little opposition from the locals, their subsequent ill treatment of the Tr\u00f8ndelag natives, along with tax pressure, laid the groundwork for later resistance to Swedish invasion. Also, Tr\u00f8ndelag was assisted by the governor of Bergenhus, Erik Rosenkrantz, who forced 3500 local peasants to assist him and his 50 professional soldiers. The Swedes saw Bergenhus as their next target. Although the 400 Swedish soldiers were repelled from Tr\u00f8ndelag, Sweden continued to occupy J\u00e4mtland and H\u00e4rjedalen. These provinces were later regained by Denmark-Norway following the peace process in 1570. Sweden also launched attacks towards Eastern Norway. In the south-east Sweden captured B\u00e5hus Fortress, but lost it in 1566. Another part of the army marched through the valley \u00d8sterdalen in 1567, captured Hamar and continued towards Oslo. They reached as far as the Skiensfjord, and torched Skien at one point. In Oslo, however, citizens torched the city before invaders could seize it. From the south-east, more Swedish forces were then sent to aid in capturing Akershus Fortress near Oslo. These forces torched Konghelle and Sarpsborg on their way. They were repelled from Oslo by local forces together with men belonging to Erik Rosenkrantz and the King of Denmark and Norway. The Swedes retreated in a north-eastern direction, torching Hamar on their way, destroying Hamar Cathedral and the bishop's fortified palace Hamarhus.\n\nQUESTION: How many years did the events take place?",
       "answer": "6",
-      "id": "example_108",
+      "id": "example_104",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Playing in their second game of the season, the Cincinnati Bengals had a lot of things go wrong. Playing Ohio state rivals Cleveland Browns, the defense looked the exact opposite as they did in week one. Browns quarterback Derek Anderson started and threw for 328 yards and five touchdowns. It was only the third time in NFL history that two quarterbacks had thrown at least five touchdown passes in the same game. Jamal Lewis had 215 yards rushing with one touchdown and the Browns had two receivers with over 100 yards, Braylon Edwards and Kellen Winslow. The Bengals offense tried their best to keep the team in the game, however, as Carson Palmer threw for 6 TD's and Chad Johnson caught for 209 yards. The game started out slowly in the first quarter but the second quarter saw a combined 35 points scored. It was close in the end, when the Bengals started a drive with under one minute left. They managed to get the ball to the 50-yard line when Carson Palmer was intercepted by Leigh Bodden on an intended pass for Chad Johnson. This game ended up being the eighth highest scoring game in NFL history, but not the highest scoring game between these two teams. In 2004, the Bengals beat the Browns 58-48 for the second-most combined points. The Redskins (72) and Giants (41) combined for 113 points in 1966 for the most. Q1 - CIN - 10:40 - 13-yard TD pass from Carson Palmer to Rudi Johnson (Shayne Graham kick) (CIN 7-0) Q1 - CLE - 5:02 - Phil Dawson 39-yard FG (CIN 7-3) Q1 - CLE - 0:09 - Phil Dawson 39-yard FG (CIN 7-6) Q2 - CLE - 11:02 - 17-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 13-7) Q2 - CIN - 7:40 - 23-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CIN 14-13) Q2 - CLE - 6:37 - 9-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 20-14) Q2 - CIN - 3:12 - 22-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CIN 21-20) Q2 - CLE - 1:11 - 25-yard TD pass from Derek Anderson to Kellen Winslow (Dawson kick) (CLE 27-21) Q3 - CIN - 12:13 - Shayne Graham 20-yard FG (CLE 27-24) Q3 - CLE - 8:24 - 34-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 34-24) Q3 - CIN - 6:18 - 14-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CLE 34-31) Q3 - CLE - 6:04 - Jamal Lewis 66-yard TD run (Dawson kick) (CLE 41-31) Q3 - CIN - 0:53 - 5-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CLE 41-38) Q4 - CLE - 10:07 - 37-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 48-38) Q4 - CLE - 5:47 - Phil Dawson 18-yard FG (CLE 51-38) Q4 - CIN - 3:45 - 7-yard TD pass from Carson Palmer to Glenn Holt (Graham kick) (CLE 51-45)",
-        "original_question": "How many touchdowns did Carson Palmer throw?",
+        "original_passage": "Sweden occupied the undefended Norwegian province of Jemtland, which was quickly reconquered by a counterattack by forces under command of the Norwegian governor of Tr\u00f8ndelag. The forces were unwilling to launch a counterattack on Swedish land. In 1564 the Swedes marched under Claude Collart and re-occupied Jemtland, as well as Herjedalen and Tr\u00f8ndelag, including the city of Trondheim. Initially facing little opposition from the locals, their subsequent ill treatment of the Tr\u00f8ndelag natives, along with tax pressure, laid the groundwork for later resistance to Swedish invasion. Also, Tr\u00f8ndelag was assisted by the governor of Bergenhus, Erik Rosenkrantz, who forced 3500 local peasants to assist him and his 50 professional soldiers. The Swedes saw Bergenhus as their next target. Although the 400 Swedish soldiers were repelled from Tr\u00f8ndelag, Sweden continued to occupy J\u00e4mtland and H\u00e4rjedalen. These provinces were later regained by Denmark-Norway following the peace process in 1570. Sweden also launched attacks towards Eastern Norway. In the south-east Sweden captured B\u00e5hus Fortress, but lost it in 1566. Another part of the army marched through the valley \u00d8sterdalen in 1567, captured Hamar and continued towards Oslo. They reached as far as the Skiensfjord, and torched Skien at one point. In Oslo, however, citizens torched the city before invaders could seize it. From the south-east, more Swedish forces were then sent to aid in capturing Akershus Fortress near Oslo. These forces torched Konghelle and Sarpsborg on their way. They were repelled from Oslo by local forces together with men belonging to Erik Rosenkrantz and the King of Denmark and Norway. The Swedes retreated in a north-eastern direction, torching Hamar on their way, destroying Hamar Cathedral and the bishop's fortified palace Hamarhus.",
+        "original_question": "How many years did the events take place?",
         "original_answer_data": {
           "spans": [
             "6"
@@ -65,192 +177,146 @@
             "number"
           ]
         },
-        "line_number": 86
+        "line_number": 180
       }
     },
     {
-      "question": "PASSAGE: After back-to-back sub-par performances by the Patriots offense, they faced Derek Carr and the lowly Raiders in their 2014 home opener looking to have their first breakout performance of the season. After both teams punted on their opening drive, the Raiders reached the Patriots 31 and struck first blood on a 49-yard field goal by Sebastian Janikowski. After both teams punted again, the Patriots embarked on a 15 play, 84-yard drive, converting four third-downs,  and scoring on Brady's 6-yard touchdown pass to Gronkowski midway through the second quarter to take a 7-3 lead. The Raiders punted on their next drive, and Marquette King punted only 22 yards to midfield. With the great field position, the Patriots drove all the way to the Raiders 2, but their red zone struggles continued, and they settled for a 20-yard field goal by Gostkowski, giving them a 10-3 lead at halftime. Strong defense continued in the second half. The Raiders drove deep into Patriots territory early in the second quarter, but could only score on a 37-yard field goal by Janikowski. Following a Patriots punt, the Raiders drove from their own 14, to the Patriots 37, but a false start penalty on guard Donald Penn made it 3rd-and-15, and then Carr completed a 13-yard pass to James Jones to the Patriots 29, bringing up a 4th-and-2. The Raiders decided to settle with Janikowski's 47 yard field goal, making the score 10-9. Matthew Slater returned the ensuing kickoff 26 yards to the Patriots 41. With the good field position, the Patriots drove to the Raiders 2 again, but were once again held out of the end zone, and increased their lead to 13-9 on another 20-yard field goal by Gostkowski. After the Raiders went three-and-out, the Patriots marched 63 yards culminating with Gostkowski's 36-yard field goal, increasing the lead to 16-9 midway through the fourth quarter. The Raiders, though, couldn't muster up any offense against the Patriots and they went three-and-out again, but the Patriots failed to put the game away and punted. In just three plays the Raiders reached Patriots territory, but two plays later, on 3rd-and-7 at the Patriots 30-yard line, Carr threw an incomplete pass seemingly bringing up a do-or-die 4th down, but Ryan was called for pass interference moving the ball to the Patriots 6-yard line. On the very next play, Darren McFadden scored on a 6-yard touchdown run, but the score was nullified by a holding penalty on Raiders left guard Gabe Jackson. On the next play, Carr's pass attempt was tipped and intercepted by Vince Wilfork with 0:51 seconds left, which sealed the win for the Patriots. Tom Brady had his best game to date, despite being pressured relentlessly by the Oakland defensive line, including being sacked twice, completing 24 of 37 passes for 234 yards, with 1 touchdown and no interceptions. The running game struggled, with Ridley leading the team with only 54 yards on 19 carries. Julian Edelman was the leading receiver for either team, with 10 catches for 84 yards. Rob Gronkowski continued to slowly work himself into the offense catching only 3 passes for 44 yards, but also caught the only touchdown. Derek Carr had a sub-par day, going 21 of 34 for only 174 yards, with no touchdowns and an interception. Both defenses were spectacular holding the opposing offense to under 300 yards of offense (241 for the Raiders, 297 for the Patriots). With the win the Patriots advanced to 2-1 and Brady won his 150th career game, 3rd most by a starting quarterback in NFL history.\n\nQUESTION: How had more completed passes, Tom Brady or Derek Carr?`",
-      "answer": "Tom Brady",
-      "id": "example_109",
+      "question": "PASSAGE: In the county, the age distribution of the population shows 27.90% under the age of 18, 6.80% from 18 to 24, 31.60% from 25 to 44, 23.70% from 45 to 64, and 10.10% who were 65 years of age or older. The median age was 36 years. For every 100 females there were 96.00 males. For every 100 females age 18 and over, there were 92.50 males.\n\nQUESTION: Which age group is larger: 25 to 44 or 45 to 64?",
+      "answer": "25 to 44",
+      "id": "example_105",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "After back-to-back sub-par performances by the Patriots offense, they faced Derek Carr and the lowly Raiders in their 2014 home opener looking to have their first breakout performance of the season. After both teams punted on their opening drive, the Raiders reached the Patriots 31 and struck first blood on a 49-yard field goal by Sebastian Janikowski. After both teams punted again, the Patriots embarked on a 15 play, 84-yard drive, converting four third-downs,  and scoring on Brady's 6-yard touchdown pass to Gronkowski midway through the second quarter to take a 7-3 lead. The Raiders punted on their next drive, and Marquette King punted only 22 yards to midfield. With the great field position, the Patriots drove all the way to the Raiders 2, but their red zone struggles continued, and they settled for a 20-yard field goal by Gostkowski, giving them a 10-3 lead at halftime. Strong defense continued in the second half. The Raiders drove deep into Patriots territory early in the second quarter, but could only score on a 37-yard field goal by Janikowski. Following a Patriots punt, the Raiders drove from their own 14, to the Patriots 37, but a false start penalty on guard Donald Penn made it 3rd-and-15, and then Carr completed a 13-yard pass to James Jones to the Patriots 29, bringing up a 4th-and-2. The Raiders decided to settle with Janikowski's 47 yard field goal, making the score 10-9. Matthew Slater returned the ensuing kickoff 26 yards to the Patriots 41. With the good field position, the Patriots drove to the Raiders 2 again, but were once again held out of the end zone, and increased their lead to 13-9 on another 20-yard field goal by Gostkowski. After the Raiders went three-and-out, the Patriots marched 63 yards culminating with Gostkowski's 36-yard field goal, increasing the lead to 16-9 midway through the fourth quarter. The Raiders, though, couldn't muster up any offense against the Patriots and they went three-and-out again, but the Patriots failed to put the game away and punted. In just three plays the Raiders reached Patriots territory, but two plays later, on 3rd-and-7 at the Patriots 30-yard line, Carr threw an incomplete pass seemingly bringing up a do-or-die 4th down, but Ryan was called for pass interference moving the ball to the Patriots 6-yard line. On the very next play, Darren McFadden scored on a 6-yard touchdown run, but the score was nullified by a holding penalty on Raiders left guard Gabe Jackson. On the next play, Carr's pass attempt was tipped and intercepted by Vince Wilfork with 0:51 seconds left, which sealed the win for the Patriots. Tom Brady had his best game to date, despite being pressured relentlessly by the Oakland defensive line, including being sacked twice, completing 24 of 37 passes for 234 yards, with 1 touchdown and no interceptions. The running game struggled, with Ridley leading the team with only 54 yards on 19 carries. Julian Edelman was the leading receiver for either team, with 10 catches for 84 yards. Rob Gronkowski continued to slowly work himself into the offense catching only 3 passes for 44 yards, but also caught the only touchdown. Derek Carr had a sub-par day, going 21 of 34 for only 174 yards, with no touchdowns and an interception. Both defenses were spectacular holding the opposing offense to under 300 yards of offense (241 for the Raiders, 297 for the Patriots). With the win the Patriots advanced to 2-1 and Brady won his 150th career game, 3rd most by a starting quarterback in NFL history.",
-        "original_question": "How had more completed passes, Tom Brady or Derek Carr?`",
+        "original_passage": "In the county, the age distribution of the population shows 27.90% under the age of 18, 6.80% from 18 to 24, 31.60% from 25 to 44, 23.70% from 45 to 64, and 10.10% who were 65 years of age or older. The median age was 36 years. For every 100 females there were 96.00 males. For every 100 females age 18 and over, there were 92.50 males.",
+        "original_question": "Which age group is larger: 25 to 44 or 45 to 64?",
         "original_answer_data": {
           "spans": [
-            "Tom Brady",
-            "completing 24 of 37 passes",
-            "Derek Carr",
-            "21 of 34"
-          ],
-          "types": [
-            "span",
-            "span",
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 376
-      }
-    },
-    {
-      "question": "PASSAGE: Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.\n\nQUESTION: What problems did the engines have?",
-      "answer": "water and corrosion",
-      "id": "example_110",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.",
-        "original_question": "What problems did the engines have?",
-        "original_answer_data": {
-          "spans": [
-            "water and corrosion",
-            "paraffin clogging",
-            "reduced lubrication",
-            "head bolt failures"
-          ],
-          "types": [
-            "span",
-            "span",
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 530
-      }
-    },
-    {
-      "question": "PASSAGE: In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.\n\nQUESTION: Which countries on the 2014 Summer tour were scheduled for more than one date?",
-      "answer": "France",
-      "id": "example_111",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
-        "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
-        "original_answer_data": {
-          "spans": [
-            "France",
-            "Germany"
-          ],
-          "types": [
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 984
-      }
-    },
-    {
-      "question": "PASSAGE: Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.\n\nQUESTION: Which player threw the first TD pass of the game?",
-      "answer": "Kyle Orton",
-      "id": "example_112",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
-        "original_question": "Which player threw the first TD pass of the game?",
-        "original_answer_data": {
-          "spans": [
-            "Kyle Orton"
+            "25 to 44"
           ],
           "types": [
             "span"
           ]
         },
-        "line_number": 851
-      }
-    },
-    {
-      "question": "PASSAGE: The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.\n\nQUESTION: How many total people died in the fight on February 10, 1756?",
-      "answer": "1515",
-      "id": "example_113",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
-        "original_question": "How many total people died in the fight on February 10, 1756?",
-        "original_answer_data": {
-          "spans": [
-            "1515"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 345
-      }
-    },
-    {
-      "question": "PASSAGE: After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.\n\nQUESTION: How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
-      "answer": "14",
-      "id": "example_114",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
-        "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
-        "original_answer_data": {
-          "spans": [
-            "14"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 403
-      }
-    },
-    {
-      "question": "PASSAGE: In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.\n\nQUESTION: How many percent of amputees in India did had an onset of disability over the age of 14?",
-      "answer": "89.7",
-      "id": "example_115",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.",
-        "original_question": "How many percent of amputees in India did had an onset of disability over the age of 14?",
-        "original_answer_data": {
-          "spans": [
-            "89.7"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 226
+        "line_number": 557
       }
     }
   ],
   "samples_metadata": [
     {
       "source": "jsonl_dataset",
-      "original_passage": " The Indianapolis Colts began their 2011 season at Reliant Stadium against the Houston Texans.  For the first time since the 1998 season, Peyton Manning was not under the helm at quarterback and it was recently acquired Kerry Collins that would take his position.  The game started very well for the Colts, opening up with an interception by Melvin Bullitt that allowed the Colts to take control.  However, a three and out from the offense quickly gave the Texans the ball to drive down and score a field goal and take a 3-0 lead.  Collins and the Colts offense was out of sync for much of the first quarter, fumbling two snaps and giving Houston the great field position inside of the Indianapolis 40-yard line.  After the first quarter, the Texans held a commanding 17-0 lead and were firing on all cylinders.  The second quarter continued Houston's dominance, with all three teams of the Colts failing to stop or to execute against the Texans.  At halftime, the Colts trailed Houston 34-0, the largest deficit in the entire 58-year history of the franchise.  The second half saw little action with both teams taking shorter drives and in some senses, running down the clock.  The Colts scored their first and the only points scored in the second half with a Reggie Wayne touchdown from Collins in the fourth quarter.  The Colts went on to lose to the Texans 34-7, their second straight season starting 0-1.",
-      "original_question": "How many total points were scored in the game?",
+      "original_passage": "Between 1911 and 1915, Haiti was politically unstable: a series of political assassinations and forced exiles resulted in six presidents holding office during this period. Various revolutionary armies carried out the coups. Each was formed by cacos, or peasant militia from the mountains of the north, or who invaded along the porous Dominican border. They were enlisted by rival political factions under the promises of money, which would be paid after a successful revolution, and the opportunity to plunder. The United States was particularly apprehensive about the roles  played by Imperial Germany in the Western hemisphere. Controlling Tortuga, it had intervened in Haiti  and other Caribbean nations at several times during the previous few decades to exert its influence as a rival power. Germany was increasingly hostile to United States domination of the region under its claimed Monroe Doctrine. In the lead-up to the World War I, the strategic importance of the island of Hispaniola, with its manpower, material wealth, and port facilities, was understood by almost all navies operating in the Caribbean, including Germany and the still-neutral United States. Germany had invested in military and intelligence gathering across Hispaniola as part of a wider network of German interest in Latin America and the Caribbean during the 1890s through the 1910s. The United States' concern over Germany's ambitions was mirrored by apprehension and rivalry between American businessmen and the small German community in Haiti, which although numbering only about 200 in 1910 wielded a disproportionate amount of economic power. German nationals controlled about 80 percent of the country's international commerce. They owned and operated utilities in Cap-Ha\u00eften and Port-au-Prince, including the main wharf and a tramway in the capital, and also had built the railway serving the Plain of the Cul-de-Sac.",
+      "original_question": "what percent of Hispaniola did the germans own?",
       "original_answer_data": {
         "spans": [
-          "41"
+          "80"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 454
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Of the built up area, industrial buildings made up 1.7% of the total area while housing and buildings made up 10.7% and transportation infrastructure made up 7.3%.  Power and water infrastructure as well as other special developed areas made up 3.5% of the area while parks, green belts and sports fields made up 1.5%.  Out of the forested land, 38.8% of the total land area is heavily forested and 1.2% is covered with orchards or small clusters of trees.  Of the agricultural land, 22.0% is used for growing crops and  12.1% is pastures.  Of the water in the municipality, 0.2% is in lakes and 0.6% is in rivers and streams.",
+      "original_question": "How many percent higher were housing and buildings over industrial buildings and water and power infrastructures?",
+      "original_answer_data": {
+        "spans": [
+          "5.5"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 43
+      "line_number": 249
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "Coming off their bye week, the Packers flew to LP Field for a Week 9 interconference duel with the unbeaten Tennessee Titans.  In the first quarter, Green Bay trailed early as Titans kicker Rob Bironas got a 31-yard field goal.  In the second quarter, the Pack continued to trail as Bironas made a 25-yard field goal.  The Packers responded with kicker Mason Crosby getting a 23-yard field goal, along with QB Aaron Rodgers completing a 5-yard TD pass to WR Donald Driver.  Tennessee ended the half with RB Chris Johnson getting a 3-yard TD run. In the third quarter, the Titans increased their with Bironas getting a 22-yard field goal.  Green Bay would respond with Crosby getting a 25-yard field goal.  In the fourth quarter, the Pack tied the game with Crosby making a 38-yard field goal.  However, in overtime, Tennessee emerged the victor as Bironas nailed the game-winning 41-yard field goal.",
-      "original_question": "What are the top two longest field goals made?",
+      "original_passage": "As of the 2010 United States Census, there were 146,551 people, 51,214 households, and 38,614 families residing in the county. The population density was . There were 54,963 housing units at an average density of . The racial makeup of the county was 50.3% white, 41.0% black or African American, 3.0% Asian, 0.7% American Indian, 0.1% Pacific islander, 1.3% from other races, and 3.7% from two or more races. Those of Hispanic or Latino origin made up 4.3% of the population. In terms of ancestry, 12.6% were Germans, 10.8% were Irish people, 8.7% were English people, 6.3% were Americans, and 5.1% were Italians.",
+      "original_question": "How many percent were not english?",
       "original_answer_data": {
         "spans": [
-          "41-yard",
-          "38-yard"
+          "91.3"
         ],
         "types": [
-          "span",
+          "number"
+        ]
+      },
+      "line_number": 846
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In the county, the population was spread out with 23.5% under the age of 18, 7.8% from 18 to 24, 28.5% from 25 to 44, 25.9% from 45 to 64, and 14.2% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 93.8 males.  For every 100 females age 18 and over, there were 90.5 males.",
+      "original_question": "How many percent were not from 45 to 64?",
+      "original_answer_data": {
+        "spans": [
+          "74.1"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 279
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Australian historian Peter Shergold confirms the findings of many scholars that the standard of living for US industrial workers was higher than in Europe.  He compares wages and the standard of living in Pittsburgh with Birmingham, England. He finds that, after taking into account the cost of living , the standard of living of unskilled workers was about the same in the two cities, while skilled workers had about twice as high a standard of living. The American advantage grew over time from 1890 to 1914, and there was a heavy steady flow of skilled workers from Britain to industrial America.  Shergold revealed that skilled Americans did earn higher wages than the British, yet unskilled workers did not, while Americans worked longer hours, with a greater chance of injury, and had fewer social services. Nationwide from 1890 to 1914 the unionized wages in manufacturing rose from $17.63 a week to $21.37, and the average work week fell from 54.4 to 48.8 hours a week. The pay for all factory workers was $11.94 and $15.84 because unions reached only the more skilled factory workers.",
+      "original_question": "How many total years did the American advantage grow over time?",
+      "original_answer_data": {
+        "spans": [
+          "24"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 455
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their road win over the Steelers, the Colts went home for a Week 11 AFC South rematch with the Houston Texans. In the first quarter, Indianapolis trailed early as Texans kicker Kris Brown got a 28-yard field goal. The Colts responded with kicker Adam Vinatieri getting a 40-yard field goal. Houston would answer with Brown making a 34-yard field goal. In the second quarter, Indy tied the game as Vinatieri got a 39-yard field goal. The Texans retook the lead as RB Ahman Green got a 1-yard TD run. Indianapolis closed out the half as Vinatieri made a 32-yard field goal. In the third quarter, the Colts took the lead as QB Peyton Manning completed a 23-yard TD pass to RB Joseph Addai. Houston would reply as RB Steve Slaton got a 71-yard TD run, yet Indy regained the lead as Addai got a 7-yard TD run. In the fourth quarter, the Texans tried to come back as Green got a 2-yard field goal, yet Indianapolis pulled away with Vinatieri nailing a 31-yard field goal. On the Texans' final drive, QB Sage Rosenfels was intercepted by safety Melvin Bullitt (who was filling in again for the injured Bob Sanders). Ironically, it was Bullitt who picked off Rosenfels on the Texans' final drive when they played the Colts in Week 5. Manning then took a knee, preserving the Colts' third consecutive victory.",
+      "original_question": "How many yards was Adam Vinatieri's shortest field goal?",
+      "original_answer_data": {
+        "spans": [
+          "31"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 901
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "It was the third straight year that the Cowboys traveled to Lambeau to face the Packers. Despite Dak Prescott being picked off for the first time this season, he still managed 247 passing yards and three touchdowns. He also passed Tom Brady's all-time record of consecutive pass attempts to start a career without an interception. Ezekiel Elliott pounded the Green Bay Packers number one ranked run defense with 157 yards on 28 carries The Dallas defense dominated the Packers, forcing four Green Bay turnovers. It was the first time since 2008, and second time in franchise history that the Cowboys had won at Lambeau. With the 30-16 victory, the Cowboys went 5-1 heading into the bye week.",
+      "original_question": "How many total points were scored?",
+      "original_answer_data": {
+        "spans": [
+          "46"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 761
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off a successful two-game homestand, the Falcons flew to Gillette Stadium for a Week 3 inter-conference battle with the New England Patriots.  Atlanta would take flight with a 26-yard field goal from Jason Elam, but the Patriots would tie the game with a 21-yard field goal from kicker Stephen Gostkowski.  New England would take the lead in the second quarter with running back Fred Taylor's 8-yard touchdown run, yet the Falcons answered with running back Michael Turner's 2-yard touchdown run.  New England would close out the half with Gostkowski's 33-yard field goal. The entire second half was completely dominated by the Patriots.  Gostkowski would nail a 22-yard field goal in the third quarter and a 33-yard field goal in the fourth quarter, while quarterback Tom Brady closed out the game with a 36-yard touchdown pass to tight end Chris Baker. With the loss, the Falcons went into their bye week at 2-1.",
+      "original_question": "Which player kicked the second longest field goal of the first quarter?",
+      "original_answer_data": {
+        "spans": [
+          "Stephen Gostkowski"
+        ],
+        "types": [
           "span"
         ]
       },
-      "line_number": 504
+      "line_number": 547
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "Playing in their second game of the season, the Cincinnati Bengals had a lot of things go wrong. Playing Ohio state rivals Cleveland Browns, the defense looked the exact opposite as they did in week one. Browns quarterback Derek Anderson started and threw for 328 yards and five touchdowns. It was only the third time in NFL history that two quarterbacks had thrown at least five touchdown passes in the same game. Jamal Lewis had 215 yards rushing with one touchdown and the Browns had two receivers with over 100 yards, Braylon Edwards and Kellen Winslow. The Bengals offense tried their best to keep the team in the game, however, as Carson Palmer threw for 6 TD's and Chad Johnson caught for 209 yards. The game started out slowly in the first quarter but the second quarter saw a combined 35 points scored. It was close in the end, when the Bengals started a drive with under one minute left. They managed to get the ball to the 50-yard line when Carson Palmer was intercepted by Leigh Bodden on an intended pass for Chad Johnson. This game ended up being the eighth highest scoring game in NFL history, but not the highest scoring game between these two teams. In 2004, the Bengals beat the Browns 58-48 for the second-most combined points. The Redskins (72) and Giants (41) combined for 113 points in 1966 for the most. Q1 - CIN - 10:40 - 13-yard TD pass from Carson Palmer to Rudi Johnson (Shayne Graham kick) (CIN 7-0) Q1 - CLE - 5:02 - Phil Dawson 39-yard FG (CIN 7-3) Q1 - CLE - 0:09 - Phil Dawson 39-yard FG (CIN 7-6) Q2 - CLE - 11:02 - 17-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 13-7) Q2 - CIN - 7:40 - 23-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CIN 14-13) Q2 - CLE - 6:37 - 9-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 20-14) Q2 - CIN - 3:12 - 22-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CIN 21-20) Q2 - CLE - 1:11 - 25-yard TD pass from Derek Anderson to Kellen Winslow (Dawson kick) (CLE 27-21) Q3 - CIN - 12:13 - Shayne Graham 20-yard FG (CLE 27-24) Q3 - CLE - 8:24 - 34-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 34-24) Q3 - CIN - 6:18 - 14-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CLE 34-31) Q3 - CLE - 6:04 - Jamal Lewis 66-yard TD run (Dawson kick) (CLE 41-31) Q3 - CIN - 0:53 - 5-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CLE 41-38) Q4 - CLE - 10:07 - 37-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 48-38) Q4 - CLE - 5:47 - Phil Dawson 18-yard FG (CLE 51-38) Q4 - CIN - 3:45 - 7-yard TD pass from Carson Palmer to Glenn Holt (Graham kick) (CLE 51-45)",
-      "original_question": "How many touchdowns did Carson Palmer throw?",
+      "original_passage": "Sweden occupied the undefended Norwegian province of Jemtland, which was quickly reconquered by a counterattack by forces under command of the Norwegian governor of Tr\u00f8ndelag. The forces were unwilling to launch a counterattack on Swedish land. In 1564 the Swedes marched under Claude Collart and re-occupied Jemtland, as well as Herjedalen and Tr\u00f8ndelag, including the city of Trondheim. Initially facing little opposition from the locals, their subsequent ill treatment of the Tr\u00f8ndelag natives, along with tax pressure, laid the groundwork for later resistance to Swedish invasion. Also, Tr\u00f8ndelag was assisted by the governor of Bergenhus, Erik Rosenkrantz, who forced 3500 local peasants to assist him and his 50 professional soldiers. The Swedes saw Bergenhus as their next target. Although the 400 Swedish soldiers were repelled from Tr\u00f8ndelag, Sweden continued to occupy J\u00e4mtland and H\u00e4rjedalen. These provinces were later regained by Denmark-Norway following the peace process in 1570. Sweden also launched attacks towards Eastern Norway. In the south-east Sweden captured B\u00e5hus Fortress, but lost it in 1566. Another part of the army marched through the valley \u00d8sterdalen in 1567, captured Hamar and continued towards Oslo. They reached as far as the Skiensfjord, and torched Skien at one point. In Oslo, however, citizens torched the city before invaders could seize it. From the south-east, more Swedish forces were then sent to aid in capturing Akershus Fortress near Oslo. These forces torched Konghelle and Sarpsborg on their way. They were repelled from Oslo by local forces together with men belonging to Erik Rosenkrantz and the King of Denmark and Norway. The Swedes retreated in a north-eastern direction, torching Hamar on their way, destroying Hamar Cathedral and the bishop's fortified palace Hamarhus.",
+      "original_question": "How many years did the events take place?",
       "original_answer_data": {
         "spans": [
           "6"
@@ -259,155 +325,129 @@
           "number"
         ]
       },
-      "line_number": 86
+      "line_number": 180
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "After back-to-back sub-par performances by the Patriots offense, they faced Derek Carr and the lowly Raiders in their 2014 home opener looking to have their first breakout performance of the season. After both teams punted on their opening drive, the Raiders reached the Patriots 31 and struck first blood on a 49-yard field goal by Sebastian Janikowski. After both teams punted again, the Patriots embarked on a 15 play, 84-yard drive, converting four third-downs,  and scoring on Brady's 6-yard touchdown pass to Gronkowski midway through the second quarter to take a 7-3 lead. The Raiders punted on their next drive, and Marquette King punted only 22 yards to midfield. With the great field position, the Patriots drove all the way to the Raiders 2, but their red zone struggles continued, and they settled for a 20-yard field goal by Gostkowski, giving them a 10-3 lead at halftime. Strong defense continued in the second half. The Raiders drove deep into Patriots territory early in the second quarter, but could only score on a 37-yard field goal by Janikowski. Following a Patriots punt, the Raiders drove from their own 14, to the Patriots 37, but a false start penalty on guard Donald Penn made it 3rd-and-15, and then Carr completed a 13-yard pass to James Jones to the Patriots 29, bringing up a 4th-and-2. The Raiders decided to settle with Janikowski's 47 yard field goal, making the score 10-9. Matthew Slater returned the ensuing kickoff 26 yards to the Patriots 41. With the good field position, the Patriots drove to the Raiders 2 again, but were once again held out of the end zone, and increased their lead to 13-9 on another 20-yard field goal by Gostkowski. After the Raiders went three-and-out, the Patriots marched 63 yards culminating with Gostkowski's 36-yard field goal, increasing the lead to 16-9 midway through the fourth quarter. The Raiders, though, couldn't muster up any offense against the Patriots and they went three-and-out again, but the Patriots failed to put the game away and punted. In just three plays the Raiders reached Patriots territory, but two plays later, on 3rd-and-7 at the Patriots 30-yard line, Carr threw an incomplete pass seemingly bringing up a do-or-die 4th down, but Ryan was called for pass interference moving the ball to the Patriots 6-yard line. On the very next play, Darren McFadden scored on a 6-yard touchdown run, but the score was nullified by a holding penalty on Raiders left guard Gabe Jackson. On the next play, Carr's pass attempt was tipped and intercepted by Vince Wilfork with 0:51 seconds left, which sealed the win for the Patriots. Tom Brady had his best game to date, despite being pressured relentlessly by the Oakland defensive line, including being sacked twice, completing 24 of 37 passes for 234 yards, with 1 touchdown and no interceptions. The running game struggled, with Ridley leading the team with only 54 yards on 19 carries. Julian Edelman was the leading receiver for either team, with 10 catches for 84 yards. Rob Gronkowski continued to slowly work himself into the offense catching only 3 passes for 44 yards, but also caught the only touchdown. Derek Carr had a sub-par day, going 21 of 34 for only 174 yards, with no touchdowns and an interception. Both defenses were spectacular holding the opposing offense to under 300 yards of offense (241 for the Raiders, 297 for the Patriots). With the win the Patriots advanced to 2-1 and Brady won his 150th career game, 3rd most by a starting quarterback in NFL history.",
-      "original_question": "How had more completed passes, Tom Brady or Derek Carr?`",
+      "original_passage": "In the county, the age distribution of the population shows 27.90% under the age of 18, 6.80% from 18 to 24, 31.60% from 25 to 44, 23.70% from 45 to 64, and 10.10% who were 65 years of age or older. The median age was 36 years. For every 100 females there were 96.00 males. For every 100 females age 18 and over, there were 92.50 males.",
+      "original_question": "Which age group is larger: 25 to 44 or 45 to 64?",
       "original_answer_data": {
         "spans": [
-          "Tom Brady",
-          "completing 24 of 37 passes",
-          "Derek Carr",
-          "21 of 34"
-        ],
-        "types": [
-          "span",
-          "span",
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 376
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.",
-      "original_question": "What problems did the engines have?",
-      "original_answer_data": {
-        "spans": [
-          "water and corrosion",
-          "paraffin clogging",
-          "reduced lubrication",
-          "head bolt failures"
-        ],
-        "types": [
-          "span",
-          "span",
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 530
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
-      "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
-      "original_answer_data": {
-        "spans": [
-          "France",
-          "Germany"
-        ],
-        "types": [
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 984
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
-      "original_question": "Which player threw the first TD pass of the game?",
-      "original_answer_data": {
-        "spans": [
-          "Kyle Orton"
+          "25 to 44"
         ],
         "types": [
           "span"
         ]
       },
-      "line_number": 851
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
-      "original_question": "How many total people died in the fight on February 10, 1756?",
-      "original_answer_data": {
-        "spans": [
-          "1515"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 345
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
-      "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
-      "original_answer_data": {
-        "spans": [
-          "14"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 403
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.",
-      "original_question": "How many percent of amputees in India did had an onset of disability over the age of 14?",
-      "original_answer_data": {
-        "spans": [
-          "89.7"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 226
+      "line_number": 557
     }
   ],
   "example_indices": [
-    106,
-    107,
-    108,
-    109,
-    110,
-    111,
-    112,
-    113,
-    114,
-    115
+    96,
+    97,
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105
   ],
   "results": [
     {
       "success": true,
-      "answer": "34 + 7 = 41",
-      "output": "ANSWER_START\n34 + 7 = 41\n\nANSWER_END\n",
+      "answer": "The passage states that German nationals controlled about 80 percent of Haiti's international commerce and owned/operated various utilities and infrastructure. However, it **does not** state what percentage of Hispaniola the Germans owned.",
+      "output": "ANSWER_START\nThe passage states that German nationals controlled about 80 percent of Haiti's international commerce and owned/operated various utilities and infrastructure. However, it **does not** state what percentage of Hispaniola the Germans owned.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer (80) refers to 80% of Haiti's international commerce being controlled by German nationals. The system answer explicitly denies that the passage mentions the percentage of Hispaniola owned by Germans. Therefore, the two answers are contradictory and do not convey the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "5.  5",
+      "output": "ANSWER_START\n5.  5\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer is 5.5, while the system answer is 5. 5, the numbers are different. The system answer is also badly formatted."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "91.3%",
+      "output": "ANSWER_START\n91.3%\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_13.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer shows the calculation and the final result, which is 41. The golden answer is also 41. Therefore, the answers are semantically equivalent."
+        "explanation": "Both answers are numerically equivalent, with the system answer including a percentage sign which doesn't change the numerical value."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "41 and 38 yards",
-      "output": "ANSWER_START\n41 and 38 yards\n\nANSWER_END\n",
+      "answer": "74",
+      "output": "ANSWER_START\n74\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 0.95,
+        "explanation": "The system answer (74) is close to the golden answer (74.1). Considering the context and potential rounding, the difference is likely insignificant and they can be considered equivalent."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "24",
+      "output": "ANSWER_START\n24\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the number 24, which is semantically equivalent."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "31",
+      "output": "ANSWER_START\n31\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value: 31"
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "46",
+      "output": "ANSWER_START\n46\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_13.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value: 46."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Jason Elam",
+      "output": "ANSWER_START\nJason Elam\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_13.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer provides two values while the golden answer provides only one. Therefore, they are not equivalent."
+        "explanation": "The answers are different NFL players. Jason Elam and Stephen Gostkowski are not the same person."
       },
       "match": false
     },
@@ -419,91 +459,19 @@
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value: 6."
+        "explanation": "Both answers are the same numerical value."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "Tom Brady",
-      "output": "ANSWER_START\nTom Brady\n\nANSWER_END\n",
+      "answer": "25 to 44",
+      "output": "ANSWER_START\n25 to 44\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_13.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
         "explanation": "Both answers are identical and convey the same information."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Water and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, use of aluminum rockers and stanchions in the 4.3L V8 engines.",
-      "output": "ANSWER_START\nWater and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, use of aluminum rockers and stanchions in the 4.3L V8 engines.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_13.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer contains 'water and corrosion' which is the same as the golden answer."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "France and Germany",
-      "output": "ANSWER_START\nFrance and Germany\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_13.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer includes Germany, which is not present in the golden answer. Thus, the answers do not convey the same information."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Kyle Orton",
-      "output": "ANSWER_START\nKyle Orton\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_13.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same name, Kyle Orton."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "1,511 + 4 = 1,515",
-      "output": "ANSWER_START\n1,511 + 4 = 1,515\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_13.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer contains the correct final answer (1515) as the final result of the arithmetic operation. The intermediate step doesn't affect the correctness since the final numerical answer is accurate."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "52 - 46 = 6 yards",
-      "output": "ANSWER_START\n52 - 46 = 6 yards\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_13.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system's answer calculates 52 - 46 = 6, while the correct answer is 14. Therefore, the answers do not match."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "100 - 10.3 = 89.7%",
-      "output": "ANSWER_START\n100 - 10.3 = 89.7%\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_13.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer calculates 100 - 10.3 = 89.7%, which means that 89.7 is the correct value, which matches the golden answer."
       },
       "match": true
     }
@@ -516,32 +484,112 @@
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "34 + 7 = 41",
-        "golden_answer": "41",
-        "output": "ANSWER_START\n34 + 7 = 41\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer shows the calculation and the final result, which is 41. The golden answer is also 41. Therefore, the answers are semantically equivalent."
-        }
-      },
-      {
-        "sample_id": 1,
-        "success": true,
-        "system_answer": "41 and 38 yards",
-        "golden_answer": "41-yard",
-        "output": "ANSWER_START\n41 and 38 yards\n\nANSWER_END\n",
+        "system_answer": "The passage states that German nationals controlled about 80 percent of Haiti's international commerce and owned/operated various utilities and infrastructure. However, it **does not** state what percentage of Hispaniola the Germans owned.",
+        "golden_answer": "80",
+        "output": "ANSWER_START\nThe passage states that German nationals controlled about 80 percent of Haiti's international commerce and owned/operated various utilities and infrastructure. However, it **does not** state what percentage of Hispaniola the Germans owned.\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer provides two values while the golden answer provides only one. Therefore, they are not equivalent."
+          "explanation": "The golden answer (80) refers to 80% of Haiti's international commerce being controlled by German nationals. The system answer explicitly denies that the passage mentions the percentage of Hispaniola owned by Germans. Therefore, the two answers are contradictory and do not convey the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "5.  5",
+        "golden_answer": "5.5",
+        "output": "ANSWER_START\n5.  5\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer is 5.5, while the system answer is 5. 5, the numbers are different. The system answer is also badly formatted."
         },
         "capability_failures": []
       },
       {
         "sample_id": 2,
+        "success": true,
+        "system_answer": "91.3%",
+        "golden_answer": "91.3",
+        "output": "ANSWER_START\n91.3%\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are numerically equivalent, with the system answer including a percentage sign which doesn't change the numerical value."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "74",
+        "golden_answer": "74.1",
+        "output": "ANSWER_START\n74\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 0.95,
+          "explanation": "The system answer (74) is close to the golden answer (74.1). Considering the context and potential rounding, the difference is likely insignificant and they can be considered equivalent."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "24",
+        "golden_answer": "24",
+        "output": "ANSWER_START\n24\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the number 24, which is semantically equivalent."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "31",
+        "golden_answer": "31",
+        "output": "ANSWER_START\n31\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 31"
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "46",
+        "golden_answer": "46",
+        "output": "ANSWER_START\n46\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 46."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "Jason Elam",
+        "golden_answer": "Stephen Gostkowski",
+        "output": "ANSWER_START\nJason Elam\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers are different NFL players. Jason Elam and Stephen Gostkowski are not the same person."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 8,
         "success": true,
         "system_answer": "6",
         "golden_answer": "6",
@@ -550,260 +598,180 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 6."
+          "explanation": "Both answers are the same numerical value."
         }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "Tom Brady",
-        "golden_answer": "Tom Brady",
-        "output": "ANSWER_START\nTom Brady\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "Water and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, use of aluminum rockers and stanchions in the 4.3L V8 engines.",
-        "golden_answer": "water and corrosion",
-        "output": "ANSWER_START\nWater and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, use of aluminum rockers and stanchions in the 4.3L V8 engines.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer contains 'water and corrosion' which is the same as the golden answer."
-        }
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "France and Germany",
-        "golden_answer": "France",
-        "output": "ANSWER_START\nFrance and Germany\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer includes Germany, which is not present in the golden answer. Thus, the answers do not convey the same information."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "Kyle Orton",
-        "golden_answer": "Kyle Orton",
-        "output": "ANSWER_START\nKyle Orton\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same name, Kyle Orton."
-        }
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "1,511 + 4 = 1,515",
-        "golden_answer": "1515",
-        "output": "ANSWER_START\n1,511 + 4 = 1,515\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer contains the correct final answer (1515) as the final result of the arithmetic operation. The intermediate step doesn't affect the correctness since the final numerical answer is accurate."
-        }
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "52 - 46 = 6 yards",
-        "golden_answer": "14",
-        "output": "ANSWER_START\n52 - 46 = 6 yards\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system's answer calculates 52 - 46 = 6, while the correct answer is 14. Therefore, the answers do not match."
-        },
-        "capability_failures": []
       },
       {
         "sample_id": 9,
         "success": true,
-        "system_answer": "100 - 10.3 = 89.7%",
-        "golden_answer": "89.7",
-        "output": "ANSWER_START\n100 - 10.3 = 89.7%\n\nANSWER_END\n",
+        "system_answer": "25 to 44",
+        "golden_answer": "25 to 44",
+        "output": "ANSWER_START\n25 to 44\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer calculates 100 - 10.3 = 89.7%, which means that 89.7 is the correct value, which matches the golden answer."
+          "explanation": "Both answers are identical and convey the same information."
         }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nNo explicit runtime errors (JSONDecodeError, TypeError, etc.) were found in the 'output' fields of the provided error cases.\n\n## STRENGTHS\n1.  **Arithmetic Calculation:** The system is generally capable of performing simple arithmetic operations when the required numbers are identified in the text. This is evident in success cases 0, 7, and 9 where the system accurately calculates totals and percentages.\n2.  **Information Extraction (Basic):** The system can extract basic facts directly stated in the passage, such as player names and scores. Success cases 3 and 6 demonstrate this ability.\n3.  **String Matching:** The system can find and identify strings in the text to match the golden answer when the relationship between the question and answer is straightforward (sample 4)\n\n## WEAKNESSES\n1.  **Complex Information Extraction & Synthesis:** The system struggles with questions requiring the extraction and synthesis of information from multiple parts of the text, or identifying relationships between entities across the passage. This is most evident in error cases 1 and 5.\n2.  **Logical Reasoning & Comparison:** The system has difficulty applying logical reasoning, especially involving comparisons and ordering. Error case 8 highlights the system's inability to properly identify the longest field goals for each player before calculating the difference.\n3.  **Constraint Handling and Ambiguity:** The system demonstrates an inability to correctly identify and apply constraints when the question demands a more sophisticated reading of the passage. In error case 1 the question specified \"the top two longest field goals\" but did not specify to list them from all field goals mentioned or by each player.\n\n## CRITICAL BOTTLENECKS\n1.  **Difficulty with Complex Reasoning and Synthesis:** The inability to synthesize information from different parts of the passage and apply logical reasoning hinders the system's ability to answer questions that require more than basic fact extraction.\n2.  **Lack of Robust Understanding of Question Constraints:** The system needs to be better at interpreting and applying the implied constraints within the question to limit the extracted information to only the most relevant data.\n\n## ERROR PATTERNS\n1.  **Over-Extraction:** The system provides more information than the question asks for (e.g., listing multiple field goals when only the longest is required, or including extra countries when only one meets the criteria).\n2.  **Misinterpretation of Comparative Questions:** Comparative questions involving superlatives (e.g., \"longest,\" \"most\") are often mishandled.\n\n## PRIMARY ISSUE\nThe system's primary issue is its limited ability to extract information relevant to the implicit and explicit constraints within a question. It either extracts too much irrelevant information or fails to perform the necessary comparisons/reasoning to filter the extracted information appropriately.\n\n## IMPROVEMENT AREAS\n1.  **Question Understanding:** Improve the system's ability to parse and understand the question's intent, including identifying key constraints and required relationships.\n2.  **Reasoning and Synthesis:** Enhance the system's reasoning capabilities to enable it to compare and synthesize information from different parts of the passage and from external knowledge (e.g. to understand the relative magnitude of different values).\n3.  **Answer Generation:** Improve the system's ability to generate concise and accurate answers that directly address the question and adhere to all specified constraints.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a \"Question Focus\" module:** Before information extraction, have a module that explicitly identifies keywords, constraints, and expected answer format from the question. This could involve techniques like dependency parsing or semantic role labeling.\n2.  **Develop a \"Contextual Filtering\" Mechanism:** After information extraction, implement a filtering mechanism that uses the \"Question Focus\" output to filter the extracted information, removing irrelevant data points. This can be implemented via a scoring mechanism based on relevance to the question.\n3.  **Integrate Comparative Reasoning Module:** Create a module that specifically handles comparative questions. This module should: a) Identify the entities being compared, b) Extract the relevant attributes for comparison, c) Perform the comparison, and d) Generate the answer based on the comparison result.\n4. Add print statements such that intermediate outputs for each module can be viewed to determine exactly where things go wrong\n\n## CAPABILITY MAPPING\n*   **Sample 1:** information_extraction, constraint_handling, solution_generation\n*   **Sample 5:** information_extraction, solution_generation\n*   **Sample 8:** information_extraction, constraint_handling, solution_generation, solution_verification, decision_making\n",
+      "text_report": "## RUNTIME ERRORS\nThere are no explicit runtime errors like JSONDecodeError or TypeError in the provided error cases. However, the formatting of the answer in sample_id 1, \"5. 5\", indicates a potential issue with string formatting or numerical processing. This could stem from an issue in how the numbers are processed or concatenated before being presented as the final answer.\n\n## STRENGTHS\n1.  **Information Retrieval:** The system demonstrates an ability to extract and identify key pieces of information from the provided passages, as shown in several successful cases where the correct numerical answer was derived from the passage.\n2.  **Basic Arithmetic:** The system appears capable of performing basic arithmetic operations when the necessary information is successfully extracted. This is evident in the successful cases.\n3.  **Reasoning for Textual Answers:** Sample ID 9 showcases the model's ability to perform basic comparisons and correctly extract text-based answers based on textual clues in the passage.\n\n## WEAKNESSES\n1.  **Accurate Numerical Calculation:** The system struggles with numerical precision, as seen in sample_id 3, where the answer is rounded to 74 instead of providing the more accurate 74.1. Additionally, sample ID 1 indicates an issue in numerical formatting or handling that results in incorrectly formatted numbers.\n2.  **Distinguishing Between Related Concepts:** In sample_id 0, the system fails to recognize that information about Haiti's international commerce can be used to answer a question about Hispaniola, potentially caused by not correctly understanding that Haiti is on the island of Hispaniola. It incorrectly asserts that the passage doesn't provide the requested information when it does. This suggests a failure in contextual understanding and the ability to make inferences from related information.\n3.  **Filtering Irrelevant Information:** Sample ID 7 shows the system cannot pinpoint the second-longest field goal of the *first quarter*, implying a failure to filter information based on specified constraints within the passage, such as only considering the first quarter.\n\n## CRITICAL BOTTLENECKS\n1.  **Lack of Precise Understanding of Context and Relationships:** The system struggles to connect related information and filter irrelevant information, particularly for questions requiring a deeper understanding of the passage's context or relationships between entities (e.g., Haiti and Hispaniola).\n2.  **Numerical Precision and Formatting:** The system has difficulties in providing precise numerical answers and formatting them correctly. This limits its ability to give accurate answers, especially when dealing with numerical comparisons or calculations.\n\n## ERROR PATTERNS\n1.  **Numerical Imprecision:** Multiple instances reveal that the system is prone to rounding errors or inaccuracies when dealing with numerical data.\n2.  **Incorrect \"No Answer\" Assertions:** As seen in sample\\_id 0, the system sometimes incorrectly states that the answer cannot be found in the passage when the information is present or inferable.\n3.  **Failure to Apply Constraints:** The system often fails to correctly apply constraints specified in the question, such as filtering information based on a specific timeframe or condition.\n\n## PRIMARY ISSUE\nThe primary issue is the system's **inability to perform precise contextual reasoning and constraint handling when numerical answers are needed**. It struggles to connect related pieces of information, apply constraints to filter out irrelevant information, and give accurate numerical answers without rounding or formatting errors.\n\n## IMPROVEMENT AREAS\n1.  **Contextual Understanding and Inference:** Improve the system's ability to understand the context of the passage and make inferences based on relationships between entities and concepts.\n2.  **Numerical Precision and Formatting:** Enhance the system's numerical processing capabilities to ensure accurate calculations, minimal rounding errors, and proper formatting of numerical answers.\n3.  **Constraint Handling:** Refine the system's ability to correctly interpret and apply constraints specified in the question.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Relationship Graph:** Create a relationship graph to represent relationships between entities mentioned in the passage. This can help the system connect related information and improve contextual understanding.\n2.  **Utilize String Matching with Fuzzy Matching for Named Entities:** Enhance entity recognition by integrating fuzzy matching techniques to detect synonyms and variations of entity names.\n3.  **Improve Numerical Processing:** Implement more robust numerical processing libraries that ensure accurate calculations and minimize rounding errors. Include rigorous unit testing to validate the accuracy of numerical operations.\n4.  **Refine Constraint Parsing:** Develop a more sophisticated constraint parsing module that can accurately identify and apply constraints specified in the question. This module should be able to handle various types of constraints, including temporal, spatial, and conditional constraints.\n5.  **Implement Intermediate Reasoning Steps with Logging:** Introduce intermediate reasoning steps in the process and use print statements (or a logging mechanism) to record these steps. This allows detailed tracing and debugging of the reasoning process. For example, show the extraction of the number, the calculation used, the final answer and why it was chosen.\n6.  **Add examples to training data where intermediate steps of the calculation are present.**\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information\\_extraction, constraint\\_handling, decision\\_making\n*   **Sample ID 1:** solution\\_generation\n*   **Sample ID 7:** constraint\\_handling, information\\_extraction\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The system's primary issue is its limited ability to extract information relevant to the implicit and explicit constraints within a question. It either extracts too much irrelevant information or fails to perform the necessary comparisons/reasoning to filter the extracted information appropriately.",
+      "primary_issue": "The primary issue is the system's **inability to perform precise contextual reasoning and constraint handling when numerical answers are needed**. It struggles to connect related pieces of information, apply constraints to filter out irrelevant information, and give accurate numerical answers without rounding or formatting errors.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a capability report based on the performance summary, error analysis, error patterns, improvement suggestions, capability mapping, and sample execution outputs provided.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal the following:\n\n*   **Output 1 (\"34 + 7 = 41\")**: Demonstrates correct arithmetic calculation, aligning with the reported \"Arithmetic Calculation\" strength. The presence of unnecessary text (\"ANSWER\\_START\", \"ANSWER\\_END\") indicates a formatting issue or lack of answer polishing.\n*   **Output 2 (\"41 and 38 yards\")**: Shows a mixture of correct and incorrect information. The question likely requires extraction of specific values, but the system provides two possibly because it doesn't know which one to select. This points to weaknesses in constraint handling or logical reasoning.\n*   **Output 3 (\"6\")**: A concise and seemingly correct answer. This aligns with the reported strength in basic information extraction.\n\nOverall, the execution outputs highlight inconsistencies in the system's performance and indicate a need for more robust output formatting and refinement.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic capacity for information extraction and arithmetic calculations but is significantly limited by its inability to handle complex reasoning, constraint handling, and comparative tasks. The system struggles with ambiguity and lacks a mechanism for filtering irrelevant information. The system's strengths are overshadowed by its weaknesses, resulting in inconsistent performance.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Calculation**: Maintaining the accuracy of basic calculations is essential.\n*   **Basic Information Extraction**: The system can extract information from text to match the golden answer when the relationship between the question and the answer is straightforward.\n\n### KEY WEAKNESSES\n\n*   **Complex Reasoning & Synthesis:** This is a major impediment to answering more challenging questions.\n*   **Constraint Handling:** The system struggles to filter information based on implicit and explicit constraints.\n*   **Output Refinement:** The system struggles to output a clean answer without excessive and unnecessary text.\n\n### IMPROVEMENT FOCUS\n\n**Constraint Handling:** Improving the system's ability to identify and apply constraints is the single most important capability to focus on. This will directly address over-extraction and improve the accuracy of answers.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement \"Question Focus\" Module with Expanded Constraint Identification:**\n    *   Refine the existing suggestion of a \"Question Focus\" module by explicitly programming it to identify constraint phrases (e.g., \"longest,\" \"top two,\" \"highest\").\n    *   Use techniques like dependency parsing to understand the grammatical structure of the question and identify constraints within prepositional phrases or subordinate clauses. For example, use the syntax to identify the entity and attribute of comparison in comparative questions.\n    *   Assign a weight to each identified constraint based on its importance to the question.\n2.  **Develop a \"Constraint-Based Filtering\" Mechanism:**\n    *   After information extraction, implement a filtering mechanism that explicitly checks whether extracted information satisfies the identified constraints.\n    *   Create a scoring system where data points that violate constraints receive negative scores, and only data points with positive scores are considered for the final answer.\n    *   Implement a threshold for the overall score, ensuring that the system only provides an answer if a sufficient number of constraints are met.\n3.  **Refine Answer Generation with Post-Processing Rules:**\n    *   Implement a post-processing step to remove extraneous text such as \"ANSWER\\_START\" and \"ANSWER\\_END.\"\n    *   Develop rules for formatting the answer based on the question type. For example, questions asking for a list should be formatted as a comma-separated list.\n4. Add print statements to modules\n    *   Add print statements to modules, in particular \"Question Focus\", \"Contextual Filtering\", and \"Comparative Reasoning\" to observe output from each module and assess and address any failure points\n\n### CAPABILITY TREND\n\nBased on the provided information, it's difficult to determine a definitive capability trend. The accuracy is at 0.70, and the error analysis highlights significant weaknesses. Without previous performance data, it's unclear if capabilities are improving, declining, or stable. However, implementing the recommended improvements should lead to a positive trend in the next iteration.\n",
+      "text_report": "## AI System Capability Assessment\n\n### EXECUTION ANALYSIS\n\nThe provided execution outputs reveal several points:\n\n*   **Sample ID 0 (Error):** The generated response correctly identifies that the passage discusses German control in Haiti but incorrectly claims it doesn't relate to Hispaniola. This highlights a failure in understanding the geographical relationship and drawing a valid inference. The output is well-formatted textually, indicating the problem lies in comprehension and reasoning.\n*   **Sample ID 1 (Error):** The output \"5. 5\" clearly shows a formatting error. The system likely extracted a \"5\" and then performed some incorrect processing (possibly concatenation) resulting in this strange output. This suggests a potential issue in the data processing pipeline after information extraction but before answer presentation. It may involve misinterpreting a period or incorrect concatenation logic.\n*   **Sample ID 7 (Incomplete Information):** The included samples do not provide sufficient information to determine if Sample ID 7 was successfully produced.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a foundational ability to extract information and perform simple arithmetic. However, its performance is hampered by significant weaknesses in contextual understanding, numerical precision, and constraint handling. The core capabilities are present, but their effective application is inconsistent, leading to a moderate overall capability level. The system has potential but needs refinement to achieve reliable performance.\n\n### KEY STRENGTHS\n\n*   **Information Retrieval:**  The ability to extract relevant information from text passages, evidenced by success in several cases where correct answers were derived.\n*   **Basic Arithmetic:**  Performing simple arithmetic operations when the required information is successfully retrieved.\n\nThese strengths form the foundation for a more capable system. Maintaining and building upon them is crucial.\n\n### KEY WEAKNESSES\n\n*   **Contextual Reasoning and Inference:**  A critical inability to connect related pieces of information and draw logical inferences (e.g., relating Haiti to Hispaniola).\n*   **Numerical Precision and Formatting:**  Inaccuracies in numerical calculations, rounding errors, and improper formatting of numerical answers.\n*   **Constraint Handling:**  Failure to correctly interpret and apply constraints specified in questions (e.g., filtering information by timeframe).\n\nThese weaknesses significantly limit the system's accuracy and reliability. Addressing them is paramount for improved performance.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Reasoning and Inference**, specifically the ability to understand relationships between entities and concepts described in the text. While numerical precision and constraint handling are also important, a failure in contextual understanding undermines the entire process. Without accurate understanding, precise calculations and constraint application are irrelevant.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Knowledge Graph Component:** Integrate a knowledge graph component that stores and retrieves relationships between entities (e.g., \"Haiti is located on Hispaniola\").  This graph can be pre-populated with common-sense knowledge and extended with information extracted from the training data. The system should query this graph during reasoning to identify related concepts.\n\n    *   **Implementation Details:**  Use a graph database like Neo4j or a Python library like NetworkX. Focus initially on geographical relationships and common entity types (countries, organizations, people).\n    *   **Testing:** Evaluate whether the system can correctly answer questions about related entities after this component is integrated.\n\n2.  **Enhance Training Data with Explicit Relationship Examples:**  Augment the training data with examples that explicitly demonstrate relationships between entities and concepts. For example, include questions like \"Where is Haiti located?\" and provide the answer \"Hispaniola.\" This will expose the model to more instances of these relationships.\n\n    *   **Data Generation:** Generate new training examples by manually creating questions and answers based on existing text passages, emphasizing relationships between entities.\n    *   **Data Integration:** Carefully integrate these new examples into the existing training dataset.\n\n3.  **Implement Intermediate Reasoning Step Logging for Sample ID 0:** Specifically for cases similar to Sample ID 0, implement a logging mechanism to record the intermediate steps of the reasoning process.  This will allow a detailed tracing of how the system fails to connect Haiti and Hispaniola.\n\n    *   **Logging Scope:** Capture the initial question, the extracted entities, the query to the knowledge graph, and the system's reasoning for either finding or not finding an answer.\n    *   **Analysis:** Analyze the logs to pinpoint the exact step where the reasoning fails.\n\n4.  **Review and Correct Numerical Processing Logic (For addressing the \"5. 5\" issue):** Carefully examine the code responsible for processing and formatting numerical answers.  Look for potential errors in string concatenation, type conversion, or rounding logic. Implement unit tests to ensure numerical values are handled correctly at each stage.\n    * **Start With Sample ID 1, adding logging to see each number and operation.**\n\nThese changes should be implemented incrementally and rigorously tested. Focus on addressing the root cause of the contextual understanding problem before optimizing numerical precision.\n\n### CAPABILITY TREND\n\nBased on the provided data, the capability trend is currently **stable but with high potential for improvement**. The system shows promise with its information extraction abilities, but its weaknesses in contextual reasoning limit its overall performance. Addressing the identified weaknesses will likely lead to a significant upward trend in capabilities. A successful integration of a knowledge graph is likely to dramatically improve the situation.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nNo explicit runtime errors (JSONDecodeError, TypeError, etc.) were found in the 'output' fields of the provided error cases.\n\n## STRENGTHS\n1.  **Arithmetic Calculation:** The system is generally capable of performing simple arithmetic operations when the required numbers are identified in the text. This is evident in success cases 0, 7, and 9 where the system accurately calculates totals and percentages.\n2.  **Information Extraction (Basic):** The system can extract basic facts directly stated in the passage, such as player names and scores. Success cases 3 and 6 demonstrate this ability.\n3.  **String Matching:** The system can find and identify strings in the text to match the golden answer when the relationship between the question and answer is straightforward (sample 4)\n\n## WEAKNESSES\n1.  **Complex Information Extraction & Synthesis:** The system struggles with questions requiring the extraction and synthesis of information from multiple parts of the text, or identifying relationships between entities across the passage. This is most evident in error cases 1 and 5.\n2.  **Logical Reasoning & Comparison:** The system has difficulty applying logical reasoning, especially involving comparisons and ordering. Error case 8 highlights the system's inability to properly identify the longest field goals for each player before calculating the difference.\n3.  **Constraint Handling and Ambiguity:** The system demonstrates an inability to correctly identify and apply constraints when the question demands a more sophisticated reading of the passage. In error case 1 the question specified \"the top two longest field goals\" but did not specify to list them from all field goals mentioned or by each player.\n\n## CRITICAL BOTTLENECKS\n1.  **Difficulty with Complex Reasoning and Synthesis:** The inability to synthesize information from different parts of the passage and apply logical reasoning hinders the system's ability to answer questions that require more than basic fact extraction.\n2.  **Lack of Robust Understanding of Question Constraints:** The system needs to be better at interpreting and applying the implied constraints within the question to limit the extracted information to only the most relevant data.\n\n## ERROR PATTERNS\n1.  **Over-Extraction:** The system provides more information than the question asks for (e.g., listing multiple field goals when only the longest is required, or including extra countries when only one meets the criteria).\n2.  **Misinterpretation of Comparative Questions:** Comparative questions involving superlatives (e.g., \"longest,\" \"most\") are often mishandled.\n\n## PRIMARY ISSUE\nThe system's primary issue is its limited ability to extract information relevant to the implicit and explicit constraints within a question. It either extracts too much irrelevant information or fails to perform the necessary comparisons/reasoning to filter the extracted information appropriately.\n\n## IMPROVEMENT AREAS\n1.  **Question Understanding:** Improve the system's ability to parse and understand the question's intent, including identifying key constraints and required relationships.\n2.  **Reasoning and Synthesis:** Enhance the system's reasoning capabilities to enable it to compare and synthesize information from different parts of the passage and from external knowledge (e.g. to understand the relative magnitude of different values).\n3.  **Answer Generation:** Improve the system's ability to generate concise and accurate answers that directly address the question and adhere to all specified constraints.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a \"Question Focus\" module:** Before information extraction, have a module that explicitly identifies keywords, constraints, and expected answer format from the question. This could involve techniques like dependency parsing or semantic role labeling.\n2.  **Develop a \"Contextual Filtering\" Mechanism:** After information extraction, implement a filtering mechanism that uses the \"Question Focus\" output to filter the extracted information, removing irrelevant data points. This can be implemented via a scoring mechanism based on relevance to the question.\n3.  **Integrate Comparative Reasoning Module:** Create a module that specifically handles comparative questions. This module should: a) Identify the entities being compared, b) Extract the relevant attributes for comparison, c) Perform the comparison, and d) Generate the answer based on the comparison result.\n4. Add print statements such that intermediate outputs for each module can be viewed to determine exactly where things go wrong\n\n## CAPABILITY MAPPING\n*   **Sample 1:** information_extraction, constraint_handling, solution_generation\n*   **Sample 5:** information_extraction, solution_generation\n*   **Sample 8:** information_extraction, constraint_handling, solution_generation, solution_verification, decision_making\n",
-    "capability_report_text": "Okay, here's a capability report based on the performance summary, error analysis, error patterns, improvement suggestions, capability mapping, and sample execution outputs provided.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal the following:\n\n*   **Output 1 (\"34 + 7 = 41\")**: Demonstrates correct arithmetic calculation, aligning with the reported \"Arithmetic Calculation\" strength. The presence of unnecessary text (\"ANSWER\\_START\", \"ANSWER\\_END\") indicates a formatting issue or lack of answer polishing.\n*   **Output 2 (\"41 and 38 yards\")**: Shows a mixture of correct and incorrect information. The question likely requires extraction of specific values, but the system provides two possibly because it doesn't know which one to select. This points to weaknesses in constraint handling or logical reasoning.\n*   **Output 3 (\"6\")**: A concise and seemingly correct answer. This aligns with the reported strength in basic information extraction.\n\nOverall, the execution outputs highlight inconsistencies in the system's performance and indicate a need for more robust output formatting and refinement.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic capacity for information extraction and arithmetic calculations but is significantly limited by its inability to handle complex reasoning, constraint handling, and comparative tasks. The system struggles with ambiguity and lacks a mechanism for filtering irrelevant information. The system's strengths are overshadowed by its weaknesses, resulting in inconsistent performance.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Calculation**: Maintaining the accuracy of basic calculations is essential.\n*   **Basic Information Extraction**: The system can extract information from text to match the golden answer when the relationship between the question and the answer is straightforward.\n\n### KEY WEAKNESSES\n\n*   **Complex Reasoning & Synthesis:** This is a major impediment to answering more challenging questions.\n*   **Constraint Handling:** The system struggles to filter information based on implicit and explicit constraints.\n*   **Output Refinement:** The system struggles to output a clean answer without excessive and unnecessary text.\n\n### IMPROVEMENT FOCUS\n\n**Constraint Handling:** Improving the system's ability to identify and apply constraints is the single most important capability to focus on. This will directly address over-extraction and improve the accuracy of answers.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement \"Question Focus\" Module with Expanded Constraint Identification:**\n    *   Refine the existing suggestion of a \"Question Focus\" module by explicitly programming it to identify constraint phrases (e.g., \"longest,\" \"top two,\" \"highest\").\n    *   Use techniques like dependency parsing to understand the grammatical structure of the question and identify constraints within prepositional phrases or subordinate clauses. For example, use the syntax to identify the entity and attribute of comparison in comparative questions.\n    *   Assign a weight to each identified constraint based on its importance to the question.\n2.  **Develop a \"Constraint-Based Filtering\" Mechanism:**\n    *   After information extraction, implement a filtering mechanism that explicitly checks whether extracted information satisfies the identified constraints.\n    *   Create a scoring system where data points that violate constraints receive negative scores, and only data points with positive scores are considered for the final answer.\n    *   Implement a threshold for the overall score, ensuring that the system only provides an answer if a sufficient number of constraints are met.\n3.  **Refine Answer Generation with Post-Processing Rules:**\n    *   Implement a post-processing step to remove extraneous text such as \"ANSWER\\_START\" and \"ANSWER\\_END.\"\n    *   Develop rules for formatting the answer based on the question type. For example, questions asking for a list should be formatted as a comma-separated list.\n4. Add print statements to modules\n    *   Add print statements to modules, in particular \"Question Focus\", \"Contextual Filtering\", and \"Comparative Reasoning\" to observe output from each module and assess and address any failure points\n\n### CAPABILITY TREND\n\nBased on the provided information, it's difficult to determine a definitive capability trend. The accuracy is at 0.70, and the error analysis highlights significant weaknesses. Without previous performance data, it's unclear if capabilities are improving, declining, or stable. However, implementing the recommended improvements should lead to a positive trend in the next iteration.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no explicit runtime errors like JSONDecodeError or TypeError in the provided error cases. However, the formatting of the answer in sample_id 1, \"5. 5\", indicates a potential issue with string formatting or numerical processing. This could stem from an issue in how the numbers are processed or concatenated before being presented as the final answer.\n\n## STRENGTHS\n1.  **Information Retrieval:** The system demonstrates an ability to extract and identify key pieces of information from the provided passages, as shown in several successful cases where the correct numerical answer was derived from the passage.\n2.  **Basic Arithmetic:** The system appears capable of performing basic arithmetic operations when the necessary information is successfully extracted. This is evident in the successful cases.\n3.  **Reasoning for Textual Answers:** Sample ID 9 showcases the model's ability to perform basic comparisons and correctly extract text-based answers based on textual clues in the passage.\n\n## WEAKNESSES\n1.  **Accurate Numerical Calculation:** The system struggles with numerical precision, as seen in sample_id 3, where the answer is rounded to 74 instead of providing the more accurate 74.1. Additionally, sample ID 1 indicates an issue in numerical formatting or handling that results in incorrectly formatted numbers.\n2.  **Distinguishing Between Related Concepts:** In sample_id 0, the system fails to recognize that information about Haiti's international commerce can be used to answer a question about Hispaniola, potentially caused by not correctly understanding that Haiti is on the island of Hispaniola. It incorrectly asserts that the passage doesn't provide the requested information when it does. This suggests a failure in contextual understanding and the ability to make inferences from related information.\n3.  **Filtering Irrelevant Information:** Sample ID 7 shows the system cannot pinpoint the second-longest field goal of the *first quarter*, implying a failure to filter information based on specified constraints within the passage, such as only considering the first quarter.\n\n## CRITICAL BOTTLENECKS\n1.  **Lack of Precise Understanding of Context and Relationships:** The system struggles to connect related information and filter irrelevant information, particularly for questions requiring a deeper understanding of the passage's context or relationships between entities (e.g., Haiti and Hispaniola).\n2.  **Numerical Precision and Formatting:** The system has difficulties in providing precise numerical answers and formatting them correctly. This limits its ability to give accurate answers, especially when dealing with numerical comparisons or calculations.\n\n## ERROR PATTERNS\n1.  **Numerical Imprecision:** Multiple instances reveal that the system is prone to rounding errors or inaccuracies when dealing with numerical data.\n2.  **Incorrect \"No Answer\" Assertions:** As seen in sample\\_id 0, the system sometimes incorrectly states that the answer cannot be found in the passage when the information is present or inferable.\n3.  **Failure to Apply Constraints:** The system often fails to correctly apply constraints specified in the question, such as filtering information based on a specific timeframe or condition.\n\n## PRIMARY ISSUE\nThe primary issue is the system's **inability to perform precise contextual reasoning and constraint handling when numerical answers are needed**. It struggles to connect related pieces of information, apply constraints to filter out irrelevant information, and give accurate numerical answers without rounding or formatting errors.\n\n## IMPROVEMENT AREAS\n1.  **Contextual Understanding and Inference:** Improve the system's ability to understand the context of the passage and make inferences based on relationships between entities and concepts.\n2.  **Numerical Precision and Formatting:** Enhance the system's numerical processing capabilities to ensure accurate calculations, minimal rounding errors, and proper formatting of numerical answers.\n3.  **Constraint Handling:** Refine the system's ability to correctly interpret and apply constraints specified in the question.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Relationship Graph:** Create a relationship graph to represent relationships between entities mentioned in the passage. This can help the system connect related information and improve contextual understanding.\n2.  **Utilize String Matching with Fuzzy Matching for Named Entities:** Enhance entity recognition by integrating fuzzy matching techniques to detect synonyms and variations of entity names.\n3.  **Improve Numerical Processing:** Implement more robust numerical processing libraries that ensure accurate calculations and minimize rounding errors. Include rigorous unit testing to validate the accuracy of numerical operations.\n4.  **Refine Constraint Parsing:** Develop a more sophisticated constraint parsing module that can accurately identify and apply constraints specified in the question. This module should be able to handle various types of constraints, including temporal, spatial, and conditional constraints.\n5.  **Implement Intermediate Reasoning Steps with Logging:** Introduce intermediate reasoning steps in the process and use print statements (or a logging mechanism) to record these steps. This allows detailed tracing and debugging of the reasoning process. For example, show the extraction of the number, the calculation used, the final answer and why it was chosen.\n6.  **Add examples to training data where intermediate steps of the calculation are present.**\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information\\_extraction, constraint\\_handling, decision\\_making\n*   **Sample ID 1:** solution\\_generation\n*   **Sample ID 7:** constraint\\_handling, information\\_extraction\n",
+    "capability_report_text": "## AI System Capability Assessment\n\n### EXECUTION ANALYSIS\n\nThe provided execution outputs reveal several points:\n\n*   **Sample ID 0 (Error):** The generated response correctly identifies that the passage discusses German control in Haiti but incorrectly claims it doesn't relate to Hispaniola. This highlights a failure in understanding the geographical relationship and drawing a valid inference. The output is well-formatted textually, indicating the problem lies in comprehension and reasoning.\n*   **Sample ID 1 (Error):** The output \"5. 5\" clearly shows a formatting error. The system likely extracted a \"5\" and then performed some incorrect processing (possibly concatenation) resulting in this strange output. This suggests a potential issue in the data processing pipeline after information extraction but before answer presentation. It may involve misinterpreting a period or incorrect concatenation logic.\n*   **Sample ID 7 (Incomplete Information):** The included samples do not provide sufficient information to determine if Sample ID 7 was successfully produced.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a foundational ability to extract information and perform simple arithmetic. However, its performance is hampered by significant weaknesses in contextual understanding, numerical precision, and constraint handling. The core capabilities are present, but their effective application is inconsistent, leading to a moderate overall capability level. The system has potential but needs refinement to achieve reliable performance.\n\n### KEY STRENGTHS\n\n*   **Information Retrieval:**  The ability to extract relevant information from text passages, evidenced by success in several cases where correct answers were derived.\n*   **Basic Arithmetic:**  Performing simple arithmetic operations when the required information is successfully retrieved.\n\nThese strengths form the foundation for a more capable system. Maintaining and building upon them is crucial.\n\n### KEY WEAKNESSES\n\n*   **Contextual Reasoning and Inference:**  A critical inability to connect related pieces of information and draw logical inferences (e.g., relating Haiti to Hispaniola).\n*   **Numerical Precision and Formatting:**  Inaccuracies in numerical calculations, rounding errors, and improper formatting of numerical answers.\n*   **Constraint Handling:**  Failure to correctly interpret and apply constraints specified in questions (e.g., filtering information by timeframe).\n\nThese weaknesses significantly limit the system's accuracy and reliability. Addressing them is paramount for improved performance.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Reasoning and Inference**, specifically the ability to understand relationships between entities and concepts described in the text. While numerical precision and constraint handling are also important, a failure in contextual understanding undermines the entire process. Without accurate understanding, precise calculations and constraint application are irrelevant.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Knowledge Graph Component:** Integrate a knowledge graph component that stores and retrieves relationships between entities (e.g., \"Haiti is located on Hispaniola\").  This graph can be pre-populated with common-sense knowledge and extended with information extracted from the training data. The system should query this graph during reasoning to identify related concepts.\n\n    *   **Implementation Details:**  Use a graph database like Neo4j or a Python library like NetworkX. Focus initially on geographical relationships and common entity types (countries, organizations, people).\n    *   **Testing:** Evaluate whether the system can correctly answer questions about related entities after this component is integrated.\n\n2.  **Enhance Training Data with Explicit Relationship Examples:**  Augment the training data with examples that explicitly demonstrate relationships between entities and concepts. For example, include questions like \"Where is Haiti located?\" and provide the answer \"Hispaniola.\" This will expose the model to more instances of these relationships.\n\n    *   **Data Generation:** Generate new training examples by manually creating questions and answers based on existing text passages, emphasizing relationships between entities.\n    *   **Data Integration:** Carefully integrate these new examples into the existing training dataset.\n\n3.  **Implement Intermediate Reasoning Step Logging for Sample ID 0:** Specifically for cases similar to Sample ID 0, implement a logging mechanism to record the intermediate steps of the reasoning process.  This will allow a detailed tracing of how the system fails to connect Haiti and Hispaniola.\n\n    *   **Logging Scope:** Capture the initial question, the extracted entities, the query to the knowledge graph, and the system's reasoning for either finding or not finding an answer.\n    *   **Analysis:** Analyze the logs to pinpoint the exact step where the reasoning fails.\n\n4.  **Review and Correct Numerical Processing Logic (For addressing the \"5. 5\" issue):** Carefully examine the code responsible for processing and formatting numerical answers.  Look for potential errors in string concatenation, type conversion, or rounding logic. Implement unit tests to ensure numerical values are handled correctly at each stage.\n    * **Start With Sample ID 1, adding logging to see each number and operation.**\n\nThese changes should be implemented incrementally and rigorously tested. Focus on addressing the root cause of the contextual understanding problem before optimizing numerical precision.\n\n### CAPABILITY TREND\n\nBased on the provided data, the capability trend is currently **stable but with high potential for improvement**. The system shows promise with its information extraction abilities, but its weaknesses in contextual reasoning limit its overall performance. Addressing the identified weaknesses will likely lead to a significant upward trend in capabilities. A successful integration of a knowledge graph is likely to dramatically improve the situation.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
     "successful_runs": 10,
-    "matches": 6,
-    "accuracy": 0.6,
+    "matches": 10,
+    "accuracy": 1.0,
     "results": [
       {
         "success": true,
-        "answer": "8 million",
-        "output": "ANSWER_START\n8 million\n\nANSWER_END\n",
+        "answer": "73",
+        "output": "ANSWER_START\n73\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "8",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer provides '8 million' while the golden answer provides '8'. These are not semantically equivalent as '8 million' implies 8,000,000, a significantly different value than '8'."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "John Kasay's longest field goal = 31 yards, John Kasay's shortest field goal = 29 yards.\n31 - 29 = 2 yards\nAnswer: 2 yards",
-        "output": "ANSWER_START\nJohn Kasay's longest field goal = 31 yards, John Kasay's shortest field goal = 29 yards.\n31 - 29 = 2 yards\nAnswer: 2 yards\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "2",
+        "golden_answer": "73",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer provides the calculation and arrives at the correct final answer of 2 yards. The golden answer is simply '2', which is semantically equivalent to '2 yards' in this context."
+          "explanation": "Both answers are the same numerical value."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "16",
-        "output": "ANSWER_START\n16\n\nANSWER_END\n",
+        "answer": "1-2 May",
+        "output": "ANSWER_START\n1-2 May\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "16",
+        "golden_answer": "1-2 May",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value (16)."
+          "explanation": "Both answers are identical and convey the same information: 1-2 May."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "1 yard",
-        "output": "ANSWER_START\n1 yard\n\nANSWER_END\n",
+        "answer": "Jay Cutler",
+        "output": "ANSWER_START\nJay Cutler\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The golden answer is just the number 1, while the system answer is '1 yard'. The golden answer has no units and is just the number 1, while the system answer has units. These are not semantically equivalent. Note: the lack of units on the golden answer makes the conversion questionable."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Sebastian Janikowski",
-        "output": "ANSWER_START\nSebastian Janikowski\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "Sebastian Janikowski",
+        "golden_answer": "Jay Cutler",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information."
+          "explanation": "Both answers are the same string, 'Jay Cutler'."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "2011 - 2001 = 10 years",
-        "output": "ANSWER_START\n2011 - 2001 = 10 years\n\nANSWER_END\n",
+        "answer": "Matthew Stafford",
+        "output": "ANSWER_START\nMatthew Stafford\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "10",
+        "golden_answer": "Matthew Stafford",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer's calculation leads to the same answer as the golden answer, 10."
+          "explanation": "Both answers are identical and convey the same information: Matthew Stafford."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "African American",
-        "output": "ANSWER_START\nAfrican American\n\nANSWER_END\n",
+        "answer": "3",
+        "output": "ANSWER_START\n3\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "African American",
+        "golden_answer": "3",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information."
+          "explanation": "Both answers are the same numerical value, 3."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "51 - 24 = 27 yards",
-        "output": "ANSWER_START\n51 - 24 = 27 yards\n\nANSWER_END\n",
+        "answer": "41",
+        "output": "ANSWER_START\n41\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The golden answer is 1, while the system answer calculates 51-24=27 yards. These answers are not semantically equivalent."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "32 + 32 + 51 + 35 = 150\nThere were 4 field goals greater than 30 yards.",
-        "output": "ANSWER_START\n32 + 32 + 51 + 35 = 150\nThere were 4 field goals greater than 30 yards.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "4",
+        "golden_answer": "41",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer states \"There were 4 field goals greater than 30 yards\", which is semantically equivalent to the golden answer \"4\"."
+          "explanation": "Both answers are the same numerical value."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "Novgorod",
-        "output": "ANSWER_START\nNovgorod\n\nANSWER_END\n",
+        "answer": "Rob Bironas with 41-yard field goal and Mason Crosby with 38-yard field goal.",
+        "output": "ANSWER_START\nRob Bironas with 41-yard field goal and Mason Crosby with 38-yard field goal.\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_13.jsonl",
-        "golden_answer": "Novgorodians",
+        "golden_answer": "41-yard",
         "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The golden answer refers to the people of Novgorod, while the system answer refers to the city itself. These are not semantically equivalent."
+          "match": true,
+          "confidence": 0.7,
+          "explanation": "The system answer provides additional information, but it does contain the '41-yard' information from the golden answer. Thus, they convey the same information, though the system answer has some extra details."
         },
-        "match": false
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "6",
+        "output": "ANSWER_START\n6\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "6",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the number 6."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Tom Brady had more completed passes.",
+        "output": "ANSWER_START\nTom Brady had more completed passes.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "Tom Brady",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer indicates that Tom Brady had more completed passes, which implicitly means the answer is Tom Brady."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Water and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines.",
+        "output": "ANSWER_START\nWater and corrosion in the injectors, paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_13.jsonl",
+        "golden_answer": "water and corrosion",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the golden answer (water and corrosion) as part of a larger list."
+        },
+        "match": true
       }
     ]
   },
-  "execution_time": 86.59853482246399,
+  "execution_time": 112.58225202560425,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

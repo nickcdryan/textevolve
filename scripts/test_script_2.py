@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 2,
-        "sample_id": "f893d369-9a1c-453e-95f5-6e671c06e55f",
-        "question": "PASSAGE: He was the Speaker of the Parliament extraordinary held in Warsaw on 3 December to 24 December 1613. During the war with Sweden  and the  fought in Livonia winning to the Swedish army at Kroppenhof, Lixna, Slavskoye and Dyneburg. It is because of fighting with the Swedes until 1629, he was appointing Palatine-Governor of Smolensk region, but the nomination was already in 1625. Seeing the threat from Russia, Gosiewski immediately upon taking the governorate of Smolensk began to renovate the walls of the city. He personally oversaw the construction of Sigismund Fortress, which strengthened the eastern part of the stronghold. Intensively collected supplies of food and ammunition, and developed a business intelligence gathering valuable information about Moscow's war preparations. In the spring of 1632, he made review the fortifications in Dorogobuzh and other frontier forts. During the war with Russia, in the year 1632 and 1634 after a particularly famous defense of Smolensk - for ten months he defended the city against besieging forces led by Mikhail Shein, repelling all assaults, until the advent of the battle led by Prince Władysław. He fought at Vitebsk, Alder and Mstislav. He participated as a Commissioner in peace negotiations, topped the conclusion on 14 June 1634, in Treaty of Polanów. For his services, he received numerous goods in the province of Smolensk. He founded the Jesuits' College in Vitebsk and the female Monastery of the Holy Brigit at Brest-Litovsk.As Palatine-Governor, he commemorated the death of his longtime client - Jan Kunowski, who in 1640 wrote a series of poems dedicated to his late patron.\n\nQUESTION: How many years after being appointed Palatine-Governor of Smolensk region, did Gosiewski participated as a Commissioner in peace negotiations?"
+        "sample_id": "9db97346-580c-4c1a-9998-15698d0dddb4",
+        "question": "PASSAGE: Hoping to rebound from their divisional road loss to the Chiefs, the Broncos went home for a Week 5 interconference duel with the Tampa Bay Buccaneers.  In the first quarter, Denver trailed early as Bucs kicker Matt Bryant got a 33-yard field goal.  In the second quarter, the Broncos took the lead as kicker Matt Prater got a 55-yard and a 40-yard field goal.  Tampa Bay would tie the game at halftime as Bryant kicked a 31-yard field goal.  In the third quarter, Denver took a big lead as QB Jay Cutler completed a 10-yard TD pass to WR Brandon Stokley.  In the fourth quarter, the Broncos increased its lead as Prater nailed a 27-yard field goal.  The Buccaneers would try to rally as QB Jeff Garcia completed a 7-yard TD pass to WR Ike Hilliard.  Fortunately, Denver recovered the onside kick and drained the clock.\n\nQUESTION: How many yards longer was Bryant's first field goal over his second one?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 2,
-            "sample_id": "f893d369-9a1c-453e-95f5-6e671c06e55f",
+            "sample_id": "9db97346-580c-4c1a-9998-15698d0dddb4",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: He was the Speaker of the Parliament extraordinary held in Warsaw on 3 December to 24 December 1613. During the war with Sweden  and the  fought in Livonia winning to the Swedish army at Kroppenhof, Lixna, Slavskoye and Dyneburg. It is because of fighting with the Swedes until 1629, he was appointing Palatine-Governor of Smolensk region, but the nomination was already in 1625. Seeing the threat from Russia, Gosiewski immediately upon taking the governorate of Smolensk began to renovate the walls of the city. He personally oversaw the construction of Sigismund Fortress, which strengthened the eastern part of the stronghold. Intensively collected supplies of food and ammunition, and developed a business intelligence gathering valuable information about Moscow's war preparations. In the spring of 1632, he made review the fortifications in Dorogobuzh and other frontier forts. During the war with Russia, in the year 1632 and 1634 after a particularly famous defense of Smolensk - for ten months he defended the city against besieging forces led by Mikhail Shein, repelling all assaults, until the advent of the battle led by Prince Władysław. He fought at Vitebsk, Alder and Mstislav. He participated as a Commissioner in peace negotiations, topped the conclusion on 14 June 1634, in Treaty of Polanów. For his services, he received numerous goods in the province of Smolensk. He founded the Jesuits' College in Vitebsk and the female Monastery of the Holy Brigit at Brest-Litovsk.As Palatine-Governor, he commemorated the death of his longtime client - Jan Kunowski, who in 1640 wrote a series of poems dedicated to his late patron.\n\nQUESTION: How many years after being appointed Palatine-Governor of Smolensk region, did Gosiewski participated as a Commissioner in peace negotiations?"
+    question = "PASSAGE: Hoping to rebound from their divisional road loss to the Chiefs, the Broncos went home for a Week 5 interconference duel with the Tampa Bay Buccaneers.  In the first quarter, Denver trailed early as Bucs kicker Matt Bryant got a 33-yard field goal.  In the second quarter, the Broncos took the lead as kicker Matt Prater got a 55-yard and a 40-yard field goal.  Tampa Bay would tie the game at halftime as Bryant kicked a 31-yard field goal.  In the third quarter, Denver took a big lead as QB Jay Cutler completed a 10-yard TD pass to WR Brandon Stokley.  In the fourth quarter, the Broncos increased its lead as Prater nailed a 27-yard field goal.  The Buccaneers would try to rally as QB Jeff Garcia completed a 7-yard TD pass to WR Ike Hilliard.  Fortunately, Denver recovered the onside kick and drained the clock.\n\nQUESTION: How many yards longer was Bryant's first field goal over his second one?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 2,
-            "sample_id": "f893d369-9a1c-453e-95f5-6e671c06e55f",
+            "sample_id": "9db97346-580c-4c1a-9998-15698d0dddb4",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 2,
-            "sample_id": "f893d369-9a1c-453e-95f5-6e671c06e55f",
+            "sample_id": "9db97346-580c-4c1a-9998-15698d0dddb4",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

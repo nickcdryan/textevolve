@@ -1,0 +1,509 @@
+{
+  "iteration": 20,
+  "timestamp": "2025-05-17T20:52:39.624667",
+  "strategy": "Exploitation",
+  "explore_rate": 80,
+  "exploit_rate": 20,
+  "batch_size": 5,
+  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n\n        Example 3:\n        Question: What are the top two longest field goals made?\n        Sub-questions:\n        1. What is the longest field goal made?\n        2. What is the second longest field goal made?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game?\n        Sub-questions: 1. Who scored the final touchdown of the game?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert. Focus on extracting only the SPECIFIC information needed to answer the sub-questions.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract ONLY the relevant information from the passage required to answer the sub-questions.\n        Be EXTREMELY concise. Focus on extracting ONLY the numbers or entities needed, and NOTHING ELSE.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n        Extracted Information:\n        Donald Driver caught the final touchdown.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant, sufficient, and CONCISE to answer the sub-questions. It should include ONLY the needed numerical data to process calculations.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game?\n        Sub-questions: 1. Who scored the final touchdown of the game?\n        Extracted Information: Donald Driver caught the final touchdown.\n        Validation: Valid\n\n        Is the extraction relevant, sufficient, and concise? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert. Provide ONLY the answer to the original question. Do NOT include anything else.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize ONLY the final answer to the original question.\n        The answer should be short and direct.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game?\n        Extracted Information: Donald Driver caught the final touchdown.\n        Final Answer: Donald Driver\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct, complete, concise, and answers the original question FULLY and ONLY.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game?\n        Synthesized Answer: Donald Driver\n        Validation: Valid\n\n        Is the answer correct, complete, and concise? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os\n\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a chain-of-thought approach with verification to answer questions. The problem is decomposed into sub-questions, followed by information extraction and answer synthesis, each with a validation step. The agent takes on roles of question decomposer, information extraction expert, and answer synthesis expert. Key functions are `main` (overall workflow), `decompose_question` (breaks down the question), `extract_information` (finds relevant data), `synthesize_answer` (creates the final answer), and `call_llm` (interacts with the LLM). The overall workflow involves decomposing the question, extracting information, synthesizing the answer, and verifying each step for validity and correctness using the LLM.",
+  "sample_count": 5,
+  "samples": [
+    {
+      "question": "PASSAGE: 2000 Based on the 2000 United States Census, there were 242,820 people, 98,782 households, and 59,269 families residing in the city. The population density was 1,619.7 people per square mile (625.4/km2). There were 111,927 housing units at an average density of 746.6 per square mile (288.3/km2). The racial makeup of the city was 62.46% African American, 35.07% White American, 0.17% Indigenous peoples of the Americas, 0.80% Asian American, 0.04% Pacific Islander, 0.62% from Race (United States Census), and 0.83% from Multiracial American. 1.55% of the population were Hispanic or Latino American of any race.\n\nQUESTION: Which racial groups each made up over 30% of the population?",
+      "answer": "African American",
+      "id": "example_146",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "2000 Based on the 2000 United States Census, there were 242,820 people, 98,782 households, and 59,269 families residing in the city. The population density was 1,619.7 people per square mile (625.4/km2). There were 111,927 housing units at an average density of 746.6 per square mile (288.3/km2). The racial makeup of the city was 62.46% African American, 35.07% White American, 0.17% Indigenous peoples of the Americas, 0.80% Asian American, 0.04% Pacific Islander, 0.62% from Race (United States Census), and 0.83% from Multiracial American. 1.55% of the population were Hispanic or Latino American of any race.",
+        "original_question": "Which racial groups each made up over 30% of the population?",
+        "original_answer_data": {
+          "spans": [
+            "African American",
+            "White American"
+          ],
+          "types": [
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 960
+      }
+    },
+    {
+      "question": "PASSAGE: World War II (1939-1945) devastated the countrys economy, but the high levels of economic growth that followed from 1950 to 1980 have been called the Greek economic miracle. From 2000 Greece saw high levels of GDP growth above the Eurozone average, peaking at 5.8% in 2003 and 5.7% in 2006. The subsequent Great Recession and Greek government-debt crisis, a central focus of the wider European debt crisis, plunged the economy into a sharp downturn, with Real gross domestic product GDP growth rates of \u22120.3% in 2008, \u22124.3% in 2009, \u22125.5% in 2010, \u22129.1% in 2011, \u22127.3% in 2012 and \u22123.2% in 2013. In 2011, the countrys government debt reached \u20ac356 billion (172% of nominal GDP). After negotiating the biggest debt restructuring in history with the private sector involvement, Greece reduced its sovereign debt burden to \u20ac280 billion (137% of GDP) in the first quarter of 2012. Greece achieved a real GDP growth rate of 0.7% in 2014\u2014after 6 years of economic decline\u2014but contracted by 0.3% in 2015 and by 0.2% in 2016. The country returned to modest growth of 1.5% in 2017.\n\nQUESTION: How many decades did the Greek economic miracle last?",
+      "answer": "3",
+      "id": "example_147",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "World War II (1939-1945) devastated the countrys economy, but the high levels of economic growth that followed from 1950 to 1980 have been called the Greek economic miracle. From 2000 Greece saw high levels of GDP growth above the Eurozone average, peaking at 5.8% in 2003 and 5.7% in 2006. The subsequent Great Recession and Greek government-debt crisis, a central focus of the wider European debt crisis, plunged the economy into a sharp downturn, with Real gross domestic product GDP growth rates of \u22120.3% in 2008, \u22124.3% in 2009, \u22125.5% in 2010, \u22129.1% in 2011, \u22127.3% in 2012 and \u22123.2% in 2013. In 2011, the countrys government debt reached \u20ac356 billion (172% of nominal GDP). After negotiating the biggest debt restructuring in history with the private sector involvement, Greece reduced its sovereign debt burden to \u20ac280 billion (137% of GDP) in the first quarter of 2012. Greece achieved a real GDP growth rate of 0.7% in 2014\u2014after 6 years of economic decline\u2014but contracted by 0.3% in 2015 and by 0.2% in 2016. The country returned to modest growth of 1.5% in 2017.",
+        "original_question": "How many decades did the Greek economic miracle last?",
+        "original_answer_data": {
+          "spans": [
+            "3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 601
+      }
+    },
+    {
+      "question": "PASSAGE: The labour force of Greater Sydney Region in 2016 was 2,272,722 with a participation rate of 61.6%. It was made up of 61.2% full-time workers, 30.9% part-time workers, and 6.0% unemployed individuals. The largest reported occupations are professionals, clerical and administrative workers, managers, technicians and trades workers, and community and personal service workers. The largest industries by employment across Greater Sydney are Health Care and Social Assistance with 11.6%, Professional Services with 9.8%, Retail Trade with 9.3%, Construction with 8.2%, Education and Training with 8.0%, Accommodation and Food Services 6.7%, and Financial and Insurance Services with 6.6%. The Professional Services and Financial and Insurance Services industries account for 25.4% of employment within the City of Sydney.\n\nQUESTION: Which industry employs more residents across Greater Sydney, Accomodation and Food Services or Education and Training?",
+      "answer": "Education and Training",
+      "id": "example_148",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The labour force of Greater Sydney Region in 2016 was 2,272,722 with a participation rate of 61.6%. It was made up of 61.2% full-time workers, 30.9% part-time workers, and 6.0% unemployed individuals. The largest reported occupations are professionals, clerical and administrative workers, managers, technicians and trades workers, and community and personal service workers. The largest industries by employment across Greater Sydney are Health Care and Social Assistance with 11.6%, Professional Services with 9.8%, Retail Trade with 9.3%, Construction with 8.2%, Education and Training with 8.0%, Accommodation and Food Services 6.7%, and Financial and Insurance Services with 6.6%. The Professional Services and Financial and Insurance Services industries account for 25.4% of employment within the City of Sydney.",
+        "original_question": "Which industry employs more residents across Greater Sydney, Accomodation and Food Services or Education and Training?",
+        "original_answer_data": {
+          "spans": [
+            "Education and Training"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 437
+      }
+    },
+    {
+      "question": "PASSAGE: On Sunday night, the Bears would once again score on all three phases. The offensive line improved, allowing Jay Cutler to be sacked only once. Cutler would complete 21 of 31 passes for 267 yards with two touchdowns and a 115.9 passer rating. On the Bears opening possession, Cutler would fire a 48-yard touchdown pass to Devin Hester; it was the first time that the Bears scored a touchdown on the opening drive. Making his NFL debut, Stephen Paea sacked Donovan McNabb in the end zone for a safety, increasing the score to 9-0. Marion Barber would then score on a 3-yard run. Ryan Longwell would then kick a 37-yard field goal to make the score 16-3, but Cutler's 18-yard pass to Dane Sanzenbacher and Robbie Gould's 51-yard field goal increased the lead to 26-3. In the second half, Vikings defensive end Jared Allen would then force a fumble, and Adrian Peterson would then score, making the score 26-10, but Devin Hester would then return a kickoff 98 yards for a touchdown to increase the lead to 33-10. Gould would then kick two field goals to end the game at 39-10. The Bears defense would record five sacks, including two by Julius Peppers, who started the game despite being listed as \"Doubtful\" due to a sprained knee. The defense would limit Peterson to just 39 yards, the lowest he recorded against the Bears.\n\nQUESTION: How many total points were scored in the game?",
+      "answer": "49",
+      "id": "example_149",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "On Sunday night, the Bears would once again score on all three phases. The offensive line improved, allowing Jay Cutler to be sacked only once. Cutler would complete 21 of 31 passes for 267 yards with two touchdowns and a 115.9 passer rating. On the Bears opening possession, Cutler would fire a 48-yard touchdown pass to Devin Hester; it was the first time that the Bears scored a touchdown on the opening drive. Making his NFL debut, Stephen Paea sacked Donovan McNabb in the end zone for a safety, increasing the score to 9-0. Marion Barber would then score on a 3-yard run. Ryan Longwell would then kick a 37-yard field goal to make the score 16-3, but Cutler's 18-yard pass to Dane Sanzenbacher and Robbie Gould's 51-yard field goal increased the lead to 26-3. In the second half, Vikings defensive end Jared Allen would then force a fumble, and Adrian Peterson would then score, making the score 26-10, but Devin Hester would then return a kickoff 98 yards for a touchdown to increase the lead to 33-10. Gould would then kick two field goals to end the game at 39-10. The Bears defense would record five sacks, including two by Julius Peppers, who started the game despite being listed as \"Doubtful\" due to a sprained knee. The defense would limit Peterson to just 39 yards, the lowest he recorded against the Bears.",
+        "original_question": "How many total points were scored in the game?",
+        "original_answer_data": {
+          "spans": [
+            "49"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 452
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their road win over the Cardinals, the Steelers went home for a Week 8 duel with the New England Patriots.  Pittsburgh delivered the game's opening punch in the first quarter as quarterback Ben Roethlisberger found running back Mewelde Moore on a 5-yard touchdown pass.  The Steelers would add onto their lead in the second quarter with a 33-yard field goal from kicker Shaun Suisham.  The Patriots answered with quarterback Tom Brady completing a 2-yard touchdown pass to wide receiver Deion Branch, yet Pittsburgh struck back with Roethlisberger connecting with wide receiver Antonio Brown on a 7-yard touchdown pass.  New England would close out the half with kicker Stephen Gostkowski got a 46-yard field goal. The Steelers began the third quarter with a 21-yard field goal from Suisham, followed by his 23-yard field goal in the fourth.  The Patriots tried to rally as Brady completed a 1-yard touchdown pass to tight end Aaron Hernandez, yet Pittsburgh's defense held with safety Troy Polamalu forcing a New England fumble out of the back of the end zone for a safety. With the win, the Steelers improved to 6-2 and also won their first game against the Patriots since 2008 and first game against the Patriots with Tom Brady as the starter since 2004.\n\nQUESTION: How many touchdowns did the Steelers score in the first half?",
+      "answer": "2",
+      "id": "example_150",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their road win over the Cardinals, the Steelers went home for a Week 8 duel with the New England Patriots.  Pittsburgh delivered the game's opening punch in the first quarter as quarterback Ben Roethlisberger found running back Mewelde Moore on a 5-yard touchdown pass.  The Steelers would add onto their lead in the second quarter with a 33-yard field goal from kicker Shaun Suisham.  The Patriots answered with quarterback Tom Brady completing a 2-yard touchdown pass to wide receiver Deion Branch, yet Pittsburgh struck back with Roethlisberger connecting with wide receiver Antonio Brown on a 7-yard touchdown pass.  New England would close out the half with kicker Stephen Gostkowski got a 46-yard field goal. The Steelers began the third quarter with a 21-yard field goal from Suisham, followed by his 23-yard field goal in the fourth.  The Patriots tried to rally as Brady completed a 1-yard touchdown pass to tight end Aaron Hernandez, yet Pittsburgh's defense held with safety Troy Polamalu forcing a New England fumble out of the back of the end zone for a safety. With the win, the Steelers improved to 6-2 and also won their first game against the Patriots since 2008 and first game against the Patriots with Tom Brady as the starter since 2004.",
+        "original_question": "How many touchdowns did the Steelers score in the first half?",
+        "original_answer_data": {
+          "spans": [
+            "2"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 785
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "2000 Based on the 2000 United States Census, there were 242,820 people, 98,782 households, and 59,269 families residing in the city. The population density was 1,619.7 people per square mile (625.4/km2). There were 111,927 housing units at an average density of 746.6 per square mile (288.3/km2). The racial makeup of the city was 62.46% African American, 35.07% White American, 0.17% Indigenous peoples of the Americas, 0.80% Asian American, 0.04% Pacific Islander, 0.62% from Race (United States Census), and 0.83% from Multiracial American. 1.55% of the population were Hispanic or Latino American of any race.",
+      "original_question": "Which racial groups each made up over 30% of the population?",
+      "original_answer_data": {
+        "spans": [
+          "African American",
+          "White American"
+        ],
+        "types": [
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 960
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "World War II (1939-1945) devastated the countrys economy, but the high levels of economic growth that followed from 1950 to 1980 have been called the Greek economic miracle. From 2000 Greece saw high levels of GDP growth above the Eurozone average, peaking at 5.8% in 2003 and 5.7% in 2006. The subsequent Great Recession and Greek government-debt crisis, a central focus of the wider European debt crisis, plunged the economy into a sharp downturn, with Real gross domestic product GDP growth rates of \u22120.3% in 2008, \u22124.3% in 2009, \u22125.5% in 2010, \u22129.1% in 2011, \u22127.3% in 2012 and \u22123.2% in 2013. In 2011, the countrys government debt reached \u20ac356 billion (172% of nominal GDP). After negotiating the biggest debt restructuring in history with the private sector involvement, Greece reduced its sovereign debt burden to \u20ac280 billion (137% of GDP) in the first quarter of 2012. Greece achieved a real GDP growth rate of 0.7% in 2014\u2014after 6 years of economic decline\u2014but contracted by 0.3% in 2015 and by 0.2% in 2016. The country returned to modest growth of 1.5% in 2017.",
+      "original_question": "How many decades did the Greek economic miracle last?",
+      "original_answer_data": {
+        "spans": [
+          "3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 601
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The labour force of Greater Sydney Region in 2016 was 2,272,722 with a participation rate of 61.6%. It was made up of 61.2% full-time workers, 30.9% part-time workers, and 6.0% unemployed individuals. The largest reported occupations are professionals, clerical and administrative workers, managers, technicians and trades workers, and community and personal service workers. The largest industries by employment across Greater Sydney are Health Care and Social Assistance with 11.6%, Professional Services with 9.8%, Retail Trade with 9.3%, Construction with 8.2%, Education and Training with 8.0%, Accommodation and Food Services 6.7%, and Financial and Insurance Services with 6.6%. The Professional Services and Financial and Insurance Services industries account for 25.4% of employment within the City of Sydney.",
+      "original_question": "Which industry employs more residents across Greater Sydney, Accomodation and Food Services or Education and Training?",
+      "original_answer_data": {
+        "spans": [
+          "Education and Training"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 437
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "On Sunday night, the Bears would once again score on all three phases. The offensive line improved, allowing Jay Cutler to be sacked only once. Cutler would complete 21 of 31 passes for 267 yards with two touchdowns and a 115.9 passer rating. On the Bears opening possession, Cutler would fire a 48-yard touchdown pass to Devin Hester; it was the first time that the Bears scored a touchdown on the opening drive. Making his NFL debut, Stephen Paea sacked Donovan McNabb in the end zone for a safety, increasing the score to 9-0. Marion Barber would then score on a 3-yard run. Ryan Longwell would then kick a 37-yard field goal to make the score 16-3, but Cutler's 18-yard pass to Dane Sanzenbacher and Robbie Gould's 51-yard field goal increased the lead to 26-3. In the second half, Vikings defensive end Jared Allen would then force a fumble, and Adrian Peterson would then score, making the score 26-10, but Devin Hester would then return a kickoff 98 yards for a touchdown to increase the lead to 33-10. Gould would then kick two field goals to end the game at 39-10. The Bears defense would record five sacks, including two by Julius Peppers, who started the game despite being listed as \"Doubtful\" due to a sprained knee. The defense would limit Peterson to just 39 yards, the lowest he recorded against the Bears.",
+      "original_question": "How many total points were scored in the game?",
+      "original_answer_data": {
+        "spans": [
+          "49"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 452
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their road win over the Cardinals, the Steelers went home for a Week 8 duel with the New England Patriots.  Pittsburgh delivered the game's opening punch in the first quarter as quarterback Ben Roethlisberger found running back Mewelde Moore on a 5-yard touchdown pass.  The Steelers would add onto their lead in the second quarter with a 33-yard field goal from kicker Shaun Suisham.  The Patriots answered with quarterback Tom Brady completing a 2-yard touchdown pass to wide receiver Deion Branch, yet Pittsburgh struck back with Roethlisberger connecting with wide receiver Antonio Brown on a 7-yard touchdown pass.  New England would close out the half with kicker Stephen Gostkowski got a 46-yard field goal. The Steelers began the third quarter with a 21-yard field goal from Suisham, followed by his 23-yard field goal in the fourth.  The Patriots tried to rally as Brady completed a 1-yard touchdown pass to tight end Aaron Hernandez, yet Pittsburgh's defense held with safety Troy Polamalu forcing a New England fumble out of the back of the end zone for a safety. With the win, the Steelers improved to 6-2 and also won their first game against the Patriots since 2008 and first game against the Patriots with Tom Brady as the starter since 2004.",
+      "original_question": "How many touchdowns did the Steelers score in the first half?",
+      "original_answer_data": {
+        "spans": [
+          "2"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 785
+    }
+  ],
+  "example_indices": [
+    146,
+    147,
+    148,
+    149,
+    150
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "African American and White American.",
+      "output": "ANSWER_START\nAfrican American and White American.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_20.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer includes 'White American' in addition to 'African American', which is not present in the golden answer. Therefore, the answers do not convey the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "3",
+      "output": "ANSWER_START\n3\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_20.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Education and Training",
+      "output": "ANSWER_START\nEducation and Training\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_20.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "49",
+      "output": "ANSWER_START\n49\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_20.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value: 49."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "2",
+      "output": "ANSWER_START\n2\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_20.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the number 2. They convey the same information."
+      },
+      "match": true
+    }
+  ],
+  "performance": {
+    "accuracy": 0.8,
+    "correct_count": 4,
+    "total_count": 5,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "African American and White American.",
+        "golden_answer": "African American",
+        "output": "ANSWER_START\nAfrican American and White American.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer includes 'White American' in addition to 'African American', which is not present in the golden answer. Therefore, the answers do not convey the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "3",
+        "golden_answer": "3",
+        "output": "ANSWER_START\n3\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "Education and Training",
+        "golden_answer": "Education and Training",
+        "output": "ANSWER_START\nEducation and Training\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "49",
+        "golden_answer": "49",
+        "output": "ANSWER_START\n49\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 49."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "2",
+        "golden_answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the number 2. They convey the same information."
+        }
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\n\nThere are no runtime errors in the provided error or success cases.\n\n## STRENGTHS\n\n*   **Numerical Reasoning:** The system correctly performs numerical reasoning and calculations as demonstrated in success cases like sample\\_id 3 (calculating total points scored) and sample\\_id 4(counting touchdowns).\n*   **Information Extraction:** The system is capable of extracting relevant information from the passage to answer questions effectively. This is evident in the success cases.\n\n## WEAKNESSES\n\n*   **Over-Generalization:** The system includes additional information in its answers that are not strictly required by the question, leading to incorrect responses. This is demonstrated by sample_id 0.\n*   **Incomplete Information Filtering:** The system is not effectively filtering out extraneous or less relevant information from the passage when answering questions.\n\n## CRITICAL BOTTLENECKS\n\n*   **Inability to focus on the 'most relevant' information:** The system struggles to precisely identify the *most* relevant piece of information necessary to answer the question, often including additional correct but unnecessary details, thus providing an incorrect answer as it includes irrelevant information.\n\n## ERROR PATTERNS\n\n*   **Inclusion of extra information:** The primary error pattern is the inclusion of accurate but irrelevant details in the answer, causing a mismatch with the golden answer.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the system's tendency to include extra information that, while true, is not explicitly required by the question. This leads to the system including details that should be excluded, even if the core answer is correct. Specifically the AI includes White American when the question only asks for groups that made over 30% of the population, when it was looking for the highest percentage.\n\n## IMPROVEMENT AREAS\n\n*   **Constraint Handling:** The system needs improvement in applying constraints correctly, particularly when the question asks for *specific* information and not *all* related information.\n*   **Solution Verification:** The system's solution verification process should be refined to penalize answers that include extra, unnecessary details.\n\n## IMPROVEMENT SUGGESTIONS\n\n*   **Refine Prompting Strategy:** Modify the prompt to explicitly instruct the system to provide only the *most specific* and *directly relevant* information needed to answer the question. Add phrases like \"Answer the question *directly* using the passage\" and \"Only include what is *specifically asked for*\".\n*   **Post-Processing Filter:** Implement a post-processing step that filters out any extra information from the answer. This could involve comparing the system's answer to the question and removing any parts that are not directly responsive to the question's core requirement. Use similarity scores and information retrieval techniques to determine if a part of the answer is truly necessary.\n*   **Implement Negative Examples:** Add negative examples to the training data that demonstrate instances where including extra information leads to an incorrect answer.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   information\\_extraction: Successful in extracting relevant racial population data.\n    *   constraint\\_handling: Failed to adhere to the constraint of listing *only* the racial groups that individually constitute more than 30% of the population.\n    *   solution\\_verification: Failed to verify that the answer contained only the *most relevant* information.\n",
+      "strengths": [
+        "Numerical Reasoning:** The system correctly performs numerical reasoning and calculations as demonstrated in success cases like sample\\_id 3 (calculating total points scored) and sample\\_id 4(counting touchdowns).",
+        "Information Extraction:** The system is capable of extracting relevant information from the passage to answer questions effectively. This is evident in the success cases."
+      ],
+      "weaknesses": [
+        "Over-Generalization:** The system includes additional information in its answers that are not strictly required by the question, leading to incorrect responses. This is demonstrated by sample_id 0.",
+        "Incomplete Information Filtering:** The system is not effectively filtering out extraneous or less relevant information from the passage when answering questions."
+      ],
+      "primary_issue": "The single most critical problem is the system's tendency to include extra information that, while true, is not explicitly required by the question. This leads to the system including details that should be excluded, even if the core answer is correct. Specifically the AI includes White American when the question only asks for groups that made over 30% of the population, when it was looking for the highest percentage.",
+      "improvement_suggestions": [
+        "Refine Prompting Strategy:** Modify the prompt to explicitly instruct the system to provide only the *most specific* and *directly relevant* information needed to answer the question. Add phrases like \"Answer the question *directly* using the passage\" and \"Only include what is *specifically asked for*\".",
+        "Post-Processing Filter:** Implement a post-processing step that filters out any extra information from the answer. This could involve comparing the system's answer to the question and removing any parts that are not directly responsive to the question's core requirement. Use similarity scores and information retrieval techniques to determine if a part of the answer is truly necessary.",
+        "Implement Negative Examples:** Add negative examples to the training data that demonstrate instances where including extra information leads to an incorrect answer."
+      ],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and my expertise as a System Capability Analyst.\n\n## EXECUTION ANALYSIS\n\nThe execution outputs reveal a few crucial points:\n\n*   **Hallucination-Free (So Far):** All generated outputs can be traced back to the context passage, which shows that it is hallucination free.\n*   **Information Extraction:** The system seems capable of extracting specific pieces of information, even if it sometimes includes extraneous details (as highlighted in the overall error analysis). Sample ID 0, although classified as an error, still managed to extract the correct racial population figures.\n*   **Answer Formatting:** The system correctly uses the `ANSWER_START` and `ANSWER_END` tags, indicating proper output structuring.\n*   **Numerical Reasoning (Present but Untested):** The fact that numerical reasoning is identified as a strength in the Error Analysis report, but that is not reflected in the `SAMPLE EXECUTION OUTPUTS`.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a moderate level of capability in understanding and answering questions based on provided text. It excels at identifying and extracting relevant information but struggles with *precision* and *filtering* that information to meet specific question constraints. The core understanding of the text is there, but the system requires refinement to be considered truly reliable.\n\n## KEY STRENGTHS\n\n*   **Information Extraction:**  The system can successfully identify and extract key pieces of information from the provided context.\n*   **Reasoning Capabilities:** The system demonstrates reasoning capabilities, which, though not explicitly demonstrated in the `SAMPLE EXECUTION OUTPUTS`, are still present in the Error Analysis report.\n\n## KEY WEAKNESSES\n\n*   **Over-Generalization/Lack of Precision:**  The most significant weakness is the tendency to include extra, unnecessary information, even if the core answer is factually correct. This indicates a failure to understand and adhere to the implicit constraints of the question.\n*   **Lack of Fine-Grained Filtering:** The system has difficulty filtering out irrelevant information, even when it can identify the relevant information.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **constraint handling**, specifically the ability to provide only the *most relevant* information to answer the question, and to avoid including extraneous details. This directly addresses the primary issue of over-generalization.\n\n## ACTIONABLE RECOMMENDATIONS\n\nBased on the analysis, here are specific actions to implement in the next iteration:\n\n1.  **Enhanced Prompting (Refine Prompting Strategy):**\n    *   **Specificity Emphasis:** Revise the prompt to explicitly instruct the model to focus on providing only the *most specific* and *directly relevant* information.  Use phrases like:\n        *   \"Answer the question *precisely* using the provided passage.\"\n        *   \"Include *only* the information that is *explicitly requested* in the question.\"\n        *   \"Do not include any information that is not *directly required* to answer the question.\"\n\n2.  **Post-Processing Filter (Implement a Post-Processing Filter):**\n    *   **Question-Answer Similarity:** Implement a post-processing step that assesses the similarity between the question and each component of the answer. This can be achieved by:\n        *   Using cosine similarity or other semantic similarity measures between the question and segments of the answer.\n        *   Removing answer segments with low similarity scores, indicating they are not directly responsive to the question.\n        *   Breaking the answers into sentences or phrases.\n        *   Assign a score to each based on its relevance.\n        *   Filter any low scores.\n    *   **Information Retrieval:** Use information retrieval techniques (e.g., TF-IDF, BM25) to rank the importance of different parts of the answer based on the question. Remove low-ranking parts.\n\n3.  **Training Data Augmentation (Implement Negative Examples):**\n    *   **Focus on Over-Generalization:** Create new training examples specifically designed to address the over-generalization issue. These examples should:\n        *   Include passages and questions where providing extra information leads to an incorrect answer.\n        *   Emphasize the importance of only including the *most relevant* details.\n        *   Use similar domain data.\n\n4.  **Introduce Solution Validation Layer:**\n    *   **Evaluation Rubric:** Create an explicit rubric or set of criteria for validating the generated answers. This rubric should penalize answers that:\n        *   Include information not directly asked for in the question.\n        *   Provide a longer or more complex answer than necessary.\n        *   Include context.\n\n5.  **Expand Sample Set:**\n    *   **Include Numerical Reasoning Test Cases:** Add sample execution outputs that specifically test the system's numerical reasoning capabilities. This will allow for better monitoring and analysis of that aspect of its performance.\n\n## CAPABILITY TREND\n\nBased on the current performance, the capability trend is currently **stable but with significant potential for improvement**. The system demonstrates a foundation of understanding and information extraction, but the lack of precision limits its overall effectiveness. Implementing the recommendations above should lead to a clear upward trend in performance.\n",
+      "strengths": [
+        "Numerical Reasoning:** The system correctly performs numerical reasoning and calculations as demonstrated in success cases like sample\\_id 3 (calculating total points scored) and sample\\_id 4(counting touchdowns).",
+        "Information Extraction:** The system is capable of extracting relevant information from the passage to answer questions effectively. This is evident in the success cases."
+      ],
+      "weaknesses": [
+        "Over-Generalization:** The system includes additional information in its answers that are not strictly required by the question, leading to incorrect responses. This is demonstrated by sample_id 0.",
+        "Incomplete Information Filtering:** The system is not effectively filtering out extraneous or less relevant information from the passage when answering questions."
+      ],
+      "improvement_suggestions": [
+        "Refine Prompting Strategy:** Modify the prompt to explicitly instruct the system to provide only the *most specific* and *directly relevant* information needed to answer the question. Add phrases like \"Answer the question *directly* using the passage\" and \"Only include what is *specifically asked for*\".",
+        "Post-Processing Filter:** Implement a post-processing step that filters out any extra information from the answer. This could involve comparing the system's answer to the question and removing any parts that are not directly responsive to the question's core requirement. Use similarity scores and information retrieval techniques to determine if a part of the answer is truly necessary.",
+        "Implement Negative Examples:** Add negative examples to the training data that demonstrate instances where including extra information leads to an incorrect answer."
+      ],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\n\nThere are no runtime errors in the provided error or success cases.\n\n## STRENGTHS\n\n*   **Numerical Reasoning:** The system correctly performs numerical reasoning and calculations as demonstrated in success cases like sample\\_id 3 (calculating total points scored) and sample\\_id 4(counting touchdowns).\n*   **Information Extraction:** The system is capable of extracting relevant information from the passage to answer questions effectively. This is evident in the success cases.\n\n## WEAKNESSES\n\n*   **Over-Generalization:** The system includes additional information in its answers that are not strictly required by the question, leading to incorrect responses. This is demonstrated by sample_id 0.\n*   **Incomplete Information Filtering:** The system is not effectively filtering out extraneous or less relevant information from the passage when answering questions.\n\n## CRITICAL BOTTLENECKS\n\n*   **Inability to focus on the 'most relevant' information:** The system struggles to precisely identify the *most* relevant piece of information necessary to answer the question, often including additional correct but unnecessary details, thus providing an incorrect answer as it includes irrelevant information.\n\n## ERROR PATTERNS\n\n*   **Inclusion of extra information:** The primary error pattern is the inclusion of accurate but irrelevant details in the answer, causing a mismatch with the golden answer.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the system's tendency to include extra information that, while true, is not explicitly required by the question. This leads to the system including details that should be excluded, even if the core answer is correct. Specifically the AI includes White American when the question only asks for groups that made over 30% of the population, when it was looking for the highest percentage.\n\n## IMPROVEMENT AREAS\n\n*   **Constraint Handling:** The system needs improvement in applying constraints correctly, particularly when the question asks for *specific* information and not *all* related information.\n*   **Solution Verification:** The system's solution verification process should be refined to penalize answers that include extra, unnecessary details.\n\n## IMPROVEMENT SUGGESTIONS\n\n*   **Refine Prompting Strategy:** Modify the prompt to explicitly instruct the system to provide only the *most specific* and *directly relevant* information needed to answer the question. Add phrases like \"Answer the question *directly* using the passage\" and \"Only include what is *specifically asked for*\".\n*   **Post-Processing Filter:** Implement a post-processing step that filters out any extra information from the answer. This could involve comparing the system's answer to the question and removing any parts that are not directly responsive to the question's core requirement. Use similarity scores and information retrieval techniques to determine if a part of the answer is truly necessary.\n*   **Implement Negative Examples:** Add negative examples to the training data that demonstrate instances where including extra information leads to an incorrect answer.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   information\\_extraction: Successful in extracting relevant racial population data.\n    *   constraint\\_handling: Failed to adhere to the constraint of listing *only* the racial groups that individually constitute more than 30% of the population.\n    *   solution\\_verification: Failed to verify that the answer contained only the *most relevant* information.\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and my expertise as a System Capability Analyst.\n\n## EXECUTION ANALYSIS\n\nThe execution outputs reveal a few crucial points:\n\n*   **Hallucination-Free (So Far):** All generated outputs can be traced back to the context passage, which shows that it is hallucination free.\n*   **Information Extraction:** The system seems capable of extracting specific pieces of information, even if it sometimes includes extraneous details (as highlighted in the overall error analysis). Sample ID 0, although classified as an error, still managed to extract the correct racial population figures.\n*   **Answer Formatting:** The system correctly uses the `ANSWER_START` and `ANSWER_END` tags, indicating proper output structuring.\n*   **Numerical Reasoning (Present but Untested):** The fact that numerical reasoning is identified as a strength in the Error Analysis report, but that is not reflected in the `SAMPLE EXECUTION OUTPUTS`.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a moderate level of capability in understanding and answering questions based on provided text. It excels at identifying and extracting relevant information but struggles with *precision* and *filtering* that information to meet specific question constraints. The core understanding of the text is there, but the system requires refinement to be considered truly reliable.\n\n## KEY STRENGTHS\n\n*   **Information Extraction:**  The system can successfully identify and extract key pieces of information from the provided context.\n*   **Reasoning Capabilities:** The system demonstrates reasoning capabilities, which, though not explicitly demonstrated in the `SAMPLE EXECUTION OUTPUTS`, are still present in the Error Analysis report.\n\n## KEY WEAKNESSES\n\n*   **Over-Generalization/Lack of Precision:**  The most significant weakness is the tendency to include extra, unnecessary information, even if the core answer is factually correct. This indicates a failure to understand and adhere to the implicit constraints of the question.\n*   **Lack of Fine-Grained Filtering:** The system has difficulty filtering out irrelevant information, even when it can identify the relevant information.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **constraint handling**, specifically the ability to provide only the *most relevant* information to answer the question, and to avoid including extraneous details. This directly addresses the primary issue of over-generalization.\n\n## ACTIONABLE RECOMMENDATIONS\n\nBased on the analysis, here are specific actions to implement in the next iteration:\n\n1.  **Enhanced Prompting (Refine Prompting Strategy):**\n    *   **Specificity Emphasis:** Revise the prompt to explicitly instruct the model to focus on providing only the *most specific* and *directly relevant* information.  Use phrases like:\n        *   \"Answer the question *precisely* using the provided passage.\"\n        *   \"Include *only* the information that is *explicitly requested* in the question.\"\n        *   \"Do not include any information that is not *directly required* to answer the question.\"\n\n2.  **Post-Processing Filter (Implement a Post-Processing Filter):**\n    *   **Question-Answer Similarity:** Implement a post-processing step that assesses the similarity between the question and each component of the answer. This can be achieved by:\n        *   Using cosine similarity or other semantic similarity measures between the question and segments of the answer.\n        *   Removing answer segments with low similarity scores, indicating they are not directly responsive to the question.\n        *   Breaking the answers into sentences or phrases.\n        *   Assign a score to each based on its relevance.\n        *   Filter any low scores.\n    *   **Information Retrieval:** Use information retrieval techniques (e.g., TF-IDF, BM25) to rank the importance of different parts of the answer based on the question. Remove low-ranking parts.\n\n3.  **Training Data Augmentation (Implement Negative Examples):**\n    *   **Focus on Over-Generalization:** Create new training examples specifically designed to address the over-generalization issue. These examples should:\n        *   Include passages and questions where providing extra information leads to an incorrect answer.\n        *   Emphasize the importance of only including the *most relevant* details.\n        *   Use similar domain data.\n\n4.  **Introduce Solution Validation Layer:**\n    *   **Evaluation Rubric:** Create an explicit rubric or set of criteria for validating the generated answers. This rubric should penalize answers that:\n        *   Include information not directly asked for in the question.\n        *   Provide a longer or more complex answer than necessary.\n        *   Include context.\n\n5.  **Expand Sample Set:**\n    *   **Include Numerical Reasoning Test Cases:** Add sample execution outputs that specifically test the system's numerical reasoning capabilities. This will allow for better monitoring and analysis of that aspect of its performance.\n\n## CAPABILITY TREND\n\nBased on the current performance, the capability trend is currently **stable but with significant potential for improvement**. The system demonstrates a foundation of understanding and information extraction, but the lack of precision limits its overall effectiveness. Implementing the recommendations above should lead to a clear upward trend in performance.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 7,
+    "accuracy": 0.7,
+    "results": [
+      {
+        "success": true,
+        "answer": "53",
+        "output": "ANSWER_START\n53\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "53",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, 53."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Laveranues Coles",
+        "output": "ANSWER_START\nLaveranues Coles\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "Laveranues Coles",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same name."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "AME",
+        "output": "ANSWER_START\nAME\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "AME",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are exactly the same: AME."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "12",
+        "output": "ANSWER_START\n12\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "13",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers are different numerical values. 12 and 13 are distinct and do not represent the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "John IV the Younger of G\u00fctzkow",
+        "output": "ANSWER_START\nJohn IV the Younger of G\u00fctzkow\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "As the G\u00fctzkow",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer refers to \"As the G\u00fctzkow\" and the system answer gives \"John IV the Younger of G\u00fctzkow\". These are not semantically equivalent."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "39 yards",
+        "output": "ANSWER_START\n39 yards\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "39",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value. The system answer includes a unit, which is acceptable."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Two",
+        "output": "ANSWER_START\nTwo\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer and the golden answer both represent the number 2. The system answer uses the word 'Two' while the golden answer uses the numeral '2'. Both are semantically equivalent."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Pittsburgh",
+        "output": "ANSWER_START\nPittsburgh\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "Pittsburgh",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same string."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "7",
+        "output": "ANSWER_START\n7\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "4",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer (7) and the golden answer (4) are different numerical values, so they do not convey the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "22 yards",
+        "output": "ANSWER_START\n22 yards\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_20.jsonl",
+        "golden_answer": "22-yard",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers provide the same numerical value with the unit 'yards'. The difference in formatting ('22 yards' vs '22-yard') is minor and doesn't change the meaning."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 88.7972366809845,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

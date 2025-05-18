@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 13,
-        "sample_id": "4561d400-6cd5-42cd-b157-8bf7f57b0eb5",
-        "question": "PASSAGE: In the winter of 1240/1241, the Novgorodians took Pereyaslavl-Zalessky. After, the Teutonic knights constructed the fortress of Koporie, where they kept all their supplies, and took the Novgorod city of Tesov, pillaging its merchants and ravaging the surrounding area. The Novgorodians, fearing a fate similar to that of Pskov, sent envoys to Prince Yaroslav. Yaroslav liked Alexander's younger brother Andrew as a leader, but Novgorod insisted on Alexander. Alexander returned to Novgorod and commanded its army to Koporye in 1241. In the Spring of 1242, he recaptured Pskov. After this victory, Alexander decided to continue his campaign.. On April 5, 1242, one of Russia's most famous battles, the Battle of the Ice, took place on the ice of Lake Peipsi. The battle was a significant defeat sustained by the crusaders during the Northern Crusades. The crusaders' defeat in the battle marked the end of their campaigns against the Orthodox Novgorod Republic and other Russian territories for the next century.\n\nQUESTION: Who did Prince Yaroslav represent?"
+        "sample_id": "8291060d-12ca-41fb-9bee-ed11713af7cb",
+        "question": 'PASSAGE: Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.\n\nQUESTION: What problems did the engines have?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 13,
-            "sample_id": "4561d400-6cd5-42cd-b157-8bf7f57b0eb5",
+            "sample_id": "8291060d-12ca-41fb-9bee-ed11713af7cb",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: In the winter of 1240/1241, the Novgorodians took Pereyaslavl-Zalessky. After, the Teutonic knights constructed the fortress of Koporie, where they kept all their supplies, and took the Novgorod city of Tesov, pillaging its merchants and ravaging the surrounding area. The Novgorodians, fearing a fate similar to that of Pskov, sent envoys to Prince Yaroslav. Yaroslav liked Alexander's younger brother Andrew as a leader, but Novgorod insisted on Alexander. Alexander returned to Novgorod and commanded its army to Koporye in 1241. In the Spring of 1242, he recaptured Pskov. After this victory, Alexander decided to continue his campaign.. On April 5, 1242, one of Russia's most famous battles, the Battle of the Ice, took place on the ice of Lake Peipsi. The battle was a significant defeat sustained by the crusaders during the Northern Crusades. The crusaders' defeat in the battle marked the end of their campaigns against the Orthodox Novgorod Republic and other Russian territories for the next century.\n\nQUESTION: Who did Prince Yaroslav represent?"
+    question = 'PASSAGE: Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.\n\nQUESTION: What problems did the engines have?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 13,
-            "sample_id": "4561d400-6cd5-42cd-b157-8bf7f57b0eb5",
+            "sample_id": "8291060d-12ca-41fb-9bee-ed11713af7cb",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 13,
-            "sample_id": "4561d400-6cd5-42cd-b157-8bf7f57b0eb5",
+            "sample_id": "8291060d-12ca-41fb-9bee-ed11713af7cb",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

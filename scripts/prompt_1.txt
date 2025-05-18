@@ -25,15 +25,15 @@
         ITERATION HISTORY SUMMARY:
         - Total iterations completed: 1
         - Current explore/exploit balance: 60/40
-        - Best accuracy achieved: 0.33 (iteration 0)
+        - Best accuracy achieved: 0.67 (iteration 0)
 
         APPROACH HISTORY (last 1 iterations):
         [
   {
     "iteration": 0,
     "strategy": "Exploration",
-    "accuracy": 0.3333333333333333,
-    "approach": "This script uses a chain-of-thought approach, leveraging LLMs to answer questions by first determining the question type, then extracting relevant information, generating an answer, and finally verifying the answer. Each step uses a specific LLM agent role (e.g., question type classifier, information extractor) defined by system instructions to decompose the problem into manageable parts. The functions used are `main` (orchestrates the workflow), `determine_question_type`, `extract_relevant_info`, `generate_answer`, `verify_answer` (each leveraging `call_llm` to interact with the Gemini LLM). The overall workflow is sequential, passing the output of each function as input to the next, with error handling at each stage."
+    "accuracy": 0.6666666666666666,
+    "approach": "The script uses chain-of-thought reasoning by decomposing a question into sub-questions, extracting relevant information, and then synthesizing an answer, with verification steps at each stage. The agents involved are question decomposer, information extraction expert, and answer synthesis expert, each responsible for their respective tasks. The `main` function orchestrates the process by calling `decompose_question`, `extract_information`, and `synthesize_answer` sequentially, using `call_llm` to interact with the LLM for each step, and validation checks are performed after each step to ensure the validity of the generated content. The overall workflow is question decomposition, information extraction, and answer synthesis, each validated by the LLM before proceeding to the next step."
   }
 ]
 
@@ -44,7 +44,7 @@
         [
   {
     "iteration": 0,
-    "issue": "The primary issue is the system's **failure to transition from identifying the required task to *actually executing* that task and generating a definitive answer.** The \"Verify that...\" pattern is a symptom of this core problem. It suggests the system is stuck in a planning/verification loop without proceeding to execution."
+    "issue": "The most critical problem is the **answer synthesis and validation logic's failure to consistently produce valid answers, even when the underlying reasoning and information extraction might be correct.** This is evidenced by the \"Error in answer synthesis\" message and the repeated validation failures. This is likely due to a mismatch between the expected answer format in the validation logic and the format being produced by the synthesis module."
   }
 ]
 
@@ -643,55 +643,117 @@ def perform_lookup(term):
 
             
         ACCUMULATED LEARNINGS FROM PREVIOUS ITERATIONS:
-        Okay, I will synthesize the existing and new learnings into a comprehensive research log, focusing on the specific dataset and task.
+        ```
+# DATASET-SPECIFIC LEARNINGS & EXPERIMENT LOG
 
-```
-# Dataset-Specific Research Log: Question Answering on Sports/Statistical Texts
-
-This document serves as a running log of our research and findings specific to the task of question answering on a dataset consisting of short sports reports or statistical summaries followed by fact-based questions.
+This document tracks our evolving understanding and experimental findings related to the question answering task on the current dataset. It serves as a long-term memory to guide future research and development efforts.
 
 ## 1. DATASET PATTERNS & CHARACTERISTICS
 
-*   **Passage Structure:** Each example consists of a passage of text followed by a question, separated by "\n\nQUESTION: ". The passages describe sports events, statistical summaries, or other fact-based scenarios.
+*   **Question Structure:**
+    *   All questions follow the format: `"PASSAGE:\n[passage text]\n\nQUESTION: [question text]"`.
+    *   Questions are fact-based, requiring information retrieval and processing directly from the passage.
+    *   Many questions involve numerical reasoning and comparison (e.g., "How many yards longer...", "Which star has a smaller mass...").
+    *   Some questions ask for specific entities (e.g., "Who caught the final touchdown...", "Who threw the second longest touchdown pass?").
+    *   Questions assume user access to and understanding of the passage.
+    *   Focus areas include sports statistics/events and scientific descriptions.
+*   **Answer Structure:**
+    *   Answers are typically short phrases, numbers, or names.
+    *   Answers are explicitly stated or directly derivable from the passage.
+    *   Case sensitivity is observed.
+    *   Answers don't require external knowledge.
+*   **Passage Structure:**
+    *   Passages vary in content (sports summaries, scientific descriptions like astronomy).
+    *   Sports passages often involve more complex event tracking (who did what, in what order), which pose extraction challenges.
+    *   Passages can be lengthy, requiring careful reading.
+*   **Domain Knowledge:**
+    *   Basic sports terminology (football positions, scoring) is needed for sports-related examples.
+    *   General reading comprehension is crucial.
+    *   For demographic examples, basic understanding of fertility rates is needed.
 *   **Question Types:**
-    *   **Who:** Asking for a person who performed an action (e.g., scored a touchdown). Example: "Who kicked the field goal?"
-    *   **How many:** Asking for a count of something (e.g., running backs). Example: "How many rushing touchdowns did he have?"
-    *   **Calculation:** Asking for a result of a simple numerical operation (e.g., addition, subtraction, comparison). Example: "How many total yards did the team gain?"
-    *   **Comparative Questions Requiring Numerical Extraction and Comparison:** Questions involving comparing two entities based on a numerical attribute mentioned in the passage (e.g., "Which star has a smaller mass..."). Example: "Which team had more passing yards, the Bears or the Packers?"
-    *   **"Which Player" Questions Based on Specific Actions:** Asking "which player" performed a specific action during a game. Example: "Which player threw the touchdown pass?"
-*   **Answer Types:** Answers are short, usually a person's name, a number, or a short phrase directly derived from the passage. Answers are generally not ambiguous.
-*   **Numerical Reasoning:** Many questions require numerical reasoning, such as addition, subtraction, comparison, or counting.
-*   **Passage Length Variability:** Passages vary significantly in length and complexity, from simple scenarios to entire game summaries.
-*   **Domain Knowledge:** Basic understanding of sports (teams, scoring) is helpful but not strictly required. All information needed is in the passage.
+    *   Entity Extraction: Identifying specific players or entities.
+    *   Numerical Comparison: Comparing numerical values (yards, scores, TFR, mass) to determine differences.
+    *   Counting: Counting the number of occurrences of an event or entity.
+*   **Reasoning Types:**
+    *   Direct Extraction: Finding the answer directly stated in the passage.
+    *   Simple Arithmetic: Performing basic calculations (addition, subtraction) using numbers from the passage.
+    *   Logical Deduction: Combining information from different parts of the passage to arrive at the answer.
+*   **Non-Obvious Patterns:**
+    *   Chronological order of events is important. Time-related keywords (e.g., "final," "first," "later," "second") help narrow the search.
+*   **Edge Cases/Complexities:**
+    *   Passages with ambiguous or contradictory information.
+    *   Questions requiring more complex arithmetic operations (e.g., multiplication, division).
+    *   Questions with implicit rather than explicit answers, requiring deeper inference.
+    *   Handling of units (yards, points, etc.) consistently.
+    *   Sports narratives can induce errors because they require an understanding of event order and length, and they need accurate extraction of details such as players and actions.
 
 ## 2. EFFECTIVE TASK-SPECIFIC STRATEGIES
 
-*   *(None identified yet)*. Initial chain-of-thought strategies have proven ineffective (see Experiment Log).
+*   **Keyword-Based Retrieval:** Identify keywords from the question and search for those keywords in the passage to narrow down relevant sections.
+*   **LLM-Based Extraction & Reasoning:** Use an LLM to directly answer the question based on the passage. Prompting is key here.
+*   **Hybrid Approach:** Combine keyword retrieval with LLM reasoning. Use keywords to identify relevant sections, then use the LLM to extract the answer from those sections.
+*   **Question Decomposition:** Decompose the question into smaller sub-questions that are easier to answer.
+*   **Chain-of-Thought Reasoning:** While showing mixed results, using chain-of-thought prompting to encourage step-by-step reasoning has potential and should be refined.
+*   **Zero-Shot Reasoning:** Directly ask the LLM to answer the question based on the passage, using a well-crafted prompt.
+*   **Text Splitting:** If passages are too long, split them into smaller chunks and process each chunk separately. Be mindful of context loss.
+*   **Focus on Answer Synthesis:** Prioritize improving the `synthesize_answer` function.
 
 ## 3. COMMON FAILURE MODES ON THIS DATASET
 
-*   **Difficulty Locating Relevant Information:** Especially for longer passages, finding the specific sentence or phrase containing the answer can be challenging.
-*   **Incorrect Entity Identification:** Misidentifying the entities (players, teams) referred to in the question within the passage.
-*   **Numerical Calculation Errors:** Performing the wrong numerical calculation or misinterpreting the wording of the question leading to incorrect arithmetic.
-*   **Stuck in Verification Loop (Generic Answer):** The system gets stuck in a planning or verification stage instead of executing the task, producing canned responses like "Verify that it makes sense to..." or "Verify that the required information is known and possible". This indicates a breakdown between task identification and task execution. This was observed with a chain-of-thought approach using a `verify_answer` function. Example: Question asked for the number of touchdowns, but the system got stuck verifying the *possibility* of finding that information.
-*   **Inability to Extract and Compare Numerical Values:** When presented with comparative questions, the system fails to extract the relevant numerical values from the passage and perform the necessary comparison, instead getting stuck on "verifying" that such a comparison is possible. Example: Question asking which team had more yards, and the system failed to extract the yardage numbers for each team.
-*   **Failure to Identify Specific Actors in Complex Scenarios:** In questions asking about a specific player's action within a game summary, the system gets stuck on "verifying" the identification of the player instead of extracting the name associated with the event from the passage.
-*   **Script Errors:** NameError: name 'question' is not defined. This occurred during script repair. The variable 'question' was not defined in the scope where it was being used (specifically in the `generate_answer` function).
+*   **Answer Synthesis Failure:** Inability to synthesize a valid answer. This is the most prominent failure mode. This suggests a problem with the agent responsible for generating the final answer from the extracted information or a mismatch between the expected answer format and the format being generated.
+*   **Sports narrative complexity:** The questions about sports narratives such as "Who threw the second longest touchdown pass?" can induce errors because they require an understanding of event order and length and they need accurate extraction of details such as players and actions. If the model fails to correctly extract who completed each pass and their distance, it will fail to determine the second-longest pass.
+*   **Validation sensitivity:** Validation checks can be overly strict. For example, if the correct answer is `Brett Favre` but the agent responds `Brett Favre.`, the answer would be marked as incorrect.
+*   **Information Extraction Failure:** Errors in information extraction contribute to failures in answer synthesis. Inaccurate or incomplete extracted information leads to incorrect final answers.
+*   **Ambiguous Passages:** Passages with ambiguous or contradictory information can lead to incorrect answers.
+*   **Missing Information:** If the answer cannot be found in the passage, this leads to a failure.
 
 ## 4. EXPERIMENT LOG & FINDINGS
 
-*   **2025-05-17 12:44:34:** Initial Dataset Analysis: Comprehensive breakdown of data characteristics, challenges, potential approaches, creative insights, and implementation recommendations. Key recommendations included: (1) Keyword Matching, (2) Sentence Similarity, (3) Information Extraction with Rules, (4) LLM-based Question Answering. Also included a sample prompt structure for text based techniques.
-*   **2025-05-17 12:44:44:** SCRIPT ERROR ENCOUNTERED: NameError: name 'question' is not defined. This occurred during script repair in the `generate_answer` function. The variable 'question' was not properly passed or defined within that function's scope.
-*   **Iteration 0 Findings:** Chain-of-thought decomposition into question type classification, information extraction, answer generation, and verification was *ineffective*. The sequential chain, as implemented, led to premature "verification" steps that prevented the system from generating concrete answers. The system exhibited an over-reliance on verification, hindering progress. Accuracy was very low.
+*   **2025-05-17 13:35:33: INITIAL DATASET ANALYSIS**
+    *   Comprehensive analysis of dataset characteristics, challenges, potential approaches, and implementation recommendations.
+    *   Identified key aspects of question and answer structure, domain knowledge required, and reasoning types.
+    *   Highlighted potential solution strategies: Keyword-Based Retrieval, LLM-Based Extraction & Reasoning, Hybrid Approach.
+    *   Outlined decomposition steps: Question Analysis, Passage Filtering, Information Extraction, Answer Generation.
+    *   Proposed validation techniques: Consistency Checks, Unit Analysis, Numerical Validation, Fact Verification.
+    *   Recommended implementation steps: Keyword Matching, Numerical Range Checks, Extracted Facts Representation, Relevant Sentences Storage.
+    *   Prompt engineering techniques for effective text processing were proposed, including chain-of-thought prompting.
+*   **ITERATION 0:**
+    *   **Accuracy:** 0.67
+    *   **Goal:** Improve performance using question decomposition and reasoning.
+    *   **Finding:** The implementation of question decomposition has challenges with reliable answer synthesis.
+    *   **Finding:** Frequent validation failures indicate problems with the downstream steps, even if decomposition is successful.
+    *   **Finding:** Sports-related questions involving temporal reasoning (e.g., "Who threw the second longest touchdown pass?") pose significant challenges.
+    *   **Insight:** Validation is helpful for diagnosing system performance, specifically highlighting failures in answer synthesis.
 
 ## 5. NEXT RESEARCH DIRECTIONS
 
-*   **Eliminate or Rework `verify_answer`:** The `verify_answer` function is a major bottleneck and needs to be removed entirely or significantly reworked to focus on *post*-answer validation rather than pre-answer feasibility checks.
-*   **Directly Tie Extraction to Question Type:** Instead of a generic extraction step, tailor the information extraction process to the specific question type identified. If it's a comparison question, the extraction should be geared towards finding the specific entities and their attributes to be compared.
-*   **Prioritize Answer Generation:** Refocus the system on generating a *tentative* answer first, even if it's potentially incorrect. Subsequent steps can then refine or correct this answer. Shift the emphasis from verification to execution.
-*   **Implement Numerical Reasoning Module:** For numerical comparison questions, incorporate a specific module designed for numerical extraction and comparison. This module should be triggered by the question type classifier and should handle the parsing and comparison of numbers found in the passage.
-*   **Test on Simpler Subsets:** Before scaling, test the adapted approach on smaller, simpler subsets of the data containing only one or two question types to isolate the effectiveness of the changes.
-*   **Address Scope Issues:** Debug and resolve the scope issue that caused the NameError in the `generate_answer` function. Ensure that the `question` variable is properly passed and accessible within the function's scope.
+*   **Answer Synthesis Improvement:**
+    *   Debug and improve the `synthesize_answer` function.
+    *   Examine the input it receives (extracted information) and the logic used to generate the final answer.
+    *   Pay close attention to the expected answer format and ensure it is being correctly generated.
+    *   Include thorough error logging to pinpoint where in the answer synthesis process the errors are occurring.
+*   **Refine Validation Logic:**
+    *   Review the validation checks to ensure they are not overly strict.
+    *   Accurately reflect the expected answer format for this dataset, allowing for minor variations in phrasing or punctuation.
+*   **Evaluate Information Extraction Success:**
+    *   Assess how frequently information extraction fails.
+    *   Use the validation component to diagnose problems with extraction.
+*   **Dataset Split & Analysis:**
+    *   Split the dataset by passage type (e.g., sports, science).
+    *   Analyze performance on each subset to identify specific challenges.
+    *   Focus on improving performance on the challenging sports scenarios that require temporal information and comparisons.
+*   **Prompt Engineering:**
+    *   Experiment with different prompt formulations for both information extraction and answer synthesis.
+    *   Explore techniques like few-shot learning and chain-of-thought prompting to improve LLM reasoning.
+*   **Context Window Management:**
+    *   Implement strategies for handling long passages, such as text splitting and summarization.
+    *   Ensure that relevant context is preserved when splitting passages.
+*   **Error Analysis:**
+    *   Manually analyze failed examples to identify the root cause of the errors.
+    *   Categorize errors based on the type of question, passage, and reasoning required.
+*   **External Knowledge Integration:**
+    *   Investigate the use of external knowledge sources to augment the information provided in the passage.
+    *   This may be helpful for resolving ambiguities or providing additional context.
 ```
         
 
@@ -706,167 +768,174 @@ This document serves as a running log of our research and findings specific to t
             
 TOP PERFORMING APPROACH #1:
 Iteration: 0
-Accuracy: 0.33
-Approach Summary: This script uses a chain-of-thought approach, leveraging LLMs to answer questions by first determining the question type, then extracting relevant information, generating an answer, and finally verifying the answer. Each step uses a specific LLM agent role (e.g., question type classifier, information extractor) defined by system instructions to decompose the problem into manageable parts. The functions used are `main` (orchestrates the workflow), `determine_question_type`, `extract_relevant_info`, `generate_answer`, `verify_answer` (each leveraging `call_llm` to interact with the Gemini LLM). The overall workflow is sequential, passing the output of each function as input to the next, with error handling at each stage.
+Accuracy: 0.67
+Approach Summary: The script uses chain-of-thought reasoning by decomposing a question into sub-questions, extracting relevant information, and then synthesizing an answer, with verification steps at each stage. The agents involved are question decomposer, information extraction expert, and answer synthesis expert, each responsible for their respective tasks. The `main` function orchestrates the process by calling `decompose_question`, `extract_information`, and `synthesize_answer` sequentially, using `call_llm` to interact with the LLM for each step, and validation checks are performed after each step to ensure the validity of the generated content. The overall workflow is question decomposition, information extraction, and answer synthesis, each validated by the LLM before proceeding to the next step.
 
 FULL SCRIPT TO REFINE:
 ```python
 import os
 import re
-import math
 
 def main(question):
     """
-    This script solves questions based on a given passage by:
-    1. Analyzing the question type (numerical, logical, etc.).
-    2. Extracting the relevant information from the passage.
-    3. Generating and verifying the answer with LLM.
-
-    This approach uses a chain-of-thought process with specific verification steps at each stage
-    to ensure accuracy. The primary hypothesis is that focusing on the intent of the question
-    before diving into extraction will lead to better results.
-    """
-
-    # Step 1: Determine the question type
-    question_type = determine_question_type(question)
-    if "Error" in question_type:
-        return question_type  # Return error message
-
-    # Step 2: Extract relevant information from the passage
-    extracted_info = extract_relevant_info(question, question_type)
-    if "Error" in extracted_info:
-        return extracted_info
-
-    # Step 3: Generate the answer
-    generated_answer = generate_answer(extracted_info, question_type, question)
-    if "Error" in generated_answer:
-        return generated_answer
-
-    # Step 4: Verify the generated answer
-    verified_answer = verify_answer(generated_answer, question)
-    if "Error" in verified_answer:
-        return verified_answer
-
-    return verified_answer
-
-def determine_question_type(question):
-    """Determine the type of the question (numerical, logical, etc.)."""
-    system_instruction = "You are an expert at classifying question types."
-    prompt = f"""
-    Determine the type of question given the following examples. Return the type only.
-
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: Numerical
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: Identification
-
-    Question: {question}
-    Type:
+    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.
+    This approach tests the hypothesis that focusing on question decomposition will increase performance,
+    and validation calls are included throughout to help diagnose system performance
     """
     try:
-        question_type = call_llm(prompt, system_instruction)
-        if not question_type:
-            return "Error: Could not determine question type"
-        return question_type
+        # Step 1: Decompose the question into sub-questions.
+        decomposition_result = decompose_question(question)
+        if not decomposition_result.get("is_valid"):
+            return f"Error in question decomposition: {decomposition_result.get('validation_feedback')}"
+        
+        # Step 2: Extract relevant information based on sub-questions.
+        information_extraction_result = extract_information(question, decomposition_result["sub_questions"])
+        if not information_extraction_result.get("is_valid"):
+            return f"Error in information extraction: {information_extraction_result.get('validation_feedback')}"
+
+        # Step 3: Synthesize the answer from extracted information.
+        answer_synthesis_result = synthesize_answer(question, information_extraction_result["extracted_info"])
+        if not answer_synthesis_result.get("is_valid"):
+            return f"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}"
+        
+        return answer_synthesis_result["answer"]
+
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"An unexpected error occurred: {str(e)}"
 
-def extract_relevant_info(question, question_type):
-    """Extract relevant information from the passage."""
-    system_instruction = "You are an expert at extracting relevant information."
-    prompt = f"""
-    Extract relevant information from the question based on the given question type.
-    Return the extracted information as a plain text summary.
+def decompose_question(question, max_attempts=3):
+    """Decompose the main question into smaller, answerable sub-questions."""
+    system_instruction = "You are an expert question decomposer."
+    
+    for attempt in range(max_attempts):
+        decomposition_prompt = f"""
+        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.
+        
+        Example 1:
+        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Sub-questions:
+        1. How many yards was Chris Johnson's first touchdown?
+        2. How many yards was Jason Hanson's first field goal?
+        3. What is the sum of those two values?
+        
+        Example 2:
+        Question: Who caught the final touchdown of the game?
+        Sub-questions:
+        1. Who scored the final touchdown of the game?
+        
+        Question: {question}
+        Sub-questions:
+        """
+        
+        decomposition_result = call_llm(decomposition_prompt, system_instruction)
+        
+        # Verify if the decomposition is valid
+        verification_prompt = f"""
+        Verify if these sub-questions are valid and sufficient to answer the original question.
+        
+        Original Question: {question}
+        Sub-questions: {decomposition_result}
+        
+        Is the decomposition valid and sufficient? (yes/no)
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
+        
+        if "yes" in verification_result.lower():
+            return {"is_valid": True, "sub_questions": decomposition_result}
+        else:
+            print(f"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            
+    return {"is_valid": False, "validation_feedback": "Failed to decompose the question successfully."}
 
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: Numerical
-    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
+def extract_information(question, sub_questions, max_attempts=3):
+    """Extract relevant information from the passage based on the sub-questions."""
+    system_instruction = "You are an information extraction expert."
+    
+    for attempt in range(max_attempts):
+        extraction_prompt = f"""
+        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.
+        
+        Example:
+        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Sub-questions:
+        1. How many yards was Chris Johnson's first touchdown?
+        2. How many yards was Jason Hanson's first field goal?
+        Extracted Information:
+        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
+        
+        Original Question: {question}
+        Sub-questions: {sub_questions}
+        Extracted Information:
+        """
+        
+        extracted_info = call_llm(extraction_prompt, system_instruction)
+        
+        # Validate information extraction
+        verification_prompt = f"""
+        Verify if the extracted information is relevant and sufficient to answer the sub-questions.
+        
+        Original Question: {question}
+        Sub-questions: {sub_questions}
+        Extracted Information: {extracted_info}
+        
+        Is the extraction relevant and sufficient? (yes/no)
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
+        
+        if "yes" in verification_result.lower():
+            return {"is_valid": True, "extracted_info": extracted_info}
+        else:
+            print(f"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            
+    return {"is_valid": False, "validation_feedback": "Failed to extract relevant information successfully."}
 
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: Identification
-    Extracted Info: Player who caught the final touchdown.
+def synthesize_answer(question, extracted_info, max_attempts=3):
+    """Synthesize the answer from the extracted information to answer the main question."""
+    system_instruction = "You are an answer synthesis expert."
 
-    Question: {question}
-    Type: {question_type}
-    Extracted Info:
-    """
-    try:
-        extracted_info = call_llm(prompt, system_instruction)
-        if not extracted_info:
-            return "Error: Could not extract information."
-        return extracted_info
-    except Exception as e:
-        return f"Error: {str(e)}"
+    for attempt in range(max_attempts):
+        synthesis_prompt = f"""
+        Given the original question and the extracted information, synthesize the final answer.
+        
+        Example:
+        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
+        Final Answer: 59
+        
+        Original Question: {question}
+        Extracted Information: {extracted_info}
+        Final Answer:
+        """
+        
+        answer = call_llm(synthesis_prompt, system_instruction)
 
-def generate_answer(extracted_info, question_type, question):
-    """Generate the answer based on extracted information and question type."""
-    system_instruction = "You are an expert at generating correct answers."
-    prompt = f"""
-    Generate an answer to the question based on the extracted information.
+        # Answer checker
+        verification_prompt = f"""
+        Check if the answer is correct and answers the original question fully.
+        
+        Original Question: {question}
+        Synthesized Answer: {answer}
+        
+        Is the answer correct and complete? (yes/no)
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
 
-    Example 1:
-    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
-    Question Type: Numerical
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Answer: Find yards for each event and add them.
-
-    Example 2:
-    Extracted Info: Player who caught the final touchdown.
-    Question Type: Identification
-    Question: Who caught the final touchdown of the game?
-    Answer: Identify the player.
-
-    Extracted Info: {extracted_info}
-    Question Type: {question_type}
-    Question: {question}
-    Answer:
-    """
-    try:
-        answer = call_llm(prompt, system_instruction)
-        if not answer:
-            return "Error: Could not generate answer."
-        return answer
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-def verify_answer(generated_answer, question):
-    """Verify the generated answer to ensure correctness."""
-    system_instruction = "You are an expert at verifying the correctness of answers."
-    prompt = f"""
-    Verify if the generated answer is correct and makes sense given the question.
-
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Generated Answer: Find yards for each event and add them.
-    Is Correct: Verify that the required information to "Find yards for each event and add them" is known and possible.
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Generated Answer: Identify the player.
-    Is Correct: Verify that it makes sense to "Identify the player"
-
-    Question: {question}
-    Generated Answer: {generated_answer}
-    Is Correct:
-    """
-    try:
-        is_correct = call_llm(prompt, system_instruction)
-        if not is_correct:
-            return "Error: Could not verify answer."
-        return is_correct
-    except Exception as e:
-        return f"Error: {str(e)}"
+        if "yes" in verification_result.lower():
+            return {"is_valid": True, "answer": answer}
+        else:
+            print(f"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            
+    return {"is_valid": False, "validation_feedback": "Failed to synthesize a valid answer."}
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
+        import os  # Import the os module
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
@@ -897,160 +966,167 @@ FULL SCRIPT TO REFINE:
 ```python
 import os
 import re
-import math
 
 def main(question):
     """
-    This script solves questions based on a given passage by:
-    1. Analyzing the question type (numerical, logical, etc.).
-    2. Extracting the relevant information from the passage.
-    3. Generating and verifying the answer with LLM.
-
-    This approach uses a chain-of-thought process with specific verification steps at each stage
-    to ensure accuracy. The primary hypothesis is that focusing on the intent of the question
-    before diving into extraction will lead to better results.
-    """
-
-    # Step 1: Determine the question type
-    question_type = determine_question_type(question)
-    if "Error" in question_type:
-        return question_type  # Return error message
-
-    # Step 2: Extract relevant information from the passage
-    extracted_info = extract_relevant_info(question, question_type)
-    if "Error" in extracted_info:
-        return extracted_info
-
-    # Step 3: Generate the answer
-    generated_answer = generate_answer(extracted_info, question_type, question)
-    if "Error" in generated_answer:
-        return generated_answer
-
-    # Step 4: Verify the generated answer
-    verified_answer = verify_answer(generated_answer, question)
-    if "Error" in verified_answer:
-        return verified_answer
-
-    return verified_answer
-
-def determine_question_type(question):
-    """Determine the type of the question (numerical, logical, etc.)."""
-    system_instruction = "You are an expert at classifying question types."
-    prompt = f"""
-    Determine the type of question given the following examples. Return the type only.
-
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: Numerical
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: Identification
-
-    Question: {question}
-    Type:
+    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.
+    This approach tests the hypothesis that focusing on question decomposition will increase performance,
+    and validation calls are included throughout to help diagnose system performance
     """
     try:
-        question_type = call_llm(prompt, system_instruction)
-        if not question_type:
-            return "Error: Could not determine question type"
-        return question_type
+        # Step 1: Decompose the question into sub-questions.
+        decomposition_result = decompose_question(question)
+        if not decomposition_result.get("is_valid"):
+            return f"Error in question decomposition: {decomposition_result.get('validation_feedback')}"
+        
+        # Step 2: Extract relevant information based on sub-questions.
+        information_extraction_result = extract_information(question, decomposition_result["sub_questions"])
+        if not information_extraction_result.get("is_valid"):
+            return f"Error in information extraction: {information_extraction_result.get('validation_feedback')}"
+
+        # Step 3: Synthesize the answer from extracted information.
+        answer_synthesis_result = synthesize_answer(question, information_extraction_result["extracted_info"])
+        if not answer_synthesis_result.get("is_valid"):
+            return f"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}"
+        
+        return answer_synthesis_result["answer"]
+
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"An unexpected error occurred: {str(e)}"
 
-def extract_relevant_info(question, question_type):
-    """Extract relevant information from the passage."""
-    system_instruction = "You are an expert at extracting relevant information."
-    prompt = f"""
-    Extract relevant information from the question based on the given question type.
-    Return the extracted information as a plain text summary.
+def decompose_question(question, max_attempts=3):
+    """Decompose the main question into smaller, answerable sub-questions."""
+    system_instruction = "You are an expert question decomposer."
+    
+    for attempt in range(max_attempts):
+        decomposition_prompt = f"""
+        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.
+        
+        Example 1:
+        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Sub-questions:
+        1. How many yards was Chris Johnson's first touchdown?
+        2. How many yards was Jason Hanson's first field goal?
+        3. What is the sum of those two values?
+        
+        Example 2:
+        Question: Who caught the final touchdown of the game?
+        Sub-questions:
+        1. Who scored the final touchdown of the game?
+        
+        Question: {question}
+        Sub-questions:
+        """
+        
+        decomposition_result = call_llm(decomposition_prompt, system_instruction)
+        
+        # Verify if the decomposition is valid
+        verification_prompt = f"""
+        Verify if these sub-questions are valid and sufficient to answer the original question.
+        
+        Original Question: {question}
+        Sub-questions: {decomposition_result}
+        
+        Is the decomposition valid and sufficient? (yes/no)
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
+        
+        if "yes" in verification_result.lower():
+            return {"is_valid": True, "sub_questions": decomposition_result}
+        else:
+            print(f"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            
+    return {"is_valid": False, "validation_feedback": "Failed to decompose the question successfully."}
 
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: Numerical
-    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
+def extract_information(question, sub_questions, max_attempts=3):
+    """Extract relevant information from the passage based on the sub-questions."""
+    system_instruction = "You are an information extraction expert."
+    
+    for attempt in range(max_attempts):
+        extraction_prompt = f"""
+        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.
+        
+        Example:
+        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Sub-questions:
+        1. How many yards was Chris Johnson's first touchdown?
+        2. How many yards was Jason Hanson's first field goal?
+        Extracted Information:
+        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
+        
+        Original Question: {question}
+        Sub-questions: {sub_questions}
+        Extracted Information:
+        """
+        
+        extracted_info = call_llm(extraction_prompt, system_instruction)
+        
+        # Validate information extraction
+        verification_prompt = f"""
+        Verify if the extracted information is relevant and sufficient to answer the sub-questions.
+        
+        Original Question: {question}
+        Sub-questions: {sub_questions}
+        Extracted Information: {extracted_info}
+        
+        Is the extraction relevant and sufficient? (yes/no)
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
+        
+        if "yes" in verification_result.lower():
+            return {"is_valid": True, "extracted_info": extracted_info}
+        else:
+            print(f"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            
+    return {"is_valid": False, "validation_feedback": "Failed to extract relevant information successfully."}
 
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: Identification
-    Extracted Info: Player who caught the final touchdown.
+def synthesize_answer(question, extracted_info, max_attempts=3):
+    """Synthesize the answer from the extracted information to answer the main question."""
+    system_instruction = "You are an answer synthesis expert."
 
-    Question: {question}
-    Type: {question_type}
-    Extracted Info:
-    """
-    try:
-        extracted_info = call_llm(prompt, system_instruction)
-        if not extracted_info:
-            return "Error: Could not extract information."
-        return extracted_info
-    except Exception as e:
-        return f"Error: {str(e)}"
+    for attempt in range(max_attempts):
+        synthesis_prompt = f"""
+        Given the original question and the extracted information, synthesize the final answer.
+        
+        Example:
+        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
+        Final Answer: 59
+        
+        Original Question: {question}
+        Extracted Information: {extracted_info}
+        Final Answer:
+        """
+        
+        answer = call_llm(synthesis_prompt, system_instruction)
 
-def generate_answer(extracted_info, question_type, question):
-    """Generate the answer based on extracted information and question type."""
-    system_instruction = "You are an expert at generating correct answers."
-    prompt = f"""
-    Generate an answer to the question based on the extracted information.
+        # Answer checker
+        verification_prompt = f"""
+        Check if the answer is correct and answers the original question fully.
+        
+        Original Question: {question}
+        Synthesized Answer: {answer}
+        
+        Is the answer correct and complete? (yes/no)
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
 
-    Example 1:
-    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
-    Question Type: Numerical
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Answer: Find yards for each event and add them.
-
-    Example 2:
-    Extracted Info: Player who caught the final touchdown.
-    Question Type: Identification
-    Question: Who caught the final touchdown of the game?
-    Answer: Identify the player.
-
-    Extracted Info: {extracted_info}
-    Question Type: {question_type}
-    Question: {question}
-    Answer:
-    """
-    try:
-        answer = call_llm(prompt, system_instruction)
-        if not answer:
-            return "Error: Could not generate answer."
-        return answer
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-def verify_answer(generated_answer, question):
-    """Verify the generated answer to ensure correctness."""
-    system_instruction = "You are an expert at verifying the correctness of answers."
-    prompt = f"""
-    Verify if the generated answer is correct and makes sense given the question.
-
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Generated Answer: Find yards for each event and add them.
-    Is Correct: Verify that the required information to "Find yards for each event and add them" is known and possible.
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Generated Answer: Identify the player.
-    Is Correct: Verify that it makes sense to "Identify the player"
-
-    Question: {question}
-    Generated Answer: {generated_answer}
-    Is Correct:
-    """
-    try:
-        is_correct = call_llm(prompt, system_instruction)
-        if not is_correct:
-            return "Error: Could not verify answer."
-        return is_correct
-    except Exception as e:
-        return f"Error: {str(e)}"
+        if "yes" in verification_result.lower():
+            return {"is_valid": True, "answer": answer}
+        else:
+            print(f"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            
+    return {"is_valid": False, "validation_feedback": "Failed to synthesize a valid answer."}
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
+        import os  # Import the os module
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))

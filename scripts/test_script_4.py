@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 4,
-        "sample_id": "0a87e21c-a1d0-42b1-9b62-62fa67d0a7f0",
-        "question": "PASSAGE: Still searching for their first win of the year, the Dolphins returned home for a Week 7 AFC East duel with the undefeated New England Patriots.  In the first quarter, Miami's struggles continued as Patriots QB Tom Brady completed a 30-yard TD pass to WR Dont&#233; Stallworth and a 2-yard TD pass to TE Kyle Brady.  In the second quarter, the Dolphins got their only score of the half with QB Cleo Lemon getting a 4-yard TD run.  Afterwards, New England continued its pounding with CB Willie Andrews returning a kickoff 77 yards for a touchdown, along with Brady and WR Randy Moss hooking up with each other on a 35-yard and a 50-yard TD pass.  The Patriots would end the half with Brady hooking up with WR Wes Welker on a 14-yard TD pass. After a scoreless third quarter, Miami tried to make a comeback in the fourth quarter.  It began with RB Patrick Cobbs getting a 1-yard TD run, along with DE Jason Taylor returning an interception 36 yards for a touchdown.  However, New England made sure that they sealed their victory with Brady hooking up with Welker again on a 16-yard TD pass.  Afterwards, the 'Fins ended the game with RB Jesse Chatman getting a 7-yard TD run. With the loss, not only did the Dolphins fall to 0-7 for the first time in franchise history, but they also lost RB Ronnie Brown for the year, as he tore his ACL in the third quarter while trying to stop an interception return.\n\nQUESTION: How many TD passes did Tom Brady complete?"
+        "sample_id": "09ca0c20-9503-49b3-994a-e937d97ada88",
+        "question": 'PASSAGE: Peck also received Oscar nominations for his roles in The Keys of the Kingdom (film) (1944), The Yearling (film) (1946), Gentlemans Agreement (1947) and Twelve OClock High (1949).  Other notable films in which he appeared include Spellbound (1945 film) (1945), The Gunfighter (1950), Roman Holiday (1953), Moby Dick (1956 film) (1956, and its Moby Dick (1998 miniseries)), The Big Country (1958), The Bravados (1958), Pork Chop Hill (1959), The Guns of Navarone (film) (1961), Cape Fear (1962 film) (1962, and its Cape Fear (1991 film)), How the West Was Won (film) (1962), The Omen (1976) and The Boys from Brazil (film) (1978).\n\nQUESTION: Was Peck in more notable films in the 1950s or the 1960s?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 4,
-            "sample_id": "0a87e21c-a1d0-42b1-9b62-62fa67d0a7f0",
+            "sample_id": "09ca0c20-9503-49b3-994a-e937d97ada88",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Still searching for their first win of the year, the Dolphins returned home for a Week 7 AFC East duel with the undefeated New England Patriots.  In the first quarter, Miami's struggles continued as Patriots QB Tom Brady completed a 30-yard TD pass to WR Dont&#233; Stallworth and a 2-yard TD pass to TE Kyle Brady.  In the second quarter, the Dolphins got their only score of the half with QB Cleo Lemon getting a 4-yard TD run.  Afterwards, New England continued its pounding with CB Willie Andrews returning a kickoff 77 yards for a touchdown, along with Brady and WR Randy Moss hooking up with each other on a 35-yard and a 50-yard TD pass.  The Patriots would end the half with Brady hooking up with WR Wes Welker on a 14-yard TD pass. After a scoreless third quarter, Miami tried to make a comeback in the fourth quarter.  It began with RB Patrick Cobbs getting a 1-yard TD run, along with DE Jason Taylor returning an interception 36 yards for a touchdown.  However, New England made sure that they sealed their victory with Brady hooking up with Welker again on a 16-yard TD pass.  Afterwards, the 'Fins ended the game with RB Jesse Chatman getting a 7-yard TD run. With the loss, not only did the Dolphins fall to 0-7 for the first time in franchise history, but they also lost RB Ronnie Brown for the year, as he tore his ACL in the third quarter while trying to stop an interception return.\n\nQUESTION: How many TD passes did Tom Brady complete?"
+    question = 'PASSAGE: Peck also received Oscar nominations for his roles in The Keys of the Kingdom (film) (1944), The Yearling (film) (1946), Gentlemans Agreement (1947) and Twelve OClock High (1949).  Other notable films in which he appeared include Spellbound (1945 film) (1945), The Gunfighter (1950), Roman Holiday (1953), Moby Dick (1956 film) (1956, and its Moby Dick (1998 miniseries)), The Big Country (1958), The Bravados (1958), Pork Chop Hill (1959), The Guns of Navarone (film) (1961), Cape Fear (1962 film) (1962, and its Cape Fear (1991 film)), How the West Was Won (film) (1962), The Omen (1976) and The Boys from Brazil (film) (1978).\n\nQUESTION: Was Peck in more notable films in the 1950s or the 1960s?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 4,
-            "sample_id": "0a87e21c-a1d0-42b1-9b62-62fa67d0a7f0",
+            "sample_id": "09ca0c20-9503-49b3-994a-e937d97ada88",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 4,
-            "sample_id": "0a87e21c-a1d0-42b1-9b62-62fa67d0a7f0",
+            "sample_id": "09ca0c20-9503-49b3-994a-e937d97ada88",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

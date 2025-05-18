@@ -4,149 +4,136 @@ import math
 
 def main(question):
     """
-    This script solves questions based on a given passage by:
-    1. Determining the question type with examples.
-    2. Extracting the relevant information with examples.
-    3. Generating the answer with examples.
-    """
-
-    # Step 1: Determine the question type
-    question_type = determine_question_type(question)
-    if "Error" in question_type:
-        return question_type
-
-    # Step 2: Extract relevant information from the passage
-    extracted_info = extract_relevant_info(question, question_type)
-    if "Error" in extracted_info:
-        return extracted_info
-
-    # Step 3: Generate the answer
-    generated_answer = generate_answer(extracted_info, question_type, question)
-    if "Error" in generated_answer:
-        return generated_answer
-
-    return generated_answer
-
-def determine_question_type(question):
-    """Determine the type of the question (numerical, identification, etc.) with examples."""
-    system_instruction = "You are an expert at classifying question types."
-    prompt = f"""
-    Determine the type of question given the following examples. Return the type only.
-
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: Numerical
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: Identification
-
-    Example 3:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Type: Comparative
-
-    Example 4:
-    Question: How many total years did the $5.6 trillion for operations on the War on Terror account for?
-    Type: Numerical
-
-    Question: {question}
-    Type:
+    This script implements a "Question Clarification & Focused Extraction" approach.
+    The hypothesis is that by first clarifying the question's intent with the LLM,
+    we can significantly improve the precision and relevance of information extraction,
+    avoiding previous issues with misinterpretation and unnecessary decomposition.
+    This will be followed by a verification step to ensure the extraction worked.
     """
     try:
-        question_type = call_llm(prompt, system_instruction)
-        if not question_type:
-            return "Error: Could not determine question type"
-        return question_type
-    except Exception as e:
-        return f"Error: {str(e)}"
+        # Step 1: Clarify the question to better understand the user's intent
+        clarification_result = clarify_question(question)
+        if not clarification_result.get("is_valid"):
+            return f"Error in question clarification: {clarification_result.get('validation_feedback')}"
+        clarified_question = clarification_result["clarified_question"]
+        print(f"Clarified question: {clarified_question}")
 
-def extract_relevant_info(question, question_type):
-    """Extract relevant information from the passage with examples, tailored to question type."""
-    system_instruction = "You are an expert at extracting relevant information."
-    prompt = f"""
-    Extract relevant information from the passage based on the given question type.
-    Return the extracted information as a plain text summary.
+        # Step 2: Extract relevant information based on the clarified question
+        extraction_result = extract_information(clarified_question, question)
+        if not extraction_result.get("is_valid"):
+            return f"Error in information extraction: {extraction_result.get('validation_feedback')}"
+        extracted_info = extraction_result["extracted_info"]
+        print(f"Extracted info: {extracted_info}")
 
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: Numerical
-    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: Identification
-    Extracted Info: Player who caught the final touchdown.
-
-    Example 3:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Type: Comparative
-    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.
-
-    Example 4:
-    Question: How many total years did the $5.6 trillion for operations on the War on Terror account for?
-    Type: Numerical
-    Extracted Info: The War on Terror, spanning decades, is a multi-trillion-dollar war. $5.6 trillion for operations between 2001-2018.
-
-    Question: {question}
-    Type: {question_type}
-    Extracted Info:
-    """
-    try:
-        extracted_info = call_llm(prompt, system_instruction)
-        if not extracted_info:
-            return "Error: Could not extract information."
-        return extracted_info
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-def generate_answer(extracted_info, question_type, question):
-    """Generate the answer based on extracted information and question type with examples."""
-    system_instruction = "You are an expert at generating correct answers."
-    prompt = f"""
-    Generate an answer to the question based on the extracted information.
-
-    Example 1:
-    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.
-    Question Type: Numerical
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Answer: 40 + 30 = 70 yards
-
-    Example 2:
-    Extracted Info: Player who caught the final touchdown = Mark Clayton
-    Question Type: Identification
-    Question: Who caught the final touchdown of the game?
-    Answer: Mark Clayton
-
-    Example 3:
-    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.
-    Question Type: Comparative
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Answer: Gliese 915
-
-    Example 4:
-    Extracted Info: The War on Terror, spanning decades, is a multi-trillion-dollar war. $5.6 trillion for operations between 2001-2018.
-    Question Type: Numerical
-    Question: How many total years did the $5.6 trillion for operations on the War on Terror account for?
-    Answer: 2018 - 2001 + 1 = 18 years
-
-    Extracted Info: {extracted_info}
-    Question Type: {question_type}
-    Question: {question}
-    Answer:
-    """
-    try:
-        answer = call_llm(prompt, system_instruction)
-        if not answer:
-            return "Error: Could not generate answer."
+        # Step 3: Synthesize the answer from extracted information
+        answer = synthesize_answer(clarified_question, extracted_info)
         return answer
-    except Exception as e:
-        return f"Error: {str(e)}"
 
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
+
+def clarify_question(question, max_attempts=3):
+    """Clarifies the question to better understand the user's intent."""
+    system_instruction = "You are an expert at clarifying ambiguous questions."
+
+    for attempt in range(max_attempts):
+        clarification_prompt = f"""
+        Given a question, rephrase it to be more specific and unambiguous, clarifying the user's intent.
+
+        Example:
+        Question: How many yards did the players combine for?
+        Clarified Question: What was the total number of yards gained by all players mentioned in the passage?
+
+        Question: {question}
+        Clarified Question:
+        """
+
+        clarified_question = call_llm(clarification_prompt, system_instruction)
+
+        verification_prompt = f"""
+        Verify that the clarified question maintains the original intent while being more specific.
+
+        Original Question: {question}
+        Clarified Question: {clarified_question}
+
+        Example:
+        Original Question: How many yards did the players combine for?
+        Clarified Question: What was the total number of yards gained by all players mentioned in the passage?
+        Verification: Valid
+
+        Is the clarified question valid? Respond with 'Valid' or 'Invalid'.
+        """
+
+        verification_result = call_llm(verification_prompt, system_instruction)
+
+        if "valid" in verification_result.lower():
+            return {"is_valid": True, "clarified_question": clarified_question}
+        else:
+            print(f"Clarification validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+
+    return {"is_valid": False, "validation_feedback": "Failed to clarify the question successfully."}
+
+def extract_information(clarified_question, original_question, max_attempts=3):
+    """Extracts relevant information from the passage based on the clarified question."""
+    system_instruction = "You are an information extraction expert. Extract only the relevant information and nothing else."
+
+    for attempt in range(max_attempts):
+        extraction_prompt = f"""
+        Extract the information needed to answer the following question, using the original question for context.
+
+        Original Question: {original_question}
+        Question: {clarified_question}
+        Extracted Information:
+        """
+
+        extracted_info = call_llm(extraction_prompt, system_instruction)
+
+        verification_prompt = f"""
+        Verify if the extracted information is relevant and complete for answering the question.
+
+        Question: {clarified_question}
+        Extracted Information: {extracted_info}
+
+        Example:
+        Question: What was the total number of yards gained by all players mentioned in the passage?
+        Extracted Information: Player A gained 100 yards. Player B gained 50 yards.
+        Verification: Valid
+
+        Is the extracted information valid? Respond with 'Valid' or 'Invalid'.
+        """
+
+        verification_result = call_llm(verification_prompt, system_instruction)
+
+        if "valid" in verification_result.lower():
+            return {"is_valid": True, "extracted_info": extracted_info}
+        else:
+            print(f"Extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+
+    return {"is_valid": False, "validation_feedback": "Failed to extract the information successfully."}
+
+def synthesize_answer(question, extracted_info):
+    """Synthesizes the answer from the extracted information."""
+    system_instruction = "You are an expert at synthesizing answers from extracted information. Provide a direct answer based on the extracted information."
+    synthesis_prompt = f"""
+        Given the question and the extracted information, create a final answer.
+
+        Example:
+        Question: What was the total number of yards gained by all players mentioned in the passage?
+        Extracted Information: Player A gained 100 yards. Player B gained 50 yards.
+        Answer: 150 yards
+
+        Question: {question}
+        Extracted Information: {extracted_info}
+        Answer:
+        """
+    answer = call_llm(synthesis_prompt, system_instruction)
+    return answer
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
+        import os  # Import the os module
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))

@@ -1,349 +1,180 @@
 {
   "iteration": 11,
-  "timestamp": "2025-05-17T13:16:14.255037",
-  "strategy": "Exploitation",
-  "explore_rate": 10,
-  "exploit_rate": 90,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script solves questions based on a given passage by:\n    1. Determining the question type with examples.\n    2. Extracting the relevant information with examples.\n    3. Generating the answer with examples.\n    \"\"\"\n\n    # Step 1: Determine the question type\n    question_type = determine_question_type(question)\n    if \"Error\" in question_type:\n        return question_type\n\n    # Step 2: Extract relevant information from the passage\n    extracted_info = extract_relevant_info(question, question_type)\n    if \"Error\" in extracted_info:\n        return extracted_info\n\n    # Step 3: Generate the answer\n    generated_answer = generate_answer(extracted_info, question_type, question)\n    if \"Error\" in generated_answer:\n        return generated_answer\n\n    return generated_answer\n\ndef determine_question_type(question):\n    \"\"\"Determine the type of the question (numerical, identification, etc.) with examples.\"\"\"\n    system_instruction = \"You are an expert at classifying question types.\"\n    prompt = f\"\"\"\n    Determine the type of question given the following examples. Return the type only.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n\n    Example 4:\n    Question: How many total years did the $5.6 trillion for operations on the War on Terror account for?\n    Type: Numerical\n\n    Question: {question}\n    Type:\n    \"\"\"\n    try:\n        question_type = call_llm(prompt, system_instruction)\n        if not question_type:\n            return \"Error: Could not determine question type\"\n        return question_type\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef extract_relevant_info(question, question_type):\n    \"\"\"Extract relevant information from the passage with examples, tailored to question type.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant information.\"\n    prompt = f\"\"\"\n    Extract relevant information from the passage based on the given question type.\n    Return the extracted information as a plain text summary.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n    Extracted Info: Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n    Extracted Info: Player who caught the final touchdown.\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    Extracted Info: Mass of Nu Phoenicis, Mass of Gliese 915.\n\n    Example 4:\n    Question: How many total years did the $5.6 trillion for operations on the War on Terror account for?\n    Type: Numerical\n    Extracted Info: The War on Terror, spanning decades, is a multi-trillion-dollar war. $5.6 trillion for operations between 2001-2018.\n\n    Question: {question}\n    Type: {question_type}\n    Extracted Info:\n    \"\"\"\n    try:\n        extracted_info = call_llm(prompt, system_instruction)\n        if not extracted_info:\n            return \"Error: Could not extract information.\"\n        return extracted_info\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef generate_answer(extracted_info, question_type, question):\n    \"\"\"Generate the answer based on extracted information and question type with examples.\"\"\"\n    system_instruction = \"You are an expert at generating correct answers.\"\n    prompt = f\"\"\"\n    Generate an answer to the question based on the extracted information.\n\n    Example 1:\n    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.\n    Question Type: Numerical\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: 40 + 30 = 70 yards\n\n    Example 2:\n    Extracted Info: Player who caught the final touchdown = Mark Clayton\n    Question Type: Identification\n    Question: Who caught the final touchdown of the game?\n    Answer: Mark Clayton\n\n    Example 3:\n    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.\n    Question Type: Comparative\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: Gliese 915\n\n    Example 4:\n    Extracted Info: The War on Terror, spanning decades, is a multi-trillion-dollar war. $5.6 trillion for operations between 2001-2018.\n    Question Type: Numerical\n    Question: How many total years did the $5.6 trillion for operations on the War on Terror account for?\n    Answer: 2018 - 2001 + 1 = 18 years\n\n    Extracted Info: {extracted_info}\n    Question Type: {question_type}\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        answer = call_llm(prompt, system_instruction)\n        if not answer:\n            return \"Error: Could not generate answer.\"\n        return answer\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "This script uses an LLM (Gemini) to answer questions by breaking down the process into three steps: determining the question type, extracting relevant information, and generating the answer. Each step uses a `call_llm` function, acting as a specialized agent with specific system instructions, to generate the desired output based on the given question and examples in the prompt. The functions used are `main`, `determine_question_type`, `extract_relevant_info`, `generate_answer`, and `call_llm`; `main` orchestrates the entire process by calling the other functions in sequence, passing the question and intermediate results between them, with error handling at each step. The overall workflow involves classifying the question type, extracting relevant information, and then generating the answer based on the extracted information and question type.",
-  "sample_count": 10,
+  "timestamp": "2025-05-17T20:28:07.604261",
+  "strategy": "Exploration",
+  "explore_rate": 90,
+  "exploit_rate": 10,
+  "batch_size": 5,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script implements a \"Question Clarification & Focused Extraction\" approach.\n    The hypothesis is that by first clarifying the question's intent with the LLM,\n    we can significantly improve the precision and relevance of information extraction,\n    avoiding previous issues with misinterpretation and unnecessary decomposition.\n    This will be followed by a verification step to ensure the extraction worked.\n    \"\"\"\n    try:\n        # Step 1: Clarify the question to better understand the user's intent\n        clarification_result = clarify_question(question)\n        if not clarification_result.get(\"is_valid\"):\n            return f\"Error in question clarification: {clarification_result.get('validation_feedback')}\"\n        clarified_question = clarification_result[\"clarified_question\"]\n        print(f\"Clarified question: {clarified_question}\")\n\n        # Step 2: Extract relevant information based on the clarified question\n        extraction_result = extract_information(clarified_question, question)\n        if not extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {extraction_result.get('validation_feedback')}\"\n        extracted_info = extraction_result[\"extracted_info\"]\n        print(f\"Extracted info: {extracted_info}\")\n\n        # Step 3: Synthesize the answer from extracted information\n        answer = synthesize_answer(clarified_question, extracted_info)\n        return answer\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef clarify_question(question, max_attempts=3):\n    \"\"\"Clarifies the question to better understand the user's intent.\"\"\"\n    system_instruction = \"You are an expert at clarifying ambiguous questions.\"\n\n    for attempt in range(max_attempts):\n        clarification_prompt = f\"\"\"\n        Given a question, rephrase it to be more specific and unambiguous, clarifying the user's intent.\n\n        Example:\n        Question: How many yards did the players combine for?\n        Clarified Question: What was the total number of yards gained by all players mentioned in the passage?\n\n        Question: {question}\n        Clarified Question:\n        \"\"\"\n\n        clarified_question = call_llm(clarification_prompt, system_instruction)\n\n        verification_prompt = f\"\"\"\n        Verify that the clarified question maintains the original intent while being more specific.\n\n        Original Question: {question}\n        Clarified Question: {clarified_question}\n\n        Example:\n        Original Question: How many yards did the players combine for?\n        Clarified Question: What was the total number of yards gained by all players mentioned in the passage?\n        Verification: Valid\n\n        Is the clarified question valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n\n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"clarified_question\": clarified_question}\n        else:\n            print(f\"Clarification validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to clarify the question successfully.\"}\n\ndef extract_information(clarified_question, original_question, max_attempts=3):\n    \"\"\"Extracts relevant information from the passage based on the clarified question.\"\"\"\n    system_instruction = \"You are an information extraction expert. Extract only the relevant information and nothing else.\"\n\n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Extract the information needed to answer the following question, using the original question for context.\n\n        Original Question: {original_question}\n        Question: {clarified_question}\n        Extracted Information:\n        \"\"\"\n\n        extracted_info = call_llm(extraction_prompt, system_instruction)\n\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and complete for answering the question.\n\n        Question: {clarified_question}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Question: What was the total number of yards gained by all players mentioned in the passage?\n        Extracted Information: Player A gained 100 yards. Player B gained 50 yards.\n        Verification: Valid\n\n        Is the extracted information valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n\n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract the information successfully.\"}\n\ndef synthesize_answer(question, extracted_info):\n    \"\"\"Synthesizes the answer from the extracted information.\"\"\"\n    system_instruction = \"You are an expert at synthesizing answers from extracted information. Provide a direct answer based on the extracted information.\"\n    synthesis_prompt = f\"\"\"\n        Given the question and the extracted information, create a final answer.\n\n        Example:\n        Question: What was the total number of yards gained by all players mentioned in the passage?\n        Extracted Information: Player A gained 100 yards. Player B gained 50 yards.\n        Answer: 150 yards\n\n        Question: {question}\n        Extracted Information: {extracted_info}\n        Answer:\n        \"\"\"\n    answer = call_llm(synthesis_prompt, system_instruction)\n    return answer\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script employs a \"Question Clarification & Focused Extraction\" approach, using LLMs to clarify a given question, extract relevant information, and synthesize an answer. The problem is decomposed into three main steps: question clarification, information extraction, and answer synthesis, each using the `call_llm` function with specific system instructions to act as an expert in that step. The `clarify_question` and `extract_information` functions include a verification step to ensure the validity of the LLM's output. The overall workflow is: `main` calls `clarify_question`, then `extract_information`, and finally `synthesize_answer`, using `call_llm` in each to interact with the LLM.",
+  "sample_count": 5,
   "samples": [
     {
-      "question": "PASSAGE: The Packers lost Aaron Rodgers to a shoulder injury early in the game after he took a big hit from Minnesota linebacker Anthony Barr. It was later revealed that he suffered a broken right collarbone and the injury could end his 2017 season. Brett Hundley threw one touchdown, but also threw three costly interceptions, in relief of Rodgers as the Packers took a 23-10 loss. After the game, Mike McCarthy announced that due to Rodgers' injury, Hundley will be given the starting quarterback position \"indefinitely.\"\n\nQUESTION: How many points did they win by?",
-      "answer": "13",
+      "question": "PASSAGE: In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:\n\nQUESTION: King Tancred of Sicily seized power from who?",
+      "answer": "Queen Joan",
       "id": "example_86",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "The Packers lost Aaron Rodgers to a shoulder injury early in the game after he took a big hit from Minnesota linebacker Anthony Barr. It was later revealed that he suffered a broken right collarbone and the injury could end his 2017 season. Brett Hundley threw one touchdown, but also threw three costly interceptions, in relief of Rodgers as the Packers took a 23-10 loss. After the game, Mike McCarthy announced that due to Rodgers' injury, Hundley will be given the starting quarterback position \"indefinitely.\"",
-        "original_question": "How many points did they win by?",
+        "original_passage": "In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:",
+        "original_question": "King Tancred of Sicily seized power from who?",
         "original_answer_data": {
           "spans": [
-            "13"
+            "Queen Joan"
           ],
           "types": [
-            "number"
+            "span"
           ]
         },
-        "line_number": 451
+        "line_number": 909
       }
     },
     {
-      "question": "PASSAGE: The Colts headed to Gillette Stadium for a highly anticipated Sunday Night Football matchup with the New England Patriots in Week 9. In the first quarter, an interception in the end zone by Colts rookie FS Antoine Bethea set up the Colts' first scoring drive, a 68-yard march that ended with a 5-yard touchdown pass from QB Peyton Manning to WR Marvin Harrison for the only score of the quarter. Already banged up on defense, the Patriots lost SS Rodney Harrison to a shoulder injury in the first quarter, and he never returned to the game. The second quarter was a lot more eventful after two scores by Patriots RB Corey Dillon, a TD run by Colts rookie RB Joseph Addai, and a field goal by Colts kicker Adam Vinatieri. The Patriots played from behind for the rest of the game and could not catch up to the Colts. Patriots QB Tom Brady was intercepted four times in the defeat, and Colts LB Cato June intercepted two of those passes. Also of note, Colts WR Marvin Harrison had 8 catches in the game for 145 yards and two touchdowns. The victory marked the Colts' second straight versus the Patriots after having lost the previous six. With the win, the Colts became just the second team in NFL history to begin consecutive seasons 8-0 (the Green Bay Packers began three consecutive seasons 8-0 from 1929 to 1931). Also, with 326 yards passing QB Peyton Manning has thrown for over 300 yards in three consecutive games for the first time in his career.\n\nQUESTION: Who scored the only touchdown in the first quarter?",
-      "answer": "Marvin Harrison",
+      "question": "PASSAGE: In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123\n\nQUESTION: Who had more casualties, the Colonists or the Abenakis?",
+      "answer": "Abenakis",
       "id": "example_87",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "The Colts headed to Gillette Stadium for a highly anticipated Sunday Night Football matchup with the New England Patriots in Week 9. In the first quarter, an interception in the end zone by Colts rookie FS Antoine Bethea set up the Colts' first scoring drive, a 68-yard march that ended with a 5-yard touchdown pass from QB Peyton Manning to WR Marvin Harrison for the only score of the quarter. Already banged up on defense, the Patriots lost SS Rodney Harrison to a shoulder injury in the first quarter, and he never returned to the game. The second quarter was a lot more eventful after two scores by Patriots RB Corey Dillon, a TD run by Colts rookie RB Joseph Addai, and a field goal by Colts kicker Adam Vinatieri. The Patriots played from behind for the rest of the game and could not catch up to the Colts. Patriots QB Tom Brady was intercepted four times in the defeat, and Colts LB Cato June intercepted two of those passes. Also of note, Colts WR Marvin Harrison had 8 catches in the game for 145 yards and two touchdowns. The victory marked the Colts' second straight versus the Patriots after having lost the previous six. With the win, the Colts became just the second team in NFL history to begin consecutive seasons 8-0 (the Green Bay Packers began three consecutive seasons 8-0 from 1929 to 1931). Also, with 326 yards passing QB Peyton Manning has thrown for over 300 yards in three consecutive games for the first time in his career.",
-        "original_question": "Who scored the only touchdown in the first quarter?",
+        "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
+        "original_question": "Who had more casualties, the Colonists or the Abenakis?",
         "original_answer_data": {
           "spans": [
-            "Marvin Harrison"
+            "Abenakis"
           ],
           "types": [
             "span"
           ]
         },
-        "line_number": 251
+        "line_number": 293
       }
     },
     {
-      "question": "PASSAGE: Hoping for their first win of the season, the Buccaneers flew to Lincoln Financial Field for a Week 5 duel with the Philadelphia Eagles.  Tampa Bay would immediately trail in the first quarter as Eagles quarterback Donovan McNabb hooked up with wide receiver Jeremy Maclin on a 51-yard touchdown pass.  Philadelphia would increase their lead in the second quarter with McNabb completing a 20-yard touchdown pass to fullback Leonard Weaver.  The Buccaneers would get on the board with quarterback Josh Johnson's 9-yard touchdown pass to tight end Kellen Winslow, but the Eagles would close out the first half with McNabb finding Maclin again on a 40-yard touchdown 40-yard touchdown pass. In the third quarter, Philadelphia would increase their lead with running back Brian Westbrook getting a 7-yard touchdown run.  The Eagles would then start off the fourth quarter with kicker David Akers nailing a 44-yard field goal.  Tampa Bay tried to rally as Johnson connected with Winslow again on a 9-yard touchdown pass, but Philadelphia closed out the game with defensive end Darren Howard tackling running back Cadillac Williams in his endzone for a safety.\n\nQUESTION: Which team failed to score in the first quarter?",
-      "answer": "Tampa Bay",
+      "question": "PASSAGE: Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.\n\nQUESTION: Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
+      "answer": "Sydney",
       "id": "example_88",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Hoping for their first win of the season, the Buccaneers flew to Lincoln Financial Field for a Week 5 duel with the Philadelphia Eagles.  Tampa Bay would immediately trail in the first quarter as Eagles quarterback Donovan McNabb hooked up with wide receiver Jeremy Maclin on a 51-yard touchdown pass.  Philadelphia would increase their lead in the second quarter with McNabb completing a 20-yard touchdown pass to fullback Leonard Weaver.  The Buccaneers would get on the board with quarterback Josh Johnson's 9-yard touchdown pass to tight end Kellen Winslow, but the Eagles would close out the first half with McNabb finding Maclin again on a 40-yard touchdown 40-yard touchdown pass. In the third quarter, Philadelphia would increase their lead with running back Brian Westbrook getting a 7-yard touchdown run.  The Eagles would then start off the fourth quarter with kicker David Akers nailing a 44-yard field goal.  Tampa Bay tried to rally as Johnson connected with Winslow again on a 9-yard touchdown pass, but Philadelphia closed out the game with defensive end Darren Howard tackling running back Cadillac Williams in his endzone for a safety.",
-        "original_question": "Which team failed to score in the first quarter?",
+        "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
+        "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
         "original_answer_data": {
           "spans": [
-            "Tampa Bay"
+            "Sydney"
           ],
           "types": [
             "span"
           ]
         },
-        "line_number": 653
+        "line_number": 538
       }
     },
     {
-      "question": "PASSAGE: Coming off their commanding road win over the Browns, the Cowboys played their Week 2 home opener under the MNF spotlight.  In the last MNF game at Texas Stadium, Dallas would duel with their NFC East foe, the Philadelphia Eagles.  In the first quarter, the Cowboys trailed early as Eagles kicker David Akers got a 34-yard field goal.  Dallas would answer in their first possession with QB Tony Romo completing a 72-yard TD pass to WR Terrell Owens.  Philadelphia replied with Akers kicking a 44-yard field goal, yet the 'Boys immediately added to their lead with rookie RB Felix Jones returning a kickoff 98 yards for a touchdown. The Eagles would take the lead with QB Donovan McNabb completing a 6-yard TD pass to RB Brian Westbrook, along with LB Chris Gocong recovering a Romo fumble in the Cowboys' endzone for a touchdown.  Dallas immediately responded with Romo and Owens hooking up with each other again on a 4-yard TD pass. On Philadelphia's next drive, the referees made two suspect decisions. The first was a non-call on a very obvious facemask on Brian Westbrook that would have given the Eagles a first down. The next call in question was a 40-yard passing interference penalty on Anthony Henry. Replays showed that it was Greg Lewis who grabbed Henry's jersey and pulled him down, not the other way around. With that decision, the Eagles were awarded a first down on the 1-yard line. Westbrook immediately ran it in for a 1-yard TD. On their next possession, Akers' hit a 22-yard field goal. To make the game the highest scoring half ever on MNF, the Cowboys ended the half with kicker Nick Folk getting a 51-yard field goal, bringing the total points for both teams to 54. In the third quarter, the 'Boys regained the lead with Romo's 17-yard TD pass to RB Marion Barber. In the fourth quarter, the Eagles once again took the lead with Westbrook's 1-yard TD run.  Afterwards, the Cowboys rallied with Folk nailing a 47-yard field goal and Barber getting a 1-yard TD run. The Eagles had a chance for a game-winning drive, but Dallas' defense stiffened for the victory, sacking the very elusive McNabb twice. In a game that had 9 lead changes, it also set different point records, including most first half points in MNF history (54) and most combined points in the rivalry's history (78). Also, Terrell Owens (3 receptions for 89 yards and 2 touchdowns) reached 132 career touchdown catches, placing him 2nd on the NFL's all-time touchdown receptions list (behind only Jerry Rice's record of 197).\n\nQUESTION: Who threw the longest touchdown pass of the game?",
-      "answer": "Tony Romo",
+      "question": "PASSAGE:  Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.\n\nQUESTION: How many yards was Mike Nugent's longest field goal in the fourth quarter?",
+      "answer": "38-yard",
       "id": "example_89",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Coming off their commanding road win over the Browns, the Cowboys played their Week 2 home opener under the MNF spotlight.  In the last MNF game at Texas Stadium, Dallas would duel with their NFC East foe, the Philadelphia Eagles.  In the first quarter, the Cowboys trailed early as Eagles kicker David Akers got a 34-yard field goal.  Dallas would answer in their first possession with QB Tony Romo completing a 72-yard TD pass to WR Terrell Owens.  Philadelphia replied with Akers kicking a 44-yard field goal, yet the 'Boys immediately added to their lead with rookie RB Felix Jones returning a kickoff 98 yards for a touchdown. The Eagles would take the lead with QB Donovan McNabb completing a 6-yard TD pass to RB Brian Westbrook, along with LB Chris Gocong recovering a Romo fumble in the Cowboys' endzone for a touchdown.  Dallas immediately responded with Romo and Owens hooking up with each other again on a 4-yard TD pass. On Philadelphia's next drive, the referees made two suspect decisions. The first was a non-call on a very obvious facemask on Brian Westbrook that would have given the Eagles a first down. The next call in question was a 40-yard passing interference penalty on Anthony Henry. Replays showed that it was Greg Lewis who grabbed Henry's jersey and pulled him down, not the other way around. With that decision, the Eagles were awarded a first down on the 1-yard line. Westbrook immediately ran it in for a 1-yard TD. On their next possession, Akers' hit a 22-yard field goal. To make the game the highest scoring half ever on MNF, the Cowboys ended the half with kicker Nick Folk getting a 51-yard field goal, bringing the total points for both teams to 54. In the third quarter, the 'Boys regained the lead with Romo's 17-yard TD pass to RB Marion Barber. In the fourth quarter, the Eagles once again took the lead with Westbrook's 1-yard TD run.  Afterwards, the Cowboys rallied with Folk nailing a 47-yard field goal and Barber getting a 1-yard TD run. The Eagles had a chance for a game-winning drive, but Dallas' defense stiffened for the victory, sacking the very elusive McNabb twice. In a game that had 9 lead changes, it also set different point records, including most first half points in MNF history (54) and most combined points in the rivalry's history (78). Also, Terrell Owens (3 receptions for 89 yards and 2 touchdowns) reached 132 career touchdown catches, placing him 2nd on the NFL's all-time touchdown receptions list (behind only Jerry Rice's record of 197).",
-        "original_question": "Who threw the longest touchdown pass of the game?",
+        "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
+        "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
         "original_answer_data": {
           "spans": [
-            "Tony Romo"
+            "38-yard"
           ],
           "types": [
             "span"
           ]
         },
-        "line_number": 769
+        "line_number": 24
       }
     },
     {
-      "question": "PASSAGE: The Ottoman order of battle when the war broke out constituted a total of 12,024 officers; 324,718 other ranks; 47,960 animals; 2,318 artillery pieces, and 388 machine guns. From these a total 920 officers and 42,607 men had been assigned in non-divisional units and services, the remaining 293,206 officers and men were assigned into four Armies. Opposing them and in continuation of their secret prewar settlements of expansion, the three Slavic allies  had extensive plans to coordinate their war efforts: the Serbs and Montenegrins in the theater of Sand\u017eak, the Bulgarians and Serbs in the Macedonian and Bulgaria alone in the Thracian theater. The bulk of the Bulgarian forces  was to attack Thrace, pitted against the Thracian Ottoman Army of 96,273 men and about 26,000 garrison troops or about 115,000 in total, according to Hall's, Erickson's and the Turkish Gen. Staff's 1993 studies. The remaining Ottoman army of about 200,000 was located in Macedonia, pitted against the Serbian  and Greek  armies. It was divided into the Vardar and Macedonian Ottoman armies, with independent static guards around the fortress cities of Ioannina  and Shkod\u00ebr .\n\nQUESTION: How many of the Slavic allies were left by themselves?",
-      "answer": "1",
+      "question": "PASSAGE: After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.\n\nQUESTION: How many yards total did Artose Pinner run for touchdowns in the first quarter?",
+      "answer": "7",
       "id": "example_90",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "The Ottoman order of battle when the war broke out constituted a total of 12,024 officers; 324,718 other ranks; 47,960 animals; 2,318 artillery pieces, and 388 machine guns. From these a total 920 officers and 42,607 men had been assigned in non-divisional units and services, the remaining 293,206 officers and men were assigned into four Armies. Opposing them and in continuation of their secret prewar settlements of expansion, the three Slavic allies  had extensive plans to coordinate their war efforts: the Serbs and Montenegrins in the theater of Sand\u017eak, the Bulgarians and Serbs in the Macedonian and Bulgaria alone in the Thracian theater. The bulk of the Bulgarian forces  was to attack Thrace, pitted against the Thracian Ottoman Army of 96,273 men and about 26,000 garrison troops or about 115,000 in total, according to Hall's, Erickson's and the Turkish Gen. Staff's 1993 studies. The remaining Ottoman army of about 200,000 was located in Macedonia, pitted against the Serbian  and Greek  armies. It was divided into the Vardar and Macedonian Ottoman armies, with independent static guards around the fortress cities of Ioannina  and Shkod\u00ebr .",
-        "original_question": "How many of the Slavic allies were left by themselves?",
+        "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
+        "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
         "original_answer_data": {
           "spans": [
-            "1"
+            "7"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 670
-      }
-    },
-    {
-      "question": "PASSAGE: Still searching for their first win of the season, the Chiefs flew to Lincoln Financial Field for a Week 3 interconference duel with the Philadelphia Eagles. Kansas City would trail early in the first quarter as Eagles running back LeSean McCoy got a 5-yard touchdown run and quarterback Kevin Kolb got a 1-yard touchdown run. The Chiefs would get on the board with quarterback Matt Cassel's 13-yard touchdown pass to wide receiver Mark Bradley, but Philadelphia came right back with Kolb's 64-yard touchdown pass to wide receiver DeSean Jackson and kicker David Akers' 29-yard field goal. Kansas City's deficit would increase as Akers nailed a 38-yard field goal in the third quarter. In the fourth quarter, the Eagles would put the game away with Kolb's 35-yard touchdown pass to tight end Brent Celek. Afterwards, the Chiefs would end the game with Cassel's 9-yard touchdown pass to wide receiver Bobby Wade.\n\nQUESTION: Which touchdown passes did Matt Cassel make?",
-      "answer": "13-yard",
-      "id": "example_91",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Still searching for their first win of the season, the Chiefs flew to Lincoln Financial Field for a Week 3 interconference duel with the Philadelphia Eagles. Kansas City would trail early in the first quarter as Eagles running back LeSean McCoy got a 5-yard touchdown run and quarterback Kevin Kolb got a 1-yard touchdown run. The Chiefs would get on the board with quarterback Matt Cassel's 13-yard touchdown pass to wide receiver Mark Bradley, but Philadelphia came right back with Kolb's 64-yard touchdown pass to wide receiver DeSean Jackson and kicker David Akers' 29-yard field goal. Kansas City's deficit would increase as Akers nailed a 38-yard field goal in the third quarter. In the fourth quarter, the Eagles would put the game away with Kolb's 35-yard touchdown pass to tight end Brent Celek. Afterwards, the Chiefs would end the game with Cassel's 9-yard touchdown pass to wide receiver Bobby Wade.",
-        "original_question": "Which touchdown passes did Matt Cassel make?",
-        "original_answer_data": {
-          "spans": [
-            "13-yard",
-            "9-yard"
-          ],
-          "types": [
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 129
-      }
-    },
-    {
-      "question": "PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers.  In the first quarter, it was all Packers as Aaron Rodgers found Jermichael Finley on a 10-yard pass taking a 7-0 lead followed up by Eddie Lacy running for a 1-yard touchdown for a 14-0 lead.  In the second quarter, the Browns got on the board as Billy Cundiff kicked a 46-yard field goal 14-3 game.  Though the Packers moved ahead by 2 touchdowns at halftime when Mason Crosby nailed a 26-yard field goal for a 17-3 game.  In the third quarter, the Browns would score the only points when Cundiff kicked another field goal this time from 44 yards out for a 17-6 game.  In the fourth quarter, the Packers went back to work as Rodgers found Jordy Nelson on a 1-yard pass for a 24-6 game.  The Browns came within 11 again as Brandon Weeden found Jordan Cameron on a 2-yard pass for a 24-13 game.  The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n\nQUESTION: How many points were the Packers winning by at halftime?",
-      "answer": "14",
-      "id": "example_92",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "After a tough loss at home, the Browns traveled to take on the Packers.  In the first quarter, it was all Packers as Aaron Rodgers found Jermichael Finley on a 10-yard pass taking a 7-0 lead followed up by Eddie Lacy running for a 1-yard touchdown for a 14-0 lead.  In the second quarter, the Browns got on the board as Billy Cundiff kicked a 46-yard field goal 14-3 game.  Though the Packers moved ahead by 2 touchdowns at halftime when Mason Crosby nailed a 26-yard field goal for a 17-3 game.  In the third quarter, the Browns would score the only points when Cundiff kicked another field goal this time from 44 yards out for a 17-6 game.  In the fourth quarter, the Packers went back to work as Rodgers found Jordy Nelson on a 1-yard pass for a 24-6 game.  The Browns came within 11 again as Brandon Weeden found Jordan Cameron on a 2-yard pass for a 24-13 game.  The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.",
-        "original_question": "How many points were the Packers winning by at halftime?",
-        "original_answer_data": {
-          "spans": [
-            "14"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 637
-      }
-    },
-    {
-      "question": "PASSAGE: Hoping to shake off their home loss to 49ers, the Lions traveled to the University of Phoenix Stadium for a match-up with the Arizona Cardinals.  After a scoreless first quarter, the Lions trailed early as QB Matt Leinart hooked up with WR Bryant Johnson on a 2-yard TD pass, while kicker Neil Rackers kicked a 36-yard field goal.  In the third quarter, things got more complicated for Detroit as Leinart ran the ball in on a 9-yard TD run.  The Lions would finally get on the board with kicker Jason Hanson nailing a 32-yard field goal.  In the fourth quarter, even though Detroit would get a 2-yard TD run by RB Arlen Harris, Arizona's defense held the Lions long enough for the win.  With the loss, Detroit would fall to 2-8.\n\nQUESTION: How many yards longer was Neil Rackers' field goal than Jason Hanson's field goal?",
-      "answer": "4",
-      "id": "example_93",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to shake off their home loss to 49ers, the Lions traveled to the University of Phoenix Stadium for a match-up with the Arizona Cardinals.  After a scoreless first quarter, the Lions trailed early as QB Matt Leinart hooked up with WR Bryant Johnson on a 2-yard TD pass, while kicker Neil Rackers kicked a 36-yard field goal.  In the third quarter, things got more complicated for Detroit as Leinart ran the ball in on a 9-yard TD run.  The Lions would finally get on the board with kicker Jason Hanson nailing a 32-yard field goal.  In the fourth quarter, even though Detroit would get a 2-yard TD run by RB Arlen Harris, Arizona's defense held the Lions long enough for the win.  With the loss, Detroit would fall to 2-8.",
-        "original_question": "How many yards longer was Neil Rackers' field goal than Jason Hanson's field goal?",
-        "original_answer_data": {
-          "spans": [
-            "4"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 991
-      }
-    },
-    {
-      "question": "PASSAGE: In 2016, Thailands 5.81 million people lived in poverty, or 11.6 million people (17.2% of population) if \"near poor\" is included. Proportion of the poor relative to total population in each region was 12.96% in the Northeast, 12.35% in the South, and 9.83% in the North. In 2017, there were 14 million people who applied for social welfare (yearly income of less than \u0e3f100,000 was required). At the end of 2017, Thailands total household debt was \u0e3f11.76 trillion. In 2010, 3% of all household were bankrupt. In 2016, there were estimated 30,000 homeless persons in the country.\n\nQUESTION: Which area had the highest percentage of the population that was poor relative to the total population?",
-      "answer": "the Northeast",
-      "id": "example_94",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In 2016, Thailands 5.81 million people lived in poverty, or 11.6 million people (17.2% of population) if \"near poor\" is included. Proportion of the poor relative to total population in each region was 12.96% in the Northeast, 12.35% in the South, and 9.83% in the North. In 2017, there were 14 million people who applied for social welfare (yearly income of less than \u0e3f100,000 was required). At the end of 2017, Thailands total household debt was \u0e3f11.76 trillion. In 2010, 3% of all household were bankrupt. In 2016, there were estimated 30,000 homeless persons in the country.",
-        "original_question": "Which area had the highest percentage of the population that was poor relative to the total population?",
-        "original_answer_data": {
-          "spans": [
-            "the Northeast"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 342
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off their win over the Chargers, the Bills flew to Dolphin Stadium for a Week 8 AFC East duel with the Miami Dolphins.  In the first quarter, Buffalo trailed early as Dolphins QB Chad Pennington completed a 2-yard TD pass to TE Anthony Fasano.  The Bills responded with kicker Rian Lindell getting a 19-yard field goal.  In the second quarter, Buffalo took the lead as Lindell got a 43-yard and a 47-yard field goal. In the third quarter, the Bills increased their lead as RB Marshawn Lynch got an 8-yard TD run.  However, Miami began to respond as kicker Dan Carpenter got a 43-yard field goal, while RB Ricky Williams got a 3-yard TD run.  In the fourth quarter, the Dolphins sealed Buffalo's fate as Carpenter made a 45-yard field goal, LB Joey Porter causing QB Trent Edwards to fumble the ball in his own endzone (leading to a safety), and Carpenter nailing a 35-yard field goal.\n\nQUESTION: Which kicker had fewer total yards?",
-      "answer": "Rian Lindell",
-      "id": "example_95",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their win over the Chargers, the Bills flew to Dolphin Stadium for a Week 8 AFC East duel with the Miami Dolphins.  In the first quarter, Buffalo trailed early as Dolphins QB Chad Pennington completed a 2-yard TD pass to TE Anthony Fasano.  The Bills responded with kicker Rian Lindell getting a 19-yard field goal.  In the second quarter, Buffalo took the lead as Lindell got a 43-yard and a 47-yard field goal. In the third quarter, the Bills increased their lead as RB Marshawn Lynch got an 8-yard TD run.  However, Miami began to respond as kicker Dan Carpenter got a 43-yard field goal, while RB Ricky Williams got a 3-yard TD run.  In the fourth quarter, the Dolphins sealed Buffalo's fate as Carpenter made a 45-yard field goal, LB Joey Porter causing QB Trent Edwards to fumble the ball in his own endzone (leading to a safety), and Carpenter nailing a 35-yard field goal.",
-        "original_question": "Which kicker had fewer total yards?",
-        "original_answer_data": {
-          "spans": [
-            "Rian Lindell"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 308
+        "line_number": 694
       }
     }
   ],
   "samples_metadata": [
     {
       "source": "jsonl_dataset",
-      "original_passage": "The Packers lost Aaron Rodgers to a shoulder injury early in the game after he took a big hit from Minnesota linebacker Anthony Barr. It was later revealed that he suffered a broken right collarbone and the injury could end his 2017 season. Brett Hundley threw one touchdown, but also threw three costly interceptions, in relief of Rodgers as the Packers took a 23-10 loss. After the game, Mike McCarthy announced that due to Rodgers' injury, Hundley will be given the starting quarterback position \"indefinitely.\"",
-      "original_question": "How many points did they win by?",
+      "original_passage": "In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:",
+      "original_question": "King Tancred of Sicily seized power from who?",
       "original_answer_data": {
         "spans": [
-          "13"
+          "Queen Joan"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 909
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
+      "original_question": "Who had more casualties, the Colonists or the Abenakis?",
+      "original_answer_data": {
+        "spans": [
+          "Abenakis"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 293
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
+      "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
+      "original_answer_data": {
+        "spans": [
+          "Sydney"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 538
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
+      "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
+      "original_answer_data": {
+        "spans": [
+          "38-yard"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 24
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
+      "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
+      "original_answer_data": {
+        "spans": [
+          "7"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 451
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Colts headed to Gillette Stadium for a highly anticipated Sunday Night Football matchup with the New England Patriots in Week 9. In the first quarter, an interception in the end zone by Colts rookie FS Antoine Bethea set up the Colts' first scoring drive, a 68-yard march that ended with a 5-yard touchdown pass from QB Peyton Manning to WR Marvin Harrison for the only score of the quarter. Already banged up on defense, the Patriots lost SS Rodney Harrison to a shoulder injury in the first quarter, and he never returned to the game. The second quarter was a lot more eventful after two scores by Patriots RB Corey Dillon, a TD run by Colts rookie RB Joseph Addai, and a field goal by Colts kicker Adam Vinatieri. The Patriots played from behind for the rest of the game and could not catch up to the Colts. Patriots QB Tom Brady was intercepted four times in the defeat, and Colts LB Cato June intercepted two of those passes. Also of note, Colts WR Marvin Harrison had 8 catches in the game for 145 yards and two touchdowns. The victory marked the Colts' second straight versus the Patriots after having lost the previous six. With the win, the Colts became just the second team in NFL history to begin consecutive seasons 8-0 (the Green Bay Packers began three consecutive seasons 8-0 from 1929 to 1931). Also, with 326 yards passing QB Peyton Manning has thrown for over 300 yards in three consecutive games for the first time in his career.",
-      "original_question": "Who scored the only touchdown in the first quarter?",
-      "original_answer_data": {
-        "spans": [
-          "Marvin Harrison"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 251
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping for their first win of the season, the Buccaneers flew to Lincoln Financial Field for a Week 5 duel with the Philadelphia Eagles.  Tampa Bay would immediately trail in the first quarter as Eagles quarterback Donovan McNabb hooked up with wide receiver Jeremy Maclin on a 51-yard touchdown pass.  Philadelphia would increase their lead in the second quarter with McNabb completing a 20-yard touchdown pass to fullback Leonard Weaver.  The Buccaneers would get on the board with quarterback Josh Johnson's 9-yard touchdown pass to tight end Kellen Winslow, but the Eagles would close out the first half with McNabb finding Maclin again on a 40-yard touchdown 40-yard touchdown pass. In the third quarter, Philadelphia would increase their lead with running back Brian Westbrook getting a 7-yard touchdown run.  The Eagles would then start off the fourth quarter with kicker David Akers nailing a 44-yard field goal.  Tampa Bay tried to rally as Johnson connected with Winslow again on a 9-yard touchdown pass, but Philadelphia closed out the game with defensive end Darren Howard tackling running back Cadillac Williams in his endzone for a safety.",
-      "original_question": "Which team failed to score in the first quarter?",
-      "original_answer_data": {
-        "spans": [
-          "Tampa Bay"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 653
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their commanding road win over the Browns, the Cowboys played their Week 2 home opener under the MNF spotlight.  In the last MNF game at Texas Stadium, Dallas would duel with their NFC East foe, the Philadelphia Eagles.  In the first quarter, the Cowboys trailed early as Eagles kicker David Akers got a 34-yard field goal.  Dallas would answer in their first possession with QB Tony Romo completing a 72-yard TD pass to WR Terrell Owens.  Philadelphia replied with Akers kicking a 44-yard field goal, yet the 'Boys immediately added to their lead with rookie RB Felix Jones returning a kickoff 98 yards for a touchdown. The Eagles would take the lead with QB Donovan McNabb completing a 6-yard TD pass to RB Brian Westbrook, along with LB Chris Gocong recovering a Romo fumble in the Cowboys' endzone for a touchdown.  Dallas immediately responded with Romo and Owens hooking up with each other again on a 4-yard TD pass. On Philadelphia's next drive, the referees made two suspect decisions. The first was a non-call on a very obvious facemask on Brian Westbrook that would have given the Eagles a first down. The next call in question was a 40-yard passing interference penalty on Anthony Henry. Replays showed that it was Greg Lewis who grabbed Henry's jersey and pulled him down, not the other way around. With that decision, the Eagles were awarded a first down on the 1-yard line. Westbrook immediately ran it in for a 1-yard TD. On their next possession, Akers' hit a 22-yard field goal. To make the game the highest scoring half ever on MNF, the Cowboys ended the half with kicker Nick Folk getting a 51-yard field goal, bringing the total points for both teams to 54. In the third quarter, the 'Boys regained the lead with Romo's 17-yard TD pass to RB Marion Barber. In the fourth quarter, the Eagles once again took the lead with Westbrook's 1-yard TD run.  Afterwards, the Cowboys rallied with Folk nailing a 47-yard field goal and Barber getting a 1-yard TD run. The Eagles had a chance for a game-winning drive, but Dallas' defense stiffened for the victory, sacking the very elusive McNabb twice. In a game that had 9 lead changes, it also set different point records, including most first half points in MNF history (54) and most combined points in the rivalry's history (78). Also, Terrell Owens (3 receptions for 89 yards and 2 touchdowns) reached 132 career touchdown catches, placing him 2nd on the NFL's all-time touchdown receptions list (behind only Jerry Rice's record of 197).",
-      "original_question": "Who threw the longest touchdown pass of the game?",
-      "original_answer_data": {
-        "spans": [
-          "Tony Romo"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 769
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Ottoman order of battle when the war broke out constituted a total of 12,024 officers; 324,718 other ranks; 47,960 animals; 2,318 artillery pieces, and 388 machine guns. From these a total 920 officers and 42,607 men had been assigned in non-divisional units and services, the remaining 293,206 officers and men were assigned into four Armies. Opposing them and in continuation of their secret prewar settlements of expansion, the three Slavic allies  had extensive plans to coordinate their war efforts: the Serbs and Montenegrins in the theater of Sand\u017eak, the Bulgarians and Serbs in the Macedonian and Bulgaria alone in the Thracian theater. The bulk of the Bulgarian forces  was to attack Thrace, pitted against the Thracian Ottoman Army of 96,273 men and about 26,000 garrison troops or about 115,000 in total, according to Hall's, Erickson's and the Turkish Gen. Staff's 1993 studies. The remaining Ottoman army of about 200,000 was located in Macedonia, pitted against the Serbian  and Greek  armies. It was divided into the Vardar and Macedonian Ottoman armies, with independent static guards around the fortress cities of Ioannina  and Shkod\u00ebr .",
-      "original_question": "How many of the Slavic allies were left by themselves?",
-      "original_answer_data": {
-        "spans": [
-          "1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 670
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Still searching for their first win of the season, the Chiefs flew to Lincoln Financial Field for a Week 3 interconference duel with the Philadelphia Eagles. Kansas City would trail early in the first quarter as Eagles running back LeSean McCoy got a 5-yard touchdown run and quarterback Kevin Kolb got a 1-yard touchdown run. The Chiefs would get on the board with quarterback Matt Cassel's 13-yard touchdown pass to wide receiver Mark Bradley, but Philadelphia came right back with Kolb's 64-yard touchdown pass to wide receiver DeSean Jackson and kicker David Akers' 29-yard field goal. Kansas City's deficit would increase as Akers nailed a 38-yard field goal in the third quarter. In the fourth quarter, the Eagles would put the game away with Kolb's 35-yard touchdown pass to tight end Brent Celek. Afterwards, the Chiefs would end the game with Cassel's 9-yard touchdown pass to wide receiver Bobby Wade.",
-      "original_question": "Which touchdown passes did Matt Cassel make?",
-      "original_answer_data": {
-        "spans": [
-          "13-yard",
-          "9-yard"
-        ],
-        "types": [
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 129
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "After a tough loss at home, the Browns traveled to take on the Packers.  In the first quarter, it was all Packers as Aaron Rodgers found Jermichael Finley on a 10-yard pass taking a 7-0 lead followed up by Eddie Lacy running for a 1-yard touchdown for a 14-0 lead.  In the second quarter, the Browns got on the board as Billy Cundiff kicked a 46-yard field goal 14-3 game.  Though the Packers moved ahead by 2 touchdowns at halftime when Mason Crosby nailed a 26-yard field goal for a 17-3 game.  In the third quarter, the Browns would score the only points when Cundiff kicked another field goal this time from 44 yards out for a 17-6 game.  In the fourth quarter, the Packers went back to work as Rodgers found Jordy Nelson on a 1-yard pass for a 24-6 game.  The Browns came within 11 again as Brandon Weeden found Jordan Cameron on a 2-yard pass for a 24-13 game.  The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.",
-      "original_question": "How many points were the Packers winning by at halftime?",
-      "original_answer_data": {
-        "spans": [
-          "14"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 637
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to shake off their home loss to 49ers, the Lions traveled to the University of Phoenix Stadium for a match-up with the Arizona Cardinals.  After a scoreless first quarter, the Lions trailed early as QB Matt Leinart hooked up with WR Bryant Johnson on a 2-yard TD pass, while kicker Neil Rackers kicked a 36-yard field goal.  In the third quarter, things got more complicated for Detroit as Leinart ran the ball in on a 9-yard TD run.  The Lions would finally get on the board with kicker Jason Hanson nailing a 32-yard field goal.  In the fourth quarter, even though Detroit would get a 2-yard TD run by RB Arlen Harris, Arizona's defense held the Lions long enough for the win.  With the loss, Detroit would fall to 2-8.",
-      "original_question": "How many yards longer was Neil Rackers' field goal than Jason Hanson's field goal?",
-      "original_answer_data": {
-        "spans": [
-          "4"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 991
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In 2016, Thailands 5.81 million people lived in poverty, or 11.6 million people (17.2% of population) if \"near poor\" is included. Proportion of the poor relative to total population in each region was 12.96% in the Northeast, 12.35% in the South, and 9.83% in the North. In 2017, there were 14 million people who applied for social welfare (yearly income of less than \u0e3f100,000 was required). At the end of 2017, Thailands total household debt was \u0e3f11.76 trillion. In 2010, 3% of all household were bankrupt. In 2016, there were estimated 30,000 homeless persons in the country.",
-      "original_question": "Which area had the highest percentage of the population that was poor relative to the total population?",
-      "original_answer_data": {
-        "spans": [
-          "the Northeast"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 342
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their win over the Chargers, the Bills flew to Dolphin Stadium for a Week 8 AFC East duel with the Miami Dolphins.  In the first quarter, Buffalo trailed early as Dolphins QB Chad Pennington completed a 2-yard TD pass to TE Anthony Fasano.  The Bills responded with kicker Rian Lindell getting a 19-yard field goal.  In the second quarter, Buffalo took the lead as Lindell got a 43-yard and a 47-yard field goal. In the third quarter, the Bills increased their lead as RB Marshawn Lynch got an 8-yard TD run.  However, Miami began to respond as kicker Dan Carpenter got a 43-yard field goal, while RB Ricky Williams got a 3-yard TD run.  In the fourth quarter, the Dolphins sealed Buffalo's fate as Carpenter made a 45-yard field goal, LB Joey Porter causing QB Trent Edwards to fumble the ball in his own endzone (leading to a safety), and Carpenter nailing a 35-yard field goal.",
-      "original_question": "Which kicker had fewer total yards?",
-      "original_answer_data": {
-        "spans": [
-          "Rian Lindell"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 308
+      "line_number": 694
     }
   ],
   "example_indices": [
@@ -351,429 +182,311 @@
     87,
     88,
     89,
-    90,
-    91,
-    92,
-    93,
-    94,
-    95
+    90
   ],
   "results": [
     {
       "success": true,
-      "answer": "23 - 10 = 13 points",
-      "output": "ANSWER_START\n23 - 10 = 13 points\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_11.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer shows the calculation and arrives at the correct answer of 13, which matches the golden answer."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Marvin Harrison",
-      "output": "ANSWER_START\nMarvin Harrison\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_11.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are exactly the same."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Philadelphia Eagles scored in the first quarter, so the Tampa Bay Buccaneers failed to score in the first quarter.",
-      "output": "ANSWER_START\nPhiladelphia Eagles scored in the first quarter, so the Tampa Bay Buccaneers failed to score in the first quarter.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_11.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer states that the Philadelphia Eagles scored in the first quarter, implying that the Tampa Bay Buccaneers did not score in the first quarter. Therefore, the golden answer of \"Tampa Bay\" is the correct answer, given that it failed to score in the first quarter."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Tony Romo",
-      "output": "ANSWER_START\nTony Romo\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_11.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are identical and convey the same information."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "1",
-      "output": "ANSWER_START\n1\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_11.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are exactly the same numerical value."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Matt Cassel's touchdown pass to wide receiver Mark Bradley, Cassel's touchdown pass to wide receiver Bobby Wade",
-      "output": "ANSWER_START\nMatt Cassel's touchdown pass to wide receiver Mark Bradley, Cassel's touchdown pass to wide receiver Bobby Wade\n\nANSWER_END\n",
+      "answer": "King William II of Sicily",
+      "output": "Clarified question: From whom did King Tancred of Sicily seize power, according to the provided passage?\n\nExtracted info: King William II of Sicily\n\nANSWER_START\nKing William II of Sicily\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_11.jsonl",
       "evaluation": {
         "match": false,
-        "confidence": 0,
-        "explanation": "The system answer lists players and types of plays, while the golden answer gives a number in yards. These are not semantically similar."
+        "confidence": 1,
+        "explanation": "The two answers refer to different individuals; King William II of Sicily is not the same person as Queen Joan."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "17 - 3 = 14 points",
-      "output": "ANSWER_START\n17 - 3 = 14 points\n\nANSWER_END\n",
+      "answer": "The Abenakis suffered a greater number of deaths.",
+      "output": "Clarified question: Which side, the Colonists or the Abenakis, suffered a greater number of deaths in the conflict described in the passage?\n\nExtracted info: Colonists: two militiamen and one Mohawk\nAbenakis: Rale, a leading chief, and nearly two dozen women and children. At least 31 chose to fight, and most of them were killed.\n\nANSWER_START\nThe Abenakis suffered a greater number of deaths.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_11.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer provides the equation leading to the answer 14, which is the same as the golden answer."
+        "explanation": "The system answer implies that the Abenakis suffered more, which is the same as saying 'Abenakis' as the answer."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "36 - 32 = 4 yards",
-      "output": "ANSWER_START\n36 - 32 = 4 yards\n\nANSWER_END\n",
+      "answer": "Yes, Sydney's manufacturing output exceeded Melbourne's in 2013.",
+      "output": "Clarified question: In 2013, did Sydney's manufacturing output exceed Melbourne's manufacturing output, according to the information provided in the passage?\n\nExtracted info: Sydney's manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion.\n\nANSWER_START\nYes, Sydney's manufacturing output exceeded Melbourne's in 2013.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_11.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer provides the correct calculation (36 - 32) which results in the golden answer of 4."
+        "explanation": "The system answer confirms Sydney exceeded Melbourne's manufacturing output, thus implying Sydney had the higher output, matching the golden answer 'Sydney'."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "Northeast",
-      "output": "ANSWER_START\nNortheast\n\nANSWER_END\n",
+      "answer": "38 yards",
+      "output": "Clarified question: What was the distance, in yards, of the longest field goal made by Mike Nugent during the fourth quarter of the Bengals-Ravens game described in the passage?\n\nExtracted info: 38\n\nANSWER_START\n38 yards\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_11.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers refer to the same region, with the golden answer simply including the definite article 'the'."
+        "explanation": "The answers are semantically equivalent, both referring to a length of 38 yards."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "Rian Lindell: 19 + 43 + 47 = 109 yards\nDan Carpenter: 43 + 45 + 35 = 123 yards\nRian Lindell had fewer total yards than Dan Carpenter.\nAnswer: Rian Lindell",
-      "output": "ANSWER_START\nRian Lindell: 19 + 43 + 47 = 109 yards\nDan Carpenter: 43 + 45 + 35 = 123 yards\nRian Lindell had fewer total yards than Dan Carpenter.\nAnswer: Rian Lindell\n\nANSWER_END\n",
+      "answer": "7 yards",
+      "output": "Clarified question: What was the sum of the yardage gained by Artose Pinner on his touchdown runs in the first quarter of the game described in the passage?\n\nExtracted info: 3-yard and a 4-yard TD run\n\nANSWER_START\n7 yards\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_11.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer correctly identifies Rian Lindell as the answer even though it provides additional information (calculations and comparisons)."
+        "explanation": "Both answers refer to the quantity 7. The system answer includes the unit 'yards', while the golden answer does not, but in the context of a numerical answer, the numerical value is the key information, and thus they are semantically equivalent."
       },
       "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.9,
-    "correct_count": 9,
-    "total_count": 10,
+    "accuracy": 0.8,
+    "correct_count": 4,
+    "total_count": 5,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "23 - 10 = 13 points",
-        "golden_answer": "13",
-        "output": "ANSWER_START\n23 - 10 = 13 points\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "King William II of Sicily",
+        "golden_answer": "Queen Joan",
+        "output": "Clarified question: From whom did King Tancred of Sicily seize power, according to the provided passage?\n\nExtracted info: King William II of Sicily\n\nANSWER_START\nKing William II of Sicily\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer shows the calculation and arrives at the correct answer of 13, which matches the golden answer."
-        }
+          "explanation": "The two answers refer to different individuals; King William II of Sicily is not the same person as Queen Joan."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "Marvin Harrison",
-        "golden_answer": "Marvin Harrison",
-        "output": "ANSWER_START\nMarvin Harrison\n\nANSWER_END\n",
+        "system_answer": "The Abenakis suffered a greater number of deaths.",
+        "golden_answer": "Abenakis",
+        "output": "Clarified question: Which side, the Colonists or the Abenakis, suffered a greater number of deaths in the conflict described in the passage?\n\nExtracted info: Colonists: two militiamen and one Mohawk\nAbenakis: Rale, a leading chief, and nearly two dozen women and children. At least 31 chose to fight, and most of them were killed.\n\nANSWER_START\nThe Abenakis suffered a greater number of deaths.\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are exactly the same."
+          "explanation": "The system answer implies that the Abenakis suffered more, which is the same as saying 'Abenakis' as the answer."
         }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "Philadelphia Eagles scored in the first quarter, so the Tampa Bay Buccaneers failed to score in the first quarter.",
-        "golden_answer": "Tampa Bay",
-        "output": "ANSWER_START\nPhiladelphia Eagles scored in the first quarter, so the Tampa Bay Buccaneers failed to score in the first quarter.\n\nANSWER_END\n",
+        "system_answer": "Yes, Sydney's manufacturing output exceeded Melbourne's in 2013.",
+        "golden_answer": "Sydney",
+        "output": "Clarified question: In 2013, did Sydney's manufacturing output exceed Melbourne's manufacturing output, according to the information provided in the passage?\n\nExtracted info: Sydney's manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion.\n\nANSWER_START\nYes, Sydney's manufacturing output exceeded Melbourne's in 2013.\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer states that the Philadelphia Eagles scored in the first quarter, implying that the Tampa Bay Buccaneers did not score in the first quarter. Therefore, the golden answer of \"Tampa Bay\" is the correct answer, given that it failed to score in the first quarter."
+          "explanation": "The system answer confirms Sydney exceeded Melbourne's manufacturing output, thus implying Sydney had the higher output, matching the golden answer 'Sydney'."
         }
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "Tony Romo",
-        "golden_answer": "Tony Romo",
-        "output": "ANSWER_START\nTony Romo\n\nANSWER_END\n",
+        "system_answer": "38 yards",
+        "golden_answer": "38-yard",
+        "output": "Clarified question: What was the distance, in yards, of the longest field goal made by Mike Nugent during the fourth quarter of the Bengals-Ravens game described in the passage?\n\nExtracted info: 38\n\nANSWER_START\n38 yards\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information."
+          "explanation": "The answers are semantically equivalent, both referring to a length of 38 yards."
         }
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "1",
-        "golden_answer": "1",
-        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "system_answer": "7 yards",
+        "golden_answer": "7",
+        "output": "Clarified question: What was the sum of the yardage gained by Artose Pinner on his touchdown runs in the first quarter of the game described in the passage?\n\nExtracted info: 3-yard and a 4-yard TD run\n\nANSWER_START\n7 yards\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are exactly the same numerical value."
-        }
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "Matt Cassel's touchdown pass to wide receiver Mark Bradley, Cassel's touchdown pass to wide receiver Bobby Wade",
-        "golden_answer": "13-yard",
-        "output": "ANSWER_START\nMatt Cassel's touchdown pass to wide receiver Mark Bradley, Cassel's touchdown pass to wide receiver Bobby Wade\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 0,
-          "explanation": "The system answer lists players and types of plays, while the golden answer gives a number in yards. These are not semantically similar."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "17 - 3 = 14 points",
-        "golden_answer": "14",
-        "output": "ANSWER_START\n17 - 3 = 14 points\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides the equation leading to the answer 14, which is the same as the golden answer."
-        }
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "36 - 32 = 4 yards",
-        "golden_answer": "4",
-        "output": "ANSWER_START\n36 - 32 = 4 yards\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides the correct calculation (36 - 32) which results in the golden answer of 4."
-        }
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "Northeast",
-        "golden_answer": "the Northeast",
-        "output": "ANSWER_START\nNortheast\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers refer to the same region, with the golden answer simply including the definite article 'the'."
-        }
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "Rian Lindell: 19 + 43 + 47 = 109 yards\nDan Carpenter: 43 + 45 + 35 = 123 yards\nRian Lindell had fewer total yards than Dan Carpenter.\nAnswer: Rian Lindell",
-        "golden_answer": "Rian Lindell",
-        "output": "ANSWER_START\nRian Lindell: 19 + 43 + 47 = 109 yards\nDan Carpenter: 43 + 45 + 35 = 123 yards\nRian Lindell had fewer total yards than Dan Carpenter.\nAnswer: Rian Lindell\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer correctly identifies Rian Lindell as the answer even though it provides additional information (calculations and comparisons)."
+          "explanation": "Both answers refer to the quantity 7. The system answer includes the unit 'yards', while the golden answer does not, but in the context of a numerical answer, the numerical value is the key information, and thus they are semantically equivalent."
         }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nNone found in the provided data.\n\n## STRENGTHS\n1.  **Arithmetic Reasoning:** The system performs well on questions involving simple arithmetic calculations, as demonstrated by success cases where it correctly calculates differences or sums and provides the answer.\n2.  **Information Extraction:** The system generally extracts relevant information from the passage to answer the question. This is shown in cases where it identifies the correct entities (people, teams, locations) mentioned in the passage.\n3.  **Step-by-Step Reasoning:** The system can successfully perform a logical chain of reasoning steps (as seen in sample 9) to compare the total yards made by two different kickers, and identify the person with fewer yards.\n\n## WEAKNESSES\n1.  **Semantic Understanding & Granularity of Answers:** The system sometimes provides answers that are not semantically similar to the golden answer, even when they relate to the same topic. The system tends to not provide answers at the correct granularity when units are needed, such as yards.\n2.  **Lack of contextual understanding and relationship extraction**: In some instances the system answer lists players and types of plays, when the golden answer gives a number in yards.\n\n## CRITICAL BOTTLENECKS\n1.  **Failure to provide answers at the right level of detail**. The system often misses the crucial step of extracting the 'yardage' value when the question specifically requires it.\n2.  **Missing nuanced semantic understanding**. The model fails when the correct answer is of a specific type (e.g., number of yards) and provides a different type of information (e.g., player names).\n\n## ERROR PATTERNS\nThe primary recurring pattern is the failure to provide answers at the correct level of granularity or specificity. The system provides information related to the question but fails to extract the exact detail requested. This often occurs when numerical values or units (e.g., yards) are involved.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to consistently provide answers at the correct level of detail requested by the question, particularly concerning numeric information and units of measurement.\n\n## IMPROVEMENT AREAS\n1.  **Fine-grained Answer Extraction:** Improve the ability to extract specific types of information, such as numerical values with units (e.g., \"13-yard\").\n2.  **Semantic Matching:** Enhance the system's semantic understanding to match the type of answer expected in the golden answer.\n3.  **Constraint application based on the question**: Improve the system such that it understands whether an answer is asking for who or how much (number or value), and constrain the answer based on that.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Introduce a Layered Question Understanding Module:** Implement a module that analyzes the question to determine the expected answer type (e.g., name, location, number with units). The module should explicitly identify the desired granularity.\n2.  **Train with Examples Focused on Granularity:** Augment the training data with examples where the difference between correct and incorrect answers hinges on the level of detail.\n3.  **Implement Post-processing Refinement:** Add a post-processing step that checks the answer type against the expected answer type and refines the answer if necessary. For example, if the question asks \"How many yards?\", the post-processing should check if the answer contains a number followed by \"yards\" and return the number, otherwise return an error.\n4.  **Contextual relationship understanding**: Use existing NLP techniques to improve the relationship understanding in the passage, which is needed to answer questions like \"Which touchdown passes did Matt Cassel make?\"\n\n## CAPABILITY MAPPING\n*   **Sample 5:**\n    *   information_extraction: Failed to extract information at the right level of detail.\n    *   constraint_handling: Failed to constrain the answer type to numeric with units.\n    *   solution_generation: Generated an answer with player names instead of yardage.\n",
-      "strengths": [],
-      "weaknesses": [],
-      "primary_issue": "The most critical problem is the system's inability to consistently provide answers at the correct level of detail requested by the question, particularly concerning numeric information and units of measurement.",
+      "text_report": "## RUNTIME ERRORS\nNone\n\n## STRENGTHS\n*   The system is generally capable of clarifying questions and extracting relevant information from the passage.\n*   The system can correctly identify numerical values and perform simple calculations when necessary.\n\n## WEAKNESSES\n*   The system struggles with differentiating between individuals who are mentioned in close proximity in the text. In the error case, the system failed to identify the correct person from whom power was seized.\n*   The system struggles to differentiate between \"seizing power\" and being the \"legal heir\".\n\n## CRITICAL BOTTLENECKS\n*   Difficulty in discerning relationships and actions between entities described in the text, leading to incorrect information extraction.\n*   The system prioritizes mentioning a person from the passage, rather than focusing on the specific relationship.\n\n## ERROR PATTERNS\n*   The primary error pattern is misinterpreting the relationship between different entities described in the passage and extracting the wrong individual as the subject of a particular action.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to accurately identify the subject of the action \"seizing power\" from the text. The system can identify that someone seized power, but grabs the wrong person as being the target.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction:** Needs to be significantly improved to accurately extract entities and their relationships. Focus specifically on understanding the context and identifying the correct actor and object of actions described in the passage.\n*   **Reasoning/Deduction:** The system needs to be able to make inferences about relationships between entities. For example, it should be able to deduce that if Tancred seized power *after* the death of William, William could not be the target of the power seizure.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Enhanced Relationship Extraction:** Implement a more sophisticated relationship extraction module that goes beyond simple keyword matching. This module should consider sentence structure, co-reference resolution, and contextual information to accurately identify the relationships between entities.\n2.  **Contextual Reasoning:** Add a reasoning step that uses the extracted relationships to answer the question. For example, before selecting an answer, the system should verify that the selected entity is the correct target of the action described in the question.\n3.  **Negative Constraints:** Explicitly program the system to identify negative constraints. In the error case, a negative constraint could be: \"Tancred cannot seize power from someone who is already dead.\"\n4.  **Fine-tune Training Data:** Augment the training data with more examples that specifically target the identification of relationships between entities, and in particular identify who is acting on whom.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information_extraction: Failed - Incorrectly identified who King Tancred seized power from.\n    *   reasoning/deduction: Failed - The system failed to rule out dead candidates.\n",
+      "strengths": [
+        "The system is generally capable of clarifying questions and extracting relevant information from the passage.",
+        "The system can correctly identify numerical values and perform simple calculations when necessary."
+      ],
+      "weaknesses": [
+        "The system struggles with differentiating between individuals who are mentioned in close proximity in the text. In the error case, the system failed to identify the correct person from whom power was seized.",
+        "The system struggles to differentiate between \"seizing power\" and being the \"legal heir\"."
+      ],
+      "primary_issue": "The most critical problem is the system's inability to accurately identify the subject of the action \"seizing power\" from the text. The system can identify that someone seized power, but grabs the wrong person as being the target.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a comprehensive capability report based on the performance summary, error analysis report, and sample execution outputs provided.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\n*   **Output 1 (\"23 - 10 = 13 points\"):**  This output shows a successful arithmetic calculation and provides a numerical answer.  However, it is missing context and units. While arithmetically correct, the output does not indicate *what* the 13 points *are*. It's an incomplete answer for the question.\n*   **Output 2 (\"Marvin Harrison\"):**  This output provides a name, which could be correct, but without the question, it's impossible to determine the correctness or relevance.  It potentially suggests an issue with understanding the required answer type (e.g., a specific metric or value related to Marvin Harrison).  It highlights the semantic understanding issue.\n*   **Output 3 (\"Philadelphia Eagles scored in the first quarter, so the Tampa Bay Buccaneers failed to score in the first quarter.\"):** This shows an inference of which team failed to score, which is indicative of deductive reasoning capabilities.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates a basic understanding of arithmetic, information extraction, and reasoning. However, it exhibits significant weaknesses in semantic understanding, providing granular answers, and consistently delivering information at the required level of detail. The system can perform simple calculations and extract entities from the text, but struggles to connect these elements to the specific question's requirements.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Reasoning:**  The system can perform basic arithmetic operations accurately.\n*   **Information Extraction:**  The system can identify key entities within the provided context.\n*   **Logical Deduction:** The system can infer information based on supplied facts.\n\n### KEY WEAKNESSES\n\n*   **Granularity and Semantic Alignment of Answers:** The system struggles to provide answers at the correct level of detail (e.g., including units) and struggles to give answers that are semantically aligned with the desired answer type (e.g., numerical vs. entity name).\n*   **Contextual Understanding:** The system lacks a robust understanding of how information relates to the specific question being asked and constraints around answers (e.g. is the questions asking \"Who\" or \"How Many\")\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Granularity and Semantic Alignment of Answers**. The inability to consistently provide answers at the correct level of detail requested by the question severely limits the system's usefulness.\n\n### ACTIONABLE RECOMMENDATIONS\n\nBased on the error analysis, existing improvement suggestions and execution analysis, the following specific changes should be implemented in the next iteration:\n\n1.  **Prioritize Layered Question Understanding Module:** Immediately implement the Layered Question Understanding Module described in the error analysis. Focus the initial implementation on identifying expected answer *types* (e.g., \"number with units,\" \"entity name,\" \"boolean\").\n2.  **Focus Training Data on Type Matching:** Augment the training data to specifically address answer type matching. Create examples where:\n    *   The question explicitly asks for a number with units (e.g., \"How many yards did X gain?\")\n    *   The correct answer is a number with units (e.g., \"12 yards\")\n    *   The *incorrect* answer is related but of the wrong type (e.g., \"Player X,\" \"Touchdown\").\n3.  **Implement Answer Validation and Correction:** Add a post-processing step to validate and correct answer type. If the Question Understanding Module predicted \"number with units\" and the answer is \"Player X,\" trigger a re-evaluation or a fallback mechanism to generate a numerical answer with units (even if less accurate). If this does not work, return an error message to indicate that the model cannot perform that request.\n4.  **Integrate and Test Semantic Parsing:** Integrate a semantic parsing component that can understand the semantic relationships between entities and concepts within the text. This will help the system extract relevant facts and relationships needed to answer complex questions, as well as constrain output answer types based on the question.\n\n### CAPABILITY TREND\n\nBased on the limited data, the system's capabilities are currently **stable** but with significant room for improvement. The execution outputs highlight both strengths (calculation) and critical weaknesses (semantic understanding and granularity). Addressing the \"Improvement Focus\" through the \"Actionable Recommendations\" is expected to lead to significant capability improvements in the next iteration.\n",
-      "strengths": [],
-      "weaknesses": [],
+      "text_report": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n**ERROR ANALYSIS REPORT:**\n\n(Provided in original prompt)\n\n**SAMPLE EXECUTION OUTPUTS:**\n\n(Provided in original prompt)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs reveal the system's strengths and weaknesses in practice. The first example demonstrates the critical error: misidentifying the target of the \"seize power\" action. While the system correctly identifies King Tancred and the act of seizing power, it attributes the target to King William II incorrectly. This suggests an issue with understanding the temporal context or logical relationships between entities.\n\nThe second and third examples demonstrate the system's capability to:\n\n*   Extract numerical information (number of deaths, manufacturing outputs)\n*   Compare numerical values and provide accurate comparative answers.\n*   Answer simple yes/no questions based on extracted data.\n\nThe consistency of the successful executions indicates that the core information extraction and numerical processing components are functioning reasonably well. The identified issue seems to be confined to more complex scenarios requiring deeper contextual understanding and relationship extraction. The system successfully clarified the questions prior to extraction in all cases, implying that the question answering component is satisfactory. The failure is pinpointed to the identification of the correct subject-verb-object triples.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a baseline capability for question answering and information extraction. It can effectively handle questions requiring simple fact retrieval and numerical comparisons. However, its performance significantly degrades when the task demands understanding complex relationships between entities, discerning temporal order, or applying logical deduction. The system prioritizes superficial matches (like mentions of people in the passage) over deeper semantic understanding of the relationships *between* those people. The success rate of 80% indicates good performance with simple questions, but the system is ultimately unable to successfully handle more complex queries.\n\n## KEY STRENGTHS\n\n*   **Clarifying Questions:** Effectively reformulates questions to focus on key information.\n*   **Numerical Information Extraction:** Adept at extracting and comparing numerical data.\n*   **Simple Question Answering:** Competent in answering questions that require direct fact retrieval.\n\n## KEY WEAKNESSES\n\n*   **Relationship Extraction:** Fails to accurately identify the relationships between entities, particularly in the context of actions and events.\n*   **Contextual Reasoning:** Lacks the ability to perform logical deductions based on temporal or causal relationships described in the text.\n*   **Entity Disambiguation:** Struggles to differentiate between entities mentioned in close proximity, especially when they are involved in similar actions.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Relationship Extraction**. Accurately identifying how entities relate to each other is fundamental to answering complex questions and understanding the meaning of the text. Without accurate relationship extraction, reasoning and deduction are impossible.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Triplet Extraction Module:** Introduce a dedicated module designed to extract subject-verb-object triplets from the text. Train this module specifically on datasets designed for relationship extraction. The module should be configurable with different relationship types to target extraction.\n2.  **Incorporate Dependency Parsing:** Integrate dependency parsing into the information extraction pipeline. Use dependency parsing to identify the grammatical relationships between words in a sentence and guide the extraction of entities and their relationships.\n3.  **Augment Training Data with Negative Examples:** Include negative examples in the training data that explicitly demonstrate *incorrect* relationships. For instance, examples showing instances where Tancred *did not* seize power from William. This will help the system learn to differentiate between true and false relationships.\n4.  **Implement Role-Based Entity Typing:** Improve entity recognition by incorporating role-based entity typing. Instead of just identifying \"person,\" identify the role of the person in the given context (e.g., \"ruler,\" \"heir,\" \"enemy\"). This will help the system differentiate between entities that might be mentioned in similar contexts.\n\n## CAPABILITY TREND\n\nBased on the current performance, the AI system's capabilities are **stable** with respect to simple fact retrieval and numerical comparisons. However, the system is significantly lacking in complex reasoning capabilities. To improve, changes must be made in extraction of relationships.\n",
+      "strengths": [
+        "The system is generally capable of clarifying questions and extracting relevant information from the passage.",
+        "The system can correctly identify numerical values and perform simple calculations when necessary."
+      ],
+      "weaknesses": [
+        "The system struggles with differentiating between individuals who are mentioned in close proximity in the text. In the error case, the system failed to identify the correct person from whom power was seized.",
+        "The system struggles to differentiate between \"seizing power\" and being the \"legal heir\"."
+      ],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nNone found in the provided data.\n\n## STRENGTHS\n1.  **Arithmetic Reasoning:** The system performs well on questions involving simple arithmetic calculations, as demonstrated by success cases where it correctly calculates differences or sums and provides the answer.\n2.  **Information Extraction:** The system generally extracts relevant information from the passage to answer the question. This is shown in cases where it identifies the correct entities (people, teams, locations) mentioned in the passage.\n3.  **Step-by-Step Reasoning:** The system can successfully perform a logical chain of reasoning steps (as seen in sample 9) to compare the total yards made by two different kickers, and identify the person with fewer yards.\n\n## WEAKNESSES\n1.  **Semantic Understanding & Granularity of Answers:** The system sometimes provides answers that are not semantically similar to the golden answer, even when they relate to the same topic. The system tends to not provide answers at the correct granularity when units are needed, such as yards.\n2.  **Lack of contextual understanding and relationship extraction**: In some instances the system answer lists players and types of plays, when the golden answer gives a number in yards.\n\n## CRITICAL BOTTLENECKS\n1.  **Failure to provide answers at the right level of detail**. The system often misses the crucial step of extracting the 'yardage' value when the question specifically requires it.\n2.  **Missing nuanced semantic understanding**. The model fails when the correct answer is of a specific type (e.g., number of yards) and provides a different type of information (e.g., player names).\n\n## ERROR PATTERNS\nThe primary recurring pattern is the failure to provide answers at the correct level of granularity or specificity. The system provides information related to the question but fails to extract the exact detail requested. This often occurs when numerical values or units (e.g., yards) are involved.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to consistently provide answers at the correct level of detail requested by the question, particularly concerning numeric information and units of measurement.\n\n## IMPROVEMENT AREAS\n1.  **Fine-grained Answer Extraction:** Improve the ability to extract specific types of information, such as numerical values with units (e.g., \"13-yard\").\n2.  **Semantic Matching:** Enhance the system's semantic understanding to match the type of answer expected in the golden answer.\n3.  **Constraint application based on the question**: Improve the system such that it understands whether an answer is asking for who or how much (number or value), and constrain the answer based on that.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Introduce a Layered Question Understanding Module:** Implement a module that analyzes the question to determine the expected answer type (e.g., name, location, number with units). The module should explicitly identify the desired granularity.\n2.  **Train with Examples Focused on Granularity:** Augment the training data with examples where the difference between correct and incorrect answers hinges on the level of detail.\n3.  **Implement Post-processing Refinement:** Add a post-processing step that checks the answer type against the expected answer type and refines the answer if necessary. For example, if the question asks \"How many yards?\", the post-processing should check if the answer contains a number followed by \"yards\" and return the number, otherwise return an error.\n4.  **Contextual relationship understanding**: Use existing NLP techniques to improve the relationship understanding in the passage, which is needed to answer questions like \"Which touchdown passes did Matt Cassel make?\"\n\n## CAPABILITY MAPPING\n*   **Sample 5:**\n    *   information_extraction: Failed to extract information at the right level of detail.\n    *   constraint_handling: Failed to constrain the answer type to numeric with units.\n    *   solution_generation: Generated an answer with player names instead of yardage.\n",
-    "capability_report_text": "Okay, here's a comprehensive capability report based on the performance summary, error analysis report, and sample execution outputs provided.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\n*   **Output 1 (\"23 - 10 = 13 points\"):**  This output shows a successful arithmetic calculation and provides a numerical answer.  However, it is missing context and units. While arithmetically correct, the output does not indicate *what* the 13 points *are*. It's an incomplete answer for the question.\n*   **Output 2 (\"Marvin Harrison\"):**  This output provides a name, which could be correct, but without the question, it's impossible to determine the correctness or relevance.  It potentially suggests an issue with understanding the required answer type (e.g., a specific metric or value related to Marvin Harrison).  It highlights the semantic understanding issue.\n*   **Output 3 (\"Philadelphia Eagles scored in the first quarter, so the Tampa Bay Buccaneers failed to score in the first quarter.\"):** This shows an inference of which team failed to score, which is indicative of deductive reasoning capabilities.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates a basic understanding of arithmetic, information extraction, and reasoning. However, it exhibits significant weaknesses in semantic understanding, providing granular answers, and consistently delivering information at the required level of detail. The system can perform simple calculations and extract entities from the text, but struggles to connect these elements to the specific question's requirements.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Reasoning:**  The system can perform basic arithmetic operations accurately.\n*   **Information Extraction:**  The system can identify key entities within the provided context.\n*   **Logical Deduction:** The system can infer information based on supplied facts.\n\n### KEY WEAKNESSES\n\n*   **Granularity and Semantic Alignment of Answers:** The system struggles to provide answers at the correct level of detail (e.g., including units) and struggles to give answers that are semantically aligned with the desired answer type (e.g., numerical vs. entity name).\n*   **Contextual Understanding:** The system lacks a robust understanding of how information relates to the specific question being asked and constraints around answers (e.g. is the questions asking \"Who\" or \"How Many\")\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Granularity and Semantic Alignment of Answers**. The inability to consistently provide answers at the correct level of detail requested by the question severely limits the system's usefulness.\n\n### ACTIONABLE RECOMMENDATIONS\n\nBased on the error analysis, existing improvement suggestions and execution analysis, the following specific changes should be implemented in the next iteration:\n\n1.  **Prioritize Layered Question Understanding Module:** Immediately implement the Layered Question Understanding Module described in the error analysis. Focus the initial implementation on identifying expected answer *types* (e.g., \"number with units,\" \"entity name,\" \"boolean\").\n2.  **Focus Training Data on Type Matching:** Augment the training data to specifically address answer type matching. Create examples where:\n    *   The question explicitly asks for a number with units (e.g., \"How many yards did X gain?\")\n    *   The correct answer is a number with units (e.g., \"12 yards\")\n    *   The *incorrect* answer is related but of the wrong type (e.g., \"Player X,\" \"Touchdown\").\n3.  **Implement Answer Validation and Correction:** Add a post-processing step to validate and correct answer type. If the Question Understanding Module predicted \"number with units\" and the answer is \"Player X,\" trigger a re-evaluation or a fallback mechanism to generate a numerical answer with units (even if less accurate). If this does not work, return an error message to indicate that the model cannot perform that request.\n4.  **Integrate and Test Semantic Parsing:** Integrate a semantic parsing component that can understand the semantic relationships between entities and concepts within the text. This will help the system extract relevant facts and relationships needed to answer complex questions, as well as constrain output answer types based on the question.\n\n### CAPABILITY TREND\n\nBased on the limited data, the system's capabilities are currently **stable** but with significant room for improvement. The execution outputs highlight both strengths (calculation) and critical weaknesses (semantic understanding and granularity). Addressing the \"Improvement Focus\" through the \"Actionable Recommendations\" is expected to lead to significant capability improvements in the next iteration.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNone\n\n## STRENGTHS\n*   The system is generally capable of clarifying questions and extracting relevant information from the passage.\n*   The system can correctly identify numerical values and perform simple calculations when necessary.\n\n## WEAKNESSES\n*   The system struggles with differentiating between individuals who are mentioned in close proximity in the text. In the error case, the system failed to identify the correct person from whom power was seized.\n*   The system struggles to differentiate between \"seizing power\" and being the \"legal heir\".\n\n## CRITICAL BOTTLENECKS\n*   Difficulty in discerning relationships and actions between entities described in the text, leading to incorrect information extraction.\n*   The system prioritizes mentioning a person from the passage, rather than focusing on the specific relationship.\n\n## ERROR PATTERNS\n*   The primary error pattern is misinterpreting the relationship between different entities described in the passage and extracting the wrong individual as the subject of a particular action.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to accurately identify the subject of the action \"seizing power\" from the text. The system can identify that someone seized power, but grabs the wrong person as being the target.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction:** Needs to be significantly improved to accurately extract entities and their relationships. Focus specifically on understanding the context and identifying the correct actor and object of actions described in the passage.\n*   **Reasoning/Deduction:** The system needs to be able to make inferences about relationships between entities. For example, it should be able to deduce that if Tancred seized power *after* the death of William, William could not be the target of the power seizure.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Enhanced Relationship Extraction:** Implement a more sophisticated relationship extraction module that goes beyond simple keyword matching. This module should consider sentence structure, co-reference resolution, and contextual information to accurately identify the relationships between entities.\n2.  **Contextual Reasoning:** Add a reasoning step that uses the extracted relationships to answer the question. For example, before selecting an answer, the system should verify that the selected entity is the correct target of the action described in the question.\n3.  **Negative Constraints:** Explicitly program the system to identify negative constraints. In the error case, a negative constraint could be: \"Tancred cannot seize power from someone who is already dead.\"\n4.  **Fine-tune Training Data:** Augment the training data with more examples that specifically target the identification of relationships between entities, and in particular identify who is acting on whom.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information_extraction: Failed - Incorrectly identified who King Tancred seized power from.\n    *   reasoning/deduction: Failed - The system failed to rule out dead candidates.\n",
+    "capability_report_text": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n**ERROR ANALYSIS REPORT:**\n\n(Provided in original prompt)\n\n**SAMPLE EXECUTION OUTPUTS:**\n\n(Provided in original prompt)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs reveal the system's strengths and weaknesses in practice. The first example demonstrates the critical error: misidentifying the target of the \"seize power\" action. While the system correctly identifies King Tancred and the act of seizing power, it attributes the target to King William II incorrectly. This suggests an issue with understanding the temporal context or logical relationships between entities.\n\nThe second and third examples demonstrate the system's capability to:\n\n*   Extract numerical information (number of deaths, manufacturing outputs)\n*   Compare numerical values and provide accurate comparative answers.\n*   Answer simple yes/no questions based on extracted data.\n\nThe consistency of the successful executions indicates that the core information extraction and numerical processing components are functioning reasonably well. The identified issue seems to be confined to more complex scenarios requiring deeper contextual understanding and relationship extraction. The system successfully clarified the questions prior to extraction in all cases, implying that the question answering component is satisfactory. The failure is pinpointed to the identification of the correct subject-verb-object triples.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a baseline capability for question answering and information extraction. It can effectively handle questions requiring simple fact retrieval and numerical comparisons. However, its performance significantly degrades when the task demands understanding complex relationships between entities, discerning temporal order, or applying logical deduction. The system prioritizes superficial matches (like mentions of people in the passage) over deeper semantic understanding of the relationships *between* those people. The success rate of 80% indicates good performance with simple questions, but the system is ultimately unable to successfully handle more complex queries.\n\n## KEY STRENGTHS\n\n*   **Clarifying Questions:** Effectively reformulates questions to focus on key information.\n*   **Numerical Information Extraction:** Adept at extracting and comparing numerical data.\n*   **Simple Question Answering:** Competent in answering questions that require direct fact retrieval.\n\n## KEY WEAKNESSES\n\n*   **Relationship Extraction:** Fails to accurately identify the relationships between entities, particularly in the context of actions and events.\n*   **Contextual Reasoning:** Lacks the ability to perform logical deductions based on temporal or causal relationships described in the text.\n*   **Entity Disambiguation:** Struggles to differentiate between entities mentioned in close proximity, especially when they are involved in similar actions.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Relationship Extraction**. Accurately identifying how entities relate to each other is fundamental to answering complex questions and understanding the meaning of the text. Without accurate relationship extraction, reasoning and deduction are impossible.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Triplet Extraction Module:** Introduce a dedicated module designed to extract subject-verb-object triplets from the text. Train this module specifically on datasets designed for relationship extraction. The module should be configurable with different relationship types to target extraction.\n2.  **Incorporate Dependency Parsing:** Integrate dependency parsing into the information extraction pipeline. Use dependency parsing to identify the grammatical relationships between words in a sentence and guide the extraction of entities and their relationships.\n3.  **Augment Training Data with Negative Examples:** Include negative examples in the training data that explicitly demonstrate *incorrect* relationships. For instance, examples showing instances where Tancred *did not* seize power from William. This will help the system learn to differentiate between true and false relationships.\n4.  **Implement Role-Based Entity Typing:** Improve entity recognition by incorporating role-based entity typing. Instead of just identifying \"person,\" identify the role of the person in the given context (e.g., \"ruler,\" \"heir,\" \"enemy\"). This will help the system differentiate between entities that might be mentioned in similar contexts.\n\n## CAPABILITY TREND\n\nBased on the current performance, the AI system's capabilities are **stable** with respect to simple fact retrieval and numerical comparisons. However, the system is significantly lacking in complex reasoning capabilities. To improve, changes must be made in extraction of relationships.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
     "successful_runs": 10,
-    "matches": 8,
-    "accuracy": 0.8,
+    "matches": 9,
+    "accuracy": 0.9,
     "results": [
       {
         "success": true,
-        "answer": "Hunyadi assembling his forces.",
-        "output": "ANSWER_START\nHunyadi assembling his forces.\n\nANSWER_END\n",
+        "answer": "The Vikings won by 13 points.",
+        "output": "Clarified question: What was the point differential between the Packers and their opponent, the Minnesota Vikings, in the game described in the passage, with the Vikings winning?\n\nExtracted info: Packers took a 23-10 loss.\n\nANSWER_START\nThe Vikings won by 13 points.\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "The siege",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The siege and Hunyadi assembling his forces are related, but not the same. Hunyadi assembling his forces might be a precursor to a siege, or part of the preparation for a siege, but it isn't the siege itself."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "20 December 1922 - 7 July 1922 = 166 days\nAnswer: 166 days",
-        "output": "ANSWER_START\n20 December 1922 - 7 July 1922 = 166 days\nAnswer: 166 days\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "166",
+        "golden_answer": "13",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer provides the correct number of days (166) as does the golden answer."
+          "explanation": "The system answer includes the numerical value '13' within its text, which is the exact value specified in the golden answer. The additional context in the system answer does not invalidate the presence and correctness of the numerical value."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "White",
-        "output": "ANSWER_START\nWhite\n\nANSWER_END\n",
+        "answer": "Marvin Harrison played for the Colts.",
+        "output": "Clarified question: Who was the specific player who caught the touchdown pass in the first quarter, and for which team did they play?\n\nExtracted info: Marvin Harrison, Colts\nANSWER_START\nMarvin Harrison played for the Colts.\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "white",
+        "golden_answer": "Marvin Harrison",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same word, only differing in capitalization, which doesn't change the meaning in this context."
+          "explanation": "The system answer includes \"Marvin Harrison\" which is the golden answer. The additional information about playing for the Colts doesn't negate the presence of the correct answer."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "81 + 27 + 9 + 35 = 152 yards of touchdown passes\n5 + 3 = 8 yards of touchdown runs\n152 - 8 = 144 yards\nAnswer: 144 yards",
-        "output": "ANSWER_START\n81 + 27 + 9 + 35 = 152 yards of touchdown passes\n5 + 3 = 8 yards of touchdown runs\n152 - 8 = 144 yards\nAnswer: 144 yards\n\nANSWER_END\n",
+        "answer": "Tampa Bay Buccaneers",
+        "output": "Clarified question: Which of the two teams mentioned in the passage, the Tampa Bay Buccaneers and the Philadelphia Eagles, did not score any points during the first quarter of the Week 5 game?\n\nExtracted info: Tampa Bay Buccaneers\nANSWER_START\nTampa Bay Buccaneers\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "144",
+        "golden_answer": "Tampa Bay",
         "evaluation": {
           "match": true,
-          "confidence": 1,
-          "explanation": "The system answer arrives at the correct answer of 144 yards, even with the intermediary steps. The golden answer is simply the final answer."
+          "confidence": 0.8,
+          "explanation": "The golden answer is a shorter version of the system answer and still conveys the same information. Both refer to the Tampa Bay Buccaneers, with the system answer being more specific."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "2",
-        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "answer": "Tony Romo",
+        "output": "Clarified question: What is the name of the player who threw the touchdown pass with the greatest yardage, as described in the passage?\n\nExtracted info: Tony Romo\n\nANSWER_START\nTony Romo\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "2",
+        "golden_answer": "Tony Romo",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
+          "explanation": "Both answers are identical and refer to the same person, Tony Romo."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "280 - 70 = 210",
-        "output": "ANSWER_START\n280 - 70 = 210\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "210",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer shows the calculation leading to the correct answer, 210, which is the same as the golden answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Drew Brees",
-        "output": "ANSWER_START\nDrew Brees\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "Drew Brees",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are exactly the same: Drew Brees."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "43 + 38 + 29 = 110 yards",
-        "output": "ANSWER_START\n43 + 38 + 29 = 110 yards\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "110",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides the calculation that leads to the golden answer, which is 110. The system answer therefore contains the golden answer as part of its explanation."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "1 + 1 = 2",
-        "output": "ANSWER_START\n1 + 1 = 2\nANSWER_END\n",
+        "answer": "One.",
+        "output": "Clarified question: How many of the three Slavic allies (Serbia, Montenegro, and Bulgaria) had to fight the Ottoman forces in a specific theater of war (Sand\u017eak, Macedonia, or Thrace) without direct military assistance from the other two Slavic allies?\n\nExtracted info: Bulgaria alone in the Thracian theater.\n\nANSWER_START\nOne.\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_11.jsonl",
         "golden_answer": "1",
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer provides the result of 1 + 1, which is 2. The golden answer is 1. These are different numerical values."
+          "explanation": "Both answers represent the same numerical value, '1', with the system answer expressing it in word form and the golden answer in numerical form."
         },
-        "match": false
+        "match": true
       },
       {
         "success": true,
-        "answer": "1,951,269 - 467,916 = 1,483,353",
-        "output": "ANSWER_START\n1,951,269 - 467,916 = 1,483,353\n\nANSWER_END\n",
+        "answer": "Mark Bradley caught a 13-yard touchdown pass and Bobby Wade caught a 9-yard touchdown pass from Matt Cassel.",
+        "output": "Clarified question: What were the names of the wide receivers who caught touchdown passes from Matt Cassel, and how long were those touchdown passes, according to the provided passage?\n\nExtracted info: Mark Bradley, 13-yard touchdown pass; Bobby Wade, 9-yard touchdown pass.\n\nANSWER_START\nMark Bradley caught a 13-yard touchdown pass and Bobby Wade caught a 9-yard touchdown pass from Matt Cassel.\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "1483353",
+        "golden_answer": "13-yard",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer correctly calculates the difference and arrives at the same numerical result as the golden answer, even though it includes the subtraction equation."
+          "explanation": "The system answer states that Mark Bradley caught a 13-yard touchdown pass, which contains the golden answer '13-yard'."
         },
         "match": true
+      },
+      {
+        "success": true,
+        "answer": "The Packers led the Browns by 14 points.",
+        "output": "Clarified question: At the end of the second quarter (halftime), what was the point difference between the Packers' score and the Browns' score?\n\nExtracted info: At halftime, the Packers led 17-3.\n\nANSWER_START\nThe Packers led the Browns by 14 points.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "14",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer states that the Packers led by 14 points, therefore '14' is a valid and correct answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "4 yards",
+        "output": "Clarified question: What is the difference in yardage between Neil Rackers' 36-yard field goal and Jason Hanson's 32-yard field goal, as described in the passage?\n\nExtracted info: Neil Rackers' field goal: 36 yards\nJason Hanson's field goal: 32 yards\n\nANSWER_START\n4 yards\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "4",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers convey the same numerical value. The system answer includes the unit 'yards' which is implied in the context, but the core numerical value is the same."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Northeast",
+        "output": "Clarified question: Which of the regions mentioned in the passage (Northeast, South, and North) had the largest percentage of its population living in poverty in 2016, relative to that region's total population?\n\nExtracted info: - Northeast: 12.96%\n- South: 12.35%\n- North: 9.83%\n- Year: 2016\n\nANSWER_START\nNortheast\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "the Northeast",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The answers refer to the same geographical region; the presence or absence of the definite article \"the\" doesn't alter the meaning."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Dan Carpenter",
+        "output": "Clarified question: Which of the kickers mentioned in the passage, Rian Lindell or Dan Carpenter, had a lower total number of yards gained from field goals?\n\nExtracted info: Rian Lindell: 19-yard, 43-yard, and 47-yard field goals.\nDan Carpenter: 43-yard, 45-yard, and 35-yard field goals.\n\nANSWER_START\nDan Carpenter\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "Rian Lindell",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The two answers refer to different people, so they do not convey the same information."
+        },
+        "match": false
       }
     ]
   },
-  "execution_time": 78.52279472351074,
+  "execution_time": 97.84140300750732,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

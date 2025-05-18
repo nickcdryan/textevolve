@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 1,
-        "sample_id": "0f4964ef-d7a7-45da-98d1-2e4894396b5f",
-        "question": 'PASSAGE: In 2015, the Population Division of the United Nations Department of Economic and Social Affairs listed Germany as host to the List of sovereign states and dependent territories by immigrant population, about 5% or 12 million of all 244 million migrants. Germany ranks List of countries by immigrant population and 37th globally in terms of the percentage of migrants who made up part of the countrys population. , the largest national group was from Turkey (2,859,000), followed by Poland (1,617,000), Russia (1,188,000), and Italy (764,000). 740,000 people have Afro-Germans origins, an increase of 46% since 2011. Since 1987, around 3 million ethnic Germans, mostly from the former Eastern Bloc countries, have exercised their German Law of Return and emigrated to Germany.\n\nQUESTION: Are there more people living in Germany from Poland, or from Russia?'
+        "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+        "question": 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 1,
-            "sample_id": "0f4964ef-d7a7-45da-98d1-2e4894396b5f",
+            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: In 2015, the Population Division of the United Nations Department of Economic and Social Affairs listed Germany as host to the List of sovereign states and dependent territories by immigrant population, about 5% or 12 million of all 244 million migrants. Germany ranks List of countries by immigrant population and 37th globally in terms of the percentage of migrants who made up part of the countrys population. , the largest national group was from Turkey (2,859,000), followed by Poland (1,617,000), Russia (1,188,000), and Italy (764,000). 740,000 people have Afro-Germans origins, an increase of 46% since 2011. Since 1987, around 3 million ethnic Germans, mostly from the former Eastern Bloc countries, have exercised their German Law of Return and emigrated to Germany.\n\nQUESTION: Are there more people living in Germany from Poland, or from Russia?'
+    question = 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 1,
-            "sample_id": "0f4964ef-d7a7-45da-98d1-2e4894396b5f",
+            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 1,
-            "sample_id": "0f4964ef-d7a7-45da-98d1-2e4894396b5f",
+            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

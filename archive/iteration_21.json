@@ -1,0 +1,354 @@
+{
+  "iteration": 21,
+  "timestamp": "2025-05-17T21:58:14.476131",
+  "strategy": "Exploration",
+  "explore_rate": 50,
+  "exploit_rate": 50,
+  "batch_size": 5,
+  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by using a NEW approach: \"Iterative Question Refinement with Contextual Expansion.\"\n    This strategy aims to improve accuracy by:\n    1. Iteratively refining the question to remove ambiguity and focus on core information needs.\n    2. Dynamically expanding the context around key entities to enhance information extraction.\n    3. Includes a \"relevance filter\" that filters the information based on question to the agent, which is designed to force minimal inclusion\n    4. Each step involves a dedicated LLM agent with a specific system instruction for its task, along with examples in the prompt.\n    Each stage validates its results by prompting the LLM to make sure it is \"valid\" or \"invalid\".\n    \"\"\"\n    try:\n        # Step 1: Refine the question to improve clarity and focus.\n        refined_question_result = refine_question(question)\n        if not refined_question_result.get(\"is_valid\"):\n            return f\"Error in question refinement: {refined_question_result.get('validation_feedback')}\"\n        refined_question = refined_question_result[\"refined_question\"]\n\n        # Step 2: Extract key entities from the refined question\n        entity_extraction_result = extract_entities(refined_question)\n        if not entity_extraction_result.get(\"is_valid\"):\n            return f\"Error in entity extraction: {entity_extraction_result.get('validation_feedback')}\"\n        entities = entity_extraction_result[\"entities\"]\n        \n        # Step 3: Extract relevant information based on entities, expanding the context around them.\n        information_extraction_result = extract_information(refined_question, entities)\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n        extracted_info = information_extraction_result[\"extracted_info\"]\n            \n        # Step 4: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(refined_question, extracted_info)\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef refine_question(question, max_attempts=3):\n    \"\"\"Refine the question to improve clarity and focus.\"\"\"\n    system_instruction = \"You are an expert question refiner. Refine the question without changing its meaning.\"\n    for attempt in range(max_attempts):\n        refinement_prompt = f\"\"\"\n        Refine the given question to make it more specific and easier to answer. Do NOT change the meaning of the question.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Refined Question: What is the sum of Chris Johnson's first touchdown yards and Jason Hanson's first field goal yards?\n\n        Original Question: {question}\n        Refined Question:\n        \"\"\"\n        refinement_result = call_llm(refinement_prompt, system_instruction)\n\n        # Verify\n        verification_prompt = f\"\"\"\n        Verify if the refined question is valid and maintains the meaning of the original question.\n\n        Original Question: {question}\n        Refined Question: {refinement_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Refined Question: What is the sum of Chris Johnson's first touchdown yards and Jason Hanson's first field goal yards?\n        Validation: Valid\n\n        Is the refinement valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        verification_result = call_llm(verification_prompt, system_instruction)\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"refined_question\": refinement_result}\n        else:\n            print(f\"Refinement validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to refine the question successfully.\"}\n\ndef extract_entities(question, max_attempts=3):\n    \"\"\"Extract key entities from the question.\"\"\"\n    system_instruction = \"You are an expert entity extractor. Identify key entities.\"\n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Extract the key entities from the given question.\n        Example:\n        Question: What is the sum of Chris Johnson's first touchdown yards and Jason Hanson's first field goal yards?\n        Entities: Chris Johnson, Jason Hanson, touchdown, field goal, yards\n\n        Question: {question}\n        Entities:\n        \"\"\"\n        extraction_result = call_llm(extraction_prompt, system_instruction)\n        verification_prompt = f\"\"\"\n        Verify if the extracted entities are valid and complete for the question.\n        Question: {question}\n        Entities: {extraction_result}\n        Example:\n        Question: What is the sum of Chris Johnson's first touchdown yards and Jason Hanson's first field goal yards?\n        Entities: Chris Johnson, Jason Hanson, touchdown, field goal, yards\n        Validation: Valid\n\n        Is the extraction valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"entities\": extraction_result.split(', ')}\n        else:\n            print(f\"Entity extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract entities successfully.\"}\n\ndef extract_information(question, entities, max_attempts=3):\n    \"\"\"Extract relevant information, expanding the context around entities.\"\"\"\n    system_instruction = \"You are an expert information extractor. Be as concise as possible.\"\n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the question and entities, extract relevant information. Only provide the relevant information with the least amount of words and context.\n\n        Example:\n        Question: What is the sum of Chris Johnson's first touchdown yards and Jason Hanson's first field goal yards?\n        Entities: Chris Johnson, Jason Hanson, touchdown, field goal, yards\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Question: {question}\n        Entities: {entities}\n        Extracted Information:\n        \"\"\"\n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the question.\n        Question: {question}\n        Extracted Information: {extracted_info}\n        Example:\n        Question: What is the sum of Chris Johnson's first touchdown yards and Jason Hanson's first field goal yards?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n        \n        Is the extraction valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        verification_result = call_llm(verification_prompt, system_instruction)\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information.\"\"\"\n    system_instruction = \"You are an answer synthesis expert. Answer the question based on the extracted information. Don't include anything else.\"\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the question and extracted information, synthesize the final answer.\n\n        Example:\n        Question: What is the sum of Chris Johnson's first touchdown yards and Jason Hanson's first field goal yards?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59 yards\n\n        Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        answer = call_llm(synthesis_prompt, system_instruction)\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n        Question: {question}\n        Answer: {answer}\n        Example:\n        Question: What is the sum of Chris Johnson's first touchdown yards and Jason Hanson's first field goal yards?\n        Answer: 59 yards\n        Validation: Valid\n\n        Is the answer valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        verification_result = call_llm(verification_prompt, system_instruction)\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os\n\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script implements an \"Iterative Question Refinement with Contextual Expansion\" approach, utilizing LLM agents for question refinement, entity extraction, information extraction, and answer synthesis, with each step validated by the LLM. The problem is decomposed into these four distinct stages, each with a dedicated LLM agent role and system instruction. The `call_llm` function is used to interact with the Gemini model, and each stage (refine_question, extract_entities, extract_information, and synthesize_answer) uses this function to generate and validate its results. The overall workflow involves iteratively refining the question, extracting entities, gathering relevant information, synthesizing an answer, and validating each step for accuracy.",
+  "sample_count": 5,
+  "samples": [
+    {
+      "question": "PASSAGE: The Browns were a Vegas road favorite for the first time since 2012 and an overall favorite for the first time since 2015.  The Colts drew first blood in the first quarter when backup QB Jacoby Brissett ran for a 5-yard touchdown to make the score 7-0 for the quarter's only points.  The Browns managed to tie it up in the second quarter when Duke Johnson Jr. ran for a 19-yard touchdown to make it 7-7.  Though the Colts then responded with 3 straight touchdowns:  Brissett ran for another one from 7 yards out followed up by a 61-yard passing touchdown from him to T.Y. Hilton.  Lastly, the Frank Gore ran for a 4-yard touchdown for lead changes of 14-7, 21-7, and 28-7.  The Browns managed to make the score 28-14 at halftime when DeShone Kizer found David Njoku on a 1-yard pass.  After a scoreless third quarter, the Colts managed to increase their lead when Adam Vinatieri nailed a 33-yard field goal to make it 31-14.  The Browns tried to rally with 2 more touchdowns:  Kizer connected with Kenny Britt on an 11-yard pass to make it 31-21.  This would be followed up by Kizer running in for a touchdown himself from a yard out to make it 31-28.  The Browns failed to recover the onside kick and it sealed the win for the Colts.  With the loss, the Browns fell to 0-3. The team also lost their 15th straight road game.\n\nQUESTION: How many points were scored in the second half of the game?",
+      "answer": "17",
+      "id": "example_151",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Browns were a Vegas road favorite for the first time since 2012 and an overall favorite for the first time since 2015.  The Colts drew first blood in the first quarter when backup QB Jacoby Brissett ran for a 5-yard touchdown to make the score 7-0 for the quarter's only points.  The Browns managed to tie it up in the second quarter when Duke Johnson Jr. ran for a 19-yard touchdown to make it 7-7.  Though the Colts then responded with 3 straight touchdowns:  Brissett ran for another one from 7 yards out followed up by a 61-yard passing touchdown from him to T.Y. Hilton.  Lastly, the Frank Gore ran for a 4-yard touchdown for lead changes of 14-7, 21-7, and 28-7.  The Browns managed to make the score 28-14 at halftime when DeShone Kizer found David Njoku on a 1-yard pass.  After a scoreless third quarter, the Colts managed to increase their lead when Adam Vinatieri nailed a 33-yard field goal to make it 31-14.  The Browns tried to rally with 2 more touchdowns:  Kizer connected with Kenny Britt on an 11-yard pass to make it 31-21.  This would be followed up by Kizer running in for a touchdown himself from a yard out to make it 31-28.  The Browns failed to recover the onside kick and it sealed the win for the Colts.  With the loss, the Browns fell to 0-3. The team also lost their 15th straight road game.",
+        "original_question": "How many points were scored in the second half of the game?",
+        "original_answer_data": {
+          "spans": [
+            "17"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 921
+      }
+    },
+    {
+      "question": "PASSAGE: The Buccaneers started off horribly, both offensively and defensively as the Cardinals scored early. Five days earlier, veteran running back Adrian Peterson had been traded to Arizona from the Saints. Peterson started his first game for the Cardinals, scoring on the opening drive. Down 24-0 in the second quarter, Jameis Winston was sidelined with a shoulder injury and was replaced by backup quarterback Ryan Fitzpatrick. Winston would not return. After Fitzpatrick threw an interception early in the third quarter, the Cardinals scored again taking a 31-0 lead. The Buccaneers mounted a comeback, outscoring the Cardinals 33-7 for the remainder of the game, but came up short 38-33 after failing to recover an onside kick with just 2:02 remaining in regulation.\n\nQUESTION: How many total points were scored in the second half?",
+      "answer": "28",
+      "id": "example_152",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Buccaneers started off horribly, both offensively and defensively as the Cardinals scored early. Five days earlier, veteran running back Adrian Peterson had been traded to Arizona from the Saints. Peterson started his first game for the Cardinals, scoring on the opening drive. Down 24-0 in the second quarter, Jameis Winston was sidelined with a shoulder injury and was replaced by backup quarterback Ryan Fitzpatrick. Winston would not return. After Fitzpatrick threw an interception early in the third quarter, the Cardinals scored again taking a 31-0 lead. The Buccaneers mounted a comeback, outscoring the Cardinals 33-7 for the remainder of the game, but came up short 38-33 after failing to recover an onside kick with just 2:02 remaining in regulation.",
+        "original_question": "How many total points were scored in the second half?",
+        "original_answer_data": {
+          "spans": [
+            "28"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 461
+      }
+    },
+    {
+      "question": "PASSAGE: According to the Yuanshi, the Yuan fleet set out with an estimated 15,000 Mongol and Chinese soldiers and 1,600-8,000 Korean soldiers in 300 large vessels and 400-500 smaller craft along with several thousand sailors, although figures vary considerably depending on the source and many modern historians consider the numbers exaggerated. The primary port for the operation was Quanzhou in Fujian, then the center of China's maritime trade. They landed on Komodahama beach on Tsushima Island on October 5, 1274. S\u014d Sukekuni, governor of Tsushima, led a cavalry unit of 80 to defend the island, but he and his outnumbered unit were killed in the engagement. The Mongols and Koreans subsequently invaded Iki. Tairano Takakage, the Governor of Iki, fought the invaders with about 100 of his cavalrymen, but he killed himself after his unit was defeated. The Mongol forces landed on November 19 in Hakata Bay, a short distance from Dazaifu, the ancient administrative capital of Ky\u016bsh\u016b. The following day brought the Battle of Bun'ei , also known as the \"First Battle of Hakata Bay\". The Japanese coalition force opposing them included 120 armed samurai each with a warband and likely numbered between 3,000 and 6,000 strong. Later accounts have both sides believing themselves to be drastically outnumbered by the enemy; the Yuanshi provides an estimate of 102,000 for the Japanese force, while the Japanese Hachiman Gudokun describes the invaders as outnumbering the Japanese 10 to 1. Conlan argues that the Yuanshi's account of the battle suggests that both the Japanese and Yuan forces were of similar size. Conlan estimated that both armies numbered around 3,000 each .\n\nQUESTION: Which were there less of,  large vessels or smaller craft?",
+      "answer": "large vessels",
+      "id": "example_153",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "According to the Yuanshi, the Yuan fleet set out with an estimated 15,000 Mongol and Chinese soldiers and 1,600-8,000 Korean soldiers in 300 large vessels and 400-500 smaller craft along with several thousand sailors, although figures vary considerably depending on the source and many modern historians consider the numbers exaggerated. The primary port for the operation was Quanzhou in Fujian, then the center of China's maritime trade. They landed on Komodahama beach on Tsushima Island on October 5, 1274. S\u014d Sukekuni, governor of Tsushima, led a cavalry unit of 80 to defend the island, but he and his outnumbered unit were killed in the engagement. The Mongols and Koreans subsequently invaded Iki. Tairano Takakage, the Governor of Iki, fought the invaders with about 100 of his cavalrymen, but he killed himself after his unit was defeated. The Mongol forces landed on November 19 in Hakata Bay, a short distance from Dazaifu, the ancient administrative capital of Ky\u016bsh\u016b. The following day brought the Battle of Bun'ei , also known as the \"First Battle of Hakata Bay\". The Japanese coalition force opposing them included 120 armed samurai each with a warband and likely numbered between 3,000 and 6,000 strong. Later accounts have both sides believing themselves to be drastically outnumbered by the enemy; the Yuanshi provides an estimate of 102,000 for the Japanese force, while the Japanese Hachiman Gudokun describes the invaders as outnumbering the Japanese 10 to 1. Conlan argues that the Yuanshi's account of the battle suggests that both the Japanese and Yuan forces were of similar size. Conlan estimated that both armies numbered around 3,000 each .",
+        "original_question": "Which were there less of,  large vessels or smaller craft?",
+        "original_answer_data": {
+          "spans": [
+            "large vessels"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 522
+      }
+    },
+    {
+      "question": "PASSAGE: Still looking for their first win of the season 7 games through, the Raiders headed up to the Pacific Northwest to take on the defending champion Seattle Seahawks. The Raiders received the opening kickoff and immediately scored on their first possession by means of a 48-yard field goal by Sebastian Janikowski. Up 3-0, the Oakland defense took the field and was unable to stop the Seahawks from responding. Seattle took advantage of the multiple flags against the defense as Marshawn Lynch and Russell Wilson facilitated a 72-yard drive to score the game's first touchdown on a 3 yard run by Lynch. Both teams went 3-and-out on their next offensive possession before Derek Carr was picked off by Seahawks LB Bruce Irvin who returned it 35 yards for a touchdown on the final play of the first quarter. In the second quarter, Carr was intercepted again, this time by Richard Sherman. Seahawks kicker Steven Hauschka added a field goal to put the Seahawks up 17-3. Meanwhile, the Raiders were unable to stop turning the ball over. After Hauschka's field goal, on the ensuing kickoff, T.J. Carrie's return was fumbled at the Oakland 25 and recovered by Hauschka himself at the 31 yard line. Though the Seahawks were unable to turn it into any points on Hauschka's missed field goal, Lynch picked up his second rushing touchdown of the day later in the quarter, this time from 5 yards out, and the Seahawks led 24-3 at halftime. To start the second half, however, the Raiders scored in less than a minute by blocking Jon Ryan's punt and recovering it in the end zone for a touchdown. With 5 minutes left in the third, Carr connected with tight end Mychal Rivera on a 1-yard touchdown pass to bring Oakland to within 7. Hauschka added two more field goals early in the fourth quarter and the Seahawks had a 13-point advantage with just over 9 minutes remaining. It took the Raiders until two plays after the 2-minute warning to score. Carr hooked up with Rivera again on another 1-yard touchdown pass and left it up to an onside kick to determine the outcome. Unfortunately for Oakland, their onside kick try was recovered by Seattle's Jermaine Kearse, and the Seahawks hung on to claim the victory, 30-24. With the loss, the Raiders dropped to 0-8 on the season.\n\nQUESTION: Which players scored more than one touchdown?",
+      "answer": "Mychal Rivera",
+      "id": "example_154",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Still looking for their first win of the season 7 games through, the Raiders headed up to the Pacific Northwest to take on the defending champion Seattle Seahawks. The Raiders received the opening kickoff and immediately scored on their first possession by means of a 48-yard field goal by Sebastian Janikowski. Up 3-0, the Oakland defense took the field and was unable to stop the Seahawks from responding. Seattle took advantage of the multiple flags against the defense as Marshawn Lynch and Russell Wilson facilitated a 72-yard drive to score the game's first touchdown on a 3 yard run by Lynch. Both teams went 3-and-out on their next offensive possession before Derek Carr was picked off by Seahawks LB Bruce Irvin who returned it 35 yards for a touchdown on the final play of the first quarter. In the second quarter, Carr was intercepted again, this time by Richard Sherman. Seahawks kicker Steven Hauschka added a field goal to put the Seahawks up 17-3. Meanwhile, the Raiders were unable to stop turning the ball over. After Hauschka's field goal, on the ensuing kickoff, T.J. Carrie's return was fumbled at the Oakland 25 and recovered by Hauschka himself at the 31 yard line. Though the Seahawks were unable to turn it into any points on Hauschka's missed field goal, Lynch picked up his second rushing touchdown of the day later in the quarter, this time from 5 yards out, and the Seahawks led 24-3 at halftime. To start the second half, however, the Raiders scored in less than a minute by blocking Jon Ryan's punt and recovering it in the end zone for a touchdown. With 5 minutes left in the third, Carr connected with tight end Mychal Rivera on a 1-yard touchdown pass to bring Oakland to within 7. Hauschka added two more field goals early in the fourth quarter and the Seahawks had a 13-point advantage with just over 9 minutes remaining. It took the Raiders until two plays after the 2-minute warning to score. Carr hooked up with Rivera again on another 1-yard touchdown pass and left it up to an onside kick to determine the outcome. Unfortunately for Oakland, their onside kick try was recovered by Seattle's Jermaine Kearse, and the Seahawks hung on to claim the victory, 30-24. With the loss, the Raiders dropped to 0-8 on the season.",
+        "original_question": "Which players scored more than one touchdown?",
+        "original_answer_data": {
+          "spans": [
+            "Mychal Rivera",
+            "Marshawn Lynch"
+          ],
+          "types": [
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 631
+      }
+    },
+    {
+      "question": "PASSAGE: Mechelen capitulated to Henri Christian Michel de Stengel and 6,000 Frenchmen on 16 November 1792 and its garrison of one battalion of the Austrian W\u00fcrttemberg Infantry Regiment Nr. 38 was allowed to go free. On the 27th Stengel with 8,000 soldiers from the Army of Belgium won a minor action at Voroux-lez-Liers near Li\u00e8ge over Anton Szt\u00e1ray and four battalions of Austrians. Antwerp fell on 29 November to Mirandas 17,600 infantry and 1,245 cavalry. The Austrian garrison of the 1st Battalion of the Hohenlohe Nr. 17, two companies of the Vierset Nr. 59 and four companies of the W\u00fcrzburg Infantry Regiments, plus 140 gunners surrendered after losing two dead and four wounded. The French captured 57 cannons, 50 additional 3-pound regimental cannons, 3,150 muskets and 1,523 hundredweight of gunpowder. The 2,599-man garrison of Namur under Johann Dominik von Moitelle surrendered on 2 December to Valence and Harville after a four-week siege. The Austrian defenders included two battalions of the Kinsky Infantry Regiment Nr. 36, one battalion of the Vierset, two companies of the Le Loup J\u00e4ger (military) Battalion, a half-squadron of the Esterhazy Hussar Regiment Nr. 32 and 90 gunners. Harvilles division counted 13,256 infantry, 1,425 cavalry and 266 artillerists.\n\nQUESTION: Which items did the French capture the greatest amount, muskets or gunpowder?",
+      "answer": "muskets",
+      "id": "example_155",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Mechelen capitulated to Henri Christian Michel de Stengel and 6,000 Frenchmen on 16 November 1792 and its garrison of one battalion of the Austrian W\u00fcrttemberg Infantry Regiment Nr. 38 was allowed to go free. On the 27th Stengel with 8,000 soldiers from the Army of Belgium won a minor action at Voroux-lez-Liers near Li\u00e8ge over Anton Szt\u00e1ray and four battalions of Austrians. Antwerp fell on 29 November to Mirandas 17,600 infantry and 1,245 cavalry. The Austrian garrison of the 1st Battalion of the Hohenlohe Nr. 17, two companies of the Vierset Nr. 59 and four companies of the W\u00fcrzburg Infantry Regiments, plus 140 gunners surrendered after losing two dead and four wounded. The French captured 57 cannons, 50 additional 3-pound regimental cannons, 3,150 muskets and 1,523 hundredweight of gunpowder. The 2,599-man garrison of Namur under Johann Dominik von Moitelle surrendered on 2 December to Valence and Harville after a four-week siege. The Austrian defenders included two battalions of the Kinsky Infantry Regiment Nr. 36, one battalion of the Vierset, two companies of the Le Loup J\u00e4ger (military) Battalion, a half-squadron of the Esterhazy Hussar Regiment Nr. 32 and 90 gunners. Harvilles division counted 13,256 infantry, 1,425 cavalry and 266 artillerists.",
+        "original_question": "Which items did the French capture the greatest amount, muskets or gunpowder?",
+        "original_answer_data": {
+          "spans": [
+            "muskets"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 490
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Browns were a Vegas road favorite for the first time since 2012 and an overall favorite for the first time since 2015.  The Colts drew first blood in the first quarter when backup QB Jacoby Brissett ran for a 5-yard touchdown to make the score 7-0 for the quarter's only points.  The Browns managed to tie it up in the second quarter when Duke Johnson Jr. ran for a 19-yard touchdown to make it 7-7.  Though the Colts then responded with 3 straight touchdowns:  Brissett ran for another one from 7 yards out followed up by a 61-yard passing touchdown from him to T.Y. Hilton.  Lastly, the Frank Gore ran for a 4-yard touchdown for lead changes of 14-7, 21-7, and 28-7.  The Browns managed to make the score 28-14 at halftime when DeShone Kizer found David Njoku on a 1-yard pass.  After a scoreless third quarter, the Colts managed to increase their lead when Adam Vinatieri nailed a 33-yard field goal to make it 31-14.  The Browns tried to rally with 2 more touchdowns:  Kizer connected with Kenny Britt on an 11-yard pass to make it 31-21.  This would be followed up by Kizer running in for a touchdown himself from a yard out to make it 31-28.  The Browns failed to recover the onside kick and it sealed the win for the Colts.  With the loss, the Browns fell to 0-3. The team also lost their 15th straight road game.",
+      "original_question": "How many points were scored in the second half of the game?",
+      "original_answer_data": {
+        "spans": [
+          "17"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 921
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Buccaneers started off horribly, both offensively and defensively as the Cardinals scored early. Five days earlier, veteran running back Adrian Peterson had been traded to Arizona from the Saints. Peterson started his first game for the Cardinals, scoring on the opening drive. Down 24-0 in the second quarter, Jameis Winston was sidelined with a shoulder injury and was replaced by backup quarterback Ryan Fitzpatrick. Winston would not return. After Fitzpatrick threw an interception early in the third quarter, the Cardinals scored again taking a 31-0 lead. The Buccaneers mounted a comeback, outscoring the Cardinals 33-7 for the remainder of the game, but came up short 38-33 after failing to recover an onside kick with just 2:02 remaining in regulation.",
+      "original_question": "How many total points were scored in the second half?",
+      "original_answer_data": {
+        "spans": [
+          "28"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 461
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "According to the Yuanshi, the Yuan fleet set out with an estimated 15,000 Mongol and Chinese soldiers and 1,600-8,000 Korean soldiers in 300 large vessels and 400-500 smaller craft along with several thousand sailors, although figures vary considerably depending on the source and many modern historians consider the numbers exaggerated. The primary port for the operation was Quanzhou in Fujian, then the center of China's maritime trade. They landed on Komodahama beach on Tsushima Island on October 5, 1274. S\u014d Sukekuni, governor of Tsushima, led a cavalry unit of 80 to defend the island, but he and his outnumbered unit were killed in the engagement. The Mongols and Koreans subsequently invaded Iki. Tairano Takakage, the Governor of Iki, fought the invaders with about 100 of his cavalrymen, but he killed himself after his unit was defeated. The Mongol forces landed on November 19 in Hakata Bay, a short distance from Dazaifu, the ancient administrative capital of Ky\u016bsh\u016b. The following day brought the Battle of Bun'ei , also known as the \"First Battle of Hakata Bay\". The Japanese coalition force opposing them included 120 armed samurai each with a warband and likely numbered between 3,000 and 6,000 strong. Later accounts have both sides believing themselves to be drastically outnumbered by the enemy; the Yuanshi provides an estimate of 102,000 for the Japanese force, while the Japanese Hachiman Gudokun describes the invaders as outnumbering the Japanese 10 to 1. Conlan argues that the Yuanshi's account of the battle suggests that both the Japanese and Yuan forces were of similar size. Conlan estimated that both armies numbered around 3,000 each .",
+      "original_question": "Which were there less of,  large vessels or smaller craft?",
+      "original_answer_data": {
+        "spans": [
+          "large vessels"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 522
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Still looking for their first win of the season 7 games through, the Raiders headed up to the Pacific Northwest to take on the defending champion Seattle Seahawks. The Raiders received the opening kickoff and immediately scored on their first possession by means of a 48-yard field goal by Sebastian Janikowski. Up 3-0, the Oakland defense took the field and was unable to stop the Seahawks from responding. Seattle took advantage of the multiple flags against the defense as Marshawn Lynch and Russell Wilson facilitated a 72-yard drive to score the game's first touchdown on a 3 yard run by Lynch. Both teams went 3-and-out on their next offensive possession before Derek Carr was picked off by Seahawks LB Bruce Irvin who returned it 35 yards for a touchdown on the final play of the first quarter. In the second quarter, Carr was intercepted again, this time by Richard Sherman. Seahawks kicker Steven Hauschka added a field goal to put the Seahawks up 17-3. Meanwhile, the Raiders were unable to stop turning the ball over. After Hauschka's field goal, on the ensuing kickoff, T.J. Carrie's return was fumbled at the Oakland 25 and recovered by Hauschka himself at the 31 yard line. Though the Seahawks were unable to turn it into any points on Hauschka's missed field goal, Lynch picked up his second rushing touchdown of the day later in the quarter, this time from 5 yards out, and the Seahawks led 24-3 at halftime. To start the second half, however, the Raiders scored in less than a minute by blocking Jon Ryan's punt and recovering it in the end zone for a touchdown. With 5 minutes left in the third, Carr connected with tight end Mychal Rivera on a 1-yard touchdown pass to bring Oakland to within 7. Hauschka added two more field goals early in the fourth quarter and the Seahawks had a 13-point advantage with just over 9 minutes remaining. It took the Raiders until two plays after the 2-minute warning to score. Carr hooked up with Rivera again on another 1-yard touchdown pass and left it up to an onside kick to determine the outcome. Unfortunately for Oakland, their onside kick try was recovered by Seattle's Jermaine Kearse, and the Seahawks hung on to claim the victory, 30-24. With the loss, the Raiders dropped to 0-8 on the season.",
+      "original_question": "Which players scored more than one touchdown?",
+      "original_answer_data": {
+        "spans": [
+          "Mychal Rivera",
+          "Marshawn Lynch"
+        ],
+        "types": [
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 631
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Mechelen capitulated to Henri Christian Michel de Stengel and 6,000 Frenchmen on 16 November 1792 and its garrison of one battalion of the Austrian W\u00fcrttemberg Infantry Regiment Nr. 38 was allowed to go free. On the 27th Stengel with 8,000 soldiers from the Army of Belgium won a minor action at Voroux-lez-Liers near Li\u00e8ge over Anton Szt\u00e1ray and four battalions of Austrians. Antwerp fell on 29 November to Mirandas 17,600 infantry and 1,245 cavalry. The Austrian garrison of the 1st Battalion of the Hohenlohe Nr. 17, two companies of the Vierset Nr. 59 and four companies of the W\u00fcrzburg Infantry Regiments, plus 140 gunners surrendered after losing two dead and four wounded. The French captured 57 cannons, 50 additional 3-pound regimental cannons, 3,150 muskets and 1,523 hundredweight of gunpowder. The 2,599-man garrison of Namur under Johann Dominik von Moitelle surrendered on 2 December to Valence and Harville after a four-week siege. The Austrian defenders included two battalions of the Kinsky Infantry Regiment Nr. 36, one battalion of the Vierset, two companies of the Le Loup J\u00e4ger (military) Battalion, a half-squadron of the Esterhazy Hussar Regiment Nr. 32 and 90 gunners. Harvilles division counted 13,256 infantry, 1,425 cavalry and 266 artillerists.",
+      "original_question": "Which items did the French capture the greatest amount, muskets or gunpowder?",
+      "original_answer_data": {
+        "spans": [
+          "muskets"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 490
+    }
+  ],
+  "example_indices": [
+    151,
+    152,
+    153,
+    154,
+    155
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "Total points scored in the third and fourth quarters.",
+      "output": "ANSWER_START\nTotal points scored in the third and fourth quarters.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_21.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer describes what to calculate, not the calculated result. The golden answer gives the calculated result: 17. These are not equivalent."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Total score in the second half of the game.",
+      "output": "ANSWER_START\nTotal score in the second half of the game.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_21.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 0,
+        "explanation": "The system answer describes what the golden answer is, rather than giving the value itself. It does not convey the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Fewer large vessels",
+      "output": "ANSWER_START\nFewer large vessels\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_21.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 0.8,
+        "explanation": "The system answer implies the golden answer because \"fewer large vessels\" means there are large vessels, just less of them."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Information not provided.",
+      "output": "ANSWER_START\nInformation not provided.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_21.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 0.0,
+        "explanation": "The system answer states that information is not provided, while the golden answer provides a specific name, \"Mychal Rivera\". These answers do not convey the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "More muskets",
+      "output": "ANSWER_START\nMore muskets\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_21.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer includes the golden answer, so they convey the same information."
+      },
+      "match": true
+    }
+  ],
+  "performance": {
+    "accuracy": 0.4,
+    "correct_count": 2,
+    "total_count": 5,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "Total points scored in the third and fourth quarters.",
+        "golden_answer": "17",
+        "output": "ANSWER_START\nTotal points scored in the third and fourth quarters.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer describes what to calculate, not the calculated result. The golden answer gives the calculated result: 17. These are not equivalent."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "Total score in the second half of the game.",
+        "golden_answer": "28",
+        "output": "ANSWER_START\nTotal score in the second half of the game.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 0,
+          "explanation": "The system answer describes what the golden answer is, rather than giving the value itself. It does not convey the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "Fewer large vessels",
+        "golden_answer": "large vessels",
+        "output": "ANSWER_START\nFewer large vessels\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 0.8,
+          "explanation": "The system answer implies the golden answer because \"fewer large vessels\" means there are large vessels, just less of them."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "Information not provided.",
+        "golden_answer": "Mychal Rivera",
+        "output": "ANSWER_START\nInformation not provided.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 0.0,
+          "explanation": "The system answer states that information is not provided, while the golden answer provides a specific name, \"Mychal Rivera\". These answers do not convey the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "More muskets",
+        "golden_answer": "muskets",
+        "output": "ANSWER_START\nMore muskets\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the golden answer, so they convey the same information."
+        }
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors (e.g., JSONDecodeError, TypeError) were explicitly identified in the provided `output` fields. However, the core issue is a failure to perform the requested calculations or extractions.\n\n## STRENGTHS\n1.  The system can extract relevant information from the passage, as seen in its ability to identify the topic of the question being asked.\n2.  The system can recognize the general type of answer required (e.g., \"points scored in the second half\").\n\n## WEAKNESSES\n1.  **Lack of Calculation/Extraction:** The system frequently fails to perform the arithmetic calculation or extract the specific name requested in the question. Instead, it outputs a description of *what* needs to be calculated, not the result itself.\n2.  **\"Information not provided\" Fallback:** The system defaults to stating \"Information not provided\" even when the passage contains the relevant information.\n\n## CRITICAL BOTTLENECKS\n1.  **Failure to execute calculation/extraction step:** The core bottleneck is the inability to translate the question's requirement (e.g., \"How many points...\") into a concrete calculation or extraction from the passage. The system seems to stop at understanding the question's topic without completing the task.\n\n## ERROR PATTERNS\n1.  **Describing the Answer Instead of Providing It:** The system consistently identifies the *type* of answer needed but fails to actually *provide* the numerical answer or specific entity required.\n2.  **Over-reliance on \"Information not provided\":** The system incorrectly claims information is missing when it's actually present. This suggests a failure in information retrieval, or the system simply giving up.\n\n## PRIMARY ISSUE\nThe primary issue is the failure of the system to transition from *understanding the question* to *executing the required calculation/extraction* to produce a factual answer based on the passage. It understands what to do, but doesn't do it.\n\n## IMPROVEMENT AREAS\n1.  **Arithmetic/Extraction Execution:** The system needs a robust mechanism to execute the identified arithmetic operations (addition, subtraction, etc.) necessary to answer quantitative questions. It needs to perform the actual \"calculation\". This may involve implementing an actual calculator module. For questions that require identifying a specific entity (e.g., \"Which player...\"), the system needs improved extraction techniques.\n2.  **Information Retrieval Confidence:** The system should only default to \"Information not provided\" when *absolutely certain* the passage lacks the relevant information. Implement more thorough search and retrieval mechanisms, perhaps with iterative refinement.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Calculation Module:** Create a dedicated module to perform arithmetic calculations. This module should take the question and passage as input, identify the relevant numbers, and perform the required operations.\n2.  **Enhance Extraction Logic:** For questions requiring name extraction, implement pattern matching, keyword-based search, and potentially Named Entity Recognition (NER) to locate and extract the correct entity.\n3.  **Confidence Scoring:** Implement a confidence score for the information retrieval and calculation/extraction steps. Only default to \"Information not provided\" if the confidence score is below a certain threshold.\n4.  **Intermediate Steps Logging:** Add print statements or logging to track the intermediate steps the system takes, including the identified numbers, the intended calculation, and the final result. This will allow for more targeted debugging.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information_extraction, solution_generation, solution_verification\n*   **Sample ID 1:** information_extraction, solution_generation, solution_verification\n*   **Sample ID 3:** information_extraction, solution_generation, solution_verification\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The primary issue is the failure of the system to transition from *understanding the question* to *executing the required calculation/extraction* to produce a factual answer based on the passage. It understands what to do, but doesn't do it.",
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.40 (2/5)\n*   Error samples: 3/5\n\n**ERROR ANALYSIS REPORT:** (As provided)\n\n## EXECUTION ANALYSIS\n\nThe `SAMPLE EXECUTION OUTPUTS` confirm the findings of the error analysis. The system correctly *identifies* what needs to be done (e.g., \"Total points scored in the third and fourth quarters,\" \"Total score in the second half of the game\") but fails to *perform* the calculation or provide the answer. The output is a description of the desired answer, wrapped in `ANSWER_START` and `ANSWER_END` tags, instead of the answer itself. This pattern consistently repeats across the provided samples. The third output similarly identifies a relevant phrase, but doesn't seem to extract or process it in any meaningful way.\n\nThe capability mapping indicates that all assessed samples go through information extraction, solution generation and solution verification, however the solutions appear to be improperly generated or verified.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a rudimentary understanding of question topics and the required answer type. It can extract key phrases from the passage and seemingly identify the information needed to answer the question. However, it completely fails at the core task of *actually calculating or extracting* the answer. The system has the potential to be successful, but requires significant improvements to execute the required calculations and produce meaningful outputs.\n\n## KEY STRENGTHS\n\n*   **Topic Identification:** The system can identify the topic of the question.\n*   **Answer Type Recognition:** The system can recognize the general type of answer required (e.g., total points, player name).\n*   **Information extraction:** The system is able to pull relevant phrases from provided text.\n\n## KEY WEAKNESSES\n\n*   **Calculation/Extraction Failure:** The system *cannot* perform arithmetic calculations or extract specific entities as required.\n*   **\"Information not provided\" Overuse:** The system incorrectly claims information is missing when it is actually present in the provided text.\n*   **Solution Verification:** Appears to generate a solution and verify it, but outputs the solution improperly.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on is **Calculation/Extraction Execution.** The system must be able to perform the arithmetic or string operations necessary to generate the correct answer.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement the Calculation Module:** Immediately implement a dedicated calculation module. This module should take the question, passage, and extracted numbers as input and perform the arithmetic calculation required. Start with basic addition/subtraction and expand to more complex operations as needed. Ensure thorough unit testing of this module.\n2.  **Enhance Extraction Logic (Specifically for Arithmetic Questions):** Before invoking the calculation module, implement logic to rigorously identify numerical values within the extracted phrases relevant to the question. Use regular expressions or pattern matching to isolate these numbers. Consider cases where numbers are written out as words (e.g., \"two\").\n3.  **Refine \"Information not provided\" Logic:** Modify the system to perform a more exhaustive search before concluding that information is missing. Consider using techniques like keyword expansion (synonyms, related terms) and proximity search to improve information retrieval. Only return \"Information not provided\" after these more thorough searches have failed.\n4. **Investigate Solution Verification Module:** Investigate whether this module is functioning properly and whether the logic used is sufficient, based on the errors and solutions given.\n5. **Test the End-to-End Pipeline:** After implementing the calculation module, thoroughly test the entire pipeline from question input to answer output. Focus on questions that require simple arithmetic calculations to verify that the module is functioning correctly.\n6. **Log Extracted Phrases and Numbers:** Log the phrases extracted from the passage and the numbers identified within those phrases *before* invoking the calculation module. This will help pinpoint where the system is failing.\n\n## CAPABILITY TREND\n\nBased on the provided information, the capabilities are currently **stable but insufficient**. The system consistently demonstrates the same strengths and weaknesses. Significant improvements are required to move the system towards a higher level of performance. Implementing the actionable recommendations above is crucial for initiating an upward trend.\n",
+      "strengths": [],
+      "weaknesses": [],
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors (e.g., JSONDecodeError, TypeError) were explicitly identified in the provided `output` fields. However, the core issue is a failure to perform the requested calculations or extractions.\n\n## STRENGTHS\n1.  The system can extract relevant information from the passage, as seen in its ability to identify the topic of the question being asked.\n2.  The system can recognize the general type of answer required (e.g., \"points scored in the second half\").\n\n## WEAKNESSES\n1.  **Lack of Calculation/Extraction:** The system frequently fails to perform the arithmetic calculation or extract the specific name requested in the question. Instead, it outputs a description of *what* needs to be calculated, not the result itself.\n2.  **\"Information not provided\" Fallback:** The system defaults to stating \"Information not provided\" even when the passage contains the relevant information.\n\n## CRITICAL BOTTLENECKS\n1.  **Failure to execute calculation/extraction step:** The core bottleneck is the inability to translate the question's requirement (e.g., \"How many points...\") into a concrete calculation or extraction from the passage. The system seems to stop at understanding the question's topic without completing the task.\n\n## ERROR PATTERNS\n1.  **Describing the Answer Instead of Providing It:** The system consistently identifies the *type* of answer needed but fails to actually *provide* the numerical answer or specific entity required.\n2.  **Over-reliance on \"Information not provided\":** The system incorrectly claims information is missing when it's actually present. This suggests a failure in information retrieval, or the system simply giving up.\n\n## PRIMARY ISSUE\nThe primary issue is the failure of the system to transition from *understanding the question* to *executing the required calculation/extraction* to produce a factual answer based on the passage. It understands what to do, but doesn't do it.\n\n## IMPROVEMENT AREAS\n1.  **Arithmetic/Extraction Execution:** The system needs a robust mechanism to execute the identified arithmetic operations (addition, subtraction, etc.) necessary to answer quantitative questions. It needs to perform the actual \"calculation\". This may involve implementing an actual calculator module. For questions that require identifying a specific entity (e.g., \"Which player...\"), the system needs improved extraction techniques.\n2.  **Information Retrieval Confidence:** The system should only default to \"Information not provided\" when *absolutely certain* the passage lacks the relevant information. Implement more thorough search and retrieval mechanisms, perhaps with iterative refinement.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Calculation Module:** Create a dedicated module to perform arithmetic calculations. This module should take the question and passage as input, identify the relevant numbers, and perform the required operations.\n2.  **Enhance Extraction Logic:** For questions requiring name extraction, implement pattern matching, keyword-based search, and potentially Named Entity Recognition (NER) to locate and extract the correct entity.\n3.  **Confidence Scoring:** Implement a confidence score for the information retrieval and calculation/extraction steps. Only default to \"Information not provided\" if the confidence score is below a certain threshold.\n4.  **Intermediate Steps Logging:** Add print statements or logging to track the intermediate steps the system takes, including the identified numbers, the intended calculation, and the final result. This will allow for more targeted debugging.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information_extraction, solution_generation, solution_verification\n*   **Sample ID 1:** information_extraction, solution_generation, solution_verification\n*   **Sample ID 3:** information_extraction, solution_generation, solution_verification\n",
+    "capability_report_text": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.40 (2/5)\n*   Error samples: 3/5\n\n**ERROR ANALYSIS REPORT:** (As provided)\n\n## EXECUTION ANALYSIS\n\nThe `SAMPLE EXECUTION OUTPUTS` confirm the findings of the error analysis. The system correctly *identifies* what needs to be done (e.g., \"Total points scored in the third and fourth quarters,\" \"Total score in the second half of the game\") but fails to *perform* the calculation or provide the answer. The output is a description of the desired answer, wrapped in `ANSWER_START` and `ANSWER_END` tags, instead of the answer itself. This pattern consistently repeats across the provided samples. The third output similarly identifies a relevant phrase, but doesn't seem to extract or process it in any meaningful way.\n\nThe capability mapping indicates that all assessed samples go through information extraction, solution generation and solution verification, however the solutions appear to be improperly generated or verified.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a rudimentary understanding of question topics and the required answer type. It can extract key phrases from the passage and seemingly identify the information needed to answer the question. However, it completely fails at the core task of *actually calculating or extracting* the answer. The system has the potential to be successful, but requires significant improvements to execute the required calculations and produce meaningful outputs.\n\n## KEY STRENGTHS\n\n*   **Topic Identification:** The system can identify the topic of the question.\n*   **Answer Type Recognition:** The system can recognize the general type of answer required (e.g., total points, player name).\n*   **Information extraction:** The system is able to pull relevant phrases from provided text.\n\n## KEY WEAKNESSES\n\n*   **Calculation/Extraction Failure:** The system *cannot* perform arithmetic calculations or extract specific entities as required.\n*   **\"Information not provided\" Overuse:** The system incorrectly claims information is missing when it is actually present in the provided text.\n*   **Solution Verification:** Appears to generate a solution and verify it, but outputs the solution improperly.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on is **Calculation/Extraction Execution.** The system must be able to perform the arithmetic or string operations necessary to generate the correct answer.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement the Calculation Module:** Immediately implement a dedicated calculation module. This module should take the question, passage, and extracted numbers as input and perform the arithmetic calculation required. Start with basic addition/subtraction and expand to more complex operations as needed. Ensure thorough unit testing of this module.\n2.  **Enhance Extraction Logic (Specifically for Arithmetic Questions):** Before invoking the calculation module, implement logic to rigorously identify numerical values within the extracted phrases relevant to the question. Use regular expressions or pattern matching to isolate these numbers. Consider cases where numbers are written out as words (e.g., \"two\").\n3.  **Refine \"Information not provided\" Logic:** Modify the system to perform a more exhaustive search before concluding that information is missing. Consider using techniques like keyword expansion (synonyms, related terms) and proximity search to improve information retrieval. Only return \"Information not provided\" after these more thorough searches have failed.\n4. **Investigate Solution Verification Module:** Investigate whether this module is functioning properly and whether the logic used is sufficient, based on the errors and solutions given.\n5. **Test the End-to-End Pipeline:** After implementing the calculation module, thoroughly test the entire pipeline from question input to answer output. Focus on questions that require simple arithmetic calculations to verify that the module is functioning correctly.\n6. **Log Extracted Phrases and Numbers:** Log the phrases extracted from the passage and the numbers identified within those phrases *before* invoking the calculation module. This will help pinpoint where the system is failing.\n\n## CAPABILITY TREND\n\nBased on the provided information, the capabilities are currently **stable but insufficient**. The system consistently demonstrates the same strengths and weaknesses. Significant improvements are required to move the system towards a higher level of performance. Implementing the actionable recommendations above is crucial for initiating an upward trend.\n"
+  },
+  "progressive_testing": null,
+  "execution_time": 52.2161169052124,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

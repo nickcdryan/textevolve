@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 0,
-        "sample_id": "example_7",
-        "question": "PASSAGE: Coming off their easy road win over the Rams, the Vikings went home for a Week 6 inter-conference duel with the Baltimore Ravens. Minnesota got off to a fast start in the first quarter with quarterback Brett Favre completing a 19-yard touchdown pass to tight end Visanthe Shiancoe and a 4-yard touchdown pass to wide receiver Bernard Berrian. Afterwards, the Ravens got the only points of the second quarter as kicker Steven Hauschka getting a 29-yard field goal. In the third quarter, the Vikings picked up where they left off with a 40-yard field goal from kicker Ryan Longwell. Baltimore responded with a 22-yard touchdown run from running back Ray Rice, yet Longwell helped out Minnesota by nailing a 22-yard field goal. Afterwards, an action-packed fourth quarter ensued. Minnesota increased its lead with Favre hooking up with Shiancoe again on a 1-yard touchdown pass, but the Ravens continued to hang around as quarterback Joe Flacco found wide receiver Mark Clayton on a 32-yard touchdown pass. The Vikings replied with Longwell's 29-yard field goal, but Baltimore took lead for the first time in the game as Flacco hooked up with wide receiver Derrick Mason on a 12-yard touchdown pass and Rice running 33 yards for a touchdown. Minnesota then regained the lead as Longwell booted a 31-yard field goal after a 58-yard pass from quarterback Brett Favre to wide receiver Sidney Rice. The Ravens got a last-minute drive into scoring range, but Hauschka's 44-yard field goal attempt went wide left, preserving the Vikings' perfect season. With the win, the Vikings acquired their first 6-0 start since 2003 (unfortunately that team did not make the playoffs). Also, dating back to Week 17 of the 2008 season, Minnesota has won seven-straight regular season games for the first time since 2000.\n\nQUESTION: Who threw the second longest touchdown pass?"
+        "sample_id": "20738319-be7d-40c3-8afb-47298c80e27d",
+        "question": "PASSAGE: When Halsey turned TF\xa034 southwards at 11:15, he detached a task group of four of its cruisers and nine of its destroyers under Rear Admiral DuBose, and reassigned this group to TF\xa038. At 14:15, Mitscher ordered DuBose to pursue the remnants of the Japanese Northern Force. His cruisers finished off the light carrier Chiyoda at around 17:00, and at 20:59 his ships sank the destroyer Hatsuzuki after a very stubborn fight. When Admiral Ozawa learned of the deployment of DuBose's relatively weak task group, he ordered battleships Ise and Hyūga to turn southwards and attack it, but they failed to locate DuBose's group, which they heavily outgunned. Halsey's withdrawal of all six of Lee's battleships in his attempt to assist Seventh Fleet had now rendered TF\xa038 vulnerable to a surface counterattack by the decoy Northern Force. At about 23:10, the American submarine Jallao torpedoed and sank the light cruiser Tama of Ozawa's force. This was the last act of the Battle of Cape Engaño, and—apart from some final air strikes on the retreating Japanese forces on 26 October—the conclusion of the Battle for Leyte Gulf.\n\nQUESTION: Did Rear Admiral DuBose have more cruisers or more destroyers?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 0,
-            "sample_id": "example_7",
+            "sample_id": "20738319-be7d-40c3-8afb-47298c80e27d",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Coming off their easy road win over the Rams, the Vikings went home for a Week 6 inter-conference duel with the Baltimore Ravens. Minnesota got off to a fast start in the first quarter with quarterback Brett Favre completing a 19-yard touchdown pass to tight end Visanthe Shiancoe and a 4-yard touchdown pass to wide receiver Bernard Berrian. Afterwards, the Ravens got the only points of the second quarter as kicker Steven Hauschka getting a 29-yard field goal. In the third quarter, the Vikings picked up where they left off with a 40-yard field goal from kicker Ryan Longwell. Baltimore responded with a 22-yard touchdown run from running back Ray Rice, yet Longwell helped out Minnesota by nailing a 22-yard field goal. Afterwards, an action-packed fourth quarter ensued. Minnesota increased its lead with Favre hooking up with Shiancoe again on a 1-yard touchdown pass, but the Ravens continued to hang around as quarterback Joe Flacco found wide receiver Mark Clayton on a 32-yard touchdown pass. The Vikings replied with Longwell's 29-yard field goal, but Baltimore took lead for the first time in the game as Flacco hooked up with wide receiver Derrick Mason on a 12-yard touchdown pass and Rice running 33 yards for a touchdown. Minnesota then regained the lead as Longwell booted a 31-yard field goal after a 58-yard pass from quarterback Brett Favre to wide receiver Sidney Rice. The Ravens got a last-minute drive into scoring range, but Hauschka's 44-yard field goal attempt went wide left, preserving the Vikings' perfect season. With the win, the Vikings acquired their first 6-0 start since 2003 (unfortunately that team did not make the playoffs). Also, dating back to Week 17 of the 2008 season, Minnesota has won seven-straight regular season games for the first time since 2000.\n\nQUESTION: Who threw the second longest touchdown pass?"
+    question = "PASSAGE: When Halsey turned TF\xa034 southwards at 11:15, he detached a task group of four of its cruisers and nine of its destroyers under Rear Admiral DuBose, and reassigned this group to TF\xa038. At 14:15, Mitscher ordered DuBose to pursue the remnants of the Japanese Northern Force. His cruisers finished off the light carrier Chiyoda at around 17:00, and at 20:59 his ships sank the destroyer Hatsuzuki after a very stubborn fight. When Admiral Ozawa learned of the deployment of DuBose's relatively weak task group, he ordered battleships Ise and Hyūga to turn southwards and attack it, but they failed to locate DuBose's group, which they heavily outgunned. Halsey's withdrawal of all six of Lee's battleships in his attempt to assist Seventh Fleet had now rendered TF\xa038 vulnerable to a surface counterattack by the decoy Northern Force. At about 23:10, the American submarine Jallao torpedoed and sank the light cruiser Tama of Ozawa's force. This was the last act of the Battle of Cape Engaño, and—apart from some final air strikes on the retreating Japanese forces on 26 October—the conclusion of the Battle for Leyte Gulf.\n\nQUESTION: Did Rear Admiral DuBose have more cruisers or more destroyers?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 0,
-            "sample_id": "example_7",
+            "sample_id": "20738319-be7d-40c3-8afb-47298c80e27d",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 0,
-            "sample_id": "example_7",
+            "sample_id": "20738319-be7d-40c3-8afb-47298c80e27d",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

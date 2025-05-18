@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 8,
-        "sample_id": "13d7160c-3d91-456d-8b96-34125961a2d9",
-        "question": "PASSAGE: Following their Monday Night loss to the Raiders, the Broncos remained on home turf to face the Cincinnati Bengals. The Broncos took the lead in the first quarter, with a 1-yard touchdown run by running back Willis McGahee. The Bengals got on the board in the second quarter, with a 45-yard field goal by placekicker Mike Nugent. The Broncos responded, with a 34-yard field goal by placekicker Matt Prater just before halftime. In the third quarter, the Broncos extended their lead, with a 25-yard touchdown pass from quarterback Kyle Orton to wide receiver Eric Decker. The Bengals reeled off 12 unanswered points, with a 37-yard field goal by Nugent, a 10-yard touchdown pass from quarterback Andy Dalton to wide receiver Andre Caldwell (with a failed two-point conversion attempt), followed by a 23-yard field goal by Nugent, narrowing the Broncos' lead to 17-15. In the fourth quarter, the Broncos once again increased their lead, with a 52-yard touchdown pass from Orton to Decker, but the Bengals responded, with a 5-yard touchdown pass from Dalton to wide receiver A. J. Green. The Broncos' defense prevented any more scoring.\n\nQUESTION: How many yards shorter was Mike Nugent's second field goal compared to his first?"
+        "sample_id": "example_75",
+        "question": "PASSAGE: Still searching for their first win of the season, the Chiefs flew to Lincoln Financial Field for a Week 3 interconference duel with the Philadelphia Eagles. Kansas City would trail early in the first quarter as Eagles running back LeSean McCoy got a 5-yard touchdown run and quarterback Kevin Kolb got a 1-yard touchdown run. The Chiefs would get on the board with quarterback Matt Cassel's 13-yard touchdown pass to wide receiver Mark Bradley, but Philadelphia came right back with Kolb's 64-yard touchdown pass to wide receiver DeSean Jackson and kicker David Akers' 29-yard field goal. Kansas City's deficit would increase as Akers nailed a 38-yard field goal in the third quarter. In the fourth quarter, the Eagles would put the game away with Kolb's 35-yard touchdown pass to tight end Brent Celek. Afterwards, the Chiefs would end the game with Cassel's 9-yard touchdown pass to wide receiver Bobby Wade.\n\nQUESTION: Which touchdown passes did Matt Cassel make?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 8,
-            "sample_id": "13d7160c-3d91-456d-8b96-34125961a2d9",
+            "sample_id": "example_75",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Following their Monday Night loss to the Raiders, the Broncos remained on home turf to face the Cincinnati Bengals. The Broncos took the lead in the first quarter, with a 1-yard touchdown run by running back Willis McGahee. The Bengals got on the board in the second quarter, with a 45-yard field goal by placekicker Mike Nugent. The Broncos responded, with a 34-yard field goal by placekicker Matt Prater just before halftime. In the third quarter, the Broncos extended their lead, with a 25-yard touchdown pass from quarterback Kyle Orton to wide receiver Eric Decker. The Bengals reeled off 12 unanswered points, with a 37-yard field goal by Nugent, a 10-yard touchdown pass from quarterback Andy Dalton to wide receiver Andre Caldwell (with a failed two-point conversion attempt), followed by a 23-yard field goal by Nugent, narrowing the Broncos' lead to 17-15. In the fourth quarter, the Broncos once again increased their lead, with a 52-yard touchdown pass from Orton to Decker, but the Bengals responded, with a 5-yard touchdown pass from Dalton to wide receiver A. J. Green. The Broncos' defense prevented any more scoring.\n\nQUESTION: How many yards shorter was Mike Nugent's second field goal compared to his first?"
+    question = "PASSAGE: Still searching for their first win of the season, the Chiefs flew to Lincoln Financial Field for a Week 3 interconference duel with the Philadelphia Eagles. Kansas City would trail early in the first quarter as Eagles running back LeSean McCoy got a 5-yard touchdown run and quarterback Kevin Kolb got a 1-yard touchdown run. The Chiefs would get on the board with quarterback Matt Cassel's 13-yard touchdown pass to wide receiver Mark Bradley, but Philadelphia came right back with Kolb's 64-yard touchdown pass to wide receiver DeSean Jackson and kicker David Akers' 29-yard field goal. Kansas City's deficit would increase as Akers nailed a 38-yard field goal in the third quarter. In the fourth quarter, the Eagles would put the game away with Kolb's 35-yard touchdown pass to tight end Brent Celek. Afterwards, the Chiefs would end the game with Cassel's 9-yard touchdown pass to wide receiver Bobby Wade.\n\nQUESTION: Which touchdown passes did Matt Cassel make?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 8,
-            "sample_id": "13d7160c-3d91-456d-8b96-34125961a2d9",
+            "sample_id": "example_75",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 8,
-            "sample_id": "13d7160c-3d91-456d-8b96-34125961a2d9",
+            "sample_id": "example_75",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

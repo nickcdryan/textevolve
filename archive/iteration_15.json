@@ -1,0 +1,782 @@
+{
+  "iteration": 15,
+  "timestamp": "2025-05-17T20:37:03.145268",
+  "strategy": "Exploitation",
+  "explore_rate": 60,
+  "exploit_rate": 40,
+  "batch_size": 10,
+  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n\t\tReasoning: The main question asks for a combination of two values. Decomposing it into finding each value separately and then summing them solves this.\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n\n\t\tReasoning: The question seeks the identity of a player based on an event. A single sub-question can directly retrieve this information.\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\t\tReasoning: All sub-questions directly address necessary parts of the main question, and when answered fully answer the main question\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\t\tReasoning: This example correctly identifies the yards for both Chris Johnson's touchdown and Jason Hanson's field goal, directly answering both sub-questions.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\t\tReasoning: The extracted information directly corresponds to the information needed to answer the sub-questions\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\t\tReasoning: Adding the two yardages from the extracted information results in the final answer.\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\t\tReasoning: This is the correct yardage according to addition and matches what is expected from the original question.\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script solves a question by decomposing it into sub-questions, extracting relevant information to answer them, and synthesizing a final answer, using chain-of-thought prompting with examples. Each stage (decomposition, extraction, synthesis) uses a specific LLM agent role and validates the output using another LLM call. The workflow involves `main` calling `decompose_question`, then `extract_information`, then `synthesize_answer`; each of these functions calls `call_llm` to interact with the LLM and also validate the response from the LLM.",
+  "sample_count": 10,
+  "samples": [
+    {
+      "question": "PASSAGE: Between 2001 and 2011 shares in Tottenham Hotspur F.C. were listed on the Alternative Investment Market (AIM index). The majority shareholder, ENIC International Ltd, is an investment company established by the British billionaire Joe Lewis (British businessman). Daniel Levy (businessman), Lewiss partner at ENIC, is Executive Chairman of the club. They had acquired 29.9% after buying 27% share of the club for \u00a322 million from Sugar in 1991. Shareholding by ENIC increased over the decade through the purchase of the remaining 12% holding of Alan Sugar in 2007 for \u00a325m, and the 9.9% stake belonging to Stelios Haji-Ioannou through Hodram Inc in 2009. On 21 August 2009 the club reported that they had issued a further 30 million shares to fund the initial development costs of the new stadium project, and that 27.8 million of these new shares had been purchased by ENIC. The Annual Report for 2010 indicated that ENIC had acquired 76% of all Ordinary Shares and also held 97% of all convertible redeemable preference shares, equivalent to a holding of 85% of share capital. Following an announcement at the 2011 AGM, in January 2012 the club confirmed that they had been transferred into the private ownership of ENIC.\n\nQUESTION: How many years were shares of Tottenham Hotspur F.C. listed on the Alternative Investment Market?",
+      "answer": "10",
+      "id": "example_111",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Between 2001 and 2011 shares in Tottenham Hotspur F.C. were listed on the Alternative Investment Market (AIM index). The majority shareholder, ENIC International Ltd, is an investment company established by the British billionaire Joe Lewis (British businessman). Daniel Levy (businessman), Lewiss partner at ENIC, is Executive Chairman of the club. They had acquired 29.9% after buying 27% share of the club for \u00a322 million from Sugar in 1991. Shareholding by ENIC increased over the decade through the purchase of the remaining 12% holding of Alan Sugar in 2007 for \u00a325m, and the 9.9% stake belonging to Stelios Haji-Ioannou through Hodram Inc in 2009. On 21 August 2009 the club reported that they had issued a further 30 million shares to fund the initial development costs of the new stadium project, and that 27.8 million of these new shares had been purchased by ENIC. The Annual Report for 2010 indicated that ENIC had acquired 76% of all Ordinary Shares and also held 97% of all convertible redeemable preference shares, equivalent to a holding of 85% of share capital. Following an announcement at the 2011 AGM, in January 2012 the club confirmed that they had been transferred into the private ownership of ENIC.",
+        "original_question": "How many years were shares of Tottenham Hotspur F.C. listed on the Alternative Investment Market?",
+        "original_answer_data": {
+          "spans": [
+            "10"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 227
+      }
+    },
+    {
+      "question": "PASSAGE: As of the census of 2010, there were 31,894 people, 13,324 households, and 8,201 families residing in the city. The population density was . There were 14,057 housing units at an average density of . The racial makeup of the city was 93.9% White (U.S. Census), 0.3% African American (U.S. Census), 1.7% Native American (U.S. Census), 0.8% Asian (U.S. Census), 0.1% Race (U.S. Census), 0.7% from Race (U.S. Census), and 2.4% from two or more races. Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 2.8% of the population.\n\nQUESTION: Which group from the census is smaller: Asian or African American?",
+      "answer": "African American",
+      "id": "example_112",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "As of the census of 2010, there were 31,894 people, 13,324 households, and 8,201 families residing in the city. The population density was . There were 14,057 housing units at an average density of . The racial makeup of the city was 93.9% White (U.S. Census), 0.3% African American (U.S. Census), 1.7% Native American (U.S. Census), 0.8% Asian (U.S. Census), 0.1% Race (U.S. Census), 0.7% from Race (U.S. Census), and 2.4% from two or more races. Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 2.8% of the population.",
+        "original_question": "Which group from the census is smaller: Asian or African American?",
+        "original_answer_data": {
+          "spans": [
+            "African American"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 481
+      }
+    },
+    {
+      "question": "PASSAGE: Trying to snap a two-game skid, the Chargers went home for an AFC West duel with the Kansas City Chiefs.  In the first quarter, San Diego's struggling offense found some life with kicker Nate Kaeding getting a 24-yard field goal, while RB LaDainian Tomlinson got a 5-yard TD run.  In the second quarter, the Chargers increased its lead with Kaeding kicking a 51-yard field goal.  The Chiefs would answer with kicker Dave Rayner getting a 25-yard field goal.  Afterwards, San Diego ended the half with Kaeding getting a 38-yard field goal.  Unfortunately, in the third quarter, the Chargers lost their lead Kansas City getting a 41-yard field goal from Rayner and QB Damon Huard completing a 22-yard TD pass to TE Tony Gonzalez.  Even worse, San Diego ended up losing in the fourth quarter with Huard completing a 51-yard TD pass to WR Dwayne Bowe, along with CB Tyron Brackenridge returning a fumble 50 yards for a touchdown. One of the few positives from the game, Tomlinson would finally get his first 100-yard game of the year.  He would get 132 rushing yards on 20 carries.\n\nQUESTION: How many more yards was Nate Kaedings second field goal over his first?",
+      "answer": "1",
+      "id": "example_113",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Trying to snap a two-game skid, the Chargers went home for an AFC West duel with the Kansas City Chiefs.  In the first quarter, San Diego's struggling offense found some life with kicker Nate Kaeding getting a 24-yard field goal, while RB LaDainian Tomlinson got a 5-yard TD run.  In the second quarter, the Chargers increased its lead with Kaeding kicking a 51-yard field goal.  The Chiefs would answer with kicker Dave Rayner getting a 25-yard field goal.  Afterwards, San Diego ended the half with Kaeding getting a 38-yard field goal.  Unfortunately, in the third quarter, the Chargers lost their lead Kansas City getting a 41-yard field goal from Rayner and QB Damon Huard completing a 22-yard TD pass to TE Tony Gonzalez.  Even worse, San Diego ended up losing in the fourth quarter with Huard completing a 51-yard TD pass to WR Dwayne Bowe, along with CB Tyron Brackenridge returning a fumble 50 yards for a touchdown. One of the few positives from the game, Tomlinson would finally get his first 100-yard game of the year.  He would get 132 rushing yards on 20 carries.",
+        "original_question": "How many more yards was Nate Kaedings second field goal over his first?",
+        "original_answer_data": {
+          "spans": [
+            "1"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 39
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their blowout loss at Green Bay, the Broncos returned home for an AFC West duel with the San Diego Chargers. The Chargers took the early lead in the first quarter, with a 24-yard field goal by placekicker Nick Novak. The Broncos grabbed the lead, when cornerback Cassius Vaughn returned an interception off Chargers' quarterback Philip Rivers 55 yards for a touchdown. The Chargers responded, with a 32-yard field goal by Novak. The Broncos extended their lead in the second quarter, with a 32-yard field goal by placekicker Matt Prater. However, the Chargers would re-claim the lead, with a 2-yard touchdown run by Rivers, a 28-yard field goal by Novak, followed by a 42-yard touchdown pass from Rivers to wide receiver Malcom Floyd, giving San Diego a 23-10 halftime lead. The Broncos benched quarterback Kyle Orton in favor of Tim Tebow. After a scoreless third quarter, the Chargers added to their lead, with a 51-yard field goal by Novak. The Broncos responded, when Tebow scrambled for a 12-yard touchdown (with a two-point conversion run by running back Willis McGahee), then threw a 28-yard touchdown pass to running back Knowshon Moreno (with a failed two-point conversion attempt), to pull the Broncos to within 26-24 with just over three minutes left in the game. The Chargers responded, with a 35-yard field goal by Novak. The Broncos tried to rally with 24 seconds remaining in regulation, but Tebow's last-second desperation pass into the end zone was unsuccessful, sealing the win for San Diego. Defensive tackle Kevin Vickerson suffering an ankle injury early in the game. Though he later returned, he was placed on injured reserve one day later (October 10).\n\nQUESTION: How many field goals were greater than 30 yards?",
+      "answer": "4",
+      "id": "example_114",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their blowout loss at Green Bay, the Broncos returned home for an AFC West duel with the San Diego Chargers. The Chargers took the early lead in the first quarter, with a 24-yard field goal by placekicker Nick Novak. The Broncos grabbed the lead, when cornerback Cassius Vaughn returned an interception off Chargers' quarterback Philip Rivers 55 yards for a touchdown. The Chargers responded, with a 32-yard field goal by Novak. The Broncos extended their lead in the second quarter, with a 32-yard field goal by placekicker Matt Prater. However, the Chargers would re-claim the lead, with a 2-yard touchdown run by Rivers, a 28-yard field goal by Novak, followed by a 42-yard touchdown pass from Rivers to wide receiver Malcom Floyd, giving San Diego a 23-10 halftime lead. The Broncos benched quarterback Kyle Orton in favor of Tim Tebow. After a scoreless third quarter, the Chargers added to their lead, with a 51-yard field goal by Novak. The Broncos responded, when Tebow scrambled for a 12-yard touchdown (with a two-point conversion run by running back Willis McGahee), then threw a 28-yard touchdown pass to running back Knowshon Moreno (with a failed two-point conversion attempt), to pull the Broncos to within 26-24 with just over three minutes left in the game. The Chargers responded, with a 35-yard field goal by Novak. The Broncos tried to rally with 24 seconds remaining in regulation, but Tebow's last-second desperation pass into the end zone was unsuccessful, sealing the win for San Diego. Defensive tackle Kevin Vickerson suffering an ankle injury early in the game. Though he later returned, he was placed on injured reserve one day later (October 10).",
+        "original_question": "How many field goals were greater than 30 yards?",
+        "original_answer_data": {
+          "spans": [
+            "4"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 391
+      }
+    },
+    {
+      "question": "PASSAGE: In the winter of 1240/1241, the Novgorodians took Pereyaslavl-Zalessky. After, the Teutonic knights constructed the fortress of Koporie, where they kept all their supplies, and took the Novgorod city of Tesov, pillaging its merchants and ravaging the surrounding area. The Novgorodians, fearing a fate similar to that of Pskov, sent envoys to Prince Yaroslav. Yaroslav liked Alexander's younger brother Andrew as a leader, but Novgorod insisted on Alexander. Alexander returned to Novgorod and commanded its army to Koporye in 1241. In the Spring of 1242, he recaptured Pskov. After this victory, Alexander decided to continue his campaign.. On April 5, 1242, one of Russia's most famous battles, the Battle of the Ice, took place on the ice of Lake Peipsi. The battle was a significant defeat sustained by the crusaders during the Northern Crusades. The crusaders' defeat in the battle marked the end of their campaigns against the Orthodox Novgorod Republic and other Russian territories for the next century.\n\nQUESTION: Who did Prince Yaroslav represent?",
+      "answer": "Novgorodians",
+      "id": "example_115",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In the winter of 1240/1241, the Novgorodians took Pereyaslavl-Zalessky. After, the Teutonic knights constructed the fortress of Koporie, where they kept all their supplies, and took the Novgorod city of Tesov, pillaging its merchants and ravaging the surrounding area. The Novgorodians, fearing a fate similar to that of Pskov, sent envoys to Prince Yaroslav. Yaroslav liked Alexander's younger brother Andrew as a leader, but Novgorod insisted on Alexander. Alexander returned to Novgorod and commanded its army to Koporye in 1241. In the Spring of 1242, he recaptured Pskov. After this victory, Alexander decided to continue his campaign.. On April 5, 1242, one of Russia's most famous battles, the Battle of the Ice, took place on the ice of Lake Peipsi. The battle was a significant defeat sustained by the crusaders during the Northern Crusades. The crusaders' defeat in the battle marked the end of their campaigns against the Orthodox Novgorod Republic and other Russian territories for the next century.",
+        "original_question": "Who did Prince Yaroslav represent?",
+        "original_answer_data": {
+          "spans": [
+            "Novgorodians"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 110
+      }
+    },
+    {
+      "question": "PASSAGE: As of the census of 2010, 295,803 people, 125,752 households, and 62,915 families resided in the city. The population density was 1,042.8 people per square mile (353.5/km\u00b2). The 135,160 housing units averaged 408.3/mi\u00b2 (157.6/km\u00b2). The Race and ethnicity in the United States Census of the city was 75.7% White Americans, 14.5% African Americans, 0.3% Native Americans in the United States, 3.2% Asian Americans, 0.03% Pacific Islander, 1.21% from other races, and 2.5% from two or more races. Hispanic or Latinos of any race were 6.9% of the population.\n\nQUESTION: How many in percent from the census weren't White American?",
+      "answer": "24.3",
+      "id": "example_116",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "As of the census of 2010, 295,803 people, 125,752 households, and 62,915 families resided in the city. The population density was 1,042.8 people per square mile (353.5/km\u00b2). The 135,160 housing units averaged 408.3/mi\u00b2 (157.6/km\u00b2). The Race and ethnicity in the United States Census of the city was 75.7% White Americans, 14.5% African Americans, 0.3% Native Americans in the United States, 3.2% Asian Americans, 0.03% Pacific Islander, 1.21% from other races, and 2.5% from two or more races. Hispanic or Latinos of any race were 6.9% of the population.",
+        "original_question": "How many in percent from the census weren't White American?",
+        "original_answer_data": {
+          "spans": [
+            "24.3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 832
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their Sunday night road win over the Packers, the Cowboys went home for a Week 4 NFC East showdown with the Washington Redskins.  In the first quarter, the 'Boys shot first as QB Tony Romo completed a 21-yard TD pass to TE Jason Witten.  In the second quarter, the Redskins took the lead as QB Jason Campbell completed a 3-yard TD pass to WR James Thrash and a 2-yard TD pass to WR Antwaan Randle El, along with kicker Shaun Suisham getting a 20-yard field goal.  Dallas closed out the half with kicker Nick Folk getting a 36-yard field goal. In the third quarter, the Cowboys tied the game with Romo completing a 10-yard TD pass to WR Terrell Owens.  Washington would respond with Suisham kicking a 33-yard field goal.  In the fourth quarter, the Redskins increased their lead with Suisham nailing a 33-yard and a 29-yard field goal.  The 'Boys tried to rally as Romo completed an 11-yard TD pass to WR Miles Austin.  However, Dallas' onside kick attempt failed, preserving the Redskins' win.\n\nQUESTION: How many yards shorter was Jason Campbell 's second touchdown pass compared to his first?",
+      "answer": "1",
+      "id": "example_117",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their Sunday night road win over the Packers, the Cowboys went home for a Week 4 NFC East showdown with the Washington Redskins.  In the first quarter, the 'Boys shot first as QB Tony Romo completed a 21-yard TD pass to TE Jason Witten.  In the second quarter, the Redskins took the lead as QB Jason Campbell completed a 3-yard TD pass to WR James Thrash and a 2-yard TD pass to WR Antwaan Randle El, along with kicker Shaun Suisham getting a 20-yard field goal.  Dallas closed out the half with kicker Nick Folk getting a 36-yard field goal. In the third quarter, the Cowboys tied the game with Romo completing a 10-yard TD pass to WR Terrell Owens.  Washington would respond with Suisham kicking a 33-yard field goal.  In the fourth quarter, the Redskins increased their lead with Suisham nailing a 33-yard and a 29-yard field goal.  The 'Boys tried to rally as Romo completed an 11-yard TD pass to WR Miles Austin.  However, Dallas' onside kick attempt failed, preserving the Redskins' win.",
+        "original_question": "How many yards shorter was Jason Campbell 's second touchdown pass compared to his first?",
+        "original_answer_data": {
+          "spans": [
+            "1"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 812
+      }
+    },
+    {
+      "question": "PASSAGE: Giorgi-Malakia Abashidze   was a Georgian nobleman and King of Imereti as George VI  from 1702 to 1707. He was a member of the prominent Abashidze family. The youngest son of Prince Paata Abashidze, he was served as a priest until about 1684 when he entered politics after the death of his elder brother Paata Abashidze and began aggressively expanding his patrimonial fiefdom. He dispossessed the Chkheidze family of Shorapani, and the Agiashvili of Tsutskhvati, and took control of the royal domain in Upper Imereti. His daughter, Tamar, was married to the two successive kings of Imereti, Alexander IV and George V. During the reign of the latter monarch, Abashidze effectively ran the government and acted as an all-powerful kingmaker. In 1699, he gave his daughter Anika in marriage to King Simon of Imereti, but they divorced in 1700. In 1701, Abashidze compelled King Mamia of Imereti to abdicate and seized the throne for himself. He managed to establish a degree of stability in Imereti and ceased to pay tribute to the Ottoman Empire, triggering a military response in 1703. He also patronized culture and learning. Deposed after a revolt by the nobles, in favour of the rightful Bagrationi king George VII, Abashidze took refuge at the court of Vakhtang VI of Kartli in Tbilisi. He died there in 1722, and was buried in the Katskhi monastery in Imereti.\n\nQUESTION: How many years after leaving the throne did Giorgi-Malakia Abashidze die?",
+      "answer": "15",
+      "id": "example_118",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Giorgi-Malakia Abashidze   was a Georgian nobleman and King of Imereti as George VI  from 1702 to 1707. He was a member of the prominent Abashidze family. The youngest son of Prince Paata Abashidze, he was served as a priest until about 1684 when he entered politics after the death of his elder brother Paata Abashidze and began aggressively expanding his patrimonial fiefdom. He dispossessed the Chkheidze family of Shorapani, and the Agiashvili of Tsutskhvati, and took control of the royal domain in Upper Imereti. His daughter, Tamar, was married to the two successive kings of Imereti, Alexander IV and George V. During the reign of the latter monarch, Abashidze effectively ran the government and acted as an all-powerful kingmaker. In 1699, he gave his daughter Anika in marriage to King Simon of Imereti, but they divorced in 1700. In 1701, Abashidze compelled King Mamia of Imereti to abdicate and seized the throne for himself. He managed to establish a degree of stability in Imereti and ceased to pay tribute to the Ottoman Empire, triggering a military response in 1703. He also patronized culture and learning. Deposed after a revolt by the nobles, in favour of the rightful Bagrationi king George VII, Abashidze took refuge at the court of Vakhtang VI of Kartli in Tbilisi. He died there in 1722, and was buried in the Katskhi monastery in Imereti.",
+        "original_question": "How many years after leaving the throne did Giorgi-Malakia Abashidze die?",
+        "original_answer_data": {
+          "spans": [
+            "15"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 962
+      }
+    },
+    {
+      "question": "PASSAGE: The Lions hoped to keep their slim lead for the NFC North division title. Playing against the Ravens, Detroit would rally in the first quarter before Baltimore's Justin Tucker kicked three field goals to give his team a halftime lead, 9-7. After trailing 12-10 in the third quarter, the Lions would take a 16-12 lead with another touchdown and a failed 2-point conversion. Turnovers again doomed the Lions. Matthew Stafford threw an interception, the third Lions turnover, late in the game, with Detroit clinging to a 16-15 lead. That would give Justin Tucker a chance at a 61-yard field goal, which he converted to give Baltimore an 18-16 victory. With the shocking loss, the Lions fell to 7-7 and third place within their division.\n\nQUESTION: How many field goals did Justin Tucker make in the 2nd half?",
+      "answer": "1",
+      "id": "example_119",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Lions hoped to keep their slim lead for the NFC North division title. Playing against the Ravens, Detroit would rally in the first quarter before Baltimore's Justin Tucker kicked three field goals to give his team a halftime lead, 9-7. After trailing 12-10 in the third quarter, the Lions would take a 16-12 lead with another touchdown and a failed 2-point conversion. Turnovers again doomed the Lions. Matthew Stafford threw an interception, the third Lions turnover, late in the game, with Detroit clinging to a 16-15 lead. That would give Justin Tucker a chance at a 61-yard field goal, which he converted to give Baltimore an 18-16 victory. With the shocking loss, the Lions fell to 7-7 and third place within their division.",
+        "original_question": "How many field goals did Justin Tucker make in the 2nd half?",
+        "original_answer_data": {
+          "spans": [
+            "1"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 421
+      }
+    },
+    {
+      "question": "PASSAGE: Although Satsunan literally means the south of Satsuma Province, the north-eastern group of the \u014csumi Islands formed Tane Province for a brief period in the 8th and 9th centuries and then were merged into \u014csumi Province. The Tokara Islands and the northwestern group of the \u014csumi Islands belonged to Kawanabe District of Satsuma Province. The Amami Islands paid tribute to the Ryukyu Kingdom to the South until they were put under direct control in the late 16th century, but were conquered in 1609 by the Satsuma Domain. In 1879, the Amami Islands became \u014cshima District of Kagoshima Prefecture. The Tokara Islands and the north-western group of the \u014csumi Islands were transferred to \u014cshima District in 1897, and then to Kagoshima District in 1973. After World War II, the Tokara and Amami Islands were put under United States military occupation, which formed the Government of the Northern Ryukyus. The Japanese government fiercely contested the Amami Islands being affiliated with the word \"Ryukyu\", believing that it would lead to a later return of the islands to their control. The Tokara Islands were returned to Japan in 1952, which were followed by the Amami Islands in December 1953.\n\nQUESTION: How many years were between Osumi Islands being transferred, and Kagoshima District being transferred?",
+      "answer": "6",
+      "id": "example_120",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Although Satsunan literally means the south of Satsuma Province, the north-eastern group of the \u014csumi Islands formed Tane Province for a brief period in the 8th and 9th centuries and then were merged into \u014csumi Province. The Tokara Islands and the northwestern group of the \u014csumi Islands belonged to Kawanabe District of Satsuma Province. The Amami Islands paid tribute to the Ryukyu Kingdom to the South until they were put under direct control in the late 16th century, but were conquered in 1609 by the Satsuma Domain. In 1879, the Amami Islands became \u014cshima District of Kagoshima Prefecture. The Tokara Islands and the north-western group of the \u014csumi Islands were transferred to \u014cshima District in 1897, and then to Kagoshima District in 1973. After World War II, the Tokara and Amami Islands were put under United States military occupation, which formed the Government of the Northern Ryukyus. The Japanese government fiercely contested the Amami Islands being affiliated with the word \"Ryukyu\", believing that it would lead to a later return of the islands to their control. The Tokara Islands were returned to Japan in 1952, which were followed by the Amami Islands in December 1953.",
+        "original_question": "How many years were between Osumi Islands being transferred, and Kagoshima District being transferred?",
+        "original_answer_data": {
+          "spans": [
+            "6"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 340
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Between 2001 and 2011 shares in Tottenham Hotspur F.C. were listed on the Alternative Investment Market (AIM index). The majority shareholder, ENIC International Ltd, is an investment company established by the British billionaire Joe Lewis (British businessman). Daniel Levy (businessman), Lewiss partner at ENIC, is Executive Chairman of the club. They had acquired 29.9% after buying 27% share of the club for \u00a322 million from Sugar in 1991. Shareholding by ENIC increased over the decade through the purchase of the remaining 12% holding of Alan Sugar in 2007 for \u00a325m, and the 9.9% stake belonging to Stelios Haji-Ioannou through Hodram Inc in 2009. On 21 August 2009 the club reported that they had issued a further 30 million shares to fund the initial development costs of the new stadium project, and that 27.8 million of these new shares had been purchased by ENIC. The Annual Report for 2010 indicated that ENIC had acquired 76% of all Ordinary Shares and also held 97% of all convertible redeemable preference shares, equivalent to a holding of 85% of share capital. Following an announcement at the 2011 AGM, in January 2012 the club confirmed that they had been transferred into the private ownership of ENIC.",
+      "original_question": "How many years were shares of Tottenham Hotspur F.C. listed on the Alternative Investment Market?",
+      "original_answer_data": {
+        "spans": [
+          "10"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 227
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "As of the census of 2010, there were 31,894 people, 13,324 households, and 8,201 families residing in the city. The population density was . There were 14,057 housing units at an average density of . The racial makeup of the city was 93.9% White (U.S. Census), 0.3% African American (U.S. Census), 1.7% Native American (U.S. Census), 0.8% Asian (U.S. Census), 0.1% Race (U.S. Census), 0.7% from Race (U.S. Census), and 2.4% from two or more races. Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 2.8% of the population.",
+      "original_question": "Which group from the census is smaller: Asian or African American?",
+      "original_answer_data": {
+        "spans": [
+          "African American"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 481
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Trying to snap a two-game skid, the Chargers went home for an AFC West duel with the Kansas City Chiefs.  In the first quarter, San Diego's struggling offense found some life with kicker Nate Kaeding getting a 24-yard field goal, while RB LaDainian Tomlinson got a 5-yard TD run.  In the second quarter, the Chargers increased its lead with Kaeding kicking a 51-yard field goal.  The Chiefs would answer with kicker Dave Rayner getting a 25-yard field goal.  Afterwards, San Diego ended the half with Kaeding getting a 38-yard field goal.  Unfortunately, in the third quarter, the Chargers lost their lead Kansas City getting a 41-yard field goal from Rayner and QB Damon Huard completing a 22-yard TD pass to TE Tony Gonzalez.  Even worse, San Diego ended up losing in the fourth quarter with Huard completing a 51-yard TD pass to WR Dwayne Bowe, along with CB Tyron Brackenridge returning a fumble 50 yards for a touchdown. One of the few positives from the game, Tomlinson would finally get his first 100-yard game of the year.  He would get 132 rushing yards on 20 carries.",
+      "original_question": "How many more yards was Nate Kaedings second field goal over his first?",
+      "original_answer_data": {
+        "spans": [
+          "1"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 39
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their blowout loss at Green Bay, the Broncos returned home for an AFC West duel with the San Diego Chargers. The Chargers took the early lead in the first quarter, with a 24-yard field goal by placekicker Nick Novak. The Broncos grabbed the lead, when cornerback Cassius Vaughn returned an interception off Chargers' quarterback Philip Rivers 55 yards for a touchdown. The Chargers responded, with a 32-yard field goal by Novak. The Broncos extended their lead in the second quarter, with a 32-yard field goal by placekicker Matt Prater. However, the Chargers would re-claim the lead, with a 2-yard touchdown run by Rivers, a 28-yard field goal by Novak, followed by a 42-yard touchdown pass from Rivers to wide receiver Malcom Floyd, giving San Diego a 23-10 halftime lead. The Broncos benched quarterback Kyle Orton in favor of Tim Tebow. After a scoreless third quarter, the Chargers added to their lead, with a 51-yard field goal by Novak. The Broncos responded, when Tebow scrambled for a 12-yard touchdown (with a two-point conversion run by running back Willis McGahee), then threw a 28-yard touchdown pass to running back Knowshon Moreno (with a failed two-point conversion attempt), to pull the Broncos to within 26-24 with just over three minutes left in the game. The Chargers responded, with a 35-yard field goal by Novak. The Broncos tried to rally with 24 seconds remaining in regulation, but Tebow's last-second desperation pass into the end zone was unsuccessful, sealing the win for San Diego. Defensive tackle Kevin Vickerson suffering an ankle injury early in the game. Though he later returned, he was placed on injured reserve one day later (October 10).",
+      "original_question": "How many field goals were greater than 30 yards?",
+      "original_answer_data": {
+        "spans": [
+          "4"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 391
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In the winter of 1240/1241, the Novgorodians took Pereyaslavl-Zalessky. After, the Teutonic knights constructed the fortress of Koporie, where they kept all their supplies, and took the Novgorod city of Tesov, pillaging its merchants and ravaging the surrounding area. The Novgorodians, fearing a fate similar to that of Pskov, sent envoys to Prince Yaroslav. Yaroslav liked Alexander's younger brother Andrew as a leader, but Novgorod insisted on Alexander. Alexander returned to Novgorod and commanded its army to Koporye in 1241. In the Spring of 1242, he recaptured Pskov. After this victory, Alexander decided to continue his campaign.. On April 5, 1242, one of Russia's most famous battles, the Battle of the Ice, took place on the ice of Lake Peipsi. The battle was a significant defeat sustained by the crusaders during the Northern Crusades. The crusaders' defeat in the battle marked the end of their campaigns against the Orthodox Novgorod Republic and other Russian territories for the next century.",
+      "original_question": "Who did Prince Yaroslav represent?",
+      "original_answer_data": {
+        "spans": [
+          "Novgorodians"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 110
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "As of the census of 2010, 295,803 people, 125,752 households, and 62,915 families resided in the city. The population density was 1,042.8 people per square mile (353.5/km\u00b2). The 135,160 housing units averaged 408.3/mi\u00b2 (157.6/km\u00b2). The Race and ethnicity in the United States Census of the city was 75.7% White Americans, 14.5% African Americans, 0.3% Native Americans in the United States, 3.2% Asian Americans, 0.03% Pacific Islander, 1.21% from other races, and 2.5% from two or more races. Hispanic or Latinos of any race were 6.9% of the population.",
+      "original_question": "How many in percent from the census weren't White American?",
+      "original_answer_data": {
+        "spans": [
+          "24.3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 832
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their Sunday night road win over the Packers, the Cowboys went home for a Week 4 NFC East showdown with the Washington Redskins.  In the first quarter, the 'Boys shot first as QB Tony Romo completed a 21-yard TD pass to TE Jason Witten.  In the second quarter, the Redskins took the lead as QB Jason Campbell completed a 3-yard TD pass to WR James Thrash and a 2-yard TD pass to WR Antwaan Randle El, along with kicker Shaun Suisham getting a 20-yard field goal.  Dallas closed out the half with kicker Nick Folk getting a 36-yard field goal. In the third quarter, the Cowboys tied the game with Romo completing a 10-yard TD pass to WR Terrell Owens.  Washington would respond with Suisham kicking a 33-yard field goal.  In the fourth quarter, the Redskins increased their lead with Suisham nailing a 33-yard and a 29-yard field goal.  The 'Boys tried to rally as Romo completed an 11-yard TD pass to WR Miles Austin.  However, Dallas' onside kick attempt failed, preserving the Redskins' win.",
+      "original_question": "How many yards shorter was Jason Campbell 's second touchdown pass compared to his first?",
+      "original_answer_data": {
+        "spans": [
+          "1"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 812
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Giorgi-Malakia Abashidze   was a Georgian nobleman and King of Imereti as George VI  from 1702 to 1707. He was a member of the prominent Abashidze family. The youngest son of Prince Paata Abashidze, he was served as a priest until about 1684 when he entered politics after the death of his elder brother Paata Abashidze and began aggressively expanding his patrimonial fiefdom. He dispossessed the Chkheidze family of Shorapani, and the Agiashvili of Tsutskhvati, and took control of the royal domain in Upper Imereti. His daughter, Tamar, was married to the two successive kings of Imereti, Alexander IV and George V. During the reign of the latter monarch, Abashidze effectively ran the government and acted as an all-powerful kingmaker. In 1699, he gave his daughter Anika in marriage to King Simon of Imereti, but they divorced in 1700. In 1701, Abashidze compelled King Mamia of Imereti to abdicate and seized the throne for himself. He managed to establish a degree of stability in Imereti and ceased to pay tribute to the Ottoman Empire, triggering a military response in 1703. He also patronized culture and learning. Deposed after a revolt by the nobles, in favour of the rightful Bagrationi king George VII, Abashidze took refuge at the court of Vakhtang VI of Kartli in Tbilisi. He died there in 1722, and was buried in the Katskhi monastery in Imereti.",
+      "original_question": "How many years after leaving the throne did Giorgi-Malakia Abashidze die?",
+      "original_answer_data": {
+        "spans": [
+          "15"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 962
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Lions hoped to keep their slim lead for the NFC North division title. Playing against the Ravens, Detroit would rally in the first quarter before Baltimore's Justin Tucker kicked three field goals to give his team a halftime lead, 9-7. After trailing 12-10 in the third quarter, the Lions would take a 16-12 lead with another touchdown and a failed 2-point conversion. Turnovers again doomed the Lions. Matthew Stafford threw an interception, the third Lions turnover, late in the game, with Detroit clinging to a 16-15 lead. That would give Justin Tucker a chance at a 61-yard field goal, which he converted to give Baltimore an 18-16 victory. With the shocking loss, the Lions fell to 7-7 and third place within their division.",
+      "original_question": "How many field goals did Justin Tucker make in the 2nd half?",
+      "original_answer_data": {
+        "spans": [
+          "1"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 421
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Although Satsunan literally means the south of Satsuma Province, the north-eastern group of the \u014csumi Islands formed Tane Province for a brief period in the 8th and 9th centuries and then were merged into \u014csumi Province. The Tokara Islands and the northwestern group of the \u014csumi Islands belonged to Kawanabe District of Satsuma Province. The Amami Islands paid tribute to the Ryukyu Kingdom to the South until they were put under direct control in the late 16th century, but were conquered in 1609 by the Satsuma Domain. In 1879, the Amami Islands became \u014cshima District of Kagoshima Prefecture. The Tokara Islands and the north-western group of the \u014csumi Islands were transferred to \u014cshima District in 1897, and then to Kagoshima District in 1973. After World War II, the Tokara and Amami Islands were put under United States military occupation, which formed the Government of the Northern Ryukyus. The Japanese government fiercely contested the Amami Islands being affiliated with the word \"Ryukyu\", believing that it would lead to a later return of the islands to their control. The Tokara Islands were returned to Japan in 1952, which were followed by the Amami Islands in December 1953.",
+      "original_question": "How many years were between Osumi Islands being transferred, and Kagoshima District being transferred?",
+      "original_answer_data": {
+        "spans": [
+          "6"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 340
+    }
+  ],
+  "example_indices": [
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "10",
+      "output": "ANSWER_START\n10\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value: 10."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "African American\n\t\tReasoning: According to the extracted information, the racial makeup of the city was 0.3% African American and 0.8% Asian. 0.3% is smaller than 0.8% therefore African American is the smaller group.",
+      "output": "ANSWER_START\nAfrican American\n\t\tReasoning: According to the extracted information, the racial makeup of the city was 0.3% African American and 0.8% Asian. 0.3% is smaller than 0.8% therefore African American is the smaller group.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer identifies the correct race, matching the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "27",
+      "output": "ANSWER_START\n27\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer is 27, while the golden answer is 1. These are distinct numerical values, so the answers do not convey the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "4",
+      "output": "ANSWER_START\n4\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Novgorod",
+      "output": "ANSWER_START\nNovgorod\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 0.9,
+        "explanation": "The golden answer refers to the people from Novgorod. The system answer refers to the city/location itself. These are not semantically equivalent."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "24.3%\n\t\tReasoning: The question asks what percentage weren't White Americans so the number must be subtracted from 100.",
+      "output": "ANSWER_START\n24.3%\n\t\tReasoning: The question asks what percentage weren't White Americans so the number must be subtracted from 100.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers provide the same numerical value: 24.3%. The system answer includes additional reasoning but the core answer is identical to the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "1",
+      "output": "ANSWER_START\n1\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "15",
+      "output": "ANSWER_START\n15\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value, 15."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "1\nReasoning: The passage states that Justin Tucker made one field goal in the second half.",
+      "output": "ANSWER_START\n1\nReasoning: The passage states that Justin Tucker made one field goal in the second half.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers state the number 1, which refers to the same quantity in the context of the question."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "76",
+      "output": "ANSWER_START\n76\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_15.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer '76' and the golden answer '6' are clearly different numerical values and do not convey the same information."
+      },
+      "match": false
+    }
+  ],
+  "performance": {
+    "accuracy": 0.7,
+    "correct_count": 7,
+    "total_count": 10,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "10",
+        "golden_answer": "10",
+        "output": "ANSWER_START\n10\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 10."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "African American\n\t\tReasoning: According to the extracted information, the racial makeup of the city was 0.3% African American and 0.8% Asian. 0.3% is smaller than 0.8% therefore African American is the smaller group.",
+        "golden_answer": "African American",
+        "output": "ANSWER_START\nAfrican American\n\t\tReasoning: According to the extracted information, the racial makeup of the city was 0.3% African American and 0.8% Asian. 0.3% is smaller than 0.8% therefore African American is the smaller group.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer identifies the correct race, matching the golden answer."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "27",
+        "golden_answer": "1",
+        "output": "ANSWER_START\n27\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer is 27, while the golden answer is 1. These are distinct numerical values, so the answers do not convey the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "4",
+        "golden_answer": "4",
+        "output": "ANSWER_START\n4\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "Novgorod",
+        "golden_answer": "Novgorodians",
+        "output": "ANSWER_START\nNovgorod\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 0.9,
+          "explanation": "The golden answer refers to the people from Novgorod. The system answer refers to the city/location itself. These are not semantically equivalent."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "24.3%\n\t\tReasoning: The question asks what percentage weren't White Americans so the number must be subtracted from 100.",
+        "golden_answer": "24.3",
+        "output": "ANSWER_START\n24.3%\n\t\tReasoning: The question asks what percentage weren't White Americans so the number must be subtracted from 100.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers provide the same numerical value: 24.3%. The system answer includes additional reasoning but the core answer is identical to the golden answer."
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "1",
+        "golden_answer": "1",
+        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "15",
+        "golden_answer": "15",
+        "output": "ANSWER_START\n15\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, 15."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "1\nReasoning: The passage states that Justin Tucker made one field goal in the second half.",
+        "golden_answer": "1",
+        "output": "ANSWER_START\n1\nReasoning: The passage states that Justin Tucker made one field goal in the second half.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers state the number 1, which refers to the same quantity in the context of the question."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "76",
+        "golden_answer": "6",
+        "output": "ANSWER_START\n76\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer '76' and the golden answer '6' are clearly different numerical values and do not convey the same information."
+        },
+        "capability_failures": []
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors (e.g., JSONDecodeError, TypeError) are present in the provided data.\n\n## STRENGTHS\n1. **Numerical Calculation Accuracy:** The system can perform correct arithmetic operations when it extracts the correct numbers. This is evident in the success cases where correct answers are derived through calculation.\n2. **Information Extraction:** The system is generally able to extract relevant numerical and textual information from the passage. This is shown in the successful examples.\n3. **Reasoning in Some Cases:** The system demonstrates reasoning capabilities in some instances, as evidenced by the inclusion of a \"Reasoning\" section explaining its answer in success cases.\n\n## WEAKNESSES\n1. **Misinterpretation of Questions Requiring Numerical Comparison:** The system struggles to correctly interpret questions that ask for the *difference* between two values or involve comparing values and then performing a calculation. It sometimes extracts the wrong values or misinterprets which values to subtract from each other.\n2. **Semantic Equivalence:** The system doesn't consistently recognize semantic equivalence in answers, especially regarding nouns (e.g., \"Novgorod\" vs. \"Novgorodians\").\n\n## CRITICAL BOTTLENECKS\n1. **Accurate Numerical Information Extraction and Question Interpretation:** The primary bottleneck is the accurate extraction of relevant numerical information from the text, coupled with correct interpretation of the question's specific requirement (e.g., find the *difference*, find a *percentage of what is not*).\n2. **Lack of Semantic Understanding:** The system's limited understanding of semantic nuances leads to incorrect answers when synonyms or related terms are used (e.g., city vs. people from the city).\n\n## ERROR PATTERNS\n1. **Incorrect Calculation of Differences:** In sample 2 and 9, the error stems from calculating the incorrect differences.\n2. **Confusion Between Entity and Group:** In sample 4, there's a misunderstanding between the entity \"Novgorod\" (the city) and its inhabitants \"Novgorodians\".\n\n## PRIMARY ISSUE\nThe single most critical problem is the inaccurate extraction of numerical values relevant to answering questions that require mathematical operations such as finding the difference between values, or calculating percentages. The accurate identification of what values to compare/operate on is key.\n\n## IMPROVEMENT AREAS\n1. **Question Decomposition and Value Extraction:** Improve the system's ability to decompose complex questions into simpler steps and extract the numerical values *specifically* required for each step.\n2. **Semantic Understanding and Entity Recognition:** Enhance semantic understanding to recognize synonyms and related entities, differentiating between a place and its inhabitants.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Implement a Question Decomposition Module:** This module should break down complex questions into a series of simpler questions that can be answered individually. For example, \"How many more yards was Nate Kaedings second field goal over his first?\" can be decomposed into: \"How many yards was Nate Kaeding's second field goal?\", \"How many yards was Nate Kaeding's first field goal?\", and \"What is the difference between these two values?\".\n2. **Develop a Numerical Value Extraction and Validation Module:** After question decomposition, this module should extract the numerical values relevant to *each* sub-question. Implement checks to validate that the extracted values are of the correct type and within a reasonable range. If there are multiple possible numerical values, prioritize values which are related to the entities in the question.\n3. **Enhance Semantic Understanding with Knowledge Graph Integration:** Integrate a knowledge graph (e.g., Wikidata) to improve semantic understanding. This will allow the system to identify synonyms, related entities, and perform better named entity recognition and disambiguation.\n4. **Add Print Statements for Debugging:** Add print statements throughout the code to display the intermediate values and reasoning steps. This will greatly help in debugging future errors by tracing the system's reasoning path. For instance, when a numerical calculation is performed, print the two numbers being used, the operation being performed, and the final result, alongside the question ID.\n5. **Implement Unit Tests:** Create unit tests for each component, particularly those involved in question parsing, numerical extraction, and calculation. This will ensure the individual components are working correctly.\n\n## CAPABILITY MAPPING\n*   **Sample 2:** information_extraction, constraint_handling, solution_generation\n*   **Sample 4:** information_extraction\n*   **Sample 9:** information_extraction, constraint_handling, solution_generation\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The single most critical problem is the inaccurate extraction of numerical values relevant to answering questions that require mathematical operations such as finding the difference between values, or calculating percentages. The accurate identification of what values to compare/operate on is key.",
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "Okay, here's a comprehensive capability report for your AI system, based on the provided information.\n\n## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe execution outputs, while limited, corroborate the error analysis. The first output, \"10\", suggests a possible numerical answer derived from a calculation. This highlights the system's attempt at numerical processing.\n\n*   **Output 1 (\"10\"):**  This output's correctness is unknown without the original question. It *might* be a correct calculation or a miscalculated value based on faulty extraction or reasoning.\n*   **Output 2 (\"African American\"):** This indicates a successful classification task based on relative comparison, along with a successful reasoning step. The system identifies the smaller percentage correctly and provides a logical explanation. This aligns with the reported strength of numerical calculation accuracy *when* the correct numbers are extracted.\n*   **Output 3 (\"27\"):** Similar to Output 1, the correctness of this numerical answer is unknown. It requires context.  It again suggests an attempt at numerical reasoning and potentially calculation.\n\n**Observations:**\n\n*   The presence of both potentially correct (\"African American\") and unknown (\"10\", \"27\") outputs points to inconsistency.  The error analysis highlighted specific weaknesses (misinterpretation of numerical comparisons, semantic understanding) that likely contribute to this inconsistency.\n*   The \"Reasoning\" section in Output 2 is significant.  It suggests that the system can articulate its process in some cases.  Capturing and analyzing these reasoning steps systematically is crucial for understanding both successes and failures.\n\n### CAPABILITY ASSESSMENT\n\nOverall, the AI system demonstrates a *moderate* level of capability in question answering, with strengths in information extraction and basic numerical calculation. However, its performance is significantly hampered by weaknesses in interpreting complex questions, accurate numerical extraction, semantic understanding, and consistent reasoning. The provided sample outputs suggest that when the correct information is extracted, the system can perform basic reasoning. However, its inability to always correctly extract and interpret information drastically reduces its overall performance.\n\n### KEY STRENGTHS\n\n*   **Reasoning Explanation Generation (when successful):** The system's ability to provide a rationale for its answer is a significant strength. Preserving and expanding this capability will improve transparency and debuggability.\n*   **Numerical Calculation (conditional):** The system can perform calculations *if* the correct numbers are extracted. This means the computational engine itself is relatively sound, but its accuracy relies heavily on the preceding information extraction and question interpretation stages.\n*   **Information Extraction (partial):** The system is generally capable of extracting relevant information. The critical issue is *accurate* extraction of *specific* numerical data required for calculations/comparisons.\n\n### KEY WEAKNESSES\n\n*   **Inaccurate Numerical Extraction:** This is the most critical weakness.  The system fails to consistently extract the *correct* numerical values relevant to the question.\n*   **Poor Question Interpretation:** The system often misinterprets questions, particularly those involving comparisons (finding differences, percentages) or complex relationships between entities.\n*   **Lack of Robust Semantic Understanding:**  The system struggles with nuances in language (synonyms, related entities) which leads to incorrect answers.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Accurate Numerical Information Extraction and Question Interpretation.** Addressing this bottleneck will have the most significant impact on overall system performance. It's the foundation upon which the other capabilities (calculation, reasoning) depend.\n\n### ACTIONABLE RECOMMENDATIONS\n\nBased on the analysis and the original recommendations, here are specific actions for the next iteration:\n\n1.  **Implement Question Decomposition (Priority: High):**\n    *   **Action:** Create a module that takes a question as input and breaks it down into simpler sub-questions.\n    *   **Implementation Details:** Use rule-based techniques or train a sequence-to-sequence model to perform the decomposition. Focus initially on questions involving numerical comparisons (differences, percentages).\n    *   **Testing:**  Create a unit test suite to verify the accuracy of the decomposition for a wide range of question types.\n2.  **Develop Numerical Value Extraction and Validation (Priority: High):**\n    *   **Action:** Create a module that, *after question decomposition*, extracts relevant numerical values from the text.\n    *   **Implementation Details:**\n        *   Use Named Entity Recognition (NER) to identify numerical values.\n        *   Implement rules or train a model to link extracted numbers to entities mentioned in the sub-question (e.g., \"Nate Kaeding's second field goal\" should be linked to the number of yards associated with that entity).\n        *   Add validation checks (e.g., type checking, range checking, unit consistency).\n    *   **Testing:** Develop unit tests to verify the accuracy of number extraction and validation. Include cases with ambiguous or multiple numerical values.\n3.  **Add Extensive Print Statements for Debugging (Priority: High):**\n    *   **Action:** Insert print statements throughout the code to track the flow of information, extracted values, and reasoning steps.\n    *   **Implementation Details:**\n        *   Print the raw input question.\n        *   Print the decomposed sub-questions.\n        *   Print the extracted numerical values for each sub-question.\n        *   Print the results of any calculations.\n        *   Include a unique identifier (e.g., question ID) with each print statement.\n    *   **Benefits:** Makes debugging much easier, allowing you to trace the source of errors.\n4.  **Implement targeted Unit Tests (Priority: Medium):**\n    *   **Action:** Create comprehensive unit tests *specifically* for the modules responsible for question parsing, numerical extraction, and calculation.\n    *   **Focus:** These tests should cover edge cases, boundary conditions, and potential ambiguities in the input data.\n5. **Integrate Knowledge Graph for Semantic Enrichment (Priority: Medium - Long Term):**\n    * **Action:** Integrate a knowledge graph like Wikidata to improve the system's understanding of relationships between entities.\n    * **Implementation details:** Use entity linking techniques to connect entities in the text with corresponding nodes in the knowledge graph. This can help identify synonyms, related concepts, and hierarchical relationships between entities.\n\n### CAPABILITY TREND\n\nBased on the provided data, it is difficult to definitively assess the capability trend. The system exhibits potential, but inconsistency is evident.\n\n*   If the errors in samples 2 and 9 are being caused by a single underlying problem, resolving it will cause a rapid improvement.\n*   If the errors are independent, improvement will be slow as each error will require a separate fix.\n\nWith the *implementation of the actionable recommendations*, the capability trend should be **improving** in the next iteration. The key is to focus on addressing the root causes of the identified weaknesses, particularly inaccurate numerical extraction and poor question interpretation.  The debugging infrastructure (print statements, unit tests) will be critical for tracking progress and identifying remaining issues.\n",
+      "strengths": [],
+      "weaknesses": [],
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors (e.g., JSONDecodeError, TypeError) are present in the provided data.\n\n## STRENGTHS\n1. **Numerical Calculation Accuracy:** The system can perform correct arithmetic operations when it extracts the correct numbers. This is evident in the success cases where correct answers are derived through calculation.\n2. **Information Extraction:** The system is generally able to extract relevant numerical and textual information from the passage. This is shown in the successful examples.\n3. **Reasoning in Some Cases:** The system demonstrates reasoning capabilities in some instances, as evidenced by the inclusion of a \"Reasoning\" section explaining its answer in success cases.\n\n## WEAKNESSES\n1. **Misinterpretation of Questions Requiring Numerical Comparison:** The system struggles to correctly interpret questions that ask for the *difference* between two values or involve comparing values and then performing a calculation. It sometimes extracts the wrong values or misinterprets which values to subtract from each other.\n2. **Semantic Equivalence:** The system doesn't consistently recognize semantic equivalence in answers, especially regarding nouns (e.g., \"Novgorod\" vs. \"Novgorodians\").\n\n## CRITICAL BOTTLENECKS\n1. **Accurate Numerical Information Extraction and Question Interpretation:** The primary bottleneck is the accurate extraction of relevant numerical information from the text, coupled with correct interpretation of the question's specific requirement (e.g., find the *difference*, find a *percentage of what is not*).\n2. **Lack of Semantic Understanding:** The system's limited understanding of semantic nuances leads to incorrect answers when synonyms or related terms are used (e.g., city vs. people from the city).\n\n## ERROR PATTERNS\n1. **Incorrect Calculation of Differences:** In sample 2 and 9, the error stems from calculating the incorrect differences.\n2. **Confusion Between Entity and Group:** In sample 4, there's a misunderstanding between the entity \"Novgorod\" (the city) and its inhabitants \"Novgorodians\".\n\n## PRIMARY ISSUE\nThe single most critical problem is the inaccurate extraction of numerical values relevant to answering questions that require mathematical operations such as finding the difference between values, or calculating percentages. The accurate identification of what values to compare/operate on is key.\n\n## IMPROVEMENT AREAS\n1. **Question Decomposition and Value Extraction:** Improve the system's ability to decompose complex questions into simpler steps and extract the numerical values *specifically* required for each step.\n2. **Semantic Understanding and Entity Recognition:** Enhance semantic understanding to recognize synonyms and related entities, differentiating between a place and its inhabitants.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Implement a Question Decomposition Module:** This module should break down complex questions into a series of simpler questions that can be answered individually. For example, \"How many more yards was Nate Kaedings second field goal over his first?\" can be decomposed into: \"How many yards was Nate Kaeding's second field goal?\", \"How many yards was Nate Kaeding's first field goal?\", and \"What is the difference between these two values?\".\n2. **Develop a Numerical Value Extraction and Validation Module:** After question decomposition, this module should extract the numerical values relevant to *each* sub-question. Implement checks to validate that the extracted values are of the correct type and within a reasonable range. If there are multiple possible numerical values, prioritize values which are related to the entities in the question.\n3. **Enhance Semantic Understanding with Knowledge Graph Integration:** Integrate a knowledge graph (e.g., Wikidata) to improve semantic understanding. This will allow the system to identify synonyms, related entities, and perform better named entity recognition and disambiguation.\n4. **Add Print Statements for Debugging:** Add print statements throughout the code to display the intermediate values and reasoning steps. This will greatly help in debugging future errors by tracing the system's reasoning path. For instance, when a numerical calculation is performed, print the two numbers being used, the operation being performed, and the final result, alongside the question ID.\n5. **Implement Unit Tests:** Create unit tests for each component, particularly those involved in question parsing, numerical extraction, and calculation. This will ensure the individual components are working correctly.\n\n## CAPABILITY MAPPING\n*   **Sample 2:** information_extraction, constraint_handling, solution_generation\n*   **Sample 4:** information_extraction\n*   **Sample 9:** information_extraction, constraint_handling, solution_generation\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report for your AI system, based on the provided information.\n\n## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe execution outputs, while limited, corroborate the error analysis. The first output, \"10\", suggests a possible numerical answer derived from a calculation. This highlights the system's attempt at numerical processing.\n\n*   **Output 1 (\"10\"):**  This output's correctness is unknown without the original question. It *might* be a correct calculation or a miscalculated value based on faulty extraction or reasoning.\n*   **Output 2 (\"African American\"):** This indicates a successful classification task based on relative comparison, along with a successful reasoning step. The system identifies the smaller percentage correctly and provides a logical explanation. This aligns with the reported strength of numerical calculation accuracy *when* the correct numbers are extracted.\n*   **Output 3 (\"27\"):** Similar to Output 1, the correctness of this numerical answer is unknown. It requires context.  It again suggests an attempt at numerical reasoning and potentially calculation.\n\n**Observations:**\n\n*   The presence of both potentially correct (\"African American\") and unknown (\"10\", \"27\") outputs points to inconsistency.  The error analysis highlighted specific weaknesses (misinterpretation of numerical comparisons, semantic understanding) that likely contribute to this inconsistency.\n*   The \"Reasoning\" section in Output 2 is significant.  It suggests that the system can articulate its process in some cases.  Capturing and analyzing these reasoning steps systematically is crucial for understanding both successes and failures.\n\n### CAPABILITY ASSESSMENT\n\nOverall, the AI system demonstrates a *moderate* level of capability in question answering, with strengths in information extraction and basic numerical calculation. However, its performance is significantly hampered by weaknesses in interpreting complex questions, accurate numerical extraction, semantic understanding, and consistent reasoning. The provided sample outputs suggest that when the correct information is extracted, the system can perform basic reasoning. However, its inability to always correctly extract and interpret information drastically reduces its overall performance.\n\n### KEY STRENGTHS\n\n*   **Reasoning Explanation Generation (when successful):** The system's ability to provide a rationale for its answer is a significant strength. Preserving and expanding this capability will improve transparency and debuggability.\n*   **Numerical Calculation (conditional):** The system can perform calculations *if* the correct numbers are extracted. This means the computational engine itself is relatively sound, but its accuracy relies heavily on the preceding information extraction and question interpretation stages.\n*   **Information Extraction (partial):** The system is generally capable of extracting relevant information. The critical issue is *accurate* extraction of *specific* numerical data required for calculations/comparisons.\n\n### KEY WEAKNESSES\n\n*   **Inaccurate Numerical Extraction:** This is the most critical weakness.  The system fails to consistently extract the *correct* numerical values relevant to the question.\n*   **Poor Question Interpretation:** The system often misinterprets questions, particularly those involving comparisons (finding differences, percentages) or complex relationships between entities.\n*   **Lack of Robust Semantic Understanding:**  The system struggles with nuances in language (synonyms, related entities) which leads to incorrect answers.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Accurate Numerical Information Extraction and Question Interpretation.** Addressing this bottleneck will have the most significant impact on overall system performance. It's the foundation upon which the other capabilities (calculation, reasoning) depend.\n\n### ACTIONABLE RECOMMENDATIONS\n\nBased on the analysis and the original recommendations, here are specific actions for the next iteration:\n\n1.  **Implement Question Decomposition (Priority: High):**\n    *   **Action:** Create a module that takes a question as input and breaks it down into simpler sub-questions.\n    *   **Implementation Details:** Use rule-based techniques or train a sequence-to-sequence model to perform the decomposition. Focus initially on questions involving numerical comparisons (differences, percentages).\n    *   **Testing:**  Create a unit test suite to verify the accuracy of the decomposition for a wide range of question types.\n2.  **Develop Numerical Value Extraction and Validation (Priority: High):**\n    *   **Action:** Create a module that, *after question decomposition*, extracts relevant numerical values from the text.\n    *   **Implementation Details:**\n        *   Use Named Entity Recognition (NER) to identify numerical values.\n        *   Implement rules or train a model to link extracted numbers to entities mentioned in the sub-question (e.g., \"Nate Kaeding's second field goal\" should be linked to the number of yards associated with that entity).\n        *   Add validation checks (e.g., type checking, range checking, unit consistency).\n    *   **Testing:** Develop unit tests to verify the accuracy of number extraction and validation. Include cases with ambiguous or multiple numerical values.\n3.  **Add Extensive Print Statements for Debugging (Priority: High):**\n    *   **Action:** Insert print statements throughout the code to track the flow of information, extracted values, and reasoning steps.\n    *   **Implementation Details:**\n        *   Print the raw input question.\n        *   Print the decomposed sub-questions.\n        *   Print the extracted numerical values for each sub-question.\n        *   Print the results of any calculations.\n        *   Include a unique identifier (e.g., question ID) with each print statement.\n    *   **Benefits:** Makes debugging much easier, allowing you to trace the source of errors.\n4.  **Implement targeted Unit Tests (Priority: Medium):**\n    *   **Action:** Create comprehensive unit tests *specifically* for the modules responsible for question parsing, numerical extraction, and calculation.\n    *   **Focus:** These tests should cover edge cases, boundary conditions, and potential ambiguities in the input data.\n5. **Integrate Knowledge Graph for Semantic Enrichment (Priority: Medium - Long Term):**\n    * **Action:** Integrate a knowledge graph like Wikidata to improve the system's understanding of relationships between entities.\n    * **Implementation details:** Use entity linking techniques to connect entities in the text with corresponding nodes in the knowledge graph. This can help identify synonyms, related concepts, and hierarchical relationships between entities.\n\n### CAPABILITY TREND\n\nBased on the provided data, it is difficult to definitively assess the capability trend. The system exhibits potential, but inconsistency is evident.\n\n*   If the errors in samples 2 and 9 are being caused by a single underlying problem, resolving it will cause a rapid improvement.\n*   If the errors are independent, improvement will be slow as each error will require a separate fix.\n\nWith the *implementation of the actionable recommendations*, the capability trend should be **improving** in the next iteration. The key is to focus on addressing the root causes of the identified weaknesses, particularly inaccurate numerical extraction and poor question interpretation.  The debugging infrastructure (print statements, unit tests) will be critical for tracking progress and identifying remaining issues.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 10,
+    "accuracy": 1.0,
+    "results": [
+      {
+        "success": true,
+        "answer": "Matt Schaub",
+        "output": "ANSWER_START\nMatt Schaub\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "Matt Schaub",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical, referring to the same person."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "10",
+        "output": "ANSWER_START\n10\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "10",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "5",
+        "output": "ANSWER_START\n5\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "5",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "38",
+        "output": "ANSWER_START\n38\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "38",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, 38."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "4\nReasoning: Subtracting the two years from the extracted information results in the final answer.",
+        "output": "ANSWER_START\n4\nReasoning: Subtracting the two years from the extracted information results in the final answer.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "4",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer provides the correct numerical answer (4), which matches the golden answer (4)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "7.26",
+        "output": "ANSWER_START\n7.26\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "7.26",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical numerical values."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "81",
+        "output": "ANSWER_START\n81\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "81",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 81."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "13",
+        "output": "ANSWER_START\n13\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "13",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, 13."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Dimitri's death",
+        "output": "ANSWER_START\nDimitri's death\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "death of his son Dimitri",
+        "evaluation": {
+          "match": true,
+          "confidence": 0.9,
+          "explanation": "The system answer \"Dimitri's death\" implies the death of a person named Dimitri, which is semantically equivalent to the golden answer \"death of his son Dimitri\", where Dimitri is specifically identified as the son."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Second",
+        "output": "ANSWER_START\nSecond\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_15.jsonl",
+        "golden_answer": "second quarter",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer \"Second\" is semantically equivalent to \"second quarter\". Both refer to the same concept of the second period in a series of four."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 114.51367378234863,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

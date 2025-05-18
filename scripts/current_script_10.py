@@ -4,137 +4,93 @@ import math
 
 def main(question):
     """
-    This script solves questions based on a given passage by:
-    1. Determining the question type with examples.
-    2. Extracting the relevant information with examples.
-    3. Generating the answer with examples.
-    """
-
-    # Step 1: Determine the question type
-    question_type_result = determine_question_type(question)
-    if "Error" in question_type_result:
-        return question_type_result  # Return error message
-    question_type = question_type_result["question_type"]
-
-    # Step 2: Extract relevant information from the passage
-    extracted_info_result = extract_relevant_info(question, question_type)
-    if "Error" in extracted_info_result:
-        return extracted_info_result
-    extracted_info = extracted_info_result["extracted_info"]
-
-    # Step 3: Generate the answer
-    generated_answer_result = generate_answer(extracted_info, question_type, question)
-    if "Error" in generated_answer_result:
-        return generated_answer_result
-    generated_answer = generated_answer_result["answer"]
-
-    return generated_answer # Directly return the generated answer
-
-def determine_question_type(question):
-    """Determine the type of the question (numerical, identification, etc.) with examples."""
-    system_instruction = "You are an expert at classifying question types."
-    prompt = f"""
-    Determine the type of question given the following examples. Return the type only.
-
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: {{"question_type": "Numerical"}}
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: {{"question_type": "Identification"}}
-
-    Example 3:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Type: {{"question_type": "Comparative"}}
-
-    Question: {question}
-    Type:
+    This script uses a "Holistic Reading & Arithmetic Reasoner" agent.
+    Instead of strict decomposition, it combines reading comprehension with
+    arithmetic problem-solving into a single, unified step. The hypothesis is that
+    by encouraging the LLM to reason holistically about both text and numbers, it
+    can avoid the errors associated with decomposition or separate stages. This directly
+    addresses previous struggles with arithmetic and misinterpretation of intent.
+    This also uses more than one example in different parts of the code.
     """
     try:
-        question_type_result = call_llm(prompt, system_instruction)
-        if not question_type_result:
-            return { "Error": "Could not determine question type"}
-        return {"question_type": question_type_result}
+        holistic_reasoner = HolisticReadingArithmeticReasoner()
+        answer = holistic_reasoner.answer_question(question)
+        return answer
     except Exception as e:
-        return {"Error": f"Error: {str(e)}"}
+        return f"An unexpected error occurred: {str(e)}"
 
-def extract_relevant_info(question, question_type):
-    """Extract relevant information from the passage with examples, tailored to question type."""
-    system_instruction = "You are an expert at extracting relevant information."
-    prompt = f"""
-    Extract relevant information from the passage based on the given question type.
-    Return the extracted information as a plain text summary.
-
-    Example 1:
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Type: Numerical
-    Extracted Info: {{"extracted_info": "Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards."}}
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Type: Identification
-    Extracted Info: {{"extracted_info": "Player who caught the final touchdown."}}
-
-    Example 3:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Type: Comparative
-    Extracted Info: {{"extracted_info": "Mass of Nu Phoenicis, Mass of Gliese 915."}}
-
-    Question: {question}
-    Type: {question_type}
-    Extracted Info:
+class HolisticReadingArithmeticReasoner:
     """
-    try:
-        extracted_info_result = call_llm(prompt, system_instruction)
-        if not extracted_info_result:
-            return {"Error": "Could not extract information."}
-        return {"extracted_info": extracted_info_result}
-    except Exception as e:
-        return {"Error": f"Error: {str(e)}"}
-
-def generate_answer(extracted_info, question_type, question):
-    """Generate the answer based on extracted information and question type with examples."""
-    system_instruction = "You are an expert at generating correct answers."
-    prompt = f"""
-    Generate an answer to the question based on the extracted information.
-
-    Example 1:
-    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.
-    Question Type: Numerical
-    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Answer: {{"answer": "40 + 30 = 70 yards"}}
-
-    Example 2:
-    Extracted Info: Player who caught the final touchdown = Mark Clayton
-    Question Type: Identification
-    Question: Who caught the final touchdown of the game?
-    Answer: {{"answer": "Mark Clayton"}}
-
-    Example 3:
-    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.
-    Question Type: Comparative
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Answer: {{"answer": "Gliese 915"}}
-
-    Extracted Info: {extracted_info}
-    Question Type: {question_type}
-    Question: {question}
-    Answer:
+    A class that embodies the Holistic Reading & Arithmetic Reasoner.
     """
-    try:
-        answer_result = call_llm(prompt, system_instruction)
-        if not answer_result:
-            return {"Error": "Could not generate answer."}
-        return {"answer": answer_result}
-    except Exception as e:
-        return {"Error": f"Error: {str(e)}"}
+    def __init__(self):
+        self.system_instruction = """You are a Holistic Reading & Arithmetic Reasoner. You analyze the passage and question to understand both text and arithmetic aspects and provide a well-reasoned answer."""
+
+    def answer_question(self, question, max_attempts=3):
+        """
+        Answers the question using a holistic understanding and reasoning approach.
+        """
+        for attempt in range(max_attempts):
+            reasoning_result = self._reason_about_question(question)
+
+            # Verification stage: check if the reasoning is a valid response
+            verification_prompt = f"""
+            Verify if the reasoning result is a valid and well reasoned answer to the original problem.
+
+            Original Question: {question}
+
+            Reasoning result: {reasoning_result}
+
+            Example 1:
+            Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+            Reasoning result: Chris Johnson's first touchdown was 6 yards and Jason Hanson's first field goal was 53 yards, therefore the answer is 59 yards.
+            Valid
+
+            Example 2:
+            Original Question: Who caught the final touchdown of the game?
+            Reasoning result: Wes Welker caught the final touchdown of the game, therefore the answer is Wes Welker.
+            Valid
+            """
+
+            validation_result = call_llm(verification_prompt, self.system_instruction)
+
+            if "valid" in validation_result.lower():
+                # Return the answer portion only
+                answer_match = re.search(r'answer is (.*)', reasoning_result)
+                if answer_match:
+                    return answer_match.group(1).strip()
+                else:
+                    return reasoning_result
+            else:
+                print(f"Result failed to validate on attempt {attempt + 1}")
+
+        return "The holistic reasoner did not arrive at a conclusive and valid answer."
+
+    def _reason_about_question(self, question):
+        """Reason about the question using a holistic understanding of passage."""
+        reasoning_prompt = f"""
+        Reason about the question and passage to formulate a direct and comprehensive answer. Extract any relevant numerical quantities and perform calculations if necessary.
+
+        Question: {question}
+
+        Example 1:
+        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+        Reasoning: Chris Johnson's first touchdown was 6 yards and Jason Hanson's first field goal was 53 yards, therefore the answer is 59 yards.
+
+        Example 2:
+        Question: Who caught the final touchdown of the game?
+        Reasoning: Wes Welker caught the final touchdown of the game, therefore the answer is Wes Welker.
+
+        Reasoning:
+        """
+        return call_llm(reasoning_prompt, self.system_instruction)
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
+        import os  # Import the os module
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
@@ -142,7 +98,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),

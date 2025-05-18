@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 12,
-        "sample_id": "1f777fdb-92f3-4f84-a846-d3f32b4d6c5a",
-        "question": "PASSAGE: The Browns traveled to Baltimore to take on the Ravens on Thursday Night Football. After a scoreless first quarter, the Ravens scored first in the second quarter as Joe Flacco found Torrey Smith on an 18-yard touchdown pass (with a failed PAT) for a 6-0 lead. The team increased their lead as Justin Tucker made a 45-yard field goal to make the score 9-0. Finally, the Browns scored not long before halftime when Trent Richardson ran for a 2-yard touchdown, making the halftime score 9-7. After the break, the Ravens went right back to work as Flacco used a QB sneak 1-yard run for a 16-7 lead. However, The Browns drew within 6 points as Phil Dawson nailed a 51-yard field goal, making the score 16-10. But then, the Ravens pulled away as Cary Williams picked off Weeden and returned the ball 63 yards for a touchdown, making the score 23-10. In the fourth quarter, the Browns tried to come back as Dawson nailed two field goals from 50 and 52 yards out making the score 23-13 and then 23-16, respectively. However, the Ravens took control of the game and the Browns' record dropped to 0-4 on the season, losing their 13th straight game against a division rival and their 9th straight game against the Ravens.\n\nQUESTION: How many field goals did Phil Dawson have from over 49 yards?"
+        "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
+        "question": "PASSAGE: Coming off a home loss to the Bills (along with attending Sean Taylor's funeral in Florida), the Redskins played at home for their Week 13 Thursday night inter-conference game with the Chicago Bears. After a scoreless first quarter, the Redskins scored first when quarterback Todd Collins completed a 21-yard touchdown pass to tight end Todd Yoder for the only score of the second quarter. In the third quarter, Washington's fullback Mike Sellers scored on a 1-yard touchdown run. The Bears would reply with kicker Robbie Gould making a 30-yard field goal, and later quarterback Brian Griese completed a 17-yard touchdown pass to wide receiver Bernard Berrian. In the fourth quarter, the Redskins responded with kicker Shaun Suisham kicking a 23-yard field goal. Later, Chicago made it closer as Gould kicked a 22-yard field goal. Afterwards, the Redskins increased their lead with Collins completing a 16-yard touchdown pass to running back Ladell Betts. The Bears would answer with Gould making a 21-yard field goal, but their onside kick failed, which preserved a Washington win. Starting quarterback Jason Campbell (10/16 for 100 yards) left the game in the second quarter with a dislocated left knee cap.\n\nQUESTION: How many touchdown passes did Todd Collins throw in the second quarter?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 12,
-            "sample_id": "1f777fdb-92f3-4f84-a846-d3f32b4d6c5a",
+            "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: The Browns traveled to Baltimore to take on the Ravens on Thursday Night Football. After a scoreless first quarter, the Ravens scored first in the second quarter as Joe Flacco found Torrey Smith on an 18-yard touchdown pass (with a failed PAT) for a 6-0 lead. The team increased their lead as Justin Tucker made a 45-yard field goal to make the score 9-0. Finally, the Browns scored not long before halftime when Trent Richardson ran for a 2-yard touchdown, making the halftime score 9-7. After the break, the Ravens went right back to work as Flacco used a QB sneak 1-yard run for a 16-7 lead. However, The Browns drew within 6 points as Phil Dawson nailed a 51-yard field goal, making the score 16-10. But then, the Ravens pulled away as Cary Williams picked off Weeden and returned the ball 63 yards for a touchdown, making the score 23-10. In the fourth quarter, the Browns tried to come back as Dawson nailed two field goals from 50 and 52 yards out making the score 23-13 and then 23-16, respectively. However, the Ravens took control of the game and the Browns' record dropped to 0-4 on the season, losing their 13th straight game against a division rival and their 9th straight game against the Ravens.\n\nQUESTION: How many field goals did Phil Dawson have from over 49 yards?"
+    question = "PASSAGE: Coming off a home loss to the Bills (along with attending Sean Taylor's funeral in Florida), the Redskins played at home for their Week 13 Thursday night inter-conference game with the Chicago Bears. After a scoreless first quarter, the Redskins scored first when quarterback Todd Collins completed a 21-yard touchdown pass to tight end Todd Yoder for the only score of the second quarter. In the third quarter, Washington's fullback Mike Sellers scored on a 1-yard touchdown run. The Bears would reply with kicker Robbie Gould making a 30-yard field goal, and later quarterback Brian Griese completed a 17-yard touchdown pass to wide receiver Bernard Berrian. In the fourth quarter, the Redskins responded with kicker Shaun Suisham kicking a 23-yard field goal. Later, Chicago made it closer as Gould kicked a 22-yard field goal. Afterwards, the Redskins increased their lead with Collins completing a 16-yard touchdown pass to running back Ladell Betts. The Bears would answer with Gould making a 21-yard field goal, but their onside kick failed, which preserved a Washington win. Starting quarterback Jason Campbell (10/16 for 100 yards) left the game in the second quarter with a dislocated left knee cap.\n\nQUESTION: How many touchdown passes did Todd Collins throw in the second quarter?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 12,
-            "sample_id": "1f777fdb-92f3-4f84-a846-d3f32b4d6c5a",
+            "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 12,
-            "sample_id": "1f777fdb-92f3-4f84-a846-d3f32b4d6c5a",
+            "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 5,
-        "sample_id": "example_40",
-        "question": 'PASSAGE: Trying to snap a five-game losing streak, the Rams stayed at home for a Week 13 interconference duel with the Miami Dolphins. The Rams would welcome back Steven Jackson to the lineup after weeks of sitting out with a thigh injury. Jackson gave the Rams a good enough boost to strike first with a first possession field goal by Josh Brown from 23 yards. Brown would kick a 51-yard field goal to give the Rams a 6-0 lead. In the second quarter, the Dolphins responded as RB Ronnie Brown got a 3-yard TD run. The Rams would answer with Brown making a 33-yard field goal, but Miami replied with kicker Dan Carpenter getting a 37-yard field goal. In the third quarter, the Dolphins increased their lead as Carpenter got a 47-yard field goal. In the fourth quarter, St. Louis tried to keep up as Brown made a 38-yard field goal, yet Miami answered right back with Carpenter nailing a 42-yard field goal. The Rams tried to come back, but a late-game interception shattered any hope of a comeback.\n\nQUESTION: How many points got the Rams on the board?'
+        "sample_id": "f479e08f-92ed-4db1-b6ae-25164566d5f0",
+        "question": 'PASSAGE: About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, "Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows." In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.\n\nQUESTION: Which year had more youth unemployed, 2007 or 2012?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 5,
-            "sample_id": "example_40",
+            "sample_id": "f479e08f-92ed-4db1-b6ae-25164566d5f0",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Trying to snap a five-game losing streak, the Rams stayed at home for a Week 13 interconference duel with the Miami Dolphins. The Rams would welcome back Steven Jackson to the lineup after weeks of sitting out with a thigh injury. Jackson gave the Rams a good enough boost to strike first with a first possession field goal by Josh Brown from 23 yards. Brown would kick a 51-yard field goal to give the Rams a 6-0 lead. In the second quarter, the Dolphins responded as RB Ronnie Brown got a 3-yard TD run. The Rams would answer with Brown making a 33-yard field goal, but Miami replied with kicker Dan Carpenter getting a 37-yard field goal. In the third quarter, the Dolphins increased their lead as Carpenter got a 47-yard field goal. In the fourth quarter, St. Louis tried to keep up as Brown made a 38-yard field goal, yet Miami answered right back with Carpenter nailing a 42-yard field goal. The Rams tried to come back, but a late-game interception shattered any hope of a comeback.\n\nQUESTION: How many points got the Rams on the board?'
+    question = 'PASSAGE: About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, "Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows." In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.\n\nQUESTION: Which year had more youth unemployed, 2007 or 2012?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 5,
-            "sample_id": "example_40",
+            "sample_id": "f479e08f-92ed-4db1-b6ae-25164566d5f0",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 5,
-            "sample_id": "example_40",
+            "sample_id": "f479e08f-92ed-4db1-b6ae-25164566d5f0",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

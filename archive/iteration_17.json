@@ -1,0 +1,493 @@
+{
+  "iteration": 17,
+  "timestamp": "2025-05-17T20:46:40.924718",
+  "strategy": "Exploitation",
+  "explore_rate": 40,
+  "exploit_rate": 60,
+  "batch_size": 5,
+  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n\n        Example 3:\n        Question: What yard line did both teams score from?\n        Sub-questions:\n        1. What yard line did the first team score from?\n        2. What yard line did the second team score from?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n        Extracted Information:\n        LaFell caught the final touchdown.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game?\n        Extracted Information: LaFell caught the final touchdown.\n        Final Answer: LaFell\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script implements a multi-step approach to answer questions using chain-of-thought reasoning, question decomposition and answer synthesis. It decomposes the main question into sub-questions, extracts relevant information for each sub-question, and then synthesizes the extracted information to form a final answer.  The agent roles are expert question decomposer, information extraction expert, and answer synthesis expert. The script uses `decompose_question`, `extract_information`, and `synthesize_answer`, each calling `call_llm` to interact with the Gemini model and each using a verification step. The overall workflow is: question decomposition -> information extraction -> answer synthesis, with each step validated by the LLM and retried if needed.",
+  "sample_count": 5,
+  "samples": [
+    {
+      "question": "PASSAGE: Coming off their win over the Jaguars the Chargers flew to Qwest Field where they played their former division rival, the Seattle Seahawks. In the second quarter San Diego trailed early when kicker Olindo Mare made a 23-yard field goal. Then QB Matt Hasselbeck completed a 9-yard TD pass to TE John Carlson. This was followed in the third quarter by RB Leon Washington returning a kickoff 101&#160;yards to the endzone for a touchdown. The Chargers cut the lead with QB Philip Rivers getting a 3-yard TD pass to WR Malcolm Floyd, followed by Hasselbeck getting sacked by ILB Brandon Siler in the endzone for a safety. Then kicker Nate Kaeding made a 29-yard field goal. The Seahawks increased their lead when Mare made a 23-yard field goal, but the Chargers replied and tied the game when Rivers found TE Antonio Gates on a 12-yard TD pass. (With a successful 2-point conversion as Rivers found WR Legedu Naanee). Before the clock struck zero Seattle took the winning score as RB Leon Washington returned his second kickoff of the game into the endzone running 99&#160;yards for a touchdown, giving the Chargers the loss.\n\nQUESTION: Which player caught the first passing touchdown?",
+      "answer": "TE John Carlson",
+      "id": "example_126",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their win over the Jaguars the Chargers flew to Qwest Field where they played their former division rival, the Seattle Seahawks. In the second quarter San Diego trailed early when kicker Olindo Mare made a 23-yard field goal. Then QB Matt Hasselbeck completed a 9-yard TD pass to TE John Carlson. This was followed in the third quarter by RB Leon Washington returning a kickoff 101&#160;yards to the endzone for a touchdown. The Chargers cut the lead with QB Philip Rivers getting a 3-yard TD pass to WR Malcolm Floyd, followed by Hasselbeck getting sacked by ILB Brandon Siler in the endzone for a safety. Then kicker Nate Kaeding made a 29-yard field goal. The Seahawks increased their lead when Mare made a 23-yard field goal, but the Chargers replied and tied the game when Rivers found TE Antonio Gates on a 12-yard TD pass. (With a successful 2-point conversion as Rivers found WR Legedu Naanee). Before the clock struck zero Seattle took the winning score as RB Leon Washington returned his second kickoff of the game into the endzone running 99&#160;yards for a touchdown, giving the Chargers the loss.",
+        "original_question": "Which player caught the first passing touchdown?",
+        "original_answer_data": {
+          "spans": [
+            "TE John Carlson"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 301
+      }
+    },
+    {
+      "question": "PASSAGE: Coming out of their bye week, the Buccaneers traveled to Cincinnati to face the Bengals. The Bengals took an early 7-0 lead after Carson Palmer threw a 43-yard touchdown pass to Terrell Owens. At the end the first quarter, the Buccaneers pinned the Bengals back at their own 6-yard line. One the first play of the second quarter, Cody Grimm intercepted Palmer, and returned the ball 11 yards for a touchdown for a 7-7 tie. A Mike Nugent 31-yard field goal gave the Bengals a 10-7 halftime lead. In the third quarter, Tampa Bay drove 80 yards for their second touchdown, and a 14-10 lead. the Bengals replied with a field goal, to trim their deficit to 14-13. Micheal Spurlock fumbled the ensuing kickoff, and the Bengals recovered deep in Tampa Bay territory. In the fourth quarter, the Bengals capitalized on the turnover. Palmer found Jermaine Gresham for a 1-yard touchdown pass (along with a successful Cedric Benson 2-point conversion run) to take a 21-14 lead. The teams traded possession twice, and with 2:28 remaining, the Bengals faced 3rd down & 8 at their own 43-yard line. Tampa Bay had no timeouts, and a first down would secure the win for Cincinnati. Palmer was intercepted by Aqib Talib at the 50-yard line. Five plays later, Josh Freeman completed a 20-yard touchdown pass to Mike Williams. With 25 second left, the Buccaneers again intercepted Palmer. Sabby Piscitelli returned the ball to the Cincinnati 34-yard line. With 5 seconds left in regulation, Connor Barth made a 31-yard field goal to win the game 24-21.\n\nQUESTION: Which players intercepted passed thrown by Carson Palmer?",
+      "answer": "Cody Grimm",
+      "id": "example_127",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming out of their bye week, the Buccaneers traveled to Cincinnati to face the Bengals. The Bengals took an early 7-0 lead after Carson Palmer threw a 43-yard touchdown pass to Terrell Owens. At the end the first quarter, the Buccaneers pinned the Bengals back at their own 6-yard line. One the first play of the second quarter, Cody Grimm intercepted Palmer, and returned the ball 11 yards for a touchdown for a 7-7 tie. A Mike Nugent 31-yard field goal gave the Bengals a 10-7 halftime lead. In the third quarter, Tampa Bay drove 80 yards for their second touchdown, and a 14-10 lead. the Bengals replied with a field goal, to trim their deficit to 14-13. Micheal Spurlock fumbled the ensuing kickoff, and the Bengals recovered deep in Tampa Bay territory. In the fourth quarter, the Bengals capitalized on the turnover. Palmer found Jermaine Gresham for a 1-yard touchdown pass (along with a successful Cedric Benson 2-point conversion run) to take a 21-14 lead. The teams traded possession twice, and with 2:28 remaining, the Bengals faced 3rd down & 8 at their own 43-yard line. Tampa Bay had no timeouts, and a first down would secure the win for Cincinnati. Palmer was intercepted by Aqib Talib at the 50-yard line. Five plays later, Josh Freeman completed a 20-yard touchdown pass to Mike Williams. With 25 second left, the Buccaneers again intercepted Palmer. Sabby Piscitelli returned the ball to the Cincinnati 34-yard line. With 5 seconds left in regulation, Connor Barth made a 31-yard field goal to win the game 24-21.",
+        "original_question": "Which players intercepted passed thrown by Carson Palmer?",
+        "original_answer_data": {
+          "spans": [
+            "Cody Grimm",
+            "Aqib Talib",
+            "Sabby Piscitelli"
+          ],
+          "types": [
+            "span",
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 333
+      }
+    },
+    {
+      "question": "PASSAGE: The Browns then traveled to take on the Bengals in Game 2 of the Battle of Ohio.  In the first quarter, the Browns took an early 3-0 lead when Zane Gonzalez kicked a 27-yard field goal.  Though, though the Bengals responded when Andy Dalton found Tyler Boyd on an 8-yard pass to make it 7-3.  In the second quarter, the Bengals increased their lead with 3 field goals kicked by Randy Bullock:  from 31, 49, and 21 yards out to make the score 10-3, 13-3, and 16-3.  The Browns made it 16-6 before halftime when Gonzalez kicked a 21-yard field goal.  The Bengals moved further ahead when Dalton found Tyler Kroft on a 1-yard pass to make it 23-6.  The Browns came within 2 touchdowns when Gonzalez kicked his third field goal of the day from 39 yards out to make it 23-9 in the third quarter.  In the fourth quarter, DeShone Kizer ran for a 3-yard touchdown to make it 23-16.  Though later on, the Bengals sealed the game when Joe Mixon ran for an 11-yard touchdown. The Browns' losing streak continued as they fell to the Bengals 30-16.  With the loss, the Browns fell to 0-11, losing their 12th consecutive game, their 18th consecutive road game, and their 15th consecutive divisional matchup, and combined with a Bills victory over the Chiefs, eliminated them from playoff contention. The loss ensured that the Browns would finish in 4th place in the AFC North for the 7th consecutive season.\n\nQUESTION: How many total points were scored by then end of the game?",
+      "answer": "46",
+      "id": "example_128",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Browns then traveled to take on the Bengals in Game 2 of the Battle of Ohio.  In the first quarter, the Browns took an early 3-0 lead when Zane Gonzalez kicked a 27-yard field goal.  Though, though the Bengals responded when Andy Dalton found Tyler Boyd on an 8-yard pass to make it 7-3.  In the second quarter, the Bengals increased their lead with 3 field goals kicked by Randy Bullock:  from 31, 49, and 21 yards out to make the score 10-3, 13-3, and 16-3.  The Browns made it 16-6 before halftime when Gonzalez kicked a 21-yard field goal.  The Bengals moved further ahead when Dalton found Tyler Kroft on a 1-yard pass to make it 23-6.  The Browns came within 2 touchdowns when Gonzalez kicked his third field goal of the day from 39 yards out to make it 23-9 in the third quarter.  In the fourth quarter, DeShone Kizer ran for a 3-yard touchdown to make it 23-16.  Though later on, the Bengals sealed the game when Joe Mixon ran for an 11-yard touchdown. The Browns' losing streak continued as they fell to the Bengals 30-16.  With the loss, the Browns fell to 0-11, losing their 12th consecutive game, their 18th consecutive road game, and their 15th consecutive divisional matchup, and combined with a Bills victory over the Chiefs, eliminated them from playoff contention. The loss ensured that the Browns would finish in 4th place in the AFC North for the 7th consecutive season.",
+        "original_question": "How many total points were scored by then end of the game?",
+        "original_answer_data": {
+          "spans": [
+            "46"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 192
+      }
+    },
+    {
+      "question": "PASSAGE: For their home opener, the Lions hosted the Philadelphia Eagles. The Eagles scored first midway through the first quarter with a 45-yard touchdown catch by DeSean Jackson. The Lions responded a few minutes later with a 14-yard touchdown run by Jahvid Best. Later in the second quarter the Lions broke the tie with a 49-yard Jason Hanson field goal. They increased their lead with a 75-yard touchdown catch by Jahvid Best. The Eagles answered with 4 consecutive touchdowns. First a 14-yard run by LeSean McCoy. Next a 9-yard run by Jeremy Maclin just before halftime. Midway through the third, Philadelphia added to their lead with 2 touchdowns by LeSean McCoy. First a 4-yard run, then in the 4th quarter one for 46 yards. The Lions then attempted a comeback with 2 consecutive touchdowns late in the game. First a 2-yard touchdown run by Jahvid Best. Then a 19-yard catch by Calvin Johnson with a 2-point conversion tacked on. The Lions completed an onside kick but turned the ball over on downs. With the loss, the Lions fell to 0-2 for the 3rd straight season.\n\nQUESTION: Which player scored multiple touchdowns in the first half?",
+      "answer": "Jahvid Best",
+      "id": "example_129",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "For their home opener, the Lions hosted the Philadelphia Eagles. The Eagles scored first midway through the first quarter with a 45-yard touchdown catch by DeSean Jackson. The Lions responded a few minutes later with a 14-yard touchdown run by Jahvid Best. Later in the second quarter the Lions broke the tie with a 49-yard Jason Hanson field goal. They increased their lead with a 75-yard touchdown catch by Jahvid Best. The Eagles answered with 4 consecutive touchdowns. First a 14-yard run by LeSean McCoy. Next a 9-yard run by Jeremy Maclin just before halftime. Midway through the third, Philadelphia added to their lead with 2 touchdowns by LeSean McCoy. First a 4-yard run, then in the 4th quarter one for 46 yards. The Lions then attempted a comeback with 2 consecutive touchdowns late in the game. First a 2-yard touchdown run by Jahvid Best. Then a 19-yard catch by Calvin Johnson with a 2-point conversion tacked on. The Lions completed an onside kick but turned the ball over on downs. With the loss, the Lions fell to 0-2 for the 3rd straight season.",
+        "original_question": "Which player scored multiple touchdowns in the first half?",
+        "original_answer_data": {
+          "spans": [
+            "Jahvid Best"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 664
+      }
+    },
+    {
+      "question": "PASSAGE: Still looking for a win the Bills played on home ground for an AFC duel with the Jaguars. In the first quarter the Bills took the lead as QB Ryan Fitzpatrick made a 45-yard TD pass to WR Lee Evans; followed by kicker Rian Lindell making a 29-yard field goal. The Jaguars replied with kicker Josh Scobee nailing a 49-yard field goal, but in the second quarter the lead had expanded again with Lindell's 22-yard field goal. After that, the Jaguars rallied with Scobee getting another 49-yard field goal, then QB David Garrard made a 1-yard TD pass to TE Marcedes Lewis; followed in the third quarter by Garrard again finding Lewis on a 27-yard TD pass. Buffalo re-tied the game with Fitzpatrick completing a 5-yard TD pass to WR Steve Johnson, but the Jaguars pulled away with Garrard making a 7-yard TD pass to WR Mike Sims-Walker, followed in the fourth quarter by Scobee making a 34, 40 and a 46-yard field goal. Buffalo tried to tie the game with Fitzpatrick making a 7-yard TD pass to Johnson, but with a failed 2-point conversion, it became a 2-possession game which in turn became very difficult for Buffalo to recover. With the loss, Buffalo entered their bye week with their first 0-5 start since 1985.\n\nQUESTION: Who made the second longest field goal?",
+      "answer": "Scobee",
+      "id": "example_130",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Still looking for a win the Bills played on home ground for an AFC duel with the Jaguars. In the first quarter the Bills took the lead as QB Ryan Fitzpatrick made a 45-yard TD pass to WR Lee Evans; followed by kicker Rian Lindell making a 29-yard field goal. The Jaguars replied with kicker Josh Scobee nailing a 49-yard field goal, but in the second quarter the lead had expanded again with Lindell's 22-yard field goal. After that, the Jaguars rallied with Scobee getting another 49-yard field goal, then QB David Garrard made a 1-yard TD pass to TE Marcedes Lewis; followed in the third quarter by Garrard again finding Lewis on a 27-yard TD pass. Buffalo re-tied the game with Fitzpatrick completing a 5-yard TD pass to WR Steve Johnson, but the Jaguars pulled away with Garrard making a 7-yard TD pass to WR Mike Sims-Walker, followed in the fourth quarter by Scobee making a 34, 40 and a 46-yard field goal. Buffalo tried to tie the game with Fitzpatrick making a 7-yard TD pass to Johnson, but with a failed 2-point conversion, it became a 2-possession game which in turn became very difficult for Buffalo to recover. With the loss, Buffalo entered their bye week with their first 0-5 start since 1985.",
+        "original_question": "Who made the second longest field goal?",
+        "original_answer_data": {
+          "spans": [
+            "Scobee"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 262
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their win over the Jaguars the Chargers flew to Qwest Field where they played their former division rival, the Seattle Seahawks. In the second quarter San Diego trailed early when kicker Olindo Mare made a 23-yard field goal. Then QB Matt Hasselbeck completed a 9-yard TD pass to TE John Carlson. This was followed in the third quarter by RB Leon Washington returning a kickoff 101&#160;yards to the endzone for a touchdown. The Chargers cut the lead with QB Philip Rivers getting a 3-yard TD pass to WR Malcolm Floyd, followed by Hasselbeck getting sacked by ILB Brandon Siler in the endzone for a safety. Then kicker Nate Kaeding made a 29-yard field goal. The Seahawks increased their lead when Mare made a 23-yard field goal, but the Chargers replied and tied the game when Rivers found TE Antonio Gates on a 12-yard TD pass. (With a successful 2-point conversion as Rivers found WR Legedu Naanee). Before the clock struck zero Seattle took the winning score as RB Leon Washington returned his second kickoff of the game into the endzone running 99&#160;yards for a touchdown, giving the Chargers the loss.",
+      "original_question": "Which player caught the first passing touchdown?",
+      "original_answer_data": {
+        "spans": [
+          "TE John Carlson"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 301
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming out of their bye week, the Buccaneers traveled to Cincinnati to face the Bengals. The Bengals took an early 7-0 lead after Carson Palmer threw a 43-yard touchdown pass to Terrell Owens. At the end the first quarter, the Buccaneers pinned the Bengals back at their own 6-yard line. One the first play of the second quarter, Cody Grimm intercepted Palmer, and returned the ball 11 yards for a touchdown for a 7-7 tie. A Mike Nugent 31-yard field goal gave the Bengals a 10-7 halftime lead. In the third quarter, Tampa Bay drove 80 yards for their second touchdown, and a 14-10 lead. the Bengals replied with a field goal, to trim their deficit to 14-13. Micheal Spurlock fumbled the ensuing kickoff, and the Bengals recovered deep in Tampa Bay territory. In the fourth quarter, the Bengals capitalized on the turnover. Palmer found Jermaine Gresham for a 1-yard touchdown pass (along with a successful Cedric Benson 2-point conversion run) to take a 21-14 lead. The teams traded possession twice, and with 2:28 remaining, the Bengals faced 3rd down & 8 at their own 43-yard line. Tampa Bay had no timeouts, and a first down would secure the win for Cincinnati. Palmer was intercepted by Aqib Talib at the 50-yard line. Five plays later, Josh Freeman completed a 20-yard touchdown pass to Mike Williams. With 25 second left, the Buccaneers again intercepted Palmer. Sabby Piscitelli returned the ball to the Cincinnati 34-yard line. With 5 seconds left in regulation, Connor Barth made a 31-yard field goal to win the game 24-21.",
+      "original_question": "Which players intercepted passed thrown by Carson Palmer?",
+      "original_answer_data": {
+        "spans": [
+          "Cody Grimm",
+          "Aqib Talib",
+          "Sabby Piscitelli"
+        ],
+        "types": [
+          "span",
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 333
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Browns then traveled to take on the Bengals in Game 2 of the Battle of Ohio.  In the first quarter, the Browns took an early 3-0 lead when Zane Gonzalez kicked a 27-yard field goal.  Though, though the Bengals responded when Andy Dalton found Tyler Boyd on an 8-yard pass to make it 7-3.  In the second quarter, the Bengals increased their lead with 3 field goals kicked by Randy Bullock:  from 31, 49, and 21 yards out to make the score 10-3, 13-3, and 16-3.  The Browns made it 16-6 before halftime when Gonzalez kicked a 21-yard field goal.  The Bengals moved further ahead when Dalton found Tyler Kroft on a 1-yard pass to make it 23-6.  The Browns came within 2 touchdowns when Gonzalez kicked his third field goal of the day from 39 yards out to make it 23-9 in the third quarter.  In the fourth quarter, DeShone Kizer ran for a 3-yard touchdown to make it 23-16.  Though later on, the Bengals sealed the game when Joe Mixon ran for an 11-yard touchdown. The Browns' losing streak continued as they fell to the Bengals 30-16.  With the loss, the Browns fell to 0-11, losing their 12th consecutive game, their 18th consecutive road game, and their 15th consecutive divisional matchup, and combined with a Bills victory over the Chiefs, eliminated them from playoff contention. The loss ensured that the Browns would finish in 4th place in the AFC North for the 7th consecutive season.",
+      "original_question": "How many total points were scored by then end of the game?",
+      "original_answer_data": {
+        "spans": [
+          "46"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 192
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "For their home opener, the Lions hosted the Philadelphia Eagles. The Eagles scored first midway through the first quarter with a 45-yard touchdown catch by DeSean Jackson. The Lions responded a few minutes later with a 14-yard touchdown run by Jahvid Best. Later in the second quarter the Lions broke the tie with a 49-yard Jason Hanson field goal. They increased their lead with a 75-yard touchdown catch by Jahvid Best. The Eagles answered with 4 consecutive touchdowns. First a 14-yard run by LeSean McCoy. Next a 9-yard run by Jeremy Maclin just before halftime. Midway through the third, Philadelphia added to their lead with 2 touchdowns by LeSean McCoy. First a 4-yard run, then in the 4th quarter one for 46 yards. The Lions then attempted a comeback with 2 consecutive touchdowns late in the game. First a 2-yard touchdown run by Jahvid Best. Then a 19-yard catch by Calvin Johnson with a 2-point conversion tacked on. The Lions completed an onside kick but turned the ball over on downs. With the loss, the Lions fell to 0-2 for the 3rd straight season.",
+      "original_question": "Which player scored multiple touchdowns in the first half?",
+      "original_answer_data": {
+        "spans": [
+          "Jahvid Best"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 664
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Still looking for a win the Bills played on home ground for an AFC duel with the Jaguars. In the first quarter the Bills took the lead as QB Ryan Fitzpatrick made a 45-yard TD pass to WR Lee Evans; followed by kicker Rian Lindell making a 29-yard field goal. The Jaguars replied with kicker Josh Scobee nailing a 49-yard field goal, but in the second quarter the lead had expanded again with Lindell's 22-yard field goal. After that, the Jaguars rallied with Scobee getting another 49-yard field goal, then QB David Garrard made a 1-yard TD pass to TE Marcedes Lewis; followed in the third quarter by Garrard again finding Lewis on a 27-yard TD pass. Buffalo re-tied the game with Fitzpatrick completing a 5-yard TD pass to WR Steve Johnson, but the Jaguars pulled away with Garrard making a 7-yard TD pass to WR Mike Sims-Walker, followed in the fourth quarter by Scobee making a 34, 40 and a 46-yard field goal. Buffalo tried to tie the game with Fitzpatrick making a 7-yard TD pass to Johnson, but with a failed 2-point conversion, it became a 2-possession game which in turn became very difficult for Buffalo to recover. With the loss, Buffalo entered their bye week with their first 0-5 start since 1985.",
+      "original_question": "Who made the second longest field goal?",
+      "original_answer_data": {
+        "spans": [
+          "Scobee"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 262
+    }
+  ],
+  "example_indices": [
+    126,
+    127,
+    128,
+    129,
+    130
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "John Carlson",
+      "output": "ANSWER_START\nJohn Carlson\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_17.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer \"John Carlson\" conveys the same information as the golden answer \"TE John Carlson\". The golden answer specifies the position, but the core information, \"John Carlson\" is present in both answers."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Cody Grimm and Aqib Talib",
+      "output": "ANSWER_START\nCody Grimm and Aqib Talib\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_17.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer includes an additional name, \"Aqib Talib\", which is not present in the golden answer. Therefore, the answers do not convey the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "46",
+      "output": "ANSWER_START\n46\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_17.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value, 46."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Jahvid Best scored two touchdowns in the first half.",
+      "output": "ANSWER_START\nJahvid Best scored two touchdowns in the first half.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_17.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer contains \"Jahvid Best\" as part of a larger statement. The golden answer is \"Jahvid Best\". The system answer therefore contains the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Josh Scobee",
+      "output": "ANSWER_START\nJosh Scobee\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_17.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer includes the golden answer. \"Josh Scobee\" refers to the same person as \"Scobee\" in this context."
+      },
+      "match": true
+    }
+  ],
+  "performance": {
+    "accuracy": 0.8,
+    "correct_count": 4,
+    "total_count": 5,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "John Carlson",
+        "golden_answer": "TE John Carlson",
+        "output": "ANSWER_START\nJohn Carlson\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer \"John Carlson\" conveys the same information as the golden answer \"TE John Carlson\". The golden answer specifies the position, but the core information, \"John Carlson\" is present in both answers."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "Cody Grimm and Aqib Talib",
+        "golden_answer": "Cody Grimm",
+        "output": "ANSWER_START\nCody Grimm and Aqib Talib\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer includes an additional name, \"Aqib Talib\", which is not present in the golden answer. Therefore, the answers do not convey the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "46",
+        "golden_answer": "46",
+        "output": "ANSWER_START\n46\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, 46."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "Jahvid Best scored two touchdowns in the first half.",
+        "golden_answer": "Jahvid Best",
+        "output": "ANSWER_START\nJahvid Best scored two touchdowns in the first half.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer contains \"Jahvid Best\" as part of a larger statement. The golden answer is \"Jahvid Best\". The system answer therefore contains the golden answer."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "Josh Scobee",
+        "golden_answer": "Scobee",
+        "output": "ANSWER_START\nJosh Scobee\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the golden answer. \"Josh Scobee\" refers to the same person as \"Scobee\" in this context."
+        }
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\nThere are no runtime errors present in the provided data.\n\n## STRENGTHS\n1.  **Information Extraction:** The system demonstrates a good ability to extract relevant information from the provided passages, identifying key entities like player names and numerical data such as scores and distances. This is evident in the successful cases where the system correctly identifies players who scored or the total points.\n2.  **Numerical Calculation:** When the question requires a simple numerical answer, such as the total points scored, the system is accurate.\n3. **Partial Correctness:** Even in error cases, the system often identifies *some* of the correct entities, indicating a partial understanding of the question and passage.\n\n## WEAKNESSES\n1.  **Over-inclusion of Entities:** The system sometimes includes extraneous information in its answer, leading to incorrect responses even when it correctly identifies some of the key information.  The first error case exemplifies this.\n2.  **Lack of Precision:** The system sometimes struggles to provide the *most* precise answer based on the question. In the error case, the question asks *which players* intercepted passes, and the system lists all players who intercepted a pass from that one person, rather than the one the question is only referencing.\n\n## CRITICAL BOTTLENECKS\n1.  **Lack of precise reasoning/filtering based on the question's intent:** The system needs to improve its ability to filter extracted entities based on more subtle question constraints. It's correctly identifying entities mentioned in relation to the prompt, but it struggles to select *only* the entities that perfectly match the constraints implied by the question.\n2.  **Inability to distinguish between multiple possible correct answers**: When the question asks for 'which player', and multiple players are the answer for the question, the system includes all of them in the response even when that may not be needed.\n\n## ERROR PATTERNS\n*   **Over-inclusion of entities:** The system tends to provide more information than requested, leading to incorrect answers by including entities that fit the general context but not the specific constraints of the question.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's failure to apply precise constraints when extracting information, resulting in over-inclusive answers that contain correct elements but also irrelevant or incorrect information. It tends to identify relevant entities but fails to filter them according to the specific nuanced requirements of the question.\n\n## IMPROVEMENT AREAS\n1.  **Constraint Handling:** The system needs significant improvement in constraint handling. It must be able to identify and apply constraints correctly to filter extracted entities and provide the most accurate and concise answer.\n2.  **Question Understanding:** More advanced question understanding techniques are required to interpret the precise intent of the question and identify all implied constraints.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a constraint-based filtering module:** After extracting potential entities, implement a filtering module that explicitly checks each entity against all identified constraints from the question. This module should remove any entity that doesn't satisfy all constraints.\n2.  **Refine Question Understanding:** Integrate more sophisticated NLP techniques, such as dependency parsing or semantic role labeling, to better understand the relationships between words in the question and identify implicit constraints. The focus here is more than identifying just the entity type; it is also identifying *how* to use the extracted entities in the final response.\n3.  **Introduce a scoring mechanism for entities:** When multiple entities are extracted, score each entity based on its relevance to the question and the strength of its connection to the constraints. The final answer should include only the highest-scoring entity or entities. This would allow the system to filter out extraneous but partially-related entities.\n\n## CAPABILITY MAPPING\n*   **Sample ID 1:**\n    *   information_extraction: Partial Success (Extracted both Cody Grimm and Aqib Talib)\n    *   constraint_handling: Failure (Failed to filter out Aqib Talib based on precise question constraint)\n    *   solution_verification: Failure (Incorrectly determined that \"Cody Grimm and Aqib Talib\" was a valid answer)\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The most critical problem is the system's failure to apply precise constraints when extracting information, resulting in over-inclusive answers that contain correct elements but also irrelevant or incorrect information. It tends to identify relevant entities but fails to filter them according to the specific nuanced requirements of the question.",
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "Okay, here's a comprehensive capability report for your AI system based on the provided information.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n**ERROR ANALYSIS REPORT:** (As provided)\n\n## SAMPLE EXECUTION OUTPUTS:\n\n```\n[\n  \"ANSWER_START\\nJohn Carlson\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\nCody Grimm and Aqib Talib\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\n46\\n\\nANSWER_END\\n\"\n]\n```\n\n## EXECUTION ANALYSIS\n\n*   The output format consistently uses \"ANSWER\\_START\" and \"ANSWER\\_END\" tags. This is good for parsing, but could be improved to provide more flexible outputs.\n*   The erroneous output \"Cody Grimm and Aqib Talib\" confirms the \"Over-inclusion of Entities\" weakness. The system correctly identified *some* relevant entities (Cody Grimm) but failed to exclude the irrelevant entity (Aqib Talib), demonstrating a lack of precise filtering.\n*   The other outputs (\"John Carlson,\" \"46\") suggest success on simpler question types, highlighting the strengths in information extraction and numerical calculation.\n*   No immediately obvious runtime errors are present.\n*   Given the data, the entity identified, \"John Carlson,\" could be referring to multiple people, as multiple people exist with that name.\n\n## CAPABILITY ASSESSMENT\n\nThe system possesses a solid foundation in information extraction and basic numerical reasoning. However, its ability to apply nuanced constraints and provide precise answers is lacking. This significantly limits its usefulness in more complex question-answering scenarios. The core issue revolves around a \"blunt instrument\" approach to information retrieval \u2013 it finds relevant pieces but struggles to assemble them into a refined, targeted response.\n\n## KEY STRENGTHS\n\n*   **Information Extraction:** Effective at identifying entities and numerical data within provided passages.\n*   **Basic Numerical Calculation:** Accurately performs simple arithmetic operations.\n*   **Partial Correctness:** Even in error cases, the system often identifies *some* of the correct entities, indicating a partial understanding of the question and passage.\n\n## KEY WEAKNESSES\n\n*   **Over-inclusion of Entities:**  The system provides extraneous information, leading to incorrect responses.\n*   **Lack of Precision:**  The system struggles to provide the *most* precise answer based on the question.\n*   **Constraint Handling:** Has trouble identifying and applying constraints correctly to filter extracted entities and provide the most accurate and concise answer.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Constraint Handling**. This directly addresses the \"Over-inclusion of Entities\" and \"Lack of Precision\" weaknesses. Improving constraint handling will have the greatest impact on overall accuracy and usefulness.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Constraint-Based Filtering Module (Priority 1):**\n    *   **Details:** After extracting potential entities, implement a filtering module that explicitly checks each entity against all identified constraints from the question. This module should remove any entity that doesn't satisfy all constraints.\n    *   **Implementation Steps:**\n        *   **Constraint Identification:** Enhance the question understanding component to explicitly identify constraints (e.g., \"player who intercepted *from* X\").\n        *   **Filtering Logic:**  Create a function that takes an entity and a list of constraints as input. The function returns `True` if the entity satisfies all constraints, and `False` otherwise.\n        *   **Integration:**  Integrate this function into the information extraction pipeline *after* initial entity extraction but *before* answer construction.\n    *   **Testing:** Create a set of test cases specifically designed to evaluate the filtering module's performance with varying types of constraints.\n2.  **Refine Question Understanding with Dependency Parsing and Semantic Role Labeling (Priority 2):**\n    *   **Details:** Integrate more sophisticated NLP techniques, such as dependency parsing or semantic role labeling, to better understand the relationships between words in the question and identify implicit constraints.\n    *   **Implementation Steps:**\n        *   Choose a suitable NLP library (e.g., SpaCy, NLTK) that provides dependency parsing and semantic role labeling capabilities.\n        *   Develop code to parse the question and extract dependency relationships (e.g., subject-verb-object).\n        *   Develop code to extract semantic roles (e.g., agent, patient, instrument) for the entities in the question.\n        *   Use the dependency relationships and semantic roles to identify constraints. For example, if the question asks \"who intercepted *from* X,\" the system should identify that the agent is the interceptor, the verb is \"intercepted,\" and \"X\" is the source.\n3.  **Introduce a Scoring Mechanism for Entities (Mid-Term):**\n    *   **Details:** When multiple entities are extracted, score each entity based on its relevance to the question and the strength of its connection to the constraints. The final answer should include only the highest-scoring entity or entities.\n    *   **Implementation Steps:**\n        *   Define scoring criteria: Relevance to keywords in the question, strength of connection to identified constraints, frequency of mention in the relevant passage.\n        *   Implement a scoring function: Assign weights to each criterion and calculate a score for each extracted entity.\n        *   Set a threshold: Define a threshold score above which an entity is included in the final answer.\n\n## CAPABILITY TREND\n\nBased on the current accuracy (0.80) and the identified weaknesses, the capabilities are currently **stable**. However, without addressing the \"Constraint Handling\" issue, the system will likely plateau and may even decline as it encounters more complex question types. The recommended improvements are expected to drive a positive trend in capabilities.\n",
+      "strengths": [],
+      "weaknesses": [],
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no runtime errors present in the provided data.\n\n## STRENGTHS\n1.  **Information Extraction:** The system demonstrates a good ability to extract relevant information from the provided passages, identifying key entities like player names and numerical data such as scores and distances. This is evident in the successful cases where the system correctly identifies players who scored or the total points.\n2.  **Numerical Calculation:** When the question requires a simple numerical answer, such as the total points scored, the system is accurate.\n3. **Partial Correctness:** Even in error cases, the system often identifies *some* of the correct entities, indicating a partial understanding of the question and passage.\n\n## WEAKNESSES\n1.  **Over-inclusion of Entities:** The system sometimes includes extraneous information in its answer, leading to incorrect responses even when it correctly identifies some of the key information.  The first error case exemplifies this.\n2.  **Lack of Precision:** The system sometimes struggles to provide the *most* precise answer based on the question. In the error case, the question asks *which players* intercepted passes, and the system lists all players who intercepted a pass from that one person, rather than the one the question is only referencing.\n\n## CRITICAL BOTTLENECKS\n1.  **Lack of precise reasoning/filtering based on the question's intent:** The system needs to improve its ability to filter extracted entities based on more subtle question constraints. It's correctly identifying entities mentioned in relation to the prompt, but it struggles to select *only* the entities that perfectly match the constraints implied by the question.\n2.  **Inability to distinguish between multiple possible correct answers**: When the question asks for 'which player', and multiple players are the answer for the question, the system includes all of them in the response even when that may not be needed.\n\n## ERROR PATTERNS\n*   **Over-inclusion of entities:** The system tends to provide more information than requested, leading to incorrect answers by including entities that fit the general context but not the specific constraints of the question.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's failure to apply precise constraints when extracting information, resulting in over-inclusive answers that contain correct elements but also irrelevant or incorrect information. It tends to identify relevant entities but fails to filter them according to the specific nuanced requirements of the question.\n\n## IMPROVEMENT AREAS\n1.  **Constraint Handling:** The system needs significant improvement in constraint handling. It must be able to identify and apply constraints correctly to filter extracted entities and provide the most accurate and concise answer.\n2.  **Question Understanding:** More advanced question understanding techniques are required to interpret the precise intent of the question and identify all implied constraints.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a constraint-based filtering module:** After extracting potential entities, implement a filtering module that explicitly checks each entity against all identified constraints from the question. This module should remove any entity that doesn't satisfy all constraints.\n2.  **Refine Question Understanding:** Integrate more sophisticated NLP techniques, such as dependency parsing or semantic role labeling, to better understand the relationships between words in the question and identify implicit constraints. The focus here is more than identifying just the entity type; it is also identifying *how* to use the extracted entities in the final response.\n3.  **Introduce a scoring mechanism for entities:** When multiple entities are extracted, score each entity based on its relevance to the question and the strength of its connection to the constraints. The final answer should include only the highest-scoring entity or entities. This would allow the system to filter out extraneous but partially-related entities.\n\n## CAPABILITY MAPPING\n*   **Sample ID 1:**\n    *   information_extraction: Partial Success (Extracted both Cody Grimm and Aqib Talib)\n    *   constraint_handling: Failure (Failed to filter out Aqib Talib based on precise question constraint)\n    *   solution_verification: Failure (Incorrectly determined that \"Cody Grimm and Aqib Talib\" was a valid answer)\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report for your AI system based on the provided information.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n**ERROR ANALYSIS REPORT:** (As provided)\n\n## SAMPLE EXECUTION OUTPUTS:\n\n```\n[\n  \"ANSWER_START\\nJohn Carlson\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\nCody Grimm and Aqib Talib\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\n46\\n\\nANSWER_END\\n\"\n]\n```\n\n## EXECUTION ANALYSIS\n\n*   The output format consistently uses \"ANSWER\\_START\" and \"ANSWER\\_END\" tags. This is good for parsing, but could be improved to provide more flexible outputs.\n*   The erroneous output \"Cody Grimm and Aqib Talib\" confirms the \"Over-inclusion of Entities\" weakness. The system correctly identified *some* relevant entities (Cody Grimm) but failed to exclude the irrelevant entity (Aqib Talib), demonstrating a lack of precise filtering.\n*   The other outputs (\"John Carlson,\" \"46\") suggest success on simpler question types, highlighting the strengths in information extraction and numerical calculation.\n*   No immediately obvious runtime errors are present.\n*   Given the data, the entity identified, \"John Carlson,\" could be referring to multiple people, as multiple people exist with that name.\n\n## CAPABILITY ASSESSMENT\n\nThe system possesses a solid foundation in information extraction and basic numerical reasoning. However, its ability to apply nuanced constraints and provide precise answers is lacking. This significantly limits its usefulness in more complex question-answering scenarios. The core issue revolves around a \"blunt instrument\" approach to information retrieval \u2013 it finds relevant pieces but struggles to assemble them into a refined, targeted response.\n\n## KEY STRENGTHS\n\n*   **Information Extraction:** Effective at identifying entities and numerical data within provided passages.\n*   **Basic Numerical Calculation:** Accurately performs simple arithmetic operations.\n*   **Partial Correctness:** Even in error cases, the system often identifies *some* of the correct entities, indicating a partial understanding of the question and passage.\n\n## KEY WEAKNESSES\n\n*   **Over-inclusion of Entities:**  The system provides extraneous information, leading to incorrect responses.\n*   **Lack of Precision:**  The system struggles to provide the *most* precise answer based on the question.\n*   **Constraint Handling:** Has trouble identifying and applying constraints correctly to filter extracted entities and provide the most accurate and concise answer.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Constraint Handling**. This directly addresses the \"Over-inclusion of Entities\" and \"Lack of Precision\" weaknesses. Improving constraint handling will have the greatest impact on overall accuracy and usefulness.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Constraint-Based Filtering Module (Priority 1):**\n    *   **Details:** After extracting potential entities, implement a filtering module that explicitly checks each entity against all identified constraints from the question. This module should remove any entity that doesn't satisfy all constraints.\n    *   **Implementation Steps:**\n        *   **Constraint Identification:** Enhance the question understanding component to explicitly identify constraints (e.g., \"player who intercepted *from* X\").\n        *   **Filtering Logic:**  Create a function that takes an entity and a list of constraints as input. The function returns `True` if the entity satisfies all constraints, and `False` otherwise.\n        *   **Integration:**  Integrate this function into the information extraction pipeline *after* initial entity extraction but *before* answer construction.\n    *   **Testing:** Create a set of test cases specifically designed to evaluate the filtering module's performance with varying types of constraints.\n2.  **Refine Question Understanding with Dependency Parsing and Semantic Role Labeling (Priority 2):**\n    *   **Details:** Integrate more sophisticated NLP techniques, such as dependency parsing or semantic role labeling, to better understand the relationships between words in the question and identify implicit constraints.\n    *   **Implementation Steps:**\n        *   Choose a suitable NLP library (e.g., SpaCy, NLTK) that provides dependency parsing and semantic role labeling capabilities.\n        *   Develop code to parse the question and extract dependency relationships (e.g., subject-verb-object).\n        *   Develop code to extract semantic roles (e.g., agent, patient, instrument) for the entities in the question.\n        *   Use the dependency relationships and semantic roles to identify constraints. For example, if the question asks \"who intercepted *from* X,\" the system should identify that the agent is the interceptor, the verb is \"intercepted,\" and \"X\" is the source.\n3.  **Introduce a Scoring Mechanism for Entities (Mid-Term):**\n    *   **Details:** When multiple entities are extracted, score each entity based on its relevance to the question and the strength of its connection to the constraints. The final answer should include only the highest-scoring entity or entities.\n    *   **Implementation Steps:**\n        *   Define scoring criteria: Relevance to keywords in the question, strength of connection to identified constraints, frequency of mention in the relevant passage.\n        *   Implement a scoring function: Assign weights to each criterion and calculate a score for each extracted entity.\n        *   Set a threshold: Define a threshold score above which an entity is included in the final answer.\n\n## CAPABILITY TREND\n\nBased on the current accuracy (0.80) and the identified weaknesses, the capabilities are currently **stable**. However, without addressing the \"Constraint Handling\" issue, the system will likely plateau and may even decline as it encounters more complex question types. The recommended improvements are expected to drive a positive trend in capabilities.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 9,
+    "accuracy": 0.9,
+    "results": [
+      {
+        "success": true,
+        "answer": "52",
+        "output": "ANSWER_START\n52\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "52",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same numerical information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "48",
+        "output": "ANSWER_START\n48\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "48",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 48."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Thomas Jones",
+        "output": "ANSWER_START\nThomas Jones\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "Thomas Jones",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical: 'Thomas Jones'."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "3",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers 2 and 3 are different numerical values and do not convey the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "45",
+        "output": "ANSWER_START\n45\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "45",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "8.  0 in",
+        "output": "ANSWER_START\n8.  0 in\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "8",
+        "evaluation": {
+          "match": true,
+          "confidence": 0.9,
+          "explanation": "The system answer provides 8.0 inches, which is equivalent to 8. The addition of '.0 in' does not change the numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "38",
+        "output": "ANSWER_START\n38\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "38",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 38."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Other races",
+        "output": "ANSWER_START\nOther races\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "other races",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The answers are identical, differing only in capitalization. Both convey the same meaning."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The Oirats",
+        "output": "ANSWER_START\nThe Oirats\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "The Oirats",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical, referring to the same group, 'The Oirats'."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Anthony Fasano",
+        "output": "ANSWER_START\nAnthony Fasano\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_17.jsonl",
+        "golden_answer": "Anthony Fasano",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information: \"Anthony Fasano\"."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 88.2199981212616,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

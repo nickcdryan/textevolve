@@ -1,109 +1,14 @@
 {
   "iteration": 10,
-  "timestamp": "2025-05-17T13:14:26.467657",
-  "strategy": "Exploitation",
-  "explore_rate": 30,
-  "exploit_rate": 70,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script solves questions based on a given passage by:\n    1. Determining the question type with examples.\n    2. Extracting the relevant information with examples.\n    3. Generating the answer with examples.\n    \"\"\"\n\n    # Step 1: Determine the question type\n    question_type_result = determine_question_type(question)\n    if \"Error\" in question_type_result:\n        return question_type_result  # Return error message\n    question_type = question_type_result[\"question_type\"]\n\n    # Step 2: Extract relevant information from the passage\n    extracted_info_result = extract_relevant_info(question, question_type)\n    if \"Error\" in extracted_info_result:\n        return extracted_info_result\n    extracted_info = extracted_info_result[\"extracted_info\"]\n\n    # Step 3: Generate the answer\n    generated_answer_result = generate_answer(extracted_info, question_type, question)\n    if \"Error\" in generated_answer_result:\n        return generated_answer_result\n    generated_answer = generated_answer_result[\"answer\"]\n\n    return generated_answer # Directly return the generated answer\n\ndef determine_question_type(question):\n    \"\"\"Determine the type of the question (numerical, identification, etc.) with examples.\"\"\"\n    system_instruction = \"You are an expert at classifying question types.\"\n    prompt = f\"\"\"\n    Determine the type of question given the following examples. Return the type only.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: {{\"question_type\": \"Numerical\"}}\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: {{\"question_type\": \"Identification\"}}\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: {{\"question_type\": \"Comparative\"}}\n\n    Question: {question}\n    Type:\n    \"\"\"\n    try:\n        question_type_result = call_llm(prompt, system_instruction)\n        if not question_type_result:\n            return { \"Error\": \"Could not determine question type\"}\n        return {\"question_type\": question_type_result}\n    except Exception as e:\n        return {\"Error\": f\"Error: {str(e)}\"}\n\ndef extract_relevant_info(question, question_type):\n    \"\"\"Extract relevant information from the passage with examples, tailored to question type.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant information.\"\n    prompt = f\"\"\"\n    Extract relevant information from the passage based on the given question type.\n    Return the extracted information as a plain text summary.\n\n    Example 1:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Type: Numerical\n    Extracted Info: {{\"extracted_info\": \"Chris Johnson's first touchdown yards, Jason Hanson's first field goal yards.\"}}\n\n    Example 2:\n    Question: Who caught the final touchdown of the game?\n    Type: Identification\n    Extracted Info: {{\"extracted_info\": \"Player who caught the final touchdown.\"}}\n\n    Example 3:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Type: Comparative\n    Extracted Info: {{\"extracted_info\": \"Mass of Nu Phoenicis, Mass of Gliese 915.\"}}\n\n    Question: {question}\n    Type: {question_type}\n    Extracted Info:\n    \"\"\"\n    try:\n        extracted_info_result = call_llm(prompt, system_instruction)\n        if not extracted_info_result:\n            return {\"Error\": \"Could not extract information.\"}\n        return {\"extracted_info\": extracted_info_result}\n    except Exception as e:\n        return {\"Error\": f\"Error: {str(e)}\"}\n\ndef generate_answer(extracted_info, question_type, question):\n    \"\"\"Generate the answer based on extracted information and question type with examples.\"\"\"\n    system_instruction = \"You are an expert at generating correct answers.\"\n    prompt = f\"\"\"\n    Generate an answer to the question based on the extracted information.\n\n    Example 1:\n    Extracted Info: Chris Johnson's first touchdown yards = 40, Jason Hanson's first field goal yards = 30.\n    Question Type: Numerical\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: {{\"answer\": \"40 + 30 = 70 yards\"}}\n\n    Example 2:\n    Extracted Info: Player who caught the final touchdown = Mark Clayton\n    Question Type: Identification\n    Question: Who caught the final touchdown of the game?\n    Answer: {{\"answer\": \"Mark Clayton\"}}\n\n    Example 3:\n    Extracted Info: Mass of Nu Phoenicis = 1.2 solar masses, Mass of Gliese 915 = 0.85 solar masses.\n    Question Type: Comparative\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: {{\"answer\": \"Gliese 915\"}}\n\n    Extracted Info: {extracted_info}\n    Question Type: {question_type}\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        answer_result = call_llm(prompt, system_instruction)\n        if not answer_result:\n            return {\"Error\": \"Could not generate answer.\"}\n        return {\"answer\": answer_result}\n    except Exception as e:\n        return {\"Error\": f\"Error: {str(e)}\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a chain-of-thought approach to answer questions by first determining the question type, then extracting relevant information, and finally generating the answer. It decomposes the problem into three distinct steps, each handled by a dedicated function acting as an agent with a specific role (question type classifier, information extractor, and answer generator). The `call_llm` function is used to interact with the Gemini model, using prompt engineering with examples to guide the LLM at each step. The functions are `main` which orchestrates the process, `determine_question_type` which classifies the question, `extract_relevant_info` which extracts information from the text based on the question, `generate_answer` which creates the final answer, and `call_llm` which sends and receives responses from the Gemini LLM.",
-  "sample_count": 10,
+  "timestamp": "2025-05-17T20:24:54.582123",
+  "strategy": "Exploration",
+  "explore_rate": 80,
+  "exploit_rate": 20,
+  "batch_size": 5,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script uses a \"Holistic Reading & Arithmetic Reasoner\" agent.\n    Instead of strict decomposition, it combines reading comprehension with\n    arithmetic problem-solving into a single, unified step. The hypothesis is that\n    by encouraging the LLM to reason holistically about both text and numbers, it\n    can avoid the errors associated with decomposition or separate stages. This directly\n    addresses previous struggles with arithmetic and misinterpretation of intent.\n    This also uses more than one example in different parts of the code.\n    \"\"\"\n    try:\n        holistic_reasoner = HolisticReadingArithmeticReasoner()\n        answer = holistic_reasoner.answer_question(question)\n        return answer\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\nclass HolisticReadingArithmeticReasoner:\n    \"\"\"\n    A class that embodies the Holistic Reading & Arithmetic Reasoner.\n    \"\"\"\n    def __init__(self):\n        self.system_instruction = \"\"\"You are a Holistic Reading & Arithmetic Reasoner. You analyze the passage and question to understand both text and arithmetic aspects and provide a well-reasoned answer.\"\"\"\n\n    def answer_question(self, question, max_attempts=3):\n        \"\"\"\n        Answers the question using a holistic understanding and reasoning approach.\n        \"\"\"\n        for attempt in range(max_attempts):\n            reasoning_result = self._reason_about_question(question)\n\n            # Verification stage: check if the reasoning is a valid response\n            verification_prompt = f\"\"\"\n            Verify if the reasoning result is a valid and well reasoned answer to the original problem.\n\n            Original Question: {question}\n\n            Reasoning result: {reasoning_result}\n\n            Example 1:\n            Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n            Reasoning result: Chris Johnson's first touchdown was 6 yards and Jason Hanson's first field goal was 53 yards, therefore the answer is 59 yards.\n            Valid\n\n            Example 2:\n            Original Question: Who caught the final touchdown of the game?\n            Reasoning result: Wes Welker caught the final touchdown of the game, therefore the answer is Wes Welker.\n            Valid\n            \"\"\"\n\n            validation_result = call_llm(verification_prompt, self.system_instruction)\n\n            if \"valid\" in validation_result.lower():\n                # Return the answer portion only\n                answer_match = re.search(r'answer is (.*)', reasoning_result)\n                if answer_match:\n                    return answer_match.group(1).strip()\n                else:\n                    return reasoning_result\n            else:\n                print(f\"Result failed to validate on attempt {attempt + 1}\")\n\n        return \"The holistic reasoner did not arrive at a conclusive and valid answer.\"\n\n    def _reason_about_question(self, question):\n        \"\"\"Reason about the question using a holistic understanding of passage.\"\"\"\n        reasoning_prompt = f\"\"\"\n        Reason about the question and passage to formulate a direct and comprehensive answer. Extract any relevant numerical quantities and perform calculations if necessary.\n\n        Question: {question}\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Reasoning: Chris Johnson's first touchdown was 6 yards and Jason Hanson's first field goal was 53 yards, therefore the answer is 59 yards.\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Reasoning: Wes Welker caught the final touchdown of the game, therefore the answer is Wes Welker.\n\n        Reasoning:\n        \"\"\"\n        return call_llm(reasoning_prompt, self.system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a \"Holistic Reading & Arithmetic Reasoner\" agent to answer questions by combining reading comprehension and arithmetic problem-solving in a single step, using the Gemini LLM. The problem is approached holistically, with the agent reasoning about the question and passage to formulate an answer and extracting relevant numerical quantities, and then uses a verification step to determine the validity of the answer. The `HolisticReadingArithmeticReasoner` class contains the `answer_question` and `_reason_about_question` functions to provide the answer and reasoning, and `call_llm` sends prompts to the Gemini LLM. The `main` function initializes the `HolisticReadingArithmeticReasoner` and returns the answer to the question.",
+  "sample_count": 5,
   "samples": [
-    {
-      "question": "PASSAGE: The War on Terror, spanning decades, is a multi-trillion-dollar war. According to the Costs of War Project at Brown University's Watson Institute, the War on Terror will have cost $5.6 trillion for operations between 2001-2018 plus anticipated future costs of veterans' care. According to the Soufan Group in July 2015, the U.S. government was spending $9.4 million per day in operations against ISIS in Syria and Iraq. A March 2011 Congressional report estimated war spending through the fiscal year 2011 at $1.2 trillion, and future spending through 2021  at $1.8 trillion. A June 2011 academic report covering additional areas of war spending estimated it through 2011 at $2.7 trillion, and long-term spending at $5.4 trillion including interest.\n\nQUESTION: How many total years did the $5.6 trillion for operations on the War on Terror account for?",
-      "answer": "7",
-      "id": "example_76",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The War on Terror, spanning decades, is a multi-trillion-dollar war. According to the Costs of War Project at Brown University's Watson Institute, the War on Terror will have cost $5.6 trillion for operations between 2001-2018 plus anticipated future costs of veterans' care. According to the Soufan Group in July 2015, the U.S. government was spending $9.4 million per day in operations against ISIS in Syria and Iraq. A March 2011 Congressional report estimated war spending through the fiscal year 2011 at $1.2 trillion, and future spending through 2021  at $1.8 trillion. A June 2011 academic report covering additional areas of war spending estimated it through 2011 at $2.7 trillion, and long-term spending at $5.4 trillion including interest.",
-        "original_question": "How many total years did the $5.6 trillion for operations on the War on Terror account for?",
-        "original_answer_data": {
-          "spans": [
-            "7"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 713
-      }
-    },
-    {
-      "question": "PASSAGE: After the defeat in Tampere, the Red Guards began a slow retreat eastwards. As the German army seized Helsinki, the White Army shifted the military focus to Vyborg area, where 18,500 Whites advanced against 15,000 defending Reds. General Mannerheim's war plan had been revised as a result of the Battle for Tampere, a civilian, industrial town. He aimed to avoid new, complex city combat in Vyborg, an old military fortress. The J\u00e4ger detachments tried to tie down and destroy the Red force outside the town. The Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus on 20-26 April, but the decisive blow remained to be dealt in Vyborg. The final attack began on late 27 April with a heavy J\u00e4ger artillery barrage. The Reds' defence collapsed gradually, and eventually the Whites conquered Patterinm\u00e4ki\u2014the Reds' symbolic last stand of the 1918 uprising\u2014in the early hours of 29 April 1918. In total, 400 Whites died, and 500-600 Reds perished and 12,000-15,000 were captured.\n\nQUESTION: How many days was the time span where the Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus?",
-      "answer": "6",
-      "id": "example_77",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "After the defeat in Tampere, the Red Guards began a slow retreat eastwards. As the German army seized Helsinki, the White Army shifted the military focus to Vyborg area, where 18,500 Whites advanced against 15,000 defending Reds. General Mannerheim's war plan had been revised as a result of the Battle for Tampere, a civilian, industrial town. He aimed to avoid new, complex city combat in Vyborg, an old military fortress. The J\u00e4ger detachments tried to tie down and destroy the Red force outside the town. The Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus on 20-26 April, but the decisive blow remained to be dealt in Vyborg. The final attack began on late 27 April with a heavy J\u00e4ger artillery barrage. The Reds' defence collapsed gradually, and eventually the Whites conquered Patterinm\u00e4ki\u2014the Reds' symbolic last stand of the 1918 uprising\u2014in the early hours of 29 April 1918. In total, 400 Whites died, and 500-600 Reds perished and 12,000-15,000 were captured.",
-        "original_question": "How many days was the time span where the Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus?",
-        "original_answer_data": {
-          "spans": [
-            "6"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 891
-      }
-    },
-    {
-      "question": "PASSAGE: Hoping to rebound from their loss to the Raiders, the Broncos traveled to Heinz Field to face the Pittsburgh Steelers. On the Broncos' first offensive possession, running back Ronnie Hillman committed a fumble deep in their own territory, and the Steelers capitalized two plays later, with a 2-yard touchdown run by running back DeAngelo Williams. The Broncos reeled off 20 unanswered points, with quarterback Brock Osweiler throwing a pair of touchdown passes - an 18-yarder to wide receiver Demaryius Thomas and a 61-yarder to wide receiver Emmanuel Sanders, followed in the second quarter by Osweiler scrambling for a 7-yard touchdown. The latter score came after the Broncos' defense intercepted Steelers' quarterback Ben Roethlisberger, and also had a missed extra-point attempt by placekicker Brandon McManus. The Steelers then marched down the field, but had to settle for a 24-yard field goal by placekicker Chris Boswell. The Broncos then increased their lead to 27-10, with Osweiler connecting with Thomas on a 6-yard touchdown pass at the 2-minute warning. However, it would be the Broncos' final scoring play of the game, as the offense was shut out in the second half for the third consecutive week. The Steelers pulled to within 27-13, with Boswell kicking a 41-yard field goal just before halftime. Midway through the third quarter, Roethlisberger connected with wide receiver Antonio Brown on a 9-yard touchdown. Later in the third quarter, Broncos' return specialist Jordan Norwood returned a punt 71 yards for a touchdown; however, the touchdown was nullified by an illegal substitution penalty. Following a Broncos' three-and-out, the Steelers tied the game early in the fourth quarter, with Roethlisberger throwing a 9-yard touchdown pass to wide receiver Markus Wheaton. Each team proceeded to trade punt on their next two possessions, and with just over five minutes remaining, Osweiler was intercepted by Steelers' linebacker Ryan Shazier at the Broncos' 37-yard line, and three plays later, the Steelers re-claimed the lead, with a 23-yard touchdown pass from Roethlisberger to Brown. The Broncos then marched down to the Steelers' 36-yard line with 2:17 remaining, but turned the football over on downs. Just before the two-minute warning, the Steelers were attempting to run out the clock, however, Roethlisberger chose to pass the football, and was intercepted by linebacker Brandon Marshall just before the two-minute warning, giving the Broncos one last possession. However, Osweiler threw four straight incompletions, and the Steelers ran out the clock.\n\nQUESTION: Who scored more points, the Steelers or the Broncos?",
-      "answer": "Steelers",
-      "id": "example_78",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to rebound from their loss to the Raiders, the Broncos traveled to Heinz Field to face the Pittsburgh Steelers. On the Broncos' first offensive possession, running back Ronnie Hillman committed a fumble deep in their own territory, and the Steelers capitalized two plays later, with a 2-yard touchdown run by running back DeAngelo Williams. The Broncos reeled off 20 unanswered points, with quarterback Brock Osweiler throwing a pair of touchdown passes - an 18-yarder to wide receiver Demaryius Thomas and a 61-yarder to wide receiver Emmanuel Sanders, followed in the second quarter by Osweiler scrambling for a 7-yard touchdown. The latter score came after the Broncos' defense intercepted Steelers' quarterback Ben Roethlisberger, and also had a missed extra-point attempt by placekicker Brandon McManus. The Steelers then marched down the field, but had to settle for a 24-yard field goal by placekicker Chris Boswell. The Broncos then increased their lead to 27-10, with Osweiler connecting with Thomas on a 6-yard touchdown pass at the 2-minute warning. However, it would be the Broncos' final scoring play of the game, as the offense was shut out in the second half for the third consecutive week. The Steelers pulled to within 27-13, with Boswell kicking a 41-yard field goal just before halftime. Midway through the third quarter, Roethlisberger connected with wide receiver Antonio Brown on a 9-yard touchdown. Later in the third quarter, Broncos' return specialist Jordan Norwood returned a punt 71 yards for a touchdown; however, the touchdown was nullified by an illegal substitution penalty. Following a Broncos' three-and-out, the Steelers tied the game early in the fourth quarter, with Roethlisberger throwing a 9-yard touchdown pass to wide receiver Markus Wheaton. Each team proceeded to trade punt on their next two possessions, and with just over five minutes remaining, Osweiler was intercepted by Steelers' linebacker Ryan Shazier at the Broncos' 37-yard line, and three plays later, the Steelers re-claimed the lead, with a 23-yard touchdown pass from Roethlisberger to Brown. The Broncos then marched down to the Steelers' 36-yard line with 2:17 remaining, but turned the football over on downs. Just before the two-minute warning, the Steelers were attempting to run out the clock, however, Roethlisberger chose to pass the football, and was intercepted by linebacker Brandon Marshall just before the two-minute warning, giving the Broncos one last possession. However, Osweiler threw four straight incompletions, and the Steelers ran out the clock.",
-        "original_question": "Who scored more points, the Steelers or the Broncos?",
-        "original_answer_data": {
-          "spans": [
-            "Steelers"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 76
-      }
-    },
-    {
-      "question": "PASSAGE: Frederick had been King of Jerusalem\u2014and as such claimed suzerainty over Cyprus\u2014in right of his wife Isabella II until her death in 1228. That year he arrived first in Cyprus, where he antagonised the nobles, and then in Jerusalem, where he stayed until 1229, leaving in humiliating circumstances after having produced an anti-imperialist reaction in the people. In 1231 he sent Riccardo Filangieri as his marshal. His attempt to assert his authority was opposed by John of Ibelin, the Old Lord of Beirut, who had been regent until Frederick's arrival. On John's death in 1236 the war was taken up by his son Balian. In 1239 Philip of Montfort assumed the leadership of the opposition. Though the ecclesiastical hierarchy and the Knights Templar supported the nobility, the Teutonic Knights and Knights Hospitaller supported Filangieri. In general his rights as regent were recognised but his practical power was denied on the basis of the Assizes and the Haute Cour. His headquarters were in Tyre and he had the allegiance of Bohemond V, Prince of Antioch and Count of Tripoli. He also held the Holy City of Jerusalem itself, which had been negotiated away from the Saracens by Frederick. So long as the Ibelins controlled the opposition, Filangieri could count on the support of their enemies as well. The Italian cities were also divided between the two factions: Pisa supported Filangieri and Genoa the Ibelins. The Ibelins controlled Beirut, Arsuf, and Caesarea as well as the old capital of Acre. In 1231 the citizens of Acre formed a commune with their headquarters at the church of Saint Andrew's in order to unify their opposition to Filangieri. In 1232 John of Ibelin was elected its mayor.\n\nQUESTION: Who died first John of Ibelin or Isabella II?",
-      "answer": "Isabella II",
-      "id": "example_79",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Frederick had been King of Jerusalem\u2014and as such claimed suzerainty over Cyprus\u2014in right of his wife Isabella II until her death in 1228. That year he arrived first in Cyprus, where he antagonised the nobles, and then in Jerusalem, where he stayed until 1229, leaving in humiliating circumstances after having produced an anti-imperialist reaction in the people. In 1231 he sent Riccardo Filangieri as his marshal. His attempt to assert his authority was opposed by John of Ibelin, the Old Lord of Beirut, who had been regent until Frederick's arrival. On John's death in 1236 the war was taken up by his son Balian. In 1239 Philip of Montfort assumed the leadership of the opposition. Though the ecclesiastical hierarchy and the Knights Templar supported the nobility, the Teutonic Knights and Knights Hospitaller supported Filangieri. In general his rights as regent were recognised but his practical power was denied on the basis of the Assizes and the Haute Cour. His headquarters were in Tyre and he had the allegiance of Bohemond V, Prince of Antioch and Count of Tripoli. He also held the Holy City of Jerusalem itself, which had been negotiated away from the Saracens by Frederick. So long as the Ibelins controlled the opposition, Filangieri could count on the support of their enemies as well. The Italian cities were also divided between the two factions: Pisa supported Filangieri and Genoa the Ibelins. The Ibelins controlled Beirut, Arsuf, and Caesarea as well as the old capital of Acre. In 1231 the citizens of Acre formed a commune with their headquarters at the church of Saint Andrew's in order to unify their opposition to Filangieri. In 1232 John of Ibelin was elected its mayor.",
-        "original_question": "Who died first John of Ibelin or Isabella II?",
-        "original_answer_data": {
-          "spans": [
-            "Isabella II"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 911
-      }
-    },
-    {
-      "question": "PASSAGE: The 1991 Washington Redskins season started with a franchise-record 11 straight victories. Also during the season, \"The Hogs (American football)\", under the coaching of Redskins offensive line coach Joe Bugel, allowed a league low and franchise record nine sacks \u2013 the third lowest total in NFL history. The 1991 Redskins offense also dominated under the brilliant coaching of offensive minded head football coach Joe Gibbs scoring 485 points which was the most by any team in the 1991 NFL season. The 1991 Redskins defense was also dominant under the coaching of defensive coordinator and guru Richie Petitbon, giving up only 224 total points which was second best of any team in the NFL in 1991, while also not allowing a single point to opponents in 3 of the 16 games played that season. After posting a 14\u20132 record, the Redskins made and dominated the 1991\u201392 NFL playoffs, beating the 1991 Atlanta Falcons season and 1991 Detroit Lions season by a combined score of 64\u201317.  On January 26, 1992, the Redskins won Super Bowl XXVI by defeating the Buffalo Bills 37\u201324 with Mark Rypien winning the games Super Bowl MVP award. After the Super Bowl, the Redskins set another franchise record by sending eight players to the Pro Bowl. The 1991 Washington Redskins season are widely considered one of the best teams in NFL history.\n\nQUESTION: How many points did the Redskins win Super Bowl XXVI by?",
-      "answer": "13",
-      "id": "example_80",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The 1991 Washington Redskins season started with a franchise-record 11 straight victories. Also during the season, \"The Hogs (American football)\", under the coaching of Redskins offensive line coach Joe Bugel, allowed a league low and franchise record nine sacks \u2013 the third lowest total in NFL history. The 1991 Redskins offense also dominated under the brilliant coaching of offensive minded head football coach Joe Gibbs scoring 485 points which was the most by any team in the 1991 NFL season. The 1991 Redskins defense was also dominant under the coaching of defensive coordinator and guru Richie Petitbon, giving up only 224 total points which was second best of any team in the NFL in 1991, while also not allowing a single point to opponents in 3 of the 16 games played that season. After posting a 14\u20132 record, the Redskins made and dominated the 1991\u201392 NFL playoffs, beating the 1991 Atlanta Falcons season and 1991 Detroit Lions season by a combined score of 64\u201317.  On January 26, 1992, the Redskins won Super Bowl XXVI by defeating the Buffalo Bills 37\u201324 with Mark Rypien winning the games Super Bowl MVP award. After the Super Bowl, the Redskins set another franchise record by sending eight players to the Pro Bowl. The 1991 Washington Redskins season are widely considered one of the best teams in NFL history.",
-        "original_question": "How many points did the Redskins win Super Bowl XXVI by?",
-        "original_answer_data": {
-          "spans": [
-            "13"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 792
-      }
-    },
     {
       "question": "PASSAGE: In 2000 there were 512,253 households out of which 31.70% had children under the age of 18 living with them, 48.70% were married couples living together, 11.80% had a female householder with no husband present, and 33.70% were non-families. 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older. The average household size was 2.65 and the average family size was 3.17.\n\nQUESTION: which household was most common?",
       "answer": "married couples living together",
@@ -203,76 +108,6 @@
   "samples_metadata": [
     {
       "source": "jsonl_dataset",
-      "original_passage": "The War on Terror, spanning decades, is a multi-trillion-dollar war. According to the Costs of War Project at Brown University's Watson Institute, the War on Terror will have cost $5.6 trillion for operations between 2001-2018 plus anticipated future costs of veterans' care. According to the Soufan Group in July 2015, the U.S. government was spending $9.4 million per day in operations against ISIS in Syria and Iraq. A March 2011 Congressional report estimated war spending through the fiscal year 2011 at $1.2 trillion, and future spending through 2021  at $1.8 trillion. A June 2011 academic report covering additional areas of war spending estimated it through 2011 at $2.7 trillion, and long-term spending at $5.4 trillion including interest.",
-      "original_question": "How many total years did the $5.6 trillion for operations on the War on Terror account for?",
-      "original_answer_data": {
-        "spans": [
-          "7"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 713
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "After the defeat in Tampere, the Red Guards began a slow retreat eastwards. As the German army seized Helsinki, the White Army shifted the military focus to Vyborg area, where 18,500 Whites advanced against 15,000 defending Reds. General Mannerheim's war plan had been revised as a result of the Battle for Tampere, a civilian, industrial town. He aimed to avoid new, complex city combat in Vyborg, an old military fortress. The J\u00e4ger detachments tried to tie down and destroy the Red force outside the town. The Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus on 20-26 April, but the decisive blow remained to be dealt in Vyborg. The final attack began on late 27 April with a heavy J\u00e4ger artillery barrage. The Reds' defence collapsed gradually, and eventually the Whites conquered Patterinm\u00e4ki\u2014the Reds' symbolic last stand of the 1918 uprising\u2014in the early hours of 29 April 1918. In total, 400 Whites died, and 500-600 Reds perished and 12,000-15,000 were captured.",
-      "original_question": "How many days was the time span where the Whites were able to cut the Reds' connection to Petrograd and weaken the troops on the Karelian Isthmus?",
-      "original_answer_data": {
-        "spans": [
-          "6"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 891
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to rebound from their loss to the Raiders, the Broncos traveled to Heinz Field to face the Pittsburgh Steelers. On the Broncos' first offensive possession, running back Ronnie Hillman committed a fumble deep in their own territory, and the Steelers capitalized two plays later, with a 2-yard touchdown run by running back DeAngelo Williams. The Broncos reeled off 20 unanswered points, with quarterback Brock Osweiler throwing a pair of touchdown passes - an 18-yarder to wide receiver Demaryius Thomas and a 61-yarder to wide receiver Emmanuel Sanders, followed in the second quarter by Osweiler scrambling for a 7-yard touchdown. The latter score came after the Broncos' defense intercepted Steelers' quarterback Ben Roethlisberger, and also had a missed extra-point attempt by placekicker Brandon McManus. The Steelers then marched down the field, but had to settle for a 24-yard field goal by placekicker Chris Boswell. The Broncos then increased their lead to 27-10, with Osweiler connecting with Thomas on a 6-yard touchdown pass at the 2-minute warning. However, it would be the Broncos' final scoring play of the game, as the offense was shut out in the second half for the third consecutive week. The Steelers pulled to within 27-13, with Boswell kicking a 41-yard field goal just before halftime. Midway through the third quarter, Roethlisberger connected with wide receiver Antonio Brown on a 9-yard touchdown. Later in the third quarter, Broncos' return specialist Jordan Norwood returned a punt 71 yards for a touchdown; however, the touchdown was nullified by an illegal substitution penalty. Following a Broncos' three-and-out, the Steelers tied the game early in the fourth quarter, with Roethlisberger throwing a 9-yard touchdown pass to wide receiver Markus Wheaton. Each team proceeded to trade punt on their next two possessions, and with just over five minutes remaining, Osweiler was intercepted by Steelers' linebacker Ryan Shazier at the Broncos' 37-yard line, and three plays later, the Steelers re-claimed the lead, with a 23-yard touchdown pass from Roethlisberger to Brown. The Broncos then marched down to the Steelers' 36-yard line with 2:17 remaining, but turned the football over on downs. Just before the two-minute warning, the Steelers were attempting to run out the clock, however, Roethlisberger chose to pass the football, and was intercepted by linebacker Brandon Marshall just before the two-minute warning, giving the Broncos one last possession. However, Osweiler threw four straight incompletions, and the Steelers ran out the clock.",
-      "original_question": "Who scored more points, the Steelers or the Broncos?",
-      "original_answer_data": {
-        "spans": [
-          "Steelers"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 76
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Frederick had been King of Jerusalem\u2014and as such claimed suzerainty over Cyprus\u2014in right of his wife Isabella II until her death in 1228. That year he arrived first in Cyprus, where he antagonised the nobles, and then in Jerusalem, where he stayed until 1229, leaving in humiliating circumstances after having produced an anti-imperialist reaction in the people. In 1231 he sent Riccardo Filangieri as his marshal. His attempt to assert his authority was opposed by John of Ibelin, the Old Lord of Beirut, who had been regent until Frederick's arrival. On John's death in 1236 the war was taken up by his son Balian. In 1239 Philip of Montfort assumed the leadership of the opposition. Though the ecclesiastical hierarchy and the Knights Templar supported the nobility, the Teutonic Knights and Knights Hospitaller supported Filangieri. In general his rights as regent were recognised but his practical power was denied on the basis of the Assizes and the Haute Cour. His headquarters were in Tyre and he had the allegiance of Bohemond V, Prince of Antioch and Count of Tripoli. He also held the Holy City of Jerusalem itself, which had been negotiated away from the Saracens by Frederick. So long as the Ibelins controlled the opposition, Filangieri could count on the support of their enemies as well. The Italian cities were also divided between the two factions: Pisa supported Filangieri and Genoa the Ibelins. The Ibelins controlled Beirut, Arsuf, and Caesarea as well as the old capital of Acre. In 1231 the citizens of Acre formed a commune with their headquarters at the church of Saint Andrew's in order to unify their opposition to Filangieri. In 1232 John of Ibelin was elected its mayor.",
-      "original_question": "Who died first John of Ibelin or Isabella II?",
-      "original_answer_data": {
-        "spans": [
-          "Isabella II"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 911
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The 1991 Washington Redskins season started with a franchise-record 11 straight victories. Also during the season, \"The Hogs (American football)\", under the coaching of Redskins offensive line coach Joe Bugel, allowed a league low and franchise record nine sacks \u2013 the third lowest total in NFL history. The 1991 Redskins offense also dominated under the brilliant coaching of offensive minded head football coach Joe Gibbs scoring 485 points which was the most by any team in the 1991 NFL season. The 1991 Redskins defense was also dominant under the coaching of defensive coordinator and guru Richie Petitbon, giving up only 224 total points which was second best of any team in the NFL in 1991, while also not allowing a single point to opponents in 3 of the 16 games played that season. After posting a 14\u20132 record, the Redskins made and dominated the 1991\u201392 NFL playoffs, beating the 1991 Atlanta Falcons season and 1991 Detroit Lions season by a combined score of 64\u201317.  On January 26, 1992, the Redskins won Super Bowl XXVI by defeating the Buffalo Bills 37\u201324 with Mark Rypien winning the games Super Bowl MVP award. After the Super Bowl, the Redskins set another franchise record by sending eight players to the Pro Bowl. The 1991 Washington Redskins season are widely considered one of the best teams in NFL history.",
-      "original_question": "How many points did the Redskins win Super Bowl XXVI by?",
-      "original_answer_data": {
-        "spans": [
-          "13"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 792
-    },
-    {
-      "source": "jsonl_dataset",
       "original_passage": "In 2000 there were 512,253 households out of which 31.70% had children under the age of 18 living with them, 48.70% were married couples living together, 11.80% had a female householder with no husband present, and 33.70% were non-families. 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older. The average household size was 2.65 and the average family size was 3.17.",
       "original_question": "which household was most common?",
       "original_answer_data": {
@@ -343,11 +178,6 @@
     }
   ],
   "example_indices": [
-    76,
-    77,
-    78,
-    79,
-    80,
     81,
     82,
     83,
@@ -357,279 +187,174 @@
   "results": [
     {
       "success": true,
-      "answer": "{\"answer\": \"2018 - 2001 = 17 years\"}",
-      "output": "ANSWER_START\n{\"answer\": \"2018 - 2001 = 17 years\"}\n\nANSWER_END\n",
+      "answer": "The passage says 48.70% were married couples living together, 11.80% had a female householder with no husband present, 33.70% were non-families, 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older.\nTherefore married couples living together were the most common type of household.\n\nFinal Answer: married couples living together",
+      "output": "ANSWER_START\nThe passage says 48.70% were married couples living together, 11.80% had a female householder with no husband present, 33.70% were non-families, 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older.\nTherefore married couples living together were the most common type of household.\n\nFinal Answer: married couples living together\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers state that married couples living together were the most common type of household."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The Price Is Right video game was initially released in March 2008. The new version was previewed at the Target Bullseye Lounge in June 2009.\nFrom March 2008 to March 2009 is 12 months. From March 2009 to June 2009 is 3 months.\nTherefore, the total number of months is 12 + 3 = 15 months.\n\nFinal Answer: 15",
+      "output": "ANSWER_START\nThe Price Is Right video game was initially released in March 2008. The new version was previewed at the Target Bullseye Lounge in June 2009.\nFrom March 2008 to March 2009 is 12 months. From March 2009 to June 2009 is 3 months.\nTherefore, the total number of months is 12 + 3 = 15 months.\n\nFinal Answer: 15\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers state the answer is 15."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "0.",
+      "output": "ANSWER_START\n0.\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer shows the calculation, but the result of the calculation (17) is not equivalent to the golden answer (7)."
+        "explanation": "The system answer is 0 while the golden answer is 1. These are distinct numerical values, so they do not convey the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "{\"answer\": \"26 - 20 = 6 days\"}",
-      "output": "ANSWER_START\n{\"answer\": \"26 - 20 = 6 days\"}\n\nANSWER_END\n",
+      "answer": "The passage states there were 654,445 households and 741,043 housing units. Therefore, there were less households than housing units.\n\n households.",
+      "output": "ANSWER_START\nThe passage states there were 654,445 households and 741,043 housing units. Therefore, there were less households than housing units.\n\n households.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer contains the correct numerical answer (6) within the equation. While it includes the calculation, the final result matches the golden answer."
+        "explanation": "The golden answer directly answers the question. The system answer gives more context but ultimately correctly identifies households as the answer."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "{\"answer\": \"Steelers\"}",
-      "output": "ANSWER_START\n{\"answer\": \"Steelers\"}\nANSWER_END\n",
+      "answer": "The Texans scored 13 points and the Jaguars scored 10 points, therefore the total points scored by the end of the game is 23.\n\nFinal Answer: 23",
+      "output": "ANSWER_START\nThe Texans scored 13 points and the Jaguars scored 10 points, therefore the total points scored by the end of the game is 23.\n\nFinal Answer: 23\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer and the golden answer both indicate the same team, 'Steelers'."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "{\"answer\": \"Isabella II\"}",
-      "output": "ANSWER_START\n{\"answer\": \"Isabella II\"}\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_10.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer and the golden answer are identical, referring to the same person, Isabella II."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "{\"answer\": \"37 - 24 = 13 points\"}",
-      "output": "ANSWER_START\n{\"answer\": \"37 - 24 = 13 points\"}\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_10.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer shows the equation that leads to the answer of 13 and the golden answer is 13."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "{\"answer\": \"married couples living together\"}",
-      "output": "ANSWER_START\n{\"answer\": \"married couples living together\"}\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_10.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers state 'married couples living together' which is semantically identical."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "{\"answer\": \"The initial release was in March 2008, and the preview was in June 2009, which is 1 year and 3 months later, or 15 months. \"}",
-      "output": "ANSWER_START\n{\"answer\": \"The initial release was in March 2008, and the preview was in June 2009, which is 1 year and 3 months later, or 15 months. \"}\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_10.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer provides the reasoning for how it arrived at the answer of 15 months. Although it includes extra information, the final answer (15) is semantically equivalent to the golden answer (15)."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "{\"answer\": \"The chieftains rejected Turgut Pasha's proclamation on May 18th and Porte proclaimed the revolt had ended on June 12th. This is less than one month.\"}",
-      "output": "ANSWER_START\n{\"answer\": \"The chieftains rejected Turgut Pasha's proclamation on May 18th and Porte proclaimed the revolt had ended on June 12th. This is less than one month.\"}\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_10.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer indicates that the time between May 18th and June 12th is less than one month, which aligns with the golden answer indicating it is correct."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "{\"answer\": \"households\"}",
-      "output": "ANSWER_START\n{\"answer\": \"households\"}\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_10.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer and the golden answer are identical."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "{\"answer\": \"13 + 10 = 23 points\"}",
-      "output": "ANSWER_START\n{\"answer\": \"13 + 10 = 23 points\"}\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_10.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer contains the correct calculation and arrives at the golden answer of 23."
+        "explanation": "The system answer explains the reasoning and arrives at the correct final answer (23), which is the same as the golden answer."
       },
       "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.9,
-    "correct_count": 9,
-    "total_count": 10,
+    "accuracy": 0.8,
+    "correct_count": 4,
+    "total_count": 5,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "{\"answer\": \"2018 - 2001 = 17 years\"}",
-        "golden_answer": "7",
-        "output": "ANSWER_START\n{\"answer\": \"2018 - 2001 = 17 years\"}\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer shows the calculation, but the result of the calculation (17) is not equivalent to the golden answer (7)."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 1,
-        "success": true,
-        "system_answer": "{\"answer\": \"26 - 20 = 6 days\"}",
-        "golden_answer": "6",
-        "output": "ANSWER_START\n{\"answer\": \"26 - 20 = 6 days\"}\n\nANSWER_END\n",
+        "system_answer": "The passage says 48.70% were married couples living together, 11.80% had a female householder with no husband present, 33.70% were non-families, 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older.\nTherefore married couples living together were the most common type of household.\n\nFinal Answer: married couples living together",
+        "golden_answer": "married couples living together",
+        "output": "ANSWER_START\nThe passage says 48.70% were married couples living together, 11.80% had a female householder with no husband present, 33.70% were non-families, 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older.\nTherefore married couples living together were the most common type of household.\n\nFinal Answer: married couples living together\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer contains the correct numerical answer (6) within the equation. While it includes the calculation, the final result matches the golden answer."
+          "explanation": "Both answers state that married couples living together were the most common type of household."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "The Price Is Right video game was initially released in March 2008. The new version was previewed at the Target Bullseye Lounge in June 2009.\nFrom March 2008 to March 2009 is 12 months. From March 2009 to June 2009 is 3 months.\nTherefore, the total number of months is 12 + 3 = 15 months.\n\nFinal Answer: 15",
+        "golden_answer": "15",
+        "output": "ANSWER_START\nThe Price Is Right video game was initially released in March 2008. The new version was previewed at the Target Bullseye Lounge in June 2009.\nFrom March 2008 to March 2009 is 12 months. From March 2009 to June 2009 is 3 months.\nTherefore, the total number of months is 12 + 3 = 15 months.\n\nFinal Answer: 15\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers state the answer is 15."
         }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "{\"answer\": \"Steelers\"}",
-        "golden_answer": "Steelers",
-        "output": "ANSWER_START\n{\"answer\": \"Steelers\"}\nANSWER_END\n",
-        "match": true,
+        "system_answer": "0.",
+        "golden_answer": "1",
+        "output": "ANSWER_START\n0.\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer and the golden answer both indicate the same team, 'Steelers'."
-        }
+          "explanation": "The system answer is 0 while the golden answer is 1. These are distinct numerical values, so they do not convey the same information."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "{\"answer\": \"Isabella II\"}",
-        "golden_answer": "Isabella II",
-        "output": "ANSWER_START\n{\"answer\": \"Isabella II\"}\n\nANSWER_END\n",
+        "system_answer": "The passage states there were 654,445 households and 741,043 housing units. Therefore, there were less households than housing units.\n\n households.",
+        "golden_answer": "households",
+        "output": "ANSWER_START\nThe passage states there were 654,445 households and 741,043 housing units. Therefore, there were less households than housing units.\n\n households.\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer and the golden answer are identical, referring to the same person, Isabella II."
+          "explanation": "The golden answer directly answers the question. The system answer gives more context but ultimately correctly identifies households as the answer."
         }
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "{\"answer\": \"37 - 24 = 13 points\"}",
-        "golden_answer": "13",
-        "output": "ANSWER_START\n{\"answer\": \"37 - 24 = 13 points\"}\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer shows the equation that leads to the answer of 13 and the golden answer is 13."
-        }
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "{\"answer\": \"married couples living together\"}",
-        "golden_answer": "married couples living together",
-        "output": "ANSWER_START\n{\"answer\": \"married couples living together\"}\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers state 'married couples living together' which is semantically identical."
-        }
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "{\"answer\": \"The initial release was in March 2008, and the preview was in June 2009, which is 1 year and 3 months later, or 15 months. \"}",
-        "golden_answer": "15",
-        "output": "ANSWER_START\n{\"answer\": \"The initial release was in March 2008, and the preview was in June 2009, which is 1 year and 3 months later, or 15 months. \"}\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides the reasoning for how it arrived at the answer of 15 months. Although it includes extra information, the final answer (15) is semantically equivalent to the golden answer (15)."
-        }
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "{\"answer\": \"The chieftains rejected Turgut Pasha's proclamation on May 18th and Porte proclaimed the revolt had ended on June 12th. This is less than one month.\"}",
-        "golden_answer": "1",
-        "output": "ANSWER_START\n{\"answer\": \"The chieftains rejected Turgut Pasha's proclamation on May 18th and Porte proclaimed the revolt had ended on June 12th. This is less than one month.\"}\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer indicates that the time between May 18th and June 12th is less than one month, which aligns with the golden answer indicating it is correct."
-        }
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "{\"answer\": \"households\"}",
-        "golden_answer": "households",
-        "output": "ANSWER_START\n{\"answer\": \"households\"}\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer and the golden answer are identical."
-        }
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "{\"answer\": \"13 + 10 = 23 points\"}",
+        "system_answer": "The Texans scored 13 points and the Jaguars scored 10 points, therefore the total points scored by the end of the game is 23.\n\nFinal Answer: 23",
         "golden_answer": "23",
-        "output": "ANSWER_START\n{\"answer\": \"13 + 10 = 23 points\"}\n\nANSWER_END\n",
+        "output": "ANSWER_START\nThe Texans scored 13 points and the Jaguars scored 10 points, therefore the total points scored by the end of the game is 23.\n\nFinal Answer: 23\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer contains the correct calculation and arrives at the golden answer of 23."
+          "explanation": "The system answer explains the reasoning and arrives at the correct final answer (23), which is the same as the golden answer."
         }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error cases or success cases.\n\n## STRENGTHS\n1.  **Numerical Calculation:** The system can accurately perform basic arithmetic operations like addition and subtraction to arrive at numerical answers.\n2.  **Information Extraction:** The system can extract relevant numerical values and entities from the text.\n3.  **Logical Reasoning:** The system can successfully perform basic logical comparisons and date-related reasoning when it identifies the correct pieces of information.\n\n## WEAKNESSES\n1.  **Misinterpretation of Question Intent:** The system struggles to understand the precise intent of the question and, therefore, extracts the wrong information from the passage for its calculations.\n2.  **Inability to Distinguish Relevant vs. Irrelevant Information:** The system seems to lack the ability to discern the most important information required to answer the question from the provided text, especially when faced with multiple numerical data points.\n3.  **Lack of Contextual Understanding:** The system needs better contextual understanding of the problem.\n\n## CRITICAL BOTTLENECKS\n1.  **Question Understanding and Information Selection:** The system is failing to select the correct data to perform calculations on, indicating a problem with question understanding and linking the correct part of the passage to the question.\n2.  **Prioritization of Information:** Lacking strategy in handling competing information within the passage. The system isn't capable of weighing information to determine which details are most pertinent.\n\n## ERROR PATTERNS\nThe primary error pattern is misinterpretation of the question's intent leading to incorrect information extraction. The system extracts numerical values that are related to the question keywords, but are not the precise values needed to answer the question.\n\n## PRIMARY ISSUE\nThe primary issue is a flawed strategy for mapping the question to the specific numerical data within the passage that is relevant for calculation. The current approach seems to rely too heavily on keyword matching without sufficient contextual understanding of the question's intent.\n\n## IMPROVEMENT AREAS\n1.  **Question Intent Analysis:** Implement a more sophisticated module that analyzes the question and understands the type of information required to answer it. This module should identify the key entities and relationships that are being queried.\n2.  **Contextual Information Selection:** Develop a method for identifying and prioritizing relevant information within the passage based on the question's intent. This may involve techniques like semantic similarity scoring, dependency parsing, or named entity recognition.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement Semantic Parsing:** Utilize semantic parsing techniques to better understand the meaning of both the question and the passage. This can help to identify the correct numerical values and operations needed to arrive at the answer.\n2.  **Develop a Scoring Mechanism for Information Relevance:** Implement a system that scores the relevance of different pieces of information in the passage based on their relationship to the question. This score can be used to prioritize information during extraction and calculation.\n3.  **Fine-tune a Language Model:** Fine-tune a pre-trained language model specifically for question answering tasks that involve numerical reasoning. This can improve the model's ability to understand the nuances of natural language and extract the correct information.\n4.  **Enhance Output Explanations:** The explanations provided should explicitly state *why* certain information was selected and other information was discarded, demonstrating a clear decision-making process.\n\n## CAPABILITY MAPPING\n*   **Sample ID: 0**\n    *   information_extraction: Failed to extract the relevant information.\n    *   decision_making: Failed to choose the correct years to use for determining the duration.\n",
-      "strengths": [],
-      "weaknesses": [],
-      "primary_issue": "The primary issue is a flawed strategy for mapping the question to the specific numerical data within the passage that is relevant for calculation. The current approach seems to rely too heavily on keyword matching without sufficient contextual understanding of the question's intent.",
-      "improvement_suggestions": [],
+      "text_report": "## RUNTIME ERRORS\nThere are no identified runtime errors in the provided data.\n\n## STRENGTHS\n*   **Information Extraction:** The system demonstrates a general ability to extract relevant information from the provided passages. The success cases showcase that the system can identify key details necessary for answering questions.\n*   **Arithmetic Reasoning:** The system can correctly perform basic arithmetic operations (addition, subtraction) when needed, as evidenced in the successful calculation of months in the second success case.\n\n## WEAKNESSES\n*   **Temporal Reasoning:** The system struggles with precise temporal reasoning, specifically in calculating the time difference between events expressed with dates. This is evident in the error case, where calculating the months between two dates caused issues.\n*   **Lack of Thoroughness:** While the system can extract information, it sometimes fails to use it to completely solve the problem.\n\n## CRITICAL BOTTLENECKS\n*   **Precise Temporal Reasoning:** The inability to accurately calculate time differences (particularly months) based on passage information is the most critical bottleneck. This leads to incorrect numerical answers, especially when the question requires time-related calculations.\n\n## ERROR PATTERNS\n*   **Inaccurate Time Calculation:** The error case demonstrates a tendency to miscalculate time differences between events described in the passage. This can lead to incorrect answers.\n\n## PRIMARY ISSUE\nThe primary issue is the system's failure to accurately calculate the number of months between two specific dates mentioned in the passage, even with the information explicitly provided. This indicates a weakness in the system's temporal reasoning capabilities.\n\n## IMPROVEMENT AREAS\n*   **Temporal Reasoning:** The system needs a significant improvement in its ability to perform temporal reasoning, including precise time calculations.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Implement Date Parsing and Calculation:** Integrate a robust date parsing library to accurately extract date information from the passage. Then, use built-in date difference functions (e.g., from the `datetime` module in Python) to calculate the exact number of months between the dates.\n*   **Enhance Reasoning Chain for Temporal Questions:** When the question involves time-related calculations, force the system to explicitly state the start date, end date, and the steps used to calculate the time difference. This will allow for easier debugging.\n*   **Add Unit Tests Focused on Time-Based Reasoning:** Create a suite of unit tests specifically designed to test the system's temporal reasoning capabilities, including questions that require calculating time differences in days, weeks, months, and years.\n\n## CAPABILITY MAPPING\n*   **Sample ID 2 (Error):**\n    *   information_extraction: Successful in extracting dates (April 26, May 18, June 12).\n    *   constraint_handling: No specific constraints missed.\n    *   solution_generation: Incorrect time difference calculation.\n    *   solution_verification: N/A\n    *   decision_making: Incorrect answer due to faulty calculation.\n",
+      "strengths": [
+        "Information Extraction:** The system demonstrates a general ability to extract relevant information from the provided passages. The success cases showcase that the system can identify key details necessary for answering questions.",
+        "Arithmetic Reasoning:** The system can correctly perform basic arithmetic operations (addition, subtraction) when needed, as evidenced in the successful calculation of months in the second success case."
+      ],
+      "weaknesses": [
+        "Temporal Reasoning:** The system struggles with precise temporal reasoning, specifically in calculating the time difference between events expressed with dates. This is evident in the error case, where calculating the months between two dates caused issues.",
+        "Lack of Thoroughness:** While the system can extract information, it sometimes fails to use it to completely solve the problem."
+      ],
+      "primary_issue": "The primary issue is the system's failure to accurately calculate the number of months between two specific dates mentioned in the passage, even with the information explicitly provided. This indicates a weakness in the system's temporal reasoning capabilities.",
+      "improvement_suggestions": [
+        "Implement Date Parsing and Calculation:** Integrate a robust date parsing library to accurately extract date information from the passage. Then, use built-in date difference functions (e.g., from the `datetime` module in Python) to calculate the exact number of months between the dates.",
+        "Enhance Reasoning Chain for Temporal Questions:** When the question involves time-related calculations, force the system to explicitly state the start date, end date, and the steps used to calculate the time difference. This will allow for easier debugging.",
+        "Add Unit Tests Focused on Time-Based Reasoning:** Create a suite of unit tests specifically designed to test the system's temporal reasoning capabilities, including questions that require calculating time differences in days, weeks, months, and years."
+      ],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## AI System Capability Report\n\n**Based on the provided performance summary, error analysis, and sample execution outputs, the following capability assessment is provided:**\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal a pattern of numerical calculation errors stemming from incorrect information extraction.\n\n*   **Example 1 (Error Sample):** The desired calculation was to determine a duration. Instead of identifying and subtracting the correct start and end dates, the system selected unrelated numbers, leading to a calculation that is arithmetically correct but contextually meaningless. The output provides the calculation `2018 - 2001 = 17 years`, which is incorrect.\n*   **Example 2 (Success Sample):** The system can perform accurate subtraction when the correct inputs are identified and extracted.\n*   **Example 3 (Success Sample):** The system correctly identifies relevant categorical information in the text.\n\nThis analysis confirms the weakness identified in the error analysis: the system's struggle to understand question intent and select the appropriate information. The system exhibits a propensity to extract values related to keywords but without understanding the contextual relationship to the question.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates basic numerical reasoning and information extraction capabilities but struggles with contextual understanding and question interpretation. It can perform calculations accurately *if* provided with the correct inputs, but it frequently fails to identify those inputs in the first place. Overall, the system is promising but needs substantial improvement in understanding the nuances of natural language.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Calculation:** Accurate execution of arithmetic operations (addition, subtraction). This needs to be preserved as it is a fundamental requirement.\n*   **Categorical Information Extraction:** Successful extraction of non-numerical entities (e.g., team names).\n\n### KEY WEAKNESSES\n\n*   **Contextual Understanding:** Significant deficiency in understanding the context of questions and passages. This is the root cause of most observed errors.\n*   **Intent Recognition:** Failure to accurately determine the precise information requested in a question.\n*   **Information Prioritization:** Inability to prioritize relevant information over irrelevant data points.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Understanding and Question Intent Analysis**. All other improvements are contingent upon addressing this fundamental weakness. The system must better interpret the question and map it to the relevant parts of the provided text.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Question Decomposition Strategy:** Break down complex questions into simpler sub-questions. This allows the system to focus on specific aspects of the question and extract relevant information more effectively. For example, the \"duration\" question should be decomposed into \"find the start date\" and \"find the end date\" before attempting to calculate the difference.\n\n2.  **Develop a Context-Aware Information Selection Module:** Instead of relying solely on keyword matching, implement a module that considers the context of the question and passage when selecting relevant information. This could involve techniques like semantic similarity scoring, dependency parsing, or knowledge graph integration. Specifically:\n    *   **Semantic Similarity Scoring:** Calculate the semantic similarity between the question and different sentences or phrases in the passage. Prioritize information from sentences with high similarity scores.\n    *   **Dependency Parsing:** Use dependency parsing to identify the relationships between words in the question and passage. This can help to determine which entities and concepts are most relevant to the question.\n\n3.  **Enhance Error Feedback Mechanism:** For each incorrect answer, provide detailed feedback on *why* the answer was wrong and *how* the system arrived at that answer. This will help the system learn from its mistakes and improve its accuracy over time. Use the identified error patterns to create targeted training examples that address specific weaknesses.\n\n4.  **Implement a Rule-Based System for Numerical Unit Handling:** Create a rule-based system that understands different units of measurement (e.g., years, months, days) and can convert between them if necessary. This will help to ensure that the system is performing calculations on compatible units.\n\n### CAPABILITY TREND\n\nBased on the current performance, the system's capabilities are currently **stable but with significant room for improvement**. While the system demonstrates some proficiency in basic tasks, its lack of contextual understanding prevents it from consistently delivering accurate results. Addressing the identified weaknesses is critical for unlocking the system's full potential and achieving meaningful performance gains.\n",
-      "strengths": [],
-      "weaknesses": [],
-      "improvement_suggestions": [],
+      "text_report": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and related information.\n\n**PERFORMANCE SUMMARY:**\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n### EXECUTION ANALYSIS\n\nThe execution outputs confirm the error analysis. The first two samples (\"Success Cases\" implied) demonstrate information extraction and arithmetic reasoning capabilities. The third sample reveals the temporal reasoning issue, returning \"0\" instead of the correct number of months. The second sample includes a detailed explanation in its reasoning chain.\n\n*   **Successful Cases:** The system provides clear reasoning for its answers in the successful cases. This is crucial for understanding *why* the system arrives at a correct answer and for debugging purposes. The ability to break down the problem into smaller steps (e.g., calculating months from March 2008 to March 2009, and then March 2009 to June 2009) is a positive sign.\n*   **Error Case:** The error case output is simply \"0.\" This offers no insight into why the system failed. The absence of a reasoning chain in the error case is a significant problem.\n*   **General Observations:** The system's output format, which includes \"ANSWER_START\" and \"ANSWER_END\" tags, is good for parsing. However, the lack of consistency in the reasoning chain presentation is a concern. All answers (correct and incorrect) should have a structured reasoning chain.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates basic capabilities in information extraction, arithmetic reasoning, and generating coherent textual answers. However, it has a significant weakness in temporal reasoning, especially calculating time differences involving dates. The inability to provide a reasoned explanation for incorrect answers hinders debugging and improvement.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** Consistently extracts relevant information from text passages.\n*   **Arithmetic Reasoning:** Correctly performs basic arithmetic when needed.\n*   **Reasoning Chain (In Success Cases):** Provides a clear and understandable explanation of its reasoning process (at least in successful cases).\n\n### KEY WEAKNESSES\n\n*   **Temporal Reasoning (Date Calculations):** Fails to accurately calculate time differences between dates. This is a critical flaw.\n*   **Inconsistent Reasoning Chain:** Does not consistently provide a reasoning chain for *all* answers, particularly when the answer is incorrect.\n*   **Lack of Thoroughness (Error Resolution):** Fails to solve the problem completely even when extracting necessary information.\n\n### IMPROVEMENT FOCUS\n\nThe **primary focus must be on improving Temporal Reasoning**, specifically date calculations. This is the most critical bottleneck hindering the system's performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Date Parsing and Calculation Library:** As suggested in the original report, integrate a robust date parsing library (e.g., `dateutil` or `arrow` in Python) to handle date extraction and calculations. The current system clearly lacks this capability. Ensure this library accounts for leap years and other date-related complexities.\n2.  **Enforce Consistent Reasoning Chains:** *Mandate* that the system always provides a reasoning chain, regardless of whether the answer is correct or incorrect. This reasoning chain should explicitly state the extracted dates, the calculation performed, and the final answer. The reasoning chain should follow a consistent format.\n3.  **Develop Comprehensive Temporal Reasoning Unit Tests:** Create a comprehensive suite of unit tests specifically designed to test temporal reasoning. These tests should cover a wide range of scenarios, including:\n    *   Calculating the number of days, weeks, months, and years between two dates.\n    *   Handling different date formats (e.g., \"April 26, 2024,\" \"26/04/2024,\" \"Apr 26th, 2024\").\n    *   Calculating durations spanning multiple years.\n    *   Handling edge cases (e.g., dates around leap years, dates at the beginning/end of months).\n4.  **Debugging Focused Training:** Explicitly train the model on debugging its temporal reasoning. This can be done by creating synthetic examples where the model gets the temporal calculation wrong, and then is provided with the correct reasoning and the correct answer. This helps the model learn to identify and correct its own errors.\n5. **Example-Based Error Resolution:**  Provide the system with examples of the correct temporal calculation alongside the error cases during fine-tuning.  This allows the system to learn the correct approach directly from its mistakes. For example, in training include: \"Passage: The event started on April 26 and ended on May 18. Question: How many months passed? Previous Answer: 0.  Corrected Answer: Less than one month. April 26 to May 26 is one month. May 18 is less than a month so the answer is less than one month.\"\n\n### CAPABILITY TREND\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, the presence of a clear and consistent error pattern (inaccurate temporal reasoning) suggests the system's capabilities are **stable but limited** in this specific area. Addressing the recommended improvements should lead to an *improving* trend.\n",
+      "strengths": [
+        "Information Extraction:** The system demonstrates a general ability to extract relevant information from the provided passages. The success cases showcase that the system can identify key details necessary for answering questions.",
+        "Arithmetic Reasoning:** The system can correctly perform basic arithmetic operations (addition, subtraction) when needed, as evidenced in the successful calculation of months in the second success case."
+      ],
+      "weaknesses": [
+        "Temporal Reasoning:** The system struggles with precise temporal reasoning, specifically in calculating the time difference between events expressed with dates. This is evident in the error case, where calculating the months between two dates caused issues.",
+        "Lack of Thoroughness:** While the system can extract information, it sometimes fails to use it to completely solve the problem."
+      ],
+      "improvement_suggestions": [
+        "Implement Date Parsing and Calculation:** Integrate a robust date parsing library to accurately extract date information from the passage. Then, use built-in date difference functions (e.g., from the `datetime` module in Python) to calculate the exact number of months between the dates.",
+        "Enhance Reasoning Chain for Temporal Questions:** When the question involves time-related calculations, force the system to explicitly state the start date, end date, and the steps used to calculate the time difference. This will allow for easier debugging.",
+        "Add Unit Tests Focused on Time-Based Reasoning:** Create a suite of unit tests specifically designed to test the system's temporal reasoning capabilities, including questions that require calculating time differences in days, weeks, months, and years."
+      ],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error cases or success cases.\n\n## STRENGTHS\n1.  **Numerical Calculation:** The system can accurately perform basic arithmetic operations like addition and subtraction to arrive at numerical answers.\n2.  **Information Extraction:** The system can extract relevant numerical values and entities from the text.\n3.  **Logical Reasoning:** The system can successfully perform basic logical comparisons and date-related reasoning when it identifies the correct pieces of information.\n\n## WEAKNESSES\n1.  **Misinterpretation of Question Intent:** The system struggles to understand the precise intent of the question and, therefore, extracts the wrong information from the passage for its calculations.\n2.  **Inability to Distinguish Relevant vs. Irrelevant Information:** The system seems to lack the ability to discern the most important information required to answer the question from the provided text, especially when faced with multiple numerical data points.\n3.  **Lack of Contextual Understanding:** The system needs better contextual understanding of the problem.\n\n## CRITICAL BOTTLENECKS\n1.  **Question Understanding and Information Selection:** The system is failing to select the correct data to perform calculations on, indicating a problem with question understanding and linking the correct part of the passage to the question.\n2.  **Prioritization of Information:** Lacking strategy in handling competing information within the passage. The system isn't capable of weighing information to determine which details are most pertinent.\n\n## ERROR PATTERNS\nThe primary error pattern is misinterpretation of the question's intent leading to incorrect information extraction. The system extracts numerical values that are related to the question keywords, but are not the precise values needed to answer the question.\n\n## PRIMARY ISSUE\nThe primary issue is a flawed strategy for mapping the question to the specific numerical data within the passage that is relevant for calculation. The current approach seems to rely too heavily on keyword matching without sufficient contextual understanding of the question's intent.\n\n## IMPROVEMENT AREAS\n1.  **Question Intent Analysis:** Implement a more sophisticated module that analyzes the question and understands the type of information required to answer it. This module should identify the key entities and relationships that are being queried.\n2.  **Contextual Information Selection:** Develop a method for identifying and prioritizing relevant information within the passage based on the question's intent. This may involve techniques like semantic similarity scoring, dependency parsing, or named entity recognition.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement Semantic Parsing:** Utilize semantic parsing techniques to better understand the meaning of both the question and the passage. This can help to identify the correct numerical values and operations needed to arrive at the answer.\n2.  **Develop a Scoring Mechanism for Information Relevance:** Implement a system that scores the relevance of different pieces of information in the passage based on their relationship to the question. This score can be used to prioritize information during extraction and calculation.\n3.  **Fine-tune a Language Model:** Fine-tune a pre-trained language model specifically for question answering tasks that involve numerical reasoning. This can improve the model's ability to understand the nuances of natural language and extract the correct information.\n4.  **Enhance Output Explanations:** The explanations provided should explicitly state *why* certain information was selected and other information was discarded, demonstrating a clear decision-making process.\n\n## CAPABILITY MAPPING\n*   **Sample ID: 0**\n    *   information_extraction: Failed to extract the relevant information.\n    *   decision_making: Failed to choose the correct years to use for determining the duration.\n",
-    "capability_report_text": "## AI System Capability Report\n\n**Based on the provided performance summary, error analysis, and sample execution outputs, the following capability assessment is provided:**\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal a pattern of numerical calculation errors stemming from incorrect information extraction.\n\n*   **Example 1 (Error Sample):** The desired calculation was to determine a duration. Instead of identifying and subtracting the correct start and end dates, the system selected unrelated numbers, leading to a calculation that is arithmetically correct but contextually meaningless. The output provides the calculation `2018 - 2001 = 17 years`, which is incorrect.\n*   **Example 2 (Success Sample):** The system can perform accurate subtraction when the correct inputs are identified and extracted.\n*   **Example 3 (Success Sample):** The system correctly identifies relevant categorical information in the text.\n\nThis analysis confirms the weakness identified in the error analysis: the system's struggle to understand question intent and select the appropriate information. The system exhibits a propensity to extract values related to keywords but without understanding the contextual relationship to the question.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates basic numerical reasoning and information extraction capabilities but struggles with contextual understanding and question interpretation. It can perform calculations accurately *if* provided with the correct inputs, but it frequently fails to identify those inputs in the first place. Overall, the system is promising but needs substantial improvement in understanding the nuances of natural language.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Calculation:** Accurate execution of arithmetic operations (addition, subtraction). This needs to be preserved as it is a fundamental requirement.\n*   **Categorical Information Extraction:** Successful extraction of non-numerical entities (e.g., team names).\n\n### KEY WEAKNESSES\n\n*   **Contextual Understanding:** Significant deficiency in understanding the context of questions and passages. This is the root cause of most observed errors.\n*   **Intent Recognition:** Failure to accurately determine the precise information requested in a question.\n*   **Information Prioritization:** Inability to prioritize relevant information over irrelevant data points.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Understanding and Question Intent Analysis**. All other improvements are contingent upon addressing this fundamental weakness. The system must better interpret the question and map it to the relevant parts of the provided text.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Question Decomposition Strategy:** Break down complex questions into simpler sub-questions. This allows the system to focus on specific aspects of the question and extract relevant information more effectively. For example, the \"duration\" question should be decomposed into \"find the start date\" and \"find the end date\" before attempting to calculate the difference.\n\n2.  **Develop a Context-Aware Information Selection Module:** Instead of relying solely on keyword matching, implement a module that considers the context of the question and passage when selecting relevant information. This could involve techniques like semantic similarity scoring, dependency parsing, or knowledge graph integration. Specifically:\n    *   **Semantic Similarity Scoring:** Calculate the semantic similarity between the question and different sentences or phrases in the passage. Prioritize information from sentences with high similarity scores.\n    *   **Dependency Parsing:** Use dependency parsing to identify the relationships between words in the question and passage. This can help to determine which entities and concepts are most relevant to the question.\n\n3.  **Enhance Error Feedback Mechanism:** For each incorrect answer, provide detailed feedback on *why* the answer was wrong and *how* the system arrived at that answer. This will help the system learn from its mistakes and improve its accuracy over time. Use the identified error patterns to create targeted training examples that address specific weaknesses.\n\n4.  **Implement a Rule-Based System for Numerical Unit Handling:** Create a rule-based system that understands different units of measurement (e.g., years, months, days) and can convert between them if necessary. This will help to ensure that the system is performing calculations on compatible units.\n\n### CAPABILITY TREND\n\nBased on the current performance, the system's capabilities are currently **stable but with significant room for improvement**. While the system demonstrates some proficiency in basic tasks, its lack of contextual understanding prevents it from consistently delivering accurate results. Addressing the identified weaknesses is critical for unlocking the system's full potential and achieving meaningful performance gains.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no identified runtime errors in the provided data.\n\n## STRENGTHS\n*   **Information Extraction:** The system demonstrates a general ability to extract relevant information from the provided passages. The success cases showcase that the system can identify key details necessary for answering questions.\n*   **Arithmetic Reasoning:** The system can correctly perform basic arithmetic operations (addition, subtraction) when needed, as evidenced in the successful calculation of months in the second success case.\n\n## WEAKNESSES\n*   **Temporal Reasoning:** The system struggles with precise temporal reasoning, specifically in calculating the time difference between events expressed with dates. This is evident in the error case, where calculating the months between two dates caused issues.\n*   **Lack of Thoroughness:** While the system can extract information, it sometimes fails to use it to completely solve the problem.\n\n## CRITICAL BOTTLENECKS\n*   **Precise Temporal Reasoning:** The inability to accurately calculate time differences (particularly months) based on passage information is the most critical bottleneck. This leads to incorrect numerical answers, especially when the question requires time-related calculations.\n\n## ERROR PATTERNS\n*   **Inaccurate Time Calculation:** The error case demonstrates a tendency to miscalculate time differences between events described in the passage. This can lead to incorrect answers.\n\n## PRIMARY ISSUE\nThe primary issue is the system's failure to accurately calculate the number of months between two specific dates mentioned in the passage, even with the information explicitly provided. This indicates a weakness in the system's temporal reasoning capabilities.\n\n## IMPROVEMENT AREAS\n*   **Temporal Reasoning:** The system needs a significant improvement in its ability to perform temporal reasoning, including precise time calculations.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Implement Date Parsing and Calculation:** Integrate a robust date parsing library to accurately extract date information from the passage. Then, use built-in date difference functions (e.g., from the `datetime` module in Python) to calculate the exact number of months between the dates.\n*   **Enhance Reasoning Chain for Temporal Questions:** When the question involves time-related calculations, force the system to explicitly state the start date, end date, and the steps used to calculate the time difference. This will allow for easier debugging.\n*   **Add Unit Tests Focused on Time-Based Reasoning:** Create a suite of unit tests specifically designed to test the system's temporal reasoning capabilities, including questions that require calculating time differences in days, weeks, months, and years.\n\n## CAPABILITY MAPPING\n*   **Sample ID 2 (Error):**\n    *   information_extraction: Successful in extracting dates (April 26, May 18, June 12).\n    *   constraint_handling: No specific constraints missed.\n    *   solution_generation: Incorrect time difference calculation.\n    *   solution_verification: N/A\n    *   decision_making: Incorrect answer due to faulty calculation.\n",
+    "capability_report_text": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and related information.\n\n**PERFORMANCE SUMMARY:**\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n### EXECUTION ANALYSIS\n\nThe execution outputs confirm the error analysis. The first two samples (\"Success Cases\" implied) demonstrate information extraction and arithmetic reasoning capabilities. The third sample reveals the temporal reasoning issue, returning \"0\" instead of the correct number of months. The second sample includes a detailed explanation in its reasoning chain.\n\n*   **Successful Cases:** The system provides clear reasoning for its answers in the successful cases. This is crucial for understanding *why* the system arrives at a correct answer and for debugging purposes. The ability to break down the problem into smaller steps (e.g., calculating months from March 2008 to March 2009, and then March 2009 to June 2009) is a positive sign.\n*   **Error Case:** The error case output is simply \"0.\" This offers no insight into why the system failed. The absence of a reasoning chain in the error case is a significant problem.\n*   **General Observations:** The system's output format, which includes \"ANSWER_START\" and \"ANSWER_END\" tags, is good for parsing. However, the lack of consistency in the reasoning chain presentation is a concern. All answers (correct and incorrect) should have a structured reasoning chain.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates basic capabilities in information extraction, arithmetic reasoning, and generating coherent textual answers. However, it has a significant weakness in temporal reasoning, especially calculating time differences involving dates. The inability to provide a reasoned explanation for incorrect answers hinders debugging and improvement.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** Consistently extracts relevant information from text passages.\n*   **Arithmetic Reasoning:** Correctly performs basic arithmetic when needed.\n*   **Reasoning Chain (In Success Cases):** Provides a clear and understandable explanation of its reasoning process (at least in successful cases).\n\n### KEY WEAKNESSES\n\n*   **Temporal Reasoning (Date Calculations):** Fails to accurately calculate time differences between dates. This is a critical flaw.\n*   **Inconsistent Reasoning Chain:** Does not consistently provide a reasoning chain for *all* answers, particularly when the answer is incorrect.\n*   **Lack of Thoroughness (Error Resolution):** Fails to solve the problem completely even when extracting necessary information.\n\n### IMPROVEMENT FOCUS\n\nThe **primary focus must be on improving Temporal Reasoning**, specifically date calculations. This is the most critical bottleneck hindering the system's performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Date Parsing and Calculation Library:** As suggested in the original report, integrate a robust date parsing library (e.g., `dateutil` or `arrow` in Python) to handle date extraction and calculations. The current system clearly lacks this capability. Ensure this library accounts for leap years and other date-related complexities.\n2.  **Enforce Consistent Reasoning Chains:** *Mandate* that the system always provides a reasoning chain, regardless of whether the answer is correct or incorrect. This reasoning chain should explicitly state the extracted dates, the calculation performed, and the final answer. The reasoning chain should follow a consistent format.\n3.  **Develop Comprehensive Temporal Reasoning Unit Tests:** Create a comprehensive suite of unit tests specifically designed to test temporal reasoning. These tests should cover a wide range of scenarios, including:\n    *   Calculating the number of days, weeks, months, and years between two dates.\n    *   Handling different date formats (e.g., \"April 26, 2024,\" \"26/04/2024,\" \"Apr 26th, 2024\").\n    *   Calculating durations spanning multiple years.\n    *   Handling edge cases (e.g., dates around leap years, dates at the beginning/end of months).\n4.  **Debugging Focused Training:** Explicitly train the model on debugging its temporal reasoning. This can be done by creating synthetic examples where the model gets the temporal calculation wrong, and then is provided with the correct reasoning and the correct answer. This helps the model learn to identify and correct its own errors.\n5. **Example-Based Error Resolution:**  Provide the system with examples of the correct temporal calculation alongside the error cases during fine-tuning.  This allows the system to learn the correct approach directly from its mistakes. For example, in training include: \"Passage: The event started on April 26 and ended on May 18. Question: How many months passed? Previous Answer: 0.  Corrected Answer: Less than one month. April 26 to May 26 is one month. May 18 is less than a month so the answer is less than one month.\"\n\n### CAPABILITY TREND\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, the presence of a clear and consistent error pattern (inaccurate temporal reasoning) suggests the system's capabilities are **stable but limited** in this specific area. Addressing the recommended improvements should lead to an *improving* trend.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
@@ -639,137 +364,137 @@
     "results": [
       {
         "success": true,
-        "answer": "{\"answer\": \"1792 - 1766 = 26 years\"}",
-        "output": "ANSWER_START\n{\"answer\": \"1792 - 1766 = 26 years\"}\n\nANSWER_END\n",
+        "answer": "26",
+        "output": "ANSWER_START\n26\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "26",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer clearly shows the calculation and arrives at the correct answer of 26."
+          "explanation": "Both answers are the same numerical value, 26."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "{\"answer\": \"12,000 + 20,000 = 32,000 to 30,000 + 30,000 = 60,000\"}",
-        "output": "ANSWER_START\n{\"answer\": \"12,000 + 20,000 = 32,000 to 30,000 + 30,000 = 60,000\"}\n\nANSWER_END\n",
+        "answer": "The Christians lost 12,000, 23,000 or 30,000 men, while the Ottomans suffered 20,000-30,000 casualties. The minimum casualties would be 12,000 + 20,000 = 32,000. The maximum casualties would be 30,000 + 30,000 = 60,000. Therefore the total casualties were between 32,000 and 60,000.\n\nAnswer:\n32,000-60,000",
+        "output": "ANSWER_START\nThe Christians lost 12,000, 23,000 or 30,000 men, while the Ottomans suffered 20,000-30,000 casualties. The minimum casualties would be 12,000 + 20,000 = 32,000. The maximum casualties would be 30,000 + 30,000 = 60,000. Therefore the total casualties were between 32,000 and 60,000.\n\nAnswer:\n32,000-60,000\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "60000",
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer shows a calculation with different numbers which leads to a different final result than the golden answer."
+          "explanation": "The system answer gives a range of casualties between 32,000 and 60,000, while the golden answer gives only 60,000. These are not equivalent."
         },
         "match": false
       },
       {
         "success": true,
-        "answer": "{\"answer\": \"23.20 + 7.70 + 27.00 + 14.10 = 72 percent\"}",
-        "output": "ANSWER_START\n{\"answer\": \"23.20 + 7.70 + 27.00 + 14.10 = 72 percent\"}\nANSWER_END\n",
+        "answer": "The question asks to find the percentage of people that weren't 45 to 64. The passage states that 28.00% of the population was from 45 to 64. Therefore, to find the percentage of people that weren't 45 to 64, we subtract 28.00% from 100%.\n100% - 28.00% = 72.00%\n\nAnswer:\n72.00",
+        "output": "ANSWER_START\nThe question asks to find the percentage of people that weren't 45 to 64. The passage states that 28.00% of the population was from 45 to 64. Therefore, to find the percentage of people that weren't 45 to 64, we subtract 28.00% from 100%.\n100% - 28.00% = 72.00%\n\nAnswer:\n72.00\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "72",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer shows the calculation leading to 72 percent, which is equivalent to the golden answer of 72."
+          "explanation": "The system answer arrives at the correct numerical answer of 72.00, which is equivalent to the golden answer of 72."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "{\"answer\": \"Darren Sharper\"}",
-        "output": "ANSWER_START\n{\"answer\": \"Darren Sharper\"}\n\nANSWER_END\n",
+        "answer": "Darren Sharper had the longest touchdown play of the game, with a 97-yard interception return.\n\nFinal Answer: Darren Sharper",
+        "output": "Result failed to validate on attempt 1\nANSWER_START\nDarren Sharper had the longest touchdown play of the game, with a 97-yard interception return.\n\nFinal Answer: Darren Sharper\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "Darren Sharper",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer provides the same information as the golden answer. The difference is only the use of quotation marks."
+          "explanation": "The system answer contains the golden answer as part of the complete answer. The system answer includes information about Sharper's TD, but the core of the answer matches the golden answer."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "{\"answer\": \"Daunte Culpepper got sacked more times.\"}",
-        "output": "ANSWER_START\n{\"answer\": \"Daunte Culpepper got sacked more times.\"}\n\nANSWER_END\n",
+        "answer": "Daunte Culpepper got sacked seven times and fumbled twice, so he got sacked more times.\n\n        Answer:\n        Sacked more times",
+        "output": "ANSWER_START\nDaunte Culpepper got sacked seven times and fumbled twice, so he got sacked more times.\n\n        Answer:\n        Sacked more times\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "sacked more times",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer states 'Daunte Culpepper got sacked more times,' which is semantically equivalent to the golden answer 'sacked more times.'"
+          "explanation": "The system answer provides the reasoning leading to the correct answer \"sacked more times\", which is also the golden answer. The final answer in the system answer matches the golden answer."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "{\"answer\": \"794 - 411 = 383 million\"}",
-        "output": "ANSWER_START\n{\"answer\": \"794 - 411 = 383 million\"}\n\nANSWER_END\n",
+        "answer": "383.",
+        "output": "ANSWER_START\n383.\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "383",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer shows the calculation and result, which matches the golden answer of 383."
+          "explanation": "Both answers are the same numerical value."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "{\"answer\": \"1 touchdown\"}",
-        "output": "ANSWER_START\n{\"answer\": \"1 touchdown\"}\nANSWER_END\n",
+        "answer": "In the first half, there were no touchdowns. In the second half, there were two touchdowns. Therefore, there were 2 more touchdowns scored in the second half than in the first.\n\nAnswer: 2",
+        "output": "ANSWER_START\nIn the first half, there were no touchdowns. In the second half, there were two touchdowns. Therefore, there were 2 more touchdowns scored in the second half than in the first.\n\nAnswer: 2\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "3",
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The answers are not equivalent. The golden answer '3' represents the number of touchdowns. The system answer '1 touchdown' suggests a single touchdown, which is a different quantity."
+          "explanation": "The system answer concludes with '2 more touchdowns scored', while the golden answer is '3'. These are different numerical values and thus not semantically equivalent."
         },
         "match": false
       },
       {
         "success": true,
-        "answer": "{\"answer\": \"75 yards\"}",
-        "output": "ANSWER_START\n{\"answer\": \"75 yards\"}\n\nANSWER_END\n",
+        "answer": "The longest touchdown pass was 75 yards.\nFinal Answer: 75",
+        "output": "ANSWER_START\nThe longest touchdown pass was 75 yards.\nFinal Answer: 75\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "75",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer \"75 yards\" and the golden answer \"75\" both refer to the same numerical value. The inclusion of \"yards\" as a unit doesn't change the underlying numerical answer."
+          "explanation": "Both answers indicate the same numerical value of 75."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "{\"answer\": \"2\"}",
-        "output": "ANSWER_START\n{\"answer\": \"2\"}\n\nANSWER_END\n",
+        "answer": "There were two 1-yard touchdown runs by Reggie Bush and one 1-yard touchdown run by LenDale White.\n\n        Answer: 3",
+        "output": "ANSWER_START\nThere were two 1-yard touchdown runs by Reggie Bush and one 1-yard touchdown run by LenDale White.\n\n        Answer: 3\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "3",
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer \"2\" is not equal to the golden answer \"3\"."
+          "explanation": "The system answer describes the details of the touchdowns, while the golden answer is the total number of touchdowns. Thus, they are not equivalent."
         },
         "match": false
       },
       {
         "success": true,
-        "answer": "{\"answer\": \"The passage does not mention the percentage of Christians, so it is impossible to calculate the percentage point difference between Muslims and Christians.\"}",
-        "output": "ANSWER_START\n{\"answer\": \"The passage does not mention the percentage of Christians, so it is impossible to calculate the percentage point difference between Muslims and Christians.\"}\n\nANSWER_END\n",
+        "answer": "The passage states that Orthodox Christianity and Islam were the fastest growing religions, with increases of 100% and 70% respectively. It also states that the Church of Ireland, at 2.7% of the population, is the second largest Christian denomination. Therefore, the difference between Muslims and Christians is 70 - 2.7 = 67.3.\n\n        Answer:\n        67.3",
+        "output": "ANSWER_START\nThe passage states that Orthodox Christianity and Islam were the fastest growing religions, with increases of 100% and 70% respectively. It also states that the Church of Ireland, at 2.7% of the population, is the second largest Christian denomination. Therefore, the difference between Muslims and Christians is 70 - 2.7 = 67.3.\n\n        Answer:\n        67.3\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
         "golden_answer": "30",
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer states that it's impossible to calculate the percentage point difference based on the passage, while the golden answer provides a numerical value (30). These answers contradict each other, as one claims the information is unavailable and the other provides a specific answer."
+          "explanation": "The system answer incorrectly calculates the difference between the growth rates of Muslims and Christians. The golden answer is 30, meaning that the correct difference calculation should result to 30, not 67.3. The values used to make the calculations are also incorrect (70 - 2.7 = 67.3)."
         },
         "match": false
       }
     ]
   },
-  "execution_time": 87.17126321792603,
+  "execution_time": 63.65221381187439,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],
