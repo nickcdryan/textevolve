@@ -1,14 +1,109 @@
 {
   "iteration": 8,
-  "timestamp": "2025-05-17T13:55:12.887744",
+  "timestamp": "2025-05-19T14:44:13.193006",
   "strategy": "Exploitation",
-  "explore_rate": 60,
-  "exploit_rate": 40,
+  "explore_rate": 50,
+  "exploit_rate": 50,
   "batch_size": 10,
-  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.\n    It combines the strengths of Iteration 1 and 2, incorporating question-type determination and specialized processing.\n    \"\"\"\n    try:\n        # Step 1: Determine the question type (numerical or general).\n        question_type_result = determine_question_type(question)\n        if not question_type_result.get(\"is_valid\"):\n            return f\"Error in determining question type: {question_type_result.get('validation_feedback')}\"\n\n        # Step 2: Process the question based on its type.\n        if question_type_result[\"question_type\"] == \"numerical\":\n            process_result = process_numerical_question(question)\n        else:\n            process_result = process_general_question(question)\n\n        return process_result\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef determine_question_type(question, max_attempts=3):\n    \"\"\"Determine if the question is numerical or general.\"\"\"\n    system_instruction = \"You are an expert at classifying questions as either numerical or general.\"\n\n    for attempt in range(max_attempts):\n        type_prompt = f\"\"\"\n        Classify the question as either \"numerical\" or \"general\". Numerical questions require numerical calculations. General questions do not.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Type: numerical\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Type: general\n\n        Question: {question}\n        Type:\n        \"\"\"\n\n        type_result = call_llm(type_prompt, system_instruction)\n\n        verification_prompt = f\"\"\"\n        Verify if the question type classification is correct.\n\n        Question: {question}\n        Classification: {type_result}\n\n        Example:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Classification: numerical\n        Validation: Valid\n\n        Is the classification valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n\n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower() and type_result in (\"numerical\", \"general\"):\n            return {\"is_valid\": True, \"question_type\": type_result}\n        else:\n            print(f\"Question type validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to determine the question type successfully.\"}\n\ndef process_numerical_question(question):\n    \"\"\"Process a numerical question.\"\"\"\n    try:\n        extracted_info_result = extract_numerical_info(question)\n        if not extracted_info_result.get(\"is_valid\"):\n            return f\"Error in extracting numerical info: {extracted_info_result.get('validation_feedback')}\"\n\n        calculation_result = calculate_answer(question, extracted_info_result[\"numbers\"])\n        if not calculation_result.get(\"is_valid\"):\n            return f\"Error in calculation: {calculation_result.get('validation_feedback')}\"\n\n        return calculation_result[\"answer\"]\n\n    except Exception as e:\n        return f\"Error processing numerical question: {str(e)}\"\n\ndef extract_numerical_info(question, max_attempts=3):\n    \"\"\"Extract numerical information from the question.\"\"\"\n    system_instruction = \"You are an expert at extracting numerical information.\"\n\n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Extract all numbers from the question and their corresponding entities.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Numbers:\n        6 yards (Chris Johnson's first touchdown)\n        53 yards (Jason Hanson's first field goal)\n\n        Example 2:\n        Question: How many touchdowns did Brandon Jacobs rush for?\n        Numbers:\n        2 touchdowns (Brandon Jacobs)\n\n        Question: {question}\n        Numbers:\n        \"\"\"\n\n        extracted_numbers = call_llm(extraction_prompt, system_instruction)\n\n        verification_prompt = f\"\"\"\n        Verify that the numbers extracted are correct and correspond to their entities.\n\n        Question: {question}\n        Extracted Numbers: {extracted_numbers}\n\n        Example:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Numbers: 6 yards (Chris Johnson's first touchdown), 53 yards (Jason Hanson's first field goal)\n        Validation: Valid\n\n        Is the extraction valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n\n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            # Simple parsing\n            numbers = re.findall(r'\\d+', extracted_numbers)\n            return {\"is_valid\": True, \"numbers\": numbers}\n        else:\n            print(f\"Numerical info extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract numerical information successfully.\"}\n\ndef calculate_answer(question, numbers, max_attempts=3):\n    \"\"\"Calculate the answer to a numerical question.\"\"\"\n    system_instruction = \"You are an expert calculator.\"\n\n    for attempt in range(max_attempts):\n        calculation_prompt = f\"\"\"\n        Calculate the answer based on the extracted numbers and the original question. Show your work.\n\n        Example:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Numbers: 6, 53\n        Calculation: 6 + 53 = 59\n        Answer: 59\n\n        Question: {question}\n        Numbers: {numbers}\n        Calculation:\n        \"\"\"\n\n        calculation_result = call_llm(calculation_prompt, system_instruction)\n\n        verification_prompt = f\"\"\"\n        Verify if the calculation is correct.\n\n        Question: {question}\n        Numbers: {numbers}\n        Calculation: {calculation_result}\n\n        Example:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Numbers: 6, 53\n        Calculation: 6 + 53 = 59\n        Validation: Valid\n\n        Is the calculation valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n\n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            answer = re.search(r'\\d+$', calculation_result)\n            if answer:\n                return {\"is_valid\": True, \"answer\": answer.group(0)}\n            else:\n                return {\"is_valid\": False, \"validation_feedback\": \"Could not find numerical answer.\"}\n        else:\n            print(f\"Calculation validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to calculate the answer successfully.\"}\n\ndef process_general_question(question):\n    \"\"\"Process a general question.\"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"Error processing general question: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "This script uses LLM-driven chain-of-thought reasoning and verification to answer questions, first determining if the question is numerical or general. Numerical questions are processed by extracting numbers and performing calculations, while general questions are decomposed into sub-questions, have information extracted for each, and then synthesize an answer. The script defines specialized agents for question type determination, numerical information extraction, calculation, question decomposition, information extraction, and answer synthesis; each leverages examples and a validation step.\n\nThe functions used are:\n- `main()`: Orchestrates the entire process.\n- `determine_question_type()`: Determines question type.\n- `process_numerical_question()`: Processes numerical questions.\n- `extract_numerical_info()`: Extracts numerical data.\n- `calculate_answer()`: Calculates numerical answers.\n- `process_general_question()`: Processes general questions.\n- `decompose_question()`: Decomposes complex questions.\n- `extract_information()`: Extracts information from decomposed questions.\n- `synthesize_answer()`: Synthesizes the final answer.\n- `call_llm()`: Calls the Gemini LLM with a prompt.\n\nThe overall workflow is as follows: `main()` calls `determine_question_type()`, then either `process_numerical_question()` which uses `extract_numerical_info()` and `calculate_answer()`, or `process_general_question()` which uses `decompose_question()`, `extract_information()`, and `synthesize_answer()`, with all *process, extract, calculate, decompose, and synthesize* functions using `call_llm()` to interact with the LLM.",
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with enhanced question analysis and validation.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer - Enhanced with validation loop\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"requires_calculation\": false}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"requires_calculation\": true}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"requires_calculation\": false}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Question: {question}\n    Analysis: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies the generated answer. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage.  Return the answer if it is correct.  Return the correct answer if it is incorrect.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script implements a multi-stage question answering system using the Gemini LLM. It decomposes the problem into question analysis, relevant passage extraction, answer generation, and answer verification. The `analyze_question` function identifies the question type and keywords, then `extract_relevant_passage` retrieves relevant information. An initial answer is generated using `generate_answer` which is then validated by the `verify_answer` function. The overall workflow starts with `main`, which orchestrates calls to `analyze_question`, `extract_relevant_passage`, `generate_answer`, and `verify_answer`, with `call_llm` serving as a centralized method for LLM interactions.",
   "sample_count": 10,
   "samples": [
+    {
+      "question": "PASSAGE: The Christians lost 12,000, 23,000 or 30,000 men, while the Ottomans suffered 20,000-30,000 casualties.\n\nQUESTION: How many total casualties were there?",
+      "answer": "60000",
+      "id": "example_61",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Christians lost 12,000, 23,000 or 30,000 men, while the Ottomans suffered 20,000-30,000 casualties.",
+        "original_question": "How many total casualties were there?",
+        "original_answer_data": {
+          "spans": [
+            "60000"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 392
+      }
+    },
+    {
+      "question": "PASSAGE: In the county, the population was spread out with 23.20% under the age of 18, 7.70% from 18 to 24, 27.00% from 25 to 44, 28.00% from 45 to 64, and 14.10% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 97.00 males.  For every 100 females age 18 and over, there were 96.40 males.\n\nQUESTION: How many in percent weren't 45 to 64?",
+      "answer": "72",
+      "id": "example_62",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In the county, the population was spread out with 23.20% under the age of 18, 7.70% from 18 to 24, 27.00% from 25 to 44, 28.00% from 45 to 64, and 14.10% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 97.00 males.  For every 100 females age 18 and over, there were 96.40 males.",
+        "original_question": "How many in percent weren't 45 to 64?",
+        "original_answer_data": {
+          "spans": [
+            "72"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 969
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their win over the Lions, the Saints flew to Lincoln Financial Field for a Week 2 duel with the Philadelphia Eagles. In the first quarter, New Orleans drew first blood as quarterback Drew Brees completed a 15-yard touchdown pass to wide receiver Marques Colston. The Eagles answered with quarterback Kevin Kolb (in his first start as the Eagles' quarterback) completing a 71-yard touchdown pass to wide receiver DeSean Jackson, yet the Saints replied with kicker John Carney making a 23-yard field goal. In the second quarter, Philadelphia tied the game as kicker David Akers got a 23-yard field goal. New Orleans answered with Brees completing a 25-yard touchdown pass to Colston. The Eagles closed out the half as Akers made a 32-yard field goal. In the third quarter, the Saints began to take command as Brees completed an 11-yard touchdown pass to fullback Heath Evans, along with running back Mike Bell getting a 7-yard touchdown run and Carney nailing a 25-yard field goal. The Eagles answered with Kolb completing a 3-yard touchdown pass to wide receiver Jason Avant. In the fourth quarter, New Orleans kept up its domination as running back Reggie Bush got a 19-yard touchdown. Philadelphia drove to the Saints' 5-yard line but could not score and the drive ended on downs; the Saints were then unable to move the ball, and rather than punting out of their own end zone, they opted to have Brees throw the ball out of the end zone for an intentional safety. After the ensuing free kick, the Eagles again drove deep into Saints territory, but again failed to score, as Kolb threw an interception which safety Darren Sharper returned 97 yards for a touchdown.\n\nQUESTION: Which player had the longest touchdown play of the game?",
+      "answer": "Darren Sharper",
+      "id": "example_63",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their win over the Lions, the Saints flew to Lincoln Financial Field for a Week 2 duel with the Philadelphia Eagles. In the first quarter, New Orleans drew first blood as quarterback Drew Brees completed a 15-yard touchdown pass to wide receiver Marques Colston. The Eagles answered with quarterback Kevin Kolb (in his first start as the Eagles' quarterback) completing a 71-yard touchdown pass to wide receiver DeSean Jackson, yet the Saints replied with kicker John Carney making a 23-yard field goal. In the second quarter, Philadelphia tied the game as kicker David Akers got a 23-yard field goal. New Orleans answered with Brees completing a 25-yard touchdown pass to Colston. The Eagles closed out the half as Akers made a 32-yard field goal. In the third quarter, the Saints began to take command as Brees completed an 11-yard touchdown pass to fullback Heath Evans, along with running back Mike Bell getting a 7-yard touchdown run and Carney nailing a 25-yard field goal. The Eagles answered with Kolb completing a 3-yard touchdown pass to wide receiver Jason Avant. In the fourth quarter, New Orleans kept up its domination as running back Reggie Bush got a 19-yard touchdown. Philadelphia drove to the Saints' 5-yard line but could not score and the drive ended on downs; the Saints were then unable to move the ball, and rather than punting out of their own end zone, they opted to have Brees throw the ball out of the end zone for an intentional safety. After the ensuing free kick, the Eagles again drove deep into Saints territory, but again failed to score, as Kolb threw an interception which safety Darren Sharper returned 97 yards for a touchdown.",
+        "original_question": "Which player had the longest touchdown play of the game?",
+        "original_answer_data": {
+          "spans": [
+            "Darren Sharper"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 688
+      }
+    },
+    {
+      "question": "PASSAGE: The Dolphins were hoping to rebound by playing an AFC East bout with the visiting Buffalo Bills in their Week 2 home-opener.  Unfortunately, from the start, the Dolphins were unable to get anything going, as the Bills' Rian Lindell kicked a 33-yard field goal in the first quarter, while Buffalo's defense prevented Miami from getting any points throughout the first half.  In the third quarter, things only got worse, as opposing QB J. P. Losman threw a 4-yard TD pass to opposing WR Josh Reed, while Lindell booted two field goals (45 & 43-yarders).  The Dolphins finally managed to get some points as WR Chris Chambers caught a 23-yard TD pass, but Miami failed on the two-point conversion.  What made this loss even more frustrating was that Dolphins QB Daunte Culpepper got sacked seven times and fumbled twice, making Miami wonder if acquiring Culpepper was the right idea in the first place. With the loss, the Dolphins were 0-2.\n\nQUESTION: Did Daunte Culpepper get sacked more times or fumble more times?",
+      "answer": "sacked more times",
+      "id": "example_64",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Dolphins were hoping to rebound by playing an AFC East bout with the visiting Buffalo Bills in their Week 2 home-opener.  Unfortunately, from the start, the Dolphins were unable to get anything going, as the Bills' Rian Lindell kicked a 33-yard field goal in the first quarter, while Buffalo's defense prevented Miami from getting any points throughout the first half.  In the third quarter, things only got worse, as opposing QB J. P. Losman threw a 4-yard TD pass to opposing WR Josh Reed, while Lindell booted two field goals (45 & 43-yarders).  The Dolphins finally managed to get some points as WR Chris Chambers caught a 23-yard TD pass, but Miami failed on the two-point conversion.  What made this loss even more frustrating was that Dolphins QB Daunte Culpepper got sacked seven times and fumbled twice, making Miami wonder if acquiring Culpepper was the right idea in the first place. With the loss, the Dolphins were 0-2.",
+        "original_question": "Did Daunte Culpepper get sacked more times or fumble more times?",
+        "original_answer_data": {
+          "spans": [
+            "sacked more times"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 361
+      }
+    },
+    {
+      "question": "PASSAGE: The total population in sub-Saharan Africa is projected to increase to almost one billion people, making it the most populated region outside of South-Central Asia. According to the United Nations, the population of Nigeria will reach 411 million by 2050. Nigeria might then be the 3rd most populous country in the world. In 2100, the population of Nigeria may reach 794 million. While the overall population is expected to increase, the growth rate is estimated to decrease from 1.2 percent per year in 2010 to 0.4 percent per year in 2050. The birth rate is also projected to decrease from 20.7 to 13.7, while the death rate is projected to increase from 8.5 in 2010 to 9.8 in 2050. List of countries by life expectancy is all expected to increase from 67.0 years in 2010 to 75.2 years in 2050. By 2050 the percent of the population estimated to be living in urban areas is 69.6% compared to the 50.6% in 2010.\n\nQUESTION: How many millions of people is the population of Nigeria expected to grow by in 2100 compared to 2050?",
+      "answer": "383",
+      "id": "example_65",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The total population in sub-Saharan Africa is projected to increase to almost one billion people, making it the most populated region outside of South-Central Asia. According to the United Nations, the population of Nigeria will reach 411 million by 2050. Nigeria might then be the 3rd most populous country in the world. In 2100, the population of Nigeria may reach 794 million. While the overall population is expected to increase, the growth rate is estimated to decrease from 1.2 percent per year in 2010 to 0.4 percent per year in 2050. The birth rate is also projected to decrease from 20.7 to 13.7, while the death rate is projected to increase from 8.5 in 2010 to 9.8 in 2050. List of countries by life expectancy is all expected to increase from 67.0 years in 2010 to 75.2 years in 2050. By 2050 the percent of the population estimated to be living in urban areas is 69.6% compared to the 50.6% in 2010.",
+        "original_question": "How many millions of people is the population of Nigeria expected to grow by in 2100 compared to 2050?",
+        "original_answer_data": {
+          "spans": [
+            "383"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 816
+      }
+    },
     {
       "question": "PASSAGE: Coming off their bye week, the Bills stayed at home for a fierce Week 7 intraconference duel with the Baltimore Ravens.  This match-up would be notable for RB Willis McGahee heading back to Buffalo to play against his former team. In the first quarter, the Bills got the first blood with kicker Rian Lindell getting a 29-yard field goal for the only score of the period.  In the second quarter, Buffalo increased its lead with Lindell nailing a 26-yard and a 35-yard field goal.  In the third quarter, the Ravens began to climb back into the game with McGahee getting a 46-yard TD run.  Fortunately, the Bills would respond with Lindell getting a 41-yard field goal, along with McGahee's successor, RB Marshawn Lynch, getting a 1-yard TD run.  In the fourth quarter, Baltimore drew closer as QB Kyle Boller completed a 15-yard TD pass to WR Derrick Mason.  Fortunately, Buffalo managed to hold on for a well-earned victory.\n\nQUESTION: How many more touchdowns were scored in the second half than the first?",
       "answer": "3",
@@ -103,106 +198,79 @@
         },
         "line_number": 451
       }
-    },
-    {
-      "question": "PASSAGE: The Colts headed to Gillette Stadium for a highly anticipated Sunday Night Football matchup with the New England Patriots in Week 9. In the first quarter, an interception in the end zone by Colts rookie FS Antoine Bethea set up the Colts' first scoring drive, a 68-yard march that ended with a 5-yard touchdown pass from QB Peyton Manning to WR Marvin Harrison for the only score of the quarter. Already banged up on defense, the Patriots lost SS Rodney Harrison to a shoulder injury in the first quarter, and he never returned to the game. The second quarter was a lot more eventful after two scores by Patriots RB Corey Dillon, a TD run by Colts rookie RB Joseph Addai, and a field goal by Colts kicker Adam Vinatieri. The Patriots played from behind for the rest of the game and could not catch up to the Colts. Patriots QB Tom Brady was intercepted four times in the defeat, and Colts LB Cato June intercepted two of those passes. Also of note, Colts WR Marvin Harrison had 8 catches in the game for 145 yards and two touchdowns. The victory marked the Colts' second straight versus the Patriots after having lost the previous six. With the win, the Colts became just the second team in NFL history to begin consecutive seasons 8-0 (the Green Bay Packers began three consecutive seasons 8-0 from 1929 to 1931). Also, with 326 yards passing QB Peyton Manning has thrown for over 300 yards in three consecutive games for the first time in his career.\n\nQUESTION: Who scored the only touchdown in the first quarter?",
-      "answer": "Marvin Harrison",
-      "id": "example_71",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Colts headed to Gillette Stadium for a highly anticipated Sunday Night Football matchup with the New England Patriots in Week 9. In the first quarter, an interception in the end zone by Colts rookie FS Antoine Bethea set up the Colts' first scoring drive, a 68-yard march that ended with a 5-yard touchdown pass from QB Peyton Manning to WR Marvin Harrison for the only score of the quarter. Already banged up on defense, the Patriots lost SS Rodney Harrison to a shoulder injury in the first quarter, and he never returned to the game. The second quarter was a lot more eventful after two scores by Patriots RB Corey Dillon, a TD run by Colts rookie RB Joseph Addai, and a field goal by Colts kicker Adam Vinatieri. The Patriots played from behind for the rest of the game and could not catch up to the Colts. Patriots QB Tom Brady was intercepted four times in the defeat, and Colts LB Cato June intercepted two of those passes. Also of note, Colts WR Marvin Harrison had 8 catches in the game for 145 yards and two touchdowns. The victory marked the Colts' second straight versus the Patriots after having lost the previous six. With the win, the Colts became just the second team in NFL history to begin consecutive seasons 8-0 (the Green Bay Packers began three consecutive seasons 8-0 from 1929 to 1931). Also, with 326 yards passing QB Peyton Manning has thrown for over 300 yards in three consecutive games for the first time in his career.",
-        "original_question": "Who scored the only touchdown in the first quarter?",
-        "original_answer_data": {
-          "spans": [
-            "Marvin Harrison"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 251
-      }
-    },
-    {
-      "question": "PASSAGE: Hoping for their first win of the season, the Buccaneers flew to Lincoln Financial Field for a Week 5 duel with the Philadelphia Eagles.  Tampa Bay would immediately trail in the first quarter as Eagles quarterback Donovan McNabb hooked up with wide receiver Jeremy Maclin on a 51-yard touchdown pass.  Philadelphia would increase their lead in the second quarter with McNabb completing a 20-yard touchdown pass to fullback Leonard Weaver.  The Buccaneers would get on the board with quarterback Josh Johnson's 9-yard touchdown pass to tight end Kellen Winslow, but the Eagles would close out the first half with McNabb finding Maclin again on a 40-yard touchdown 40-yard touchdown pass. In the third quarter, Philadelphia would increase their lead with running back Brian Westbrook getting a 7-yard touchdown run.  The Eagles would then start off the fourth quarter with kicker David Akers nailing a 44-yard field goal.  Tampa Bay tried to rally as Johnson connected with Winslow again on a 9-yard touchdown pass, but Philadelphia closed out the game with defensive end Darren Howard tackling running back Cadillac Williams in his endzone for a safety.\n\nQUESTION: Which team failed to score in the first quarter?",
-      "answer": "Tampa Bay",
-      "id": "example_72",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping for their first win of the season, the Buccaneers flew to Lincoln Financial Field for a Week 5 duel with the Philadelphia Eagles.  Tampa Bay would immediately trail in the first quarter as Eagles quarterback Donovan McNabb hooked up with wide receiver Jeremy Maclin on a 51-yard touchdown pass.  Philadelphia would increase their lead in the second quarter with McNabb completing a 20-yard touchdown pass to fullback Leonard Weaver.  The Buccaneers would get on the board with quarterback Josh Johnson's 9-yard touchdown pass to tight end Kellen Winslow, but the Eagles would close out the first half with McNabb finding Maclin again on a 40-yard touchdown 40-yard touchdown pass. In the third quarter, Philadelphia would increase their lead with running back Brian Westbrook getting a 7-yard touchdown run.  The Eagles would then start off the fourth quarter with kicker David Akers nailing a 44-yard field goal.  Tampa Bay tried to rally as Johnson connected with Winslow again on a 9-yard touchdown pass, but Philadelphia closed out the game with defensive end Darren Howard tackling running back Cadillac Williams in his endzone for a safety.",
-        "original_question": "Which team failed to score in the first quarter?",
-        "original_answer_data": {
-          "spans": [
-            "Tampa Bay"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 653
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off their commanding road win over the Browns, the Cowboys played their Week 2 home opener under the MNF spotlight.  In the last MNF game at Texas Stadium, Dallas would duel with their NFC East foe, the Philadelphia Eagles.  In the first quarter, the Cowboys trailed early as Eagles kicker David Akers got a 34-yard field goal.  Dallas would answer in their first possession with QB Tony Romo completing a 72-yard TD pass to WR Terrell Owens.  Philadelphia replied with Akers kicking a 44-yard field goal, yet the 'Boys immediately added to their lead with rookie RB Felix Jones returning a kickoff 98 yards for a touchdown. The Eagles would take the lead with QB Donovan McNabb completing a 6-yard TD pass to RB Brian Westbrook, along with LB Chris Gocong recovering a Romo fumble in the Cowboys' endzone for a touchdown.  Dallas immediately responded with Romo and Owens hooking up with each other again on a 4-yard TD pass. On Philadelphia's next drive, the referees made two suspect decisions. The first was a non-call on a very obvious facemask on Brian Westbrook that would have given the Eagles a first down. The next call in question was a 40-yard passing interference penalty on Anthony Henry. Replays showed that it was Greg Lewis who grabbed Henry's jersey and pulled him down, not the other way around. With that decision, the Eagles were awarded a first down on the 1-yard line. Westbrook immediately ran it in for a 1-yard TD. On their next possession, Akers' hit a 22-yard field goal. To make the game the highest scoring half ever on MNF, the Cowboys ended the half with kicker Nick Folk getting a 51-yard field goal, bringing the total points for both teams to 54. In the third quarter, the 'Boys regained the lead with Romo's 17-yard TD pass to RB Marion Barber. In the fourth quarter, the Eagles once again took the lead with Westbrook's 1-yard TD run.  Afterwards, the Cowboys rallied with Folk nailing a 47-yard field goal and Barber getting a 1-yard TD run. The Eagles had a chance for a game-winning drive, but Dallas' defense stiffened for the victory, sacking the very elusive McNabb twice. In a game that had 9 lead changes, it also set different point records, including most first half points in MNF history (54) and most combined points in the rivalry's history (78). Also, Terrell Owens (3 receptions for 89 yards and 2 touchdowns) reached 132 career touchdown catches, placing him 2nd on the NFL's all-time touchdown receptions list (behind only Jerry Rice's record of 197).\n\nQUESTION: Who threw the longest touchdown pass of the game?",
-      "answer": "Tony Romo",
-      "id": "example_73",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their commanding road win over the Browns, the Cowboys played their Week 2 home opener under the MNF spotlight.  In the last MNF game at Texas Stadium, Dallas would duel with their NFC East foe, the Philadelphia Eagles.  In the first quarter, the Cowboys trailed early as Eagles kicker David Akers got a 34-yard field goal.  Dallas would answer in their first possession with QB Tony Romo completing a 72-yard TD pass to WR Terrell Owens.  Philadelphia replied with Akers kicking a 44-yard field goal, yet the 'Boys immediately added to their lead with rookie RB Felix Jones returning a kickoff 98 yards for a touchdown. The Eagles would take the lead with QB Donovan McNabb completing a 6-yard TD pass to RB Brian Westbrook, along with LB Chris Gocong recovering a Romo fumble in the Cowboys' endzone for a touchdown.  Dallas immediately responded with Romo and Owens hooking up with each other again on a 4-yard TD pass. On Philadelphia's next drive, the referees made two suspect decisions. The first was a non-call on a very obvious facemask on Brian Westbrook that would have given the Eagles a first down. The next call in question was a 40-yard passing interference penalty on Anthony Henry. Replays showed that it was Greg Lewis who grabbed Henry's jersey and pulled him down, not the other way around. With that decision, the Eagles were awarded a first down on the 1-yard line. Westbrook immediately ran it in for a 1-yard TD. On their next possession, Akers' hit a 22-yard field goal. To make the game the highest scoring half ever on MNF, the Cowboys ended the half with kicker Nick Folk getting a 51-yard field goal, bringing the total points for both teams to 54. In the third quarter, the 'Boys regained the lead with Romo's 17-yard TD pass to RB Marion Barber. In the fourth quarter, the Eagles once again took the lead with Westbrook's 1-yard TD run.  Afterwards, the Cowboys rallied with Folk nailing a 47-yard field goal and Barber getting a 1-yard TD run. The Eagles had a chance for a game-winning drive, but Dallas' defense stiffened for the victory, sacking the very elusive McNabb twice. In a game that had 9 lead changes, it also set different point records, including most first half points in MNF history (54) and most combined points in the rivalry's history (78). Also, Terrell Owens (3 receptions for 89 yards and 2 touchdowns) reached 132 career touchdown catches, placing him 2nd on the NFL's all-time touchdown receptions list (behind only Jerry Rice's record of 197).",
-        "original_question": "Who threw the longest touchdown pass of the game?",
-        "original_answer_data": {
-          "spans": [
-            "Tony Romo"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 769
-      }
-    },
-    {
-      "question": "PASSAGE: The Ottoman order of battle when the war broke out constituted a total of 12,024 officers; 324,718 other ranks; 47,960 animals; 2,318 artillery pieces, and 388 machine guns. From these a total 920 officers and 42,607 men had been assigned in non-divisional units and services, the remaining 293,206 officers and men were assigned into four Armies. Opposing them and in continuation of their secret prewar settlements of expansion, the three Slavic allies  had extensive plans to coordinate their war efforts: the Serbs and Montenegrins in the theater of Sand\u017eak, the Bulgarians and Serbs in the Macedonian and Bulgaria alone in the Thracian theater. The bulk of the Bulgarian forces  was to attack Thrace, pitted against the Thracian Ottoman Army of 96,273 men and about 26,000 garrison troops or about 115,000 in total, according to Hall's, Erickson's and the Turkish Gen. Staff's 1993 studies. The remaining Ottoman army of about 200,000 was located in Macedonia, pitted against the Serbian  and Greek  armies. It was divided into the Vardar and Macedonian Ottoman armies, with independent static guards around the fortress cities of Ioannina  and Shkod\u00ebr .\n\nQUESTION: How many of the Slavic allies were left by themselves?",
-      "answer": "1",
-      "id": "example_74",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Ottoman order of battle when the war broke out constituted a total of 12,024 officers; 324,718 other ranks; 47,960 animals; 2,318 artillery pieces, and 388 machine guns. From these a total 920 officers and 42,607 men had been assigned in non-divisional units and services, the remaining 293,206 officers and men were assigned into four Armies. Opposing them and in continuation of their secret prewar settlements of expansion, the three Slavic allies  had extensive plans to coordinate their war efforts: the Serbs and Montenegrins in the theater of Sand\u017eak, the Bulgarians and Serbs in the Macedonian and Bulgaria alone in the Thracian theater. The bulk of the Bulgarian forces  was to attack Thrace, pitted against the Thracian Ottoman Army of 96,273 men and about 26,000 garrison troops or about 115,000 in total, according to Hall's, Erickson's and the Turkish Gen. Staff's 1993 studies. The remaining Ottoman army of about 200,000 was located in Macedonia, pitted against the Serbian  and Greek  armies. It was divided into the Vardar and Macedonian Ottoman armies, with independent static guards around the fortress cities of Ioannina  and Shkod\u00ebr .",
-        "original_question": "How many of the Slavic allies were left by themselves?",
-        "original_answer_data": {
-          "spans": [
-            "1"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 670
-      }
-    },
-    {
-      "question": "PASSAGE: Still searching for their first win of the season, the Chiefs flew to Lincoln Financial Field for a Week 3 interconference duel with the Philadelphia Eagles. Kansas City would trail early in the first quarter as Eagles running back LeSean McCoy got a 5-yard touchdown run and quarterback Kevin Kolb got a 1-yard touchdown run. The Chiefs would get on the board with quarterback Matt Cassel's 13-yard touchdown pass to wide receiver Mark Bradley, but Philadelphia came right back with Kolb's 64-yard touchdown pass to wide receiver DeSean Jackson and kicker David Akers' 29-yard field goal. Kansas City's deficit would increase as Akers nailed a 38-yard field goal in the third quarter. In the fourth quarter, the Eagles would put the game away with Kolb's 35-yard touchdown pass to tight end Brent Celek. Afterwards, the Chiefs would end the game with Cassel's 9-yard touchdown pass to wide receiver Bobby Wade.\n\nQUESTION: Which touchdown passes did Matt Cassel make?",
-      "answer": "13-yard",
-      "id": "example_75",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Still searching for their first win of the season, the Chiefs flew to Lincoln Financial Field for a Week 3 interconference duel with the Philadelphia Eagles. Kansas City would trail early in the first quarter as Eagles running back LeSean McCoy got a 5-yard touchdown run and quarterback Kevin Kolb got a 1-yard touchdown run. The Chiefs would get on the board with quarterback Matt Cassel's 13-yard touchdown pass to wide receiver Mark Bradley, but Philadelphia came right back with Kolb's 64-yard touchdown pass to wide receiver DeSean Jackson and kicker David Akers' 29-yard field goal. Kansas City's deficit would increase as Akers nailed a 38-yard field goal in the third quarter. In the fourth quarter, the Eagles would put the game away with Kolb's 35-yard touchdown pass to tight end Brent Celek. Afterwards, the Chiefs would end the game with Cassel's 9-yard touchdown pass to wide receiver Bobby Wade.",
-        "original_question": "Which touchdown passes did Matt Cassel make?",
-        "original_answer_data": {
-          "spans": [
-            "13-yard",
-            "9-yard"
-          ],
-          "types": [
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 129
-      }
     }
   ],
   "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Christians lost 12,000, 23,000 or 30,000 men, while the Ottomans suffered 20,000-30,000 casualties.",
+      "original_question": "How many total casualties were there?",
+      "original_answer_data": {
+        "spans": [
+          "60000"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 392
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In the county, the population was spread out with 23.20% under the age of 18, 7.70% from 18 to 24, 27.00% from 25 to 44, 28.00% from 45 to 64, and 14.10% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 97.00 males.  For every 100 females age 18 and over, there were 96.40 males.",
+      "original_question": "How many in percent weren't 45 to 64?",
+      "original_answer_data": {
+        "spans": [
+          "72"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 969
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their win over the Lions, the Saints flew to Lincoln Financial Field for a Week 2 duel with the Philadelphia Eagles. In the first quarter, New Orleans drew first blood as quarterback Drew Brees completed a 15-yard touchdown pass to wide receiver Marques Colston. The Eagles answered with quarterback Kevin Kolb (in his first start as the Eagles' quarterback) completing a 71-yard touchdown pass to wide receiver DeSean Jackson, yet the Saints replied with kicker John Carney making a 23-yard field goal. In the second quarter, Philadelphia tied the game as kicker David Akers got a 23-yard field goal. New Orleans answered with Brees completing a 25-yard touchdown pass to Colston. The Eagles closed out the half as Akers made a 32-yard field goal. In the third quarter, the Saints began to take command as Brees completed an 11-yard touchdown pass to fullback Heath Evans, along with running back Mike Bell getting a 7-yard touchdown run and Carney nailing a 25-yard field goal. The Eagles answered with Kolb completing a 3-yard touchdown pass to wide receiver Jason Avant. In the fourth quarter, New Orleans kept up its domination as running back Reggie Bush got a 19-yard touchdown. Philadelphia drove to the Saints' 5-yard line but could not score and the drive ended on downs; the Saints were then unable to move the ball, and rather than punting out of their own end zone, they opted to have Brees throw the ball out of the end zone for an intentional safety. After the ensuing free kick, the Eagles again drove deep into Saints territory, but again failed to score, as Kolb threw an interception which safety Darren Sharper returned 97 yards for a touchdown.",
+      "original_question": "Which player had the longest touchdown play of the game?",
+      "original_answer_data": {
+        "spans": [
+          "Darren Sharper"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 688
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Dolphins were hoping to rebound by playing an AFC East bout with the visiting Buffalo Bills in their Week 2 home-opener.  Unfortunately, from the start, the Dolphins were unable to get anything going, as the Bills' Rian Lindell kicked a 33-yard field goal in the first quarter, while Buffalo's defense prevented Miami from getting any points throughout the first half.  In the third quarter, things only got worse, as opposing QB J. P. Losman threw a 4-yard TD pass to opposing WR Josh Reed, while Lindell booted two field goals (45 & 43-yarders).  The Dolphins finally managed to get some points as WR Chris Chambers caught a 23-yard TD pass, but Miami failed on the two-point conversion.  What made this loss even more frustrating was that Dolphins QB Daunte Culpepper got sacked seven times and fumbled twice, making Miami wonder if acquiring Culpepper was the right idea in the first place. With the loss, the Dolphins were 0-2.",
+      "original_question": "Did Daunte Culpepper get sacked more times or fumble more times?",
+      "original_answer_data": {
+        "spans": [
+          "sacked more times"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 361
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The total population in sub-Saharan Africa is projected to increase to almost one billion people, making it the most populated region outside of South-Central Asia. According to the United Nations, the population of Nigeria will reach 411 million by 2050. Nigeria might then be the 3rd most populous country in the world. In 2100, the population of Nigeria may reach 794 million. While the overall population is expected to increase, the growth rate is estimated to decrease from 1.2 percent per year in 2010 to 0.4 percent per year in 2050. The birth rate is also projected to decrease from 20.7 to 13.7, while the death rate is projected to increase from 8.5 in 2010 to 9.8 in 2050. List of countries by life expectancy is all expected to increase from 67.0 years in 2010 to 75.2 years in 2050. By 2050 the percent of the population estimated to be living in urban areas is 69.6% compared to the 50.6% in 2010.",
+      "original_question": "How many millions of people is the population of Nigeria expected to grow by in 2100 compared to 2050?",
+      "original_answer_data": {
+        "spans": [
+          "383"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 816
+    },
     {
       "source": "jsonl_dataset",
       "original_passage": "Coming off their bye week, the Bills stayed at home for a fierce Week 7 intraconference duel with the Baltimore Ravens.  This match-up would be notable for RB Willis McGahee heading back to Buffalo to play against his former team. In the first quarter, the Bills got the first blood with kicker Rian Lindell getting a 29-yard field goal for the only score of the period.  In the second quarter, Buffalo increased its lead with Lindell nailing a 26-yard and a 35-yard field goal.  In the third quarter, the Ravens began to climb back into the game with McGahee getting a 46-yard TD run.  Fortunately, the Bills would respond with Lindell getting a 41-yard field goal, along with McGahee's successor, RB Marshawn Lynch, getting a 1-yard TD run.  In the fourth quarter, Baltimore drew closer as QB Kyle Boller completed a 15-yard TD pass to WR Derrick Mason.  Fortunately, Buffalo managed to hold on for a well-earned victory.",
@@ -272,380 +340,468 @@
         ]
       },
       "line_number": 451
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Colts headed to Gillette Stadium for a highly anticipated Sunday Night Football matchup with the New England Patriots in Week 9. In the first quarter, an interception in the end zone by Colts rookie FS Antoine Bethea set up the Colts' first scoring drive, a 68-yard march that ended with a 5-yard touchdown pass from QB Peyton Manning to WR Marvin Harrison for the only score of the quarter. Already banged up on defense, the Patriots lost SS Rodney Harrison to a shoulder injury in the first quarter, and he never returned to the game. The second quarter was a lot more eventful after two scores by Patriots RB Corey Dillon, a TD run by Colts rookie RB Joseph Addai, and a field goal by Colts kicker Adam Vinatieri. The Patriots played from behind for the rest of the game and could not catch up to the Colts. Patriots QB Tom Brady was intercepted four times in the defeat, and Colts LB Cato June intercepted two of those passes. Also of note, Colts WR Marvin Harrison had 8 catches in the game for 145 yards and two touchdowns. The victory marked the Colts' second straight versus the Patriots after having lost the previous six. With the win, the Colts became just the second team in NFL history to begin consecutive seasons 8-0 (the Green Bay Packers began three consecutive seasons 8-0 from 1929 to 1931). Also, with 326 yards passing QB Peyton Manning has thrown for over 300 yards in three consecutive games for the first time in his career.",
-      "original_question": "Who scored the only touchdown in the first quarter?",
-      "original_answer_data": {
-        "spans": [
-          "Marvin Harrison"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 251
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping for their first win of the season, the Buccaneers flew to Lincoln Financial Field for a Week 5 duel with the Philadelphia Eagles.  Tampa Bay would immediately trail in the first quarter as Eagles quarterback Donovan McNabb hooked up with wide receiver Jeremy Maclin on a 51-yard touchdown pass.  Philadelphia would increase their lead in the second quarter with McNabb completing a 20-yard touchdown pass to fullback Leonard Weaver.  The Buccaneers would get on the board with quarterback Josh Johnson's 9-yard touchdown pass to tight end Kellen Winslow, but the Eagles would close out the first half with McNabb finding Maclin again on a 40-yard touchdown 40-yard touchdown pass. In the third quarter, Philadelphia would increase their lead with running back Brian Westbrook getting a 7-yard touchdown run.  The Eagles would then start off the fourth quarter with kicker David Akers nailing a 44-yard field goal.  Tampa Bay tried to rally as Johnson connected with Winslow again on a 9-yard touchdown pass, but Philadelphia closed out the game with defensive end Darren Howard tackling running back Cadillac Williams in his endzone for a safety.",
-      "original_question": "Which team failed to score in the first quarter?",
-      "original_answer_data": {
-        "spans": [
-          "Tampa Bay"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 653
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their commanding road win over the Browns, the Cowboys played their Week 2 home opener under the MNF spotlight.  In the last MNF game at Texas Stadium, Dallas would duel with their NFC East foe, the Philadelphia Eagles.  In the first quarter, the Cowboys trailed early as Eagles kicker David Akers got a 34-yard field goal.  Dallas would answer in their first possession with QB Tony Romo completing a 72-yard TD pass to WR Terrell Owens.  Philadelphia replied with Akers kicking a 44-yard field goal, yet the 'Boys immediately added to their lead with rookie RB Felix Jones returning a kickoff 98 yards for a touchdown. The Eagles would take the lead with QB Donovan McNabb completing a 6-yard TD pass to RB Brian Westbrook, along with LB Chris Gocong recovering a Romo fumble in the Cowboys' endzone for a touchdown.  Dallas immediately responded with Romo and Owens hooking up with each other again on a 4-yard TD pass. On Philadelphia's next drive, the referees made two suspect decisions. The first was a non-call on a very obvious facemask on Brian Westbrook that would have given the Eagles a first down. The next call in question was a 40-yard passing interference penalty on Anthony Henry. Replays showed that it was Greg Lewis who grabbed Henry's jersey and pulled him down, not the other way around. With that decision, the Eagles were awarded a first down on the 1-yard line. Westbrook immediately ran it in for a 1-yard TD. On their next possession, Akers' hit a 22-yard field goal. To make the game the highest scoring half ever on MNF, the Cowboys ended the half with kicker Nick Folk getting a 51-yard field goal, bringing the total points for both teams to 54. In the third quarter, the 'Boys regained the lead with Romo's 17-yard TD pass to RB Marion Barber. In the fourth quarter, the Eagles once again took the lead with Westbrook's 1-yard TD run.  Afterwards, the Cowboys rallied with Folk nailing a 47-yard field goal and Barber getting a 1-yard TD run. The Eagles had a chance for a game-winning drive, but Dallas' defense stiffened for the victory, sacking the very elusive McNabb twice. In a game that had 9 lead changes, it also set different point records, including most first half points in MNF history (54) and most combined points in the rivalry's history (78). Also, Terrell Owens (3 receptions for 89 yards and 2 touchdowns) reached 132 career touchdown catches, placing him 2nd on the NFL's all-time touchdown receptions list (behind only Jerry Rice's record of 197).",
-      "original_question": "Who threw the longest touchdown pass of the game?",
-      "original_answer_data": {
-        "spans": [
-          "Tony Romo"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 769
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Ottoman order of battle when the war broke out constituted a total of 12,024 officers; 324,718 other ranks; 47,960 animals; 2,318 artillery pieces, and 388 machine guns. From these a total 920 officers and 42,607 men had been assigned in non-divisional units and services, the remaining 293,206 officers and men were assigned into four Armies. Opposing them and in continuation of their secret prewar settlements of expansion, the three Slavic allies  had extensive plans to coordinate their war efforts: the Serbs and Montenegrins in the theater of Sand\u017eak, the Bulgarians and Serbs in the Macedonian and Bulgaria alone in the Thracian theater. The bulk of the Bulgarian forces  was to attack Thrace, pitted against the Thracian Ottoman Army of 96,273 men and about 26,000 garrison troops or about 115,000 in total, according to Hall's, Erickson's and the Turkish Gen. Staff's 1993 studies. The remaining Ottoman army of about 200,000 was located in Macedonia, pitted against the Serbian  and Greek  armies. It was divided into the Vardar and Macedonian Ottoman armies, with independent static guards around the fortress cities of Ioannina  and Shkod\u00ebr .",
-      "original_question": "How many of the Slavic allies were left by themselves?",
-      "original_answer_data": {
-        "spans": [
-          "1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 670
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Still searching for their first win of the season, the Chiefs flew to Lincoln Financial Field for a Week 3 interconference duel with the Philadelphia Eagles. Kansas City would trail early in the first quarter as Eagles running back LeSean McCoy got a 5-yard touchdown run and quarterback Kevin Kolb got a 1-yard touchdown run. The Chiefs would get on the board with quarterback Matt Cassel's 13-yard touchdown pass to wide receiver Mark Bradley, but Philadelphia came right back with Kolb's 64-yard touchdown pass to wide receiver DeSean Jackson and kicker David Akers' 29-yard field goal. Kansas City's deficit would increase as Akers nailed a 38-yard field goal in the third quarter. In the fourth quarter, the Eagles would put the game away with Kolb's 35-yard touchdown pass to tight end Brent Celek. Afterwards, the Chiefs would end the game with Cassel's 9-yard touchdown pass to wide receiver Bobby Wade.",
-      "original_question": "Which touchdown passes did Matt Cassel make?",
-      "original_answer_data": {
-        "spans": [
-          "13-yard",
-          "9-yard"
-        ],
-        "types": [
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 129
     }
   ],
   "example_indices": [
+    61,
+    62,
+    63,
+    64,
+    65,
     66,
     67,
     68,
     69,
-    70,
-    71,
-    72,
-    73,
-    74,
-    75
+    70
   ],
   "results": [
     {
       "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
+      "answer": "50000-60000",
+      "output": "ANSWER_START\n50000-60000\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_8.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer indicates an error in determining the question type, whereas the golden answer provides a numerical value (3). These answers do not convey the same information."
+        "explanation": "The system answer provides a range (50000-60000) while the golden answer provides a specific number (60000). The range includes the golden answer, but it also includes other numbers that are not the golden answer, meaning the answers are not equivalent."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
+      "answer": "72",
+      "output": "ANSWER_START\n72\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_8.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value: 72."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Darren Sharper",
+      "output": "ANSWER_START\nDarren Sharper\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_8.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and refer to the same person."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "He got sacked more times.",
+      "output": "ANSWER_START\nHe got sacked more times.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_8.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers convey the same information: 'sacked more times'. The system answer simply adds 'He got' to the beginning, which doesn't change the meaning."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "383",
+      "output": "ANSWER_START\n383\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_8.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Let's analyze the passage to determine the number of touchdowns in each half.\n\nFirst Half:\n*   No touchdowns were scored in the first or second quarter.\n\nSecond Half:\n*   Third Quarter: McGahee (Ravens) and Lynch (Bills) scored touchdowns.\n*   Fourth Quarter: Mason (Ravens) scored a touchdown.\n\nTherefore, there were 0 touchdowns in the first half and 3 touchdowns in the second half. The difference is 3 - 0 = 3.\n\nVerification: 3",
+      "output": "ANSWER_START\nLet's analyze the passage to determine the number of touchdowns in each half.\n\nFirst Half:\n*   No touchdowns were scored in the first or second quarter.\n\nSecond Half:\n*   Third Quarter: McGahee (Ravens) and Lynch (Bills) scored touchdowns.\n*   Fourth Quarter: Mason (Ravens) scored a touchdown.\n\nTherefore, there were 0 touchdowns in the first half and 3 touchdowns in the second half. The difference is 3 - 0 = 3.\n\nVerification: 3\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_8.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer correctly identifies the number of touchdowns in each half and calculates the difference, which matches the golden answer of 3."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "75",
+      "output": "ANSWER_START\n75\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_8.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value (75)."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "2",
+      "output": "ANSWER_START\n2\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_8.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer indicates an error, while the golden answer provides a numerical value. They do not convey the same information."
+        "explanation": "The system answer is 2, while the golden answer is 3. These are different numerical values and therefore do not communicate the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
+      "answer": "I am sorry, but the provided text focuses on the Church of Ireland, other Christian denominations, and the growth of Hindu and Muslim populations in general terms, and discusses legal secularization and religious studies in schools. The provided text does not contain the relevant percentages for the muslim and christian populations. Therefore, I am unable to provide an answer.",
+      "output": "ANSWER_START\nI am sorry, but the provided text focuses on the Church of Ireland, other Christian denominations, and the growth of Hindu and Muslim populations in general terms, and discusses legal secularization and religious studies in schools. The provided text does not contain the relevant percentages for the muslim and christian populations. Therefore, I am unable to provide an answer.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_8.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer indicates an error and doesn't provide a numerical answer, while the golden answer is '3'. These answers are not semantically equivalent."
+        "explanation": "The system answer explicitly states that it cannot provide an answer due to missing information, while the golden answer provides a specific numerical value. They are contradictory."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Invalid\n\nQuestion type validation failed (attempt 2/3): Invalid\n\nQuestion type validation failed (attempt 3/3): Invalid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
+      "answer": "13",
+      "output": "ANSWER_START\n13\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_8.jsonl",
       "evaluation": {
-        "match": false,
+        "match": true,
         "confidence": 1,
-        "explanation": "The system answer indicates an error in determining the question type, while the golden answer provides a numerical value (30). These answers do not convey the same information."
+        "explanation": "Both answers are the same numerical value."
       },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_8.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer indicates an error, while the golden answer provides a numerical value (13). These answers do not convey the same information."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_8.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer indicates an error in determining the question type, while the golden answer provides a specific name. These answers do not convey the same information."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_8.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 0.0,
-        "explanation": "The system answer indicates an error and does not provide the correct answer (Tampa Bay) as the golden answer does."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_8.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer indicates an error, while the golden answer provides a name. These are not semantically equivalent."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_8.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer indicates an error and does not provide a numerical answer. The golden answer is the number 1. Therefore, the answers do not match."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Error in determining question type: Failed to determine the question type successfully.",
-      "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_8.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer indicates an error, while the golden answer provides a specific yard measurement. They do not convey the same information."
-      },
-      "match": false
+      "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.0,
-    "correct_count": 0,
+    "accuracy": 0.7,
+    "correct_count": 7,
     "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "3",
-        "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
+        "system_answer": "50000-60000",
+        "golden_answer": "60000",
+        "output": "ANSWER_START\n50000-60000\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer indicates an error in determining the question type, whereas the golden answer provides a numerical value (3). These answers do not convey the same information."
+          "explanation": "The system answer provides a range (50000-60000) while the golden answer provides a specific number (60000). The range includes the golden answer, but it also includes other numbers that are not the golden answer, meaning the answers are not equivalent."
         },
         "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "75",
-        "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "72",
+        "golden_answer": "72",
+        "output": "ANSWER_START\n72\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error, while the golden answer provides a numerical value. They do not convey the same information."
-        },
-        "capability_failures": []
+          "explanation": "Both answers are the same numerical value: 72."
+        }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "3",
-        "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "Darren Sharper",
+        "golden_answer": "Darren Sharper",
+        "output": "ANSWER_START\nDarren Sharper\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error and doesn't provide a numerical answer, while the golden answer is '3'. These answers are not semantically equivalent."
-        },
-        "capability_failures": []
+          "explanation": "Both answers are identical and refer to the same person."
+        }
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "30",
-        "output": "Question type validation failed (attempt 1/3): Invalid\n\nQuestion type validation failed (attempt 2/3): Invalid\n\nQuestion type validation failed (attempt 3/3): Invalid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "He got sacked more times.",
+        "golden_answer": "sacked more times",
+        "output": "ANSWER_START\nHe got sacked more times.\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error in determining the question type, while the golden answer provides a numerical value (30). These answers do not convey the same information."
-        },
-        "capability_failures": []
+          "explanation": "Both answers convey the same information: 'sacked more times'. The system answer simply adds 'He got' to the beginning, which doesn't change the meaning."
+        }
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "13",
-        "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "383",
+        "golden_answer": "383",
+        "output": "ANSWER_START\n383\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error, while the golden answer provides a numerical value (13). These answers do not convey the same information."
-        },
-        "capability_failures": []
+          "explanation": "Both answers are identical and convey the same information."
+        }
       },
       {
         "sample_id": 5,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "Marvin Harrison",
-        "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "Let's analyze the passage to determine the number of touchdowns in each half.\n\nFirst Half:\n*   No touchdowns were scored in the first or second quarter.\n\nSecond Half:\n*   Third Quarter: McGahee (Ravens) and Lynch (Bills) scored touchdowns.\n*   Fourth Quarter: Mason (Ravens) scored a touchdown.\n\nTherefore, there were 0 touchdowns in the first half and 3 touchdowns in the second half. The difference is 3 - 0 = 3.\n\nVerification: 3",
+        "golden_answer": "3",
+        "output": "ANSWER_START\nLet's analyze the passage to determine the number of touchdowns in each half.\n\nFirst Half:\n*   No touchdowns were scored in the first or second quarter.\n\nSecond Half:\n*   Third Quarter: McGahee (Ravens) and Lynch (Bills) scored touchdowns.\n*   Fourth Quarter: Mason (Ravens) scored a touchdown.\n\nTherefore, there were 0 touchdowns in the first half and 3 touchdowns in the second half. The difference is 3 - 0 = 3.\n\nVerification: 3\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error in determining the question type, while the golden answer provides a specific name. These answers do not convey the same information."
-        },
-        "capability_failures": []
+          "explanation": "The system answer correctly identifies the number of touchdowns in each half and calculates the difference, which matches the golden answer of 3."
+        }
       },
       {
         "sample_id": 6,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "Tampa Bay",
-        "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "75",
+        "golden_answer": "75",
+        "output": "ANSWER_START\n75\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
-          "confidence": 0.0,
-          "explanation": "The system answer indicates an error and does not provide the correct answer (Tampa Bay) as the golden answer does."
-        },
-        "capability_failures": []
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (75)."
+        }
       },
       {
         "sample_id": 7,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "Tony Romo",
-        "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
+        "system_answer": "2",
+        "golden_answer": "3",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer indicates an error, while the golden answer provides a name. These are not semantically equivalent."
+          "explanation": "The system answer is 2, while the golden answer is 3. These are different numerical values and therefore do not communicate the same information."
         },
         "capability_failures": []
       },
       {
         "sample_id": 8,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "1",
-        "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
+        "system_answer": "I am sorry, but the provided text focuses on the Church of Ireland, other Christian denominations, and the growth of Hindu and Muslim populations in general terms, and discusses legal secularization and religious studies in schools. The provided text does not contain the relevant percentages for the muslim and christian populations. Therefore, I am unable to provide an answer.",
+        "golden_answer": "30",
+        "output": "ANSWER_START\nI am sorry, but the provided text focuses on the Church of Ireland, other Christian denominations, and the growth of Hindu and Muslim populations in general terms, and discusses legal secularization and religious studies in schools. The provided text does not contain the relevant percentages for the muslim and christian populations. Therefore, I am unable to provide an answer.\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer indicates an error and does not provide a numerical answer. The golden answer is the number 1. Therefore, the answers do not match."
+          "explanation": "The system answer explicitly states that it cannot provide an answer due to missing information, while the golden answer provides a specific numerical value. They are contradictory."
         },
         "capability_failures": []
       },
       {
         "sample_id": 9,
         "success": true,
-        "system_answer": "Error in determining question type: Failed to determine the question type successfully.",
-        "golden_answer": "13-yard",
-        "output": "Question type validation failed (attempt 1/3): Valid\n\nQuestion type validation failed (attempt 2/3): Valid\n\nQuestion type validation failed (attempt 3/3): Valid\n\nANSWER_START\nError in determining question type: Failed to determine the question type successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "13",
+        "golden_answer": "13",
+        "output": "ANSWER_START\n13\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error, while the golden answer provides a specific yard measurement. They do not convey the same information."
-        },
-        "capability_failures": []
+          "explanation": "Both answers are the same numerical value."
+        }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\n\nThe primary runtime error across all error cases is: \"Error in determining question type: Failed to determine the question type successfully.\" This indicates a fundamental failure in the system's ability to categorize and understand the question being asked. The error occurs despite the system passing the \"Question type validation\" check, which suggests a disconnect between the validation logic and the actual question type determination process.\n\n## STRENGTHS\n\nBased on the absence of success cases and the consistent failure in question type determination, it's difficult to definitively identify strengths. However, the following observations can be made:\n\n1.  **Question Validation:** The system has a \"Question type validation\" step that attempts to verify the validity of the question. While this validation is currently ineffective (passing even when the question type determination fails), the existence of this step suggests an awareness of the importance of question understanding.\n2.  **Multiple Attempts:** The system attempts the question type validation multiple times (3 attempts). This shows an attempt to handle potential transient errors or uncertainties.\n\n## WEAKNESSES\n\n1.  **Question Type Determination:** The core weakness is the inability to accurately determine the question type. This failure cascades through the entire problem-solving process, preventing the system from applying the appropriate reasoning and extraction strategies.\n2.  **Ineffective Validation:** The \"Question type validation\" is currently ineffective. It's passing even when the question type determination fails, indicating a flaw in the validation logic itself.\n3.  **Lack of Fallback Mechanisms:** When question type determination fails, the system doesn't have any fallback mechanisms or alternative strategies. It simply returns an error message.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Question Type Understanding:** The inability to accurately determine the question type is the primary bottleneck. Without this, the system cannot apply the correct logic to extract relevant information and generate a correct answer.\n\n## ERROR PATTERNS\n\nThe consistent \"Error in determining question type\" message across all error cases suggests a systematic failure in the question understanding module. The validation logic always passes, giving a false sense of security before the crucial question type determination step fails, causing downstream processes to terminate prematurely.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the failure of the question type determination module. This module needs to be redesigned or debugged to correctly classify the types of questions being asked (e.g., comparison, extraction, calculation). The validation logic needs to be checked for correctness or adjusted.\n\n## IMPROVEMENT AREAS\n\n1.  **Question Understanding:** Improve the accuracy and robustness of the question type determination module. This might involve using more sophisticated NLP techniques, training on a larger and more diverse dataset, or incorporating external knowledge sources.\n2.  **Validation Logic:** Correct the \"Question type validation\" logic to ensure it accurately reflects the success or failure of the question type determination process. The validation should be sensitive to the determined question type.\n3.  **Error Handling:** Implement more robust error handling mechanisms. When question type determination fails, the system should attempt alternative strategies or provide more informative error messages. Perhaps it could try to classify into broader categories before narrowing it down or simply use keyword extraction based on expected answer types (names, dates, numbers).\n4. Add print statements at various stages of question type analysis to see exactly what information the program is considering.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Refactor Question Type Determination:** Re-evaluate the algorithm or model used for question type determination. Consider using a pre-trained language model fine-tuned for question classification. If currently rule-based, transition to a machine-learning approach, or augment the existing rule-based system with a learned component.\n2.  **Debug Validation Logic:** Thoroughly review the \"Question type validation\" code to identify why it's passing even when the question type determination fails. Add logging statements to track the input and output of the validation function.\n3.  **Implement Fallback Strategy:** If question type determination fails, implement a fallback strategy. This could involve attempting to extract keywords from the question and passage to identify potential answer candidates. Or categorize question into broader categories.\n4.  **Dataset Augmentation:** Expand the training dataset with more examples of various question types and negative examples of incorrect classifications.\n5.  **Implement Intermediate Output Logging:** Incorporate logging mechanisms to record the intermediate outputs of the question type determination process. This will allow for more detailed analysis of the reasoning path and identification of specific failure points.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** information\\_extraction, decision\\_making\n*   **Sample ID 1:** information\\_extraction, decision\\_making\n*   **Sample ID 2:** information\\_extraction, decision\\_making\n*   **Sample ID 3:** information\\_extraction, decision\\_making\n*   **Sample ID 4:** information\\_extraction, decision\\_making\n*   **Sample ID 5:** information\\_extraction, decision\\_making\n*   **Sample ID 6:** information\\_extraction, decision\\_making\n*   **Sample ID 7:** information\\_extraction, decision\\_making\n*   **Sample ID 8:** information\\_extraction, decision\\_making\n*   **Sample ID 9:** information\\_extraction, decision\\_making\n",
-      "strengths": [],
-      "weaknesses": [],
-      "primary_issue": "The most critical problem is the failure of the question type determination module. This module needs to be redesigned or debugged to correctly classify the types of questions being asked (e.g., comparison, extraction, calculation). The validation logic needs to be checked for correctness or adjusted.",
-      "improvement_suggestions": [],
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors (like JSONDecodeError or TypeError) were found in the provided error cases.\n\n## STRENGTHS\n\n*   **Information Extraction (Generally Good):** The system successfully extracts relevant information from the passage in most cases where it provides a correct answer. It identifies players, teams, scores, and key events.\n*   **Calculation (When Information is Available):** When the system extracts the correct numerical values, it performs the necessary calculations correctly (addition, subtraction, etc.). This is evident in Success Case 5 where it accurately calculated touchdowns in each half.\n\n## WEAKNESSES\n\n*   **Numerical Range Interpretation:** The system struggles with interpreting numerical ranges, evidenced by the error in Sample ID 0. It outputs a range when a specific number is needed.\n*   **Incomplete Information Extraction and Aggregation:** The system misses key pieces of information required to answer some questions. This is evident in Sample ID 7 and 8, where the system fails to extract all touchdown runs of the same yardage and fails to identify percentages for muslims and christians.\n*   **Difficulty with Implied Information:** The system struggles with questions that require combining multiple pieces of information and reasoning about them. Sample ID 7 requires identifying instances of the same yardage for touchdowns, a step beyond simple extraction.\n\n## CRITICAL BOTTLENECKS\n\n*   **Incomplete Information Extraction and Reasoning Chain:** The system is unable to reliably extract *all* relevant pieces of information from the passage and then use this information to perform the necessary reasoning to answer the question. This prevents correct numerical calculations and identifying qualifying elements within the text.\n*   **Lack of precise output formatting:** The system sometimes gives a range, when a specific number is expected.\n\n## ERROR PATTERNS\n\n*   **Numerical Misinterpretation:** In several cases, the system fails to interpret numbers correctly (ranges, specific values that need aggregation).\n*   **Missing Information Leads to \"I Don't Know\" Responses:** When the system misses essential information, it defaults to stating it cannot answer, even if some calculation or reasoning *could* be done with partial information.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's unreliable ability to extract *all* relevant information from the passage to perform correct calculations and to discern the required level of precision for numerical answers. This manifests as incorrect calculations, failure to identify key elements, and overly broad range-based answers when a specific number is needed.\n\n## IMPROVEMENT AREAS\n\n*   **Information Extraction:** This needs the most significant improvement. The system must be more robust at identifying *all* relevant pieces of information needed to answer a given question, even when the information is not explicitly stated or requires aggregation.\n*   **Reasoning and Calculation:** Enhance the system's ability to perform multi-step reasoning and calculations based on the extracted information, including identifying instances with same numerical values and generating differences in the numbers.\n*   **Output Precision and Range Handling:** The system should be able to understand when the question requires a specific number versus a range and format its answer accordingly.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Enhanced Information Extraction Module:**\n    *   Implement more sophisticated techniques for identifying entities, relationships, and attributes within the passage. This may involve using semantic parsing or relation extraction models.\n    *   Implement a system that breaks down complex extraction tasks into smaller, more manageable steps, ensuring that *all* relevant information is considered.\n    *   Add logic to specifically handle numerical ranges, identify the individual numbers and relationships between them.\n2.  **Improved Reasoning Engine:**\n    *   Develop a more robust reasoning engine that can chain together multiple inferences and calculations based on extracted information.\n    *   Implement a constraint satisfaction mechanism to ensure that the generated answers satisfy all constraints mentioned in the passage.\n3.  **Output Formatting and Precision Control:**\n    *   Add a module that analyzes the question to determine the expected output format (e.g., a specific number, a range, a named entity).\n    *   Fine-tune the system to provide precise answers whenever possible and to only provide ranges when the question explicitly asks for them or when uncertainty exists. Add a rule to consider the end-points of ranges as options.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   solution_generation: Failed to generate a precise number instead of range.\n*   **Sample ID 7:**\n    *   information_extraction: Failed to identify *all* touchdown runs with the same yardage.\n    *   solution_generation: Generated incorrect answer based on incomplete information.\n*   **Sample ID 8:**\n    *   information_extraction: Failed to extract the relevant percentages for muslim and christian populations.\n    *   decision_making: The system incorrectly decided that it could not answer the question, despite some information being available.\n",
+      "strengths": [
+        "Information Extraction (Generally Good):** The system successfully extracts relevant information from the passage in most cases where it provides a correct answer. It identifies players, teams, scores, and key events.",
+        "Calculation (When Information is Available):** When the system extracts the correct numerical values, it performs the necessary calculations correctly (addition, subtraction, etc.). This is evident in Success Case 5 where it accurately calculated touchdowns in each half."
+      ],
+      "weaknesses": [
+        "Numerical Range Interpretation:** The system struggles with interpreting numerical ranges, evidenced by the error in Sample ID 0. It outputs a range when a specific number is needed.",
+        "Incomplete Information Extraction and Aggregation:** The system misses key pieces of information required to answer some questions. This is evident in Sample ID 7 and 8, where the system fails to extract all touchdown runs of the same yardage and fails to identify percentages for muslims and christians.",
+        "Difficulty with Implied Information:** The system struggles with questions that require combining multiple pieces of information and reasoning about them. Sample ID 7 requires identifying instances of the same yardage for touchdowns, a step beyond simple extraction."
+      ],
+      "primary_issue": "The primary issue is the system's unreliable ability to extract *all* relevant information from the passage to perform correct calculations and to discern the required level of precision for numerical answers. This manifests as incorrect calculations, failure to identify key elements, and overly broad range-based answers when a specific number is needed.",
+      "improvement_suggestions": [
+        "Implement more sophisticated techniques for identifying entities, relationships, and attributes within the passage. This may involve using semantic parsing or relation extraction models.",
+        "Implement a system that breaks down complex extraction tasks into smaller, more manageable steps, ensuring that *all* relevant information is considered.",
+        "Add logic to specifically handle numerical ranges, identify the individual numbers and relationships between them.",
+        "Develop a more robust reasoning engine that can chain together multiple inferences and calculations based on extracted information.",
+        "Implement a constraint satisfaction mechanism to ensure that the generated answers satisfy all constraints mentioned in the passage.",
+        "Add a module that analyzes the question to determine the expected output format (e.g., a specific number, a range, a named entity).",
+        "Fine-tune the system to provide precise answers whenever possible and to only provide ranges when the question explicitly asks for them or when uncertainty exists. Add a rule to consider the end-points of ranges as options."
+      ],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## AI System Capability Report\n\n**System Name:** (Please insert system name here)\n**Date of Assessment:** October 26, 2023\n**Version:** (Please insert system version here)\n\n### PERFORMANCE SUMMARY:\n\n*   **Accuracy:** 0.00 (0/10)\n*   **Error samples:** 10/10\n\n### ERROR ANALYSIS REPORT:\n\n(As provided in the prompt)\n\n### SAMPLE EXECUTION OUTPUTS:\n\n(As provided in the prompt)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs consistently show the \"Question type validation\" passing (reporting \"Valid\") across all three attempts, immediately followed by a failure in the \"Question type determination\" module. This highlights a critical disconnect: the validation logic isn't accurately reflecting the system's ability to understand the question. The outputs reinforce the Error Analysis Report's finding that the validation mechanism is fundamentally flawed. The consistent and repetitive nature of the error across all samples indicates a systematic problem within the core question understanding component, not an intermittent or random glitch.\n\n## CAPABILITY ASSESSMENT\n\nCurrently, the AI system demonstrates a severe deficiency in understanding question types, rendering it practically non-functional. While it possesses a *validation* mechanism, this is demonstrably ineffective. The system is unable to progress beyond initial question processing, resulting in a complete failure to extract information or provide answers. The system, as it stands, does not exhibit the capabilities it's mapped to (information extraction, decision-making).\n\n## KEY STRENGTHS\n\n*   **Attempted Validation:** The inclusion of a \"Question type validation\" step, even if currently ineffective, indicates a recognition of the importance of question understanding. This provides a framework for improvement.\n*   **Multiple Attempts:** The system attempts question type validation multiple times (3 attempts), showcasing a rudimentary attempt to handle uncertainty.\n\n## KEY WEAKNESSES\n\n*   **Fundamental Failure in Question Type Determination:** The inability to accurately determine question type is the system's primary and most critical weakness.\n*   **Ineffective and Misleading Validation Logic:** The \"Question type validation\" module consistently provides a \"Valid\" result even when the question type determination fails, creating a false sense of security and masking the underlying problem. This is actively detrimental as it prevents early identification of errors.\n*   **Lack of Fallback Mechanisms:** Absence of alternative strategies or error handling procedures when question type determination fails results in complete system failure.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Question Understanding**, specifically the accuracy and reliability of the question type determination module. Correctly classifying question types is a fundamental prerequisite for all subsequent processes.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Prioritize Question Type Determination Module Debugging/Redesign:**\n    *   **Immediate Action:** Insert extensive logging within the question type determination module. Log the input question, intermediate processing steps, the criteria used for classification, and the final determined question type. This detailed logging is crucial for identifying *why* the classification is failing.\n    *   **Short-Term Action:** Replace the current question type determination logic with a simpler, more robust rule-based system or a fine-tuned pre-trained question classification model. The goal is to establish a baseline of acceptable performance, even if limited.\n2.  **Address the Flawed Validation Logic:**\n    *   **Immediate Action:** Revamp the \"Question type validation\" module. Instead of a simple \"Valid/Invalid\" output, the validation should assess the *confidence* of the question type determination. The validation logic should consider not just the *presence* of a question type, but also the *reliability* of the determined type.\n    *   **Short-Term Action:** If a reliable validation mechanism cannot be immediately implemented, temporarily *remove* the existing validation step. The false \"Valid\" signals are actively hindering debugging efforts.\n3.  **Implement a Basic Fallback Mechanism:**\n    *   **Short-Term Action:** Introduce a rudimentary fallback. If question type determination fails (or has low confidence based on the improved validation), trigger a keyword-based extraction strategy. For instance, if the question contains \"when,\" attempt to extract a date. This provides a minimal level of functionality even when question type identification fails.\n4.  **Dataset Analysis and Augmentation:**\n    *   **Ongoing Action:** Analyze the current training dataset (if applicable) to identify biases or gaps in coverage. Augment the dataset with more diverse question types, focusing on examples that are currently causing errors.\n\n## CAPABILITY TREND\n\nThe capabilities are currently **declining**. The system demonstrably lacks the core functionality it is intended to perform. Until the question type determination issue is resolved and the validation logic is corrected, the system's capabilities will remain severely limited.\n",
-      "strengths": [],
-      "weaknesses": [],
-      "improvement_suggestions": [],
+      "text_report": "Okay, I will provide a comprehensive capability report for your AI system based on the provided performance summary, error analysis, sample execution outputs, and instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs highlight the following issues:\n\n*   **Range Output (Sample ID 0):** The system provides a range (\"50000-60000\") when likely a more precise number was expected. This confirms the weakness in numerical range interpretation and output precision.\n*   **Successful Extraction and Precision (Sample ID 2):** The system successfully extracted the number \"72\", demonstrating that the numerical interpretation and extraction is possible.\n*   **Successful Extraction and Named Entity Recognition (Sample ID 3):** The system correctly extracted the name \"Darren Sharper\", showcasing its ability to perform entity recognition.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates a baseline capability in information extraction, particularly for named entities and simple numerical values. However, its ability to consistently and accurately extract *all* relevant information and handle numerical ranges with the necessary precision is lacking. This inconsistency undermines its overall performance.\n\n### KEY STRENGTHS\n\n*   **Basic Information Extraction:** Ability to identify and extract named entities (e.g., player names) and simple numerical values.\n*   **Calculation Accuracy (Conditional):** When correct information is extracted, calculations are generally performed correctly.\n\n### KEY WEAKNESSES\n\n*   **Incomplete Information Extraction:** Failing to extract *all* relevant data needed for reasoning and calculation.\n*   **Numerical Range Misinterpretation/Imprecise Output:** Producing ranges when a specific number is expected.\n*   **Reasoning Gaps:** Struggles with multi-step reasoning and combining multiple pieces of information.\n\n### IMPROVEMENT FOCUS\n\n**Consistent and Complete Information Extraction** is the single most important capability to focus on improving. Without reliably extracting all relevant information, the reasoning and calculation abilities are severely limited, and the output precision suffers.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement an Information Extraction Pipeline with Error Handling and Contextual Awareness:**\n    *   **Recommendation:** Design a multi-stage information extraction pipeline. Start with coarse-grained extraction (identifying potential entities and numbers).  Follow with fine-grained extraction focused on relationships and specific attributes relevant to the question. Implement error handling to gracefully manage incomplete extraction.\n    *   **Rationale:** A pipeline allows for modular improvement and targeted error correction. Contextual awareness helps disambiguate information and identify relevant details.\n    *   **Example:** For Sample ID 7, a first stage could identify all touchdown runs. A second stage would filter these runs by yardage and aggregate the results.\n2.  **Implement Specific Rules for Handling Numerical Ranges:**\n    *   **Recommendation:** Add rules to the output formatting module to analyze the question's requirements. If a single numerical answer is expected, implement a strategy for choosing a single number from a range (e.g., take the average or the most likely value based on context). Prioritize specific numbers over ranges.\n    *   **Rationale:** Provides a mechanism for handling imprecise output and improving accuracy.\n    *   **Example:** If the system extracts \"50000-60000\" and a single number is needed, attempt to calculate the average or median value. Consider adding a confidence score to the chosen value, indicating the uncertainty associated with it.\n3.  **Implement a Mechanism for Question Decomposition:**\n    *   **Recommendation:** Before attempting to answer the question, decompose it into a series of sub-questions that explicitly identify the required information. Then, use these sub-questions to guide the information extraction process.\n    *   **Rationale:** Decomposing the question forces the system to identify *all* of the necessary information, improving the completeness of extraction.\n    *   **Example:** For a question requiring the total number of touchdown runs of 5 yards or less, decompose it into:\n        *   \"Identify all touchdown runs.\"\n        *   \"For each run, what is the yardage?\"\n        *   \"Filter runs where yardage is 5 or less.\"\n        *   \"Count the remaining runs.\"\n\n### CAPABILITY TREND\n\nBased on the current performance (70% accuracy) and the identified weaknesses, the capability trend is currently **stable but with potential for improvement**.  Addressing the information extraction bottleneck has the highest potential to improve the system's overall performance. Neglecting this aspect will likely result in a stagnant capability trend.\n",
+      "strengths": [
+        "Information Extraction (Generally Good):** The system successfully extracts relevant information from the passage in most cases where it provides a correct answer. It identifies players, teams, scores, and key events.",
+        "Calculation (When Information is Available):** When the system extracts the correct numerical values, it performs the necessary calculations correctly (addition, subtraction, etc.). This is evident in Success Case 5 where it accurately calculated touchdowns in each half."
+      ],
+      "weaknesses": [
+        "Numerical Range Interpretation:** The system struggles with interpreting numerical ranges, evidenced by the error in Sample ID 0. It outputs a range when a specific number is needed.",
+        "Incomplete Information Extraction and Aggregation:** The system misses key pieces of information required to answer some questions. This is evident in Sample ID 7 and 8, where the system fails to extract all touchdown runs of the same yardage and fails to identify percentages for muslims and christians.",
+        "Difficulty with Implied Information:** The system struggles with questions that require combining multiple pieces of information and reasoning about them. Sample ID 7 requires identifying instances of the same yardage for touchdowns, a step beyond simple extraction."
+      ],
+      "improvement_suggestions": [
+        "Implement more sophisticated techniques for identifying entities, relationships, and attributes within the passage. This may involve using semantic parsing or relation extraction models.",
+        "Implement a system that breaks down complex extraction tasks into smaller, more manageable steps, ensuring that *all* relevant information is considered.",
+        "Add logic to specifically handle numerical ranges, identify the individual numbers and relationships between them.",
+        "Develop a more robust reasoning engine that can chain together multiple inferences and calculations based on extracted information.",
+        "Implement a constraint satisfaction mechanism to ensure that the generated answers satisfy all constraints mentioned in the passage.",
+        "Add a module that analyzes the question to determine the expected output format (e.g., a specific number, a range, a named entity).",
+        "Fine-tune the system to provide precise answers whenever possible and to only provide ranges when the question explicitly asks for them or when uncertainty exists. Add a rule to consider the end-points of ranges as options."
+      ],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\n\nThe primary runtime error across all error cases is: \"Error in determining question type: Failed to determine the question type successfully.\" This indicates a fundamental failure in the system's ability to categorize and understand the question being asked. The error occurs despite the system passing the \"Question type validation\" check, which suggests a disconnect between the validation logic and the actual question type determination process.\n\n## STRENGTHS\n\nBased on the absence of success cases and the consistent failure in question type determination, it's difficult to definitively identify strengths. However, the following observations can be made:\n\n1.  **Question Validation:** The system has a \"Question type validation\" step that attempts to verify the validity of the question. While this validation is currently ineffective (passing even when the question type determination fails), the existence of this step suggests an awareness of the importance of question understanding.\n2.  **Multiple Attempts:** The system attempts the question type validation multiple times (3 attempts). This shows an attempt to handle potential transient errors or uncertainties.\n\n## WEAKNESSES\n\n1.  **Question Type Determination:** The core weakness is the inability to accurately determine the question type. This failure cascades through the entire problem-solving process, preventing the system from applying the appropriate reasoning and extraction strategies.\n2.  **Ineffective Validation:** The \"Question type validation\" is currently ineffective. It's passing even when the question type determination fails, indicating a flaw in the validation logic itself.\n3.  **Lack of Fallback Mechanisms:** When question type determination fails, the system doesn't have any fallback mechanisms or alternative strategies. It simply returns an error message.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Question Type Understanding:** The inability to accurately determine the question type is the primary bottleneck. Without this, the system cannot apply the correct logic to extract relevant information and generate a correct answer.\n\n## ERROR PATTERNS\n\nThe consistent \"Error in determining question type\" message across all error cases suggests a systematic failure in the question understanding module. The validation logic always passes, giving a false sense of security before the crucial question type determination step fails, causing downstream processes to terminate prematurely.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the failure of the question type determination module. This module needs to be redesigned or debugged to correctly classify the types of questions being asked (e.g., comparison, extraction, calculation). The validation logic needs to be checked for correctness or adjusted.\n\n## IMPROVEMENT AREAS\n\n1.  **Question Understanding:** Improve the accuracy and robustness of the question type determination module. This might involve using more sophisticated NLP techniques, training on a larger and more diverse dataset, or incorporating external knowledge sources.\n2.  **Validation Logic:** Correct the \"Question type validation\" logic to ensure it accurately reflects the success or failure of the question type determination process. The validation should be sensitive to the determined question type.\n3.  **Error Handling:** Implement more robust error handling mechanisms. When question type determination fails, the system should attempt alternative strategies or provide more informative error messages. Perhaps it could try to classify into broader categories before narrowing it down or simply use keyword extraction based on expected answer types (names, dates, numbers).\n4. Add print statements at various stages of question type analysis to see exactly what information the program is considering.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Refactor Question Type Determination:** Re-evaluate the algorithm or model used for question type determination. Consider using a pre-trained language model fine-tuned for question classification. If currently rule-based, transition to a machine-learning approach, or augment the existing rule-based system with a learned component.\n2.  **Debug Validation Logic:** Thoroughly review the \"Question type validation\" code to identify why it's passing even when the question type determination fails. Add logging statements to track the input and output of the validation function.\n3.  **Implement Fallback Strategy:** If question type determination fails, implement a fallback strategy. This could involve attempting to extract keywords from the question and passage to identify potential answer candidates. Or categorize question into broader categories.\n4.  **Dataset Augmentation:** Expand the training dataset with more examples of various question types and negative examples of incorrect classifications.\n5.  **Implement Intermediate Output Logging:** Incorporate logging mechanisms to record the intermediate outputs of the question type determination process. This will allow for more detailed analysis of the reasoning path and identification of specific failure points.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** information\\_extraction, decision\\_making\n*   **Sample ID 1:** information\\_extraction, decision\\_making\n*   **Sample ID 2:** information\\_extraction, decision\\_making\n*   **Sample ID 3:** information\\_extraction, decision\\_making\n*   **Sample ID 4:** information\\_extraction, decision\\_making\n*   **Sample ID 5:** information\\_extraction, decision\\_making\n*   **Sample ID 6:** information\\_extraction, decision\\_making\n*   **Sample ID 7:** information\\_extraction, decision\\_making\n*   **Sample ID 8:** information\\_extraction, decision\\_making\n*   **Sample ID 9:** information\\_extraction, decision\\_making\n",
-    "capability_report_text": "## AI System Capability Report\n\n**System Name:** (Please insert system name here)\n**Date of Assessment:** October 26, 2023\n**Version:** (Please insert system version here)\n\n### PERFORMANCE SUMMARY:\n\n*   **Accuracy:** 0.00 (0/10)\n*   **Error samples:** 10/10\n\n### ERROR ANALYSIS REPORT:\n\n(As provided in the prompt)\n\n### SAMPLE EXECUTION OUTPUTS:\n\n(As provided in the prompt)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs consistently show the \"Question type validation\" passing (reporting \"Valid\") across all three attempts, immediately followed by a failure in the \"Question type determination\" module. This highlights a critical disconnect: the validation logic isn't accurately reflecting the system's ability to understand the question. The outputs reinforce the Error Analysis Report's finding that the validation mechanism is fundamentally flawed. The consistent and repetitive nature of the error across all samples indicates a systematic problem within the core question understanding component, not an intermittent or random glitch.\n\n## CAPABILITY ASSESSMENT\n\nCurrently, the AI system demonstrates a severe deficiency in understanding question types, rendering it practically non-functional. While it possesses a *validation* mechanism, this is demonstrably ineffective. The system is unable to progress beyond initial question processing, resulting in a complete failure to extract information or provide answers. The system, as it stands, does not exhibit the capabilities it's mapped to (information extraction, decision-making).\n\n## KEY STRENGTHS\n\n*   **Attempted Validation:** The inclusion of a \"Question type validation\" step, even if currently ineffective, indicates a recognition of the importance of question understanding. This provides a framework for improvement.\n*   **Multiple Attempts:** The system attempts question type validation multiple times (3 attempts), showcasing a rudimentary attempt to handle uncertainty.\n\n## KEY WEAKNESSES\n\n*   **Fundamental Failure in Question Type Determination:** The inability to accurately determine question type is the system's primary and most critical weakness.\n*   **Ineffective and Misleading Validation Logic:** The \"Question type validation\" module consistently provides a \"Valid\" result even when the question type determination fails, creating a false sense of security and masking the underlying problem. This is actively detrimental as it prevents early identification of errors.\n*   **Lack of Fallback Mechanisms:** Absence of alternative strategies or error handling procedures when question type determination fails results in complete system failure.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Question Understanding**, specifically the accuracy and reliability of the question type determination module. Correctly classifying question types is a fundamental prerequisite for all subsequent processes.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Prioritize Question Type Determination Module Debugging/Redesign:**\n    *   **Immediate Action:** Insert extensive logging within the question type determination module. Log the input question, intermediate processing steps, the criteria used for classification, and the final determined question type. This detailed logging is crucial for identifying *why* the classification is failing.\n    *   **Short-Term Action:** Replace the current question type determination logic with a simpler, more robust rule-based system or a fine-tuned pre-trained question classification model. The goal is to establish a baseline of acceptable performance, even if limited.\n2.  **Address the Flawed Validation Logic:**\n    *   **Immediate Action:** Revamp the \"Question type validation\" module. Instead of a simple \"Valid/Invalid\" output, the validation should assess the *confidence* of the question type determination. The validation logic should consider not just the *presence* of a question type, but also the *reliability* of the determined type.\n    *   **Short-Term Action:** If a reliable validation mechanism cannot be immediately implemented, temporarily *remove* the existing validation step. The false \"Valid\" signals are actively hindering debugging efforts.\n3.  **Implement a Basic Fallback Mechanism:**\n    *   **Short-Term Action:** Introduce a rudimentary fallback. If question type determination fails (or has low confidence based on the improved validation), trigger a keyword-based extraction strategy. For instance, if the question contains \"when,\" attempt to extract a date. This provides a minimal level of functionality even when question type identification fails.\n4.  **Dataset Analysis and Augmentation:**\n    *   **Ongoing Action:** Analyze the current training dataset (if applicable) to identify biases or gaps in coverage. Augment the dataset with more diverse question types, focusing on examples that are currently causing errors.\n\n## CAPABILITY TREND\n\nThe capabilities are currently **declining**. The system demonstrably lacks the core functionality it is intended to perform. Until the question type determination issue is resolved and the validation logic is corrected, the system's capabilities will remain severely limited.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors (like JSONDecodeError or TypeError) were found in the provided error cases.\n\n## STRENGTHS\n\n*   **Information Extraction (Generally Good):** The system successfully extracts relevant information from the passage in most cases where it provides a correct answer. It identifies players, teams, scores, and key events.\n*   **Calculation (When Information is Available):** When the system extracts the correct numerical values, it performs the necessary calculations correctly (addition, subtraction, etc.). This is evident in Success Case 5 where it accurately calculated touchdowns in each half.\n\n## WEAKNESSES\n\n*   **Numerical Range Interpretation:** The system struggles with interpreting numerical ranges, evidenced by the error in Sample ID 0. It outputs a range when a specific number is needed.\n*   **Incomplete Information Extraction and Aggregation:** The system misses key pieces of information required to answer some questions. This is evident in Sample ID 7 and 8, where the system fails to extract all touchdown runs of the same yardage and fails to identify percentages for muslims and christians.\n*   **Difficulty with Implied Information:** The system struggles with questions that require combining multiple pieces of information and reasoning about them. Sample ID 7 requires identifying instances of the same yardage for touchdowns, a step beyond simple extraction.\n\n## CRITICAL BOTTLENECKS\n\n*   **Incomplete Information Extraction and Reasoning Chain:** The system is unable to reliably extract *all* relevant pieces of information from the passage and then use this information to perform the necessary reasoning to answer the question. This prevents correct numerical calculations and identifying qualifying elements within the text.\n*   **Lack of precise output formatting:** The system sometimes gives a range, when a specific number is expected.\n\n## ERROR PATTERNS\n\n*   **Numerical Misinterpretation:** In several cases, the system fails to interpret numbers correctly (ranges, specific values that need aggregation).\n*   **Missing Information Leads to \"I Don't Know\" Responses:** When the system misses essential information, it defaults to stating it cannot answer, even if some calculation or reasoning *could* be done with partial information.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's unreliable ability to extract *all* relevant information from the passage to perform correct calculations and to discern the required level of precision for numerical answers. This manifests as incorrect calculations, failure to identify key elements, and overly broad range-based answers when a specific number is needed.\n\n## IMPROVEMENT AREAS\n\n*   **Information Extraction:** This needs the most significant improvement. The system must be more robust at identifying *all* relevant pieces of information needed to answer a given question, even when the information is not explicitly stated or requires aggregation.\n*   **Reasoning and Calculation:** Enhance the system's ability to perform multi-step reasoning and calculations based on the extracted information, including identifying instances with same numerical values and generating differences in the numbers.\n*   **Output Precision and Range Handling:** The system should be able to understand when the question requires a specific number versus a range and format its answer accordingly.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Enhanced Information Extraction Module:**\n    *   Implement more sophisticated techniques for identifying entities, relationships, and attributes within the passage. This may involve using semantic parsing or relation extraction models.\n    *   Implement a system that breaks down complex extraction tasks into smaller, more manageable steps, ensuring that *all* relevant information is considered.\n    *   Add logic to specifically handle numerical ranges, identify the individual numbers and relationships between them.\n2.  **Improved Reasoning Engine:**\n    *   Develop a more robust reasoning engine that can chain together multiple inferences and calculations based on extracted information.\n    *   Implement a constraint satisfaction mechanism to ensure that the generated answers satisfy all constraints mentioned in the passage.\n3.  **Output Formatting and Precision Control:**\n    *   Add a module that analyzes the question to determine the expected output format (e.g., a specific number, a range, a named entity).\n    *   Fine-tune the system to provide precise answers whenever possible and to only provide ranges when the question explicitly asks for them or when uncertainty exists. Add a rule to consider the end-points of ranges as options.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   solution_generation: Failed to generate a precise number instead of range.\n*   **Sample ID 7:**\n    *   information_extraction: Failed to identify *all* touchdown runs with the same yardage.\n    *   solution_generation: Generated incorrect answer based on incomplete information.\n*   **Sample ID 8:**\n    *   information_extraction: Failed to extract the relevant percentages for muslim and christian populations.\n    *   decision_making: The system incorrectly decided that it could not answer the question, despite some information being available.\n",
+    "capability_report_text": "Okay, I will provide a comprehensive capability report for your AI system based on the provided performance summary, error analysis, sample execution outputs, and instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs highlight the following issues:\n\n*   **Range Output (Sample ID 0):** The system provides a range (\"50000-60000\") when likely a more precise number was expected. This confirms the weakness in numerical range interpretation and output precision.\n*   **Successful Extraction and Precision (Sample ID 2):** The system successfully extracted the number \"72\", demonstrating that the numerical interpretation and extraction is possible.\n*   **Successful Extraction and Named Entity Recognition (Sample ID 3):** The system correctly extracted the name \"Darren Sharper\", showcasing its ability to perform entity recognition.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates a baseline capability in information extraction, particularly for named entities and simple numerical values. However, its ability to consistently and accurately extract *all* relevant information and handle numerical ranges with the necessary precision is lacking. This inconsistency undermines its overall performance.\n\n### KEY STRENGTHS\n\n*   **Basic Information Extraction:** Ability to identify and extract named entities (e.g., player names) and simple numerical values.\n*   **Calculation Accuracy (Conditional):** When correct information is extracted, calculations are generally performed correctly.\n\n### KEY WEAKNESSES\n\n*   **Incomplete Information Extraction:** Failing to extract *all* relevant data needed for reasoning and calculation.\n*   **Numerical Range Misinterpretation/Imprecise Output:** Producing ranges when a specific number is expected.\n*   **Reasoning Gaps:** Struggles with multi-step reasoning and combining multiple pieces of information.\n\n### IMPROVEMENT FOCUS\n\n**Consistent and Complete Information Extraction** is the single most important capability to focus on improving. Without reliably extracting all relevant information, the reasoning and calculation abilities are severely limited, and the output precision suffers.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement an Information Extraction Pipeline with Error Handling and Contextual Awareness:**\n    *   **Recommendation:** Design a multi-stage information extraction pipeline. Start with coarse-grained extraction (identifying potential entities and numbers).  Follow with fine-grained extraction focused on relationships and specific attributes relevant to the question. Implement error handling to gracefully manage incomplete extraction.\n    *   **Rationale:** A pipeline allows for modular improvement and targeted error correction. Contextual awareness helps disambiguate information and identify relevant details.\n    *   **Example:** For Sample ID 7, a first stage could identify all touchdown runs. A second stage would filter these runs by yardage and aggregate the results.\n2.  **Implement Specific Rules for Handling Numerical Ranges:**\n    *   **Recommendation:** Add rules to the output formatting module to analyze the question's requirements. If a single numerical answer is expected, implement a strategy for choosing a single number from a range (e.g., take the average or the most likely value based on context). Prioritize specific numbers over ranges.\n    *   **Rationale:** Provides a mechanism for handling imprecise output and improving accuracy.\n    *   **Example:** If the system extracts \"50000-60000\" and a single number is needed, attempt to calculate the average or median value. Consider adding a confidence score to the chosen value, indicating the uncertainty associated with it.\n3.  **Implement a Mechanism for Question Decomposition:**\n    *   **Recommendation:** Before attempting to answer the question, decompose it into a series of sub-questions that explicitly identify the required information. Then, use these sub-questions to guide the information extraction process.\n    *   **Rationale:** Decomposing the question forces the system to identify *all* of the necessary information, improving the completeness of extraction.\n    *   **Example:** For a question requiring the total number of touchdown runs of 5 yards or less, decompose it into:\n        *   \"Identify all touchdown runs.\"\n        *   \"For each run, what is the yardage?\"\n        *   \"Filter runs where yardage is 5 or less.\"\n        *   \"Count the remaining runs.\"\n\n### CAPABILITY TREND\n\nBased on the current performance (70% accuracy) and the identified weaknesses, the capability trend is currently **stable but with potential for improvement**.  Addressing the information extraction bottleneck has the highest potential to improve the system's overall performance. Neglecting this aspect will likely result in a stagnant capability trend.\n"
   },
-  "progressive_testing": null,
-  "execution_time": 122.37946057319641,
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 9,
+    "accuracy": 0.9,
+    "results": [
+      {
+        "success": true,
+        "answer": "Next quarter",
+        "output": "ANSWER_START\nNext quarter\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": "first quarter",
+        "evaluation": {
+          "match": false,
+          "confidence": 0.7,
+          "explanation": "\"Next quarter\" and \"first quarter\" do not necessarily refer to the same time period. \"Next quarter\" refers to the quarter immediately following the current one, while \"first quarter\" refers specifically to the first three months of the year (January, February, March)."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "3",
+        "output": "ANSWER_START\n3\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": "3",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (3)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Shaun Suisham",
+        "output": "ANSWER_START\nShaun Suisham\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": "Shaun Suisham, Shaun Suisham",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer and the golden answer both provide the same name, 'Shaun Suisham'. The repetition in the golden answer does not change the core information being conveyed."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "0.  2%",
+        "output": "ANSWER_START\n0.  2%\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": ".2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value. 0.2% is equal to 0.002 and .2 is 0.2, the only difference is if they want the percentage or the value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "47",
+        "output": "ANSWER_START\n47\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": "47",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Antonio Guzm\u00e1n Fern\u00e1ndez",
+        "output": "ANSWER_START\nAntonio Guzm\u00e1n Fern\u00e1ndez\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": "Antonio Guzm\u00e1n Fern\u00e1ndez",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical, conveying the same information: Antonio Guzm\u00e1n Fern\u00e1ndez."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "45 to 64",
+        "output": "ANSWER_START\n45 to 64\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": "45 to 64",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers provide the same range, 45 to 64."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1",
+        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same single number, 1."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "91.  5%",
+        "output": "ANSWER_START\n91.  5%\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": "91.5",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer '91. 5%' is equivalent to the golden answer '91.5' when considering the percentage symbol implicitly represents division by 100, and the answers are numerically equivalent. I have taken into account the ambiguity of the percent symbol when placed without a number before."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "12,190 - (5,806 + 3,456) = 2,928\nVerification: 2,928",
+        "output": "ANSWER_START\n12,190 - (5,806 + 3,456) = 2,928\nVerification: 2,928\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_8.jsonl",
+        "golden_answer": "2928",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer contains the correct final numerical answer (2,928) within its calculation trace, which matches the golden answer (2928)."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 115.30995321273804,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

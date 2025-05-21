@@ -1,347 +1,775 @@
 {
   "iteration": 18,
-  "timestamp": "2025-05-17T20:48:18.038901",
+  "timestamp": "2025-05-20T21:06:44.141995",
   "strategy": "Exploitation",
-  "explore_rate": 60,
-  "exploit_rate": 40,
-  "batch_size": 5,
-  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon successful techniques from previous iterations: question decomposition, information extraction, and answer synthesis.\n    Includes detailed embedded examples in every LLM prompt for improved performance and targeted error handling.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions. Includes an example for prompt engineering.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions. Example is now present for prompt engineering.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question. Example is present.\"\"\"\n    system_instruction = \"You are an answer synthesis expert.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os\n\n        # Initialize the Gemini client\n        genai.configure(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n        model = genai.GenerativeModel('gemini-pro')\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = model.generate_content(\n                [system_instruction, prompt]\n            )\n        else:\n            response = model.generate_content(prompt)\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a chain-of-thought approach to answer questions by decomposing them into sub-questions, extracting relevant information, and synthesizing a final answer. It leverages LLMs with specific roles (question decomposer, information extraction expert, answer synthesis expert) at each stage, and includes verification steps to ensure validity. The core functions are `decompose_question` (breaks down the initial question), `extract_information` (gathers relevant data based on sub-questions), `synthesize_answer` (creates the final answer), and `call_llm` (interacts with the Gemini model). The overall workflow involves decomposing the question, extracting information related to the sub-questions, and then synthesizing these details into a comprehensive answer, with validation checks at each step to ensure accuracy.",
-  "sample_count": 5,
+  "explore_rate": 30,
+  "exploit_rate": 70,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach.\n    Enhanced with robust error handling and embedded examples.\n    \"\"\"\n    try:\n        # Step 1: Analyze question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question: \" + question_analysis\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage: \" + relevant_passage\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer: \" + answer\n\n        # Step 4: Verify answer\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer: \" + verified_answer\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Now with multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\", \"game\"]}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\", \"ran\"]}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\", \"kicked\"]}}\n\n    Example 4:\n    Question: How many total passing touchdown yards did Dalton have?\n    Analysis: {{\"type\": \"calculation\", \"keywords\": [\"total\", \"passing\", \"touchdown\", \"yards\", \"Dalton\"]}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Now with more examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the most relevant passage from the following text to answer the question, based on its type and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game? PASSAGE: ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\", \"game\"]}}\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown? PASSAGE: ... Chris Johnson got a 6-yard TD run... LenDale White getting a 6-yard and a 2-yard TD run.\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\", \"ran\"]}}\n    Passage: Chris Johnson got a 6-yard TD run. LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game? PASSAGE: ...Josh Scobee nailed a 47-yard field goal.\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\", \"kicked\"]}}\n    Passage: Josh Scobee nailed a 47-yard field goal.\n\n    Example 4:\n    Question: How many total passing touchdown yards did Dalton have? PASSAGE: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns... First, Dalton hit Tyler Eifert for a 32-yard TD, and Stafford followed shortly after with a 27-yard TD toss to Calvin Johnson\n    Keywords: {{\"type\": \"calculation\", \"keywords\": [\"total\", \"passing\", \"touchdown\", \"yards\", \"Dalton\"]}}\n    Passage: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns. First, Dalton hit Tyler Eifert for a 32-yard TD\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Now with multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text. Provide ONLY the direct answer. Do not include any extraneous reasoning or text.\"\n    prompt = f\"\"\"\n    Generate a direct answer to the question, using ONLY information from the relevant passage and question type.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Example 4:\n    Question: How many total passing touchdown yards did Dalton have?\n    Passage: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns. First, Dalton hit Tyler Eifert for a 32-yard TD\n    Answer: 372\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies the generated answer and ensures format. Now with examples and more checks.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions. Return the correct answer EXACTLY as it appears in the relevant passage, if possible. If the answer requires a calculation, perform the calculation and return the result.\"\n    prompt = f\"\"\"\n    Carefully verify the provided answer against the relevant passage.  If the answer is directly stated in the passage, return it exactly as it appears. If the answer requires a calculation based on the passage, perform the calculation and return the result. Ensure the answer is complete and in the correct format.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee\n\n    Example 4:\n    Question: How many total passing touchdown yards did Dalton have?\n    Answer: 372\n    Passage: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns.\n    Verification: 372\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a multi-stage LLM approach to answer questions, incorporating chain-of-thought reasoning and verification. The problem is decomposed into question analysis, passage extraction, answer generation, and answer verification, each handled by a distinct LLM prompt. Each stage utilizes the `call_llm` function with specific system instructions to guide the LLM's role as an expert in that stage. The workflow begins with `main` calling `analyze_question`, which then calls `extract_relevant_passage`, followed by `generate_answer` and finally `verify_answer`, with each function passing its output to the next, and error handling at each step.",
+  "sample_count": 10,
   "samples": [
     {
-      "question": "PASSAGE: Coming off their win over the Steelers, the Patriots stayed at home for an AFC East rematch with the 3-10 Jets. The Patriots punted on their first drive of the game, giving the Jets the ball at their own 3-yard line. After a 1-yard Thomas Jones run, Jets quarterback Clemens threw an interception to Eugene Wilson, who returned it for a touchdown. Clemens was hit by Seymour and suffered an ankle injury on the play and did not return to the game. Wilson also became the Patriots' 21st player to score a touchdown on the season, tying an NFL record set by the Denver Broncos in 2000 and Los Angeles Rams in 1987. On their ensuing possession, the Jets gained 49&#160;yards on an option play to running back Leon Washington, but then failed a fourth down conversion from the Patriots' 17-yard line. With 6:36 remaining in the first quarter, the Patriots began a drive that ended 17 plays later, in the 2nd quarter, on a 26-yard Gostkowski field goal. After a Jets punt, the Patriots moved the ball to their own 40-yard line when a Chris Hanson punt attempt was blocked by David Bowens and returned for a touchdown to cut the Patriots' lead to 10-7. On the Jets' next possession, Washington blocked a Graham punt attempt to give the Patriots the ball at the Jets' 3-yard line. A 1-yard Maroney touchdown run a play later gave the Patriots a 17-7 lead going into halftime. Gostkowski's extra point, his 67th of the season, broke Uwe von Schamann's single-season record of 66 with the Miami Dolphins in 1984. A Jets punt gave the Patriots the ball at their own 9-yard line early in the third quarter. After two Maroney rushes for a total of 5&#160;yards, a Brady pass on third down intended to Moss was intercepted by Jets cornerback Darrelle Revis. The Jets moved into the red zone, but were driven back on a Thomas Jones run for a 1-yard loss and a delay of game penalty. On third down, Pennington completed a 10-yard pass to Baker, who then fumbled. Wilson recovered it for the Patriots, but a subsequent exchange of punts kept the third quarter scoreless. Another Hanson punt began the fourth quarter, giving the Jets the ball from their own 15-yard line. The Jets then embarked upon a 17-play drive where Pennington completed 10 passes on 12 attempts, none for more than 14&#160;yards. The drive ended at the Patriots' 15-yard line, where the Jets cut the Patriots' lead to 17-10 on a 33-yard Mike Nugent field goal. The Patriots' ensuing drive began with two incompletions intended for Moss. On third down, Brady completed a 16-yard pass to Moss, and then a 46-yard pass to Moss to give the Patriots the ball at the Jets' 14-yard line. A 4-yard Maroney run, incompletion, and sack for a loss of 6&#160;yards set up a 33-yard Gostkowski field goal. The Jets' next possession ended in a 35-yard missed Nugent field goal, and the Jets failed to score on their final drive to give the Patriots a 20-10 win. It gave the Patriots a 14-0 record, tying them with the 1972 Miami Dolphins for the best record to start a season. The win also clinched home-field advantage throughout the playoffs for the Patriots.\n\nQUESTION: What was the losing score?",
-      "answer": "10",
-      "id": "example_131",
+      "question": "PASSAGE: Sporadic and isolated outbursts by Tibetans against the Chinese continued especially during the unrest between September 1987 until March 1989 in the Tibetan areas of the PRC. But it wasn't until 2008 that a large-scale and coordinated uprising erupted coinciding with international protests accompanying the Olympics torch relay that would end in Beijing where the 2008 Summer Olympics were held. What originally began as an annual observance of Tibetan Uprising Day turned into street protests by large numbers of monks from various monasteries for several days. Crowd control and arrests escalated the tensions eventually setting off a riot by thousands of Tibetans in the Ramoche section of Lhasa on March 14, 2008. When the police fled the scene, rioters looted and burned more than 1200 Chinese shops, offices, and residences and set fire to nearly 100 vehicles. In the end, an estimated 22 were dead and 325 injured, mostly Han. Total damage was estimated at $40 million USD. Eventually the paramilitary People's Armed Police were sent in and 50-100 Tibetan rioters were killed before things quieted down. Meanwhile, in the Gansu Province, a demonstration by 400 monks were met with force that ignited riots by more than 5000 Tibetans who again burned down the establishments of local Han and Hui people before security forces arrived.\n\nQUESTION: How many years did the period of unrest in the Tibetan areas of the PRC last?",
+      "answer": "2",
+      "id": "example_146",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Coming off their win over the Steelers, the Patriots stayed at home for an AFC East rematch with the 3-10 Jets. The Patriots punted on their first drive of the game, giving the Jets the ball at their own 3-yard line. After a 1-yard Thomas Jones run, Jets quarterback Clemens threw an interception to Eugene Wilson, who returned it for a touchdown. Clemens was hit by Seymour and suffered an ankle injury on the play and did not return to the game. Wilson also became the Patriots' 21st player to score a touchdown on the season, tying an NFL record set by the Denver Broncos in 2000 and Los Angeles Rams in 1987. On their ensuing possession, the Jets gained 49&#160;yards on an option play to running back Leon Washington, but then failed a fourth down conversion from the Patriots' 17-yard line. With 6:36 remaining in the first quarter, the Patriots began a drive that ended 17 plays later, in the 2nd quarter, on a 26-yard Gostkowski field goal. After a Jets punt, the Patriots moved the ball to their own 40-yard line when a Chris Hanson punt attempt was blocked by David Bowens and returned for a touchdown to cut the Patriots' lead to 10-7. On the Jets' next possession, Washington blocked a Graham punt attempt to give the Patriots the ball at the Jets' 3-yard line. A 1-yard Maroney touchdown run a play later gave the Patriots a 17-7 lead going into halftime. Gostkowski's extra point, his 67th of the season, broke Uwe von Schamann's single-season record of 66 with the Miami Dolphins in 1984. A Jets punt gave the Patriots the ball at their own 9-yard line early in the third quarter. After two Maroney rushes for a total of 5&#160;yards, a Brady pass on third down intended to Moss was intercepted by Jets cornerback Darrelle Revis. The Jets moved into the red zone, but were driven back on a Thomas Jones run for a 1-yard loss and a delay of game penalty. On third down, Pennington completed a 10-yard pass to Baker, who then fumbled. Wilson recovered it for the Patriots, but a subsequent exchange of punts kept the third quarter scoreless. Another Hanson punt began the fourth quarter, giving the Jets the ball from their own 15-yard line. The Jets then embarked upon a 17-play drive where Pennington completed 10 passes on 12 attempts, none for more than 14&#160;yards. The drive ended at the Patriots' 15-yard line, where the Jets cut the Patriots' lead to 17-10 on a 33-yard Mike Nugent field goal. The Patriots' ensuing drive began with two incompletions intended for Moss. On third down, Brady completed a 16-yard pass to Moss, and then a 46-yard pass to Moss to give the Patriots the ball at the Jets' 14-yard line. A 4-yard Maroney run, incompletion, and sack for a loss of 6&#160;yards set up a 33-yard Gostkowski field goal. The Jets' next possession ended in a 35-yard missed Nugent field goal, and the Jets failed to score on their final drive to give the Patriots a 20-10 win. It gave the Patriots a 14-0 record, tying them with the 1972 Miami Dolphins for the best record to start a season. The win also clinched home-field advantage throughout the playoffs for the Patriots.",
-        "original_question": "What was the losing score?",
+        "original_passage": "Sporadic and isolated outbursts by Tibetans against the Chinese continued especially during the unrest between September 1987 until March 1989 in the Tibetan areas of the PRC. But it wasn't until 2008 that a large-scale and coordinated uprising erupted coinciding with international protests accompanying the Olympics torch relay that would end in Beijing where the 2008 Summer Olympics were held. What originally began as an annual observance of Tibetan Uprising Day turned into street protests by large numbers of monks from various monasteries for several days. Crowd control and arrests escalated the tensions eventually setting off a riot by thousands of Tibetans in the Ramoche section of Lhasa on March 14, 2008. When the police fled the scene, rioters looted and burned more than 1200 Chinese shops, offices, and residences and set fire to nearly 100 vehicles. In the end, an estimated 22 were dead and 325 injured, mostly Han. Total damage was estimated at $40 million USD. Eventually the paramilitary People's Armed Police were sent in and 50-100 Tibetan rioters were killed before things quieted down. Meanwhile, in the Gansu Province, a demonstration by 400 monks were met with force that ignited riots by more than 5000 Tibetans who again burned down the establishments of local Han and Hui people before security forces arrived.",
+        "original_question": "How many years did the period of unrest in the Tibetan areas of the PRC last?",
         "original_answer_data": {
           "spans": [
-            "10"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 171
-      }
-    },
-    {
-      "question": "PASSAGE: The first archaeological findings around the lake belong to nomadic people living in the area in prehistoric types. The first settlements discovered date from the Copper Age. The area was later under the control of the Ligures, later replaced by the Celts. The latter were in turn conquered by the Romans, who called the lake Verbanus Lacus or Lacus Maximus. After the fall of the Western Roman Empire, the lake was under different dominations. Most of the current settlements originated in the Middle Ages, when the lake was under the Della Torre, Visconti, the Borromeo and Habsburg families. Methane was first discovered and isolated by Alessandro Volta as he analysed marsh gas from Lake Maggiore, between 1776 and 1778. In 1936, a Bugatti Type 22 Brescia Roadster, built 1925, was sunk in the lake by employees of Z\u00fcrich architect Marco Schmucklerski, when Swiss custom officials investigated whether he had paid taxes on the car. The Bugatti was attached to an iron chain making it possible to recover it once the investigation was over, yet that never happened. When the chain corroded, the car sunk to the lake bed, where it was rediscovered on 18 August 1967 by local diver Ugo Pillon and became a favourite target for divers thereafter. When one of the divers, Damiano Tamagni, was killed in a hold-up on 1 February 2008, his friends from the Ascona divers' club decided to lift and sell the carwreck to raise funds for a yet to be created foundation named after the victim. The remains of the Bugatti were recovered on 12 July 2009. The sale took place at the Retro Mobile classic car exhibition in Paris on 23 January 2010. It was sold for \u20ac260,500.\n\nQUESTION: How many years was the Bugatti Roadster at the bottom of the lake?",
-      "answer": "73",
-      "id": "example_132",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The first archaeological findings around the lake belong to nomadic people living in the area in prehistoric types. The first settlements discovered date from the Copper Age. The area was later under the control of the Ligures, later replaced by the Celts. The latter were in turn conquered by the Romans, who called the lake Verbanus Lacus or Lacus Maximus. After the fall of the Western Roman Empire, the lake was under different dominations. Most of the current settlements originated in the Middle Ages, when the lake was under the Della Torre, Visconti, the Borromeo and Habsburg families. Methane was first discovered and isolated by Alessandro Volta as he analysed marsh gas from Lake Maggiore, between 1776 and 1778. In 1936, a Bugatti Type 22 Brescia Roadster, built 1925, was sunk in the lake by employees of Z\u00fcrich architect Marco Schmucklerski, when Swiss custom officials investigated whether he had paid taxes on the car. The Bugatti was attached to an iron chain making it possible to recover it once the investigation was over, yet that never happened. When the chain corroded, the car sunk to the lake bed, where it was rediscovered on 18 August 1967 by local diver Ugo Pillon and became a favourite target for divers thereafter. When one of the divers, Damiano Tamagni, was killed in a hold-up on 1 February 2008, his friends from the Ascona divers' club decided to lift and sell the carwreck to raise funds for a yet to be created foundation named after the victim. The remains of the Bugatti were recovered on 12 July 2009. The sale took place at the Retro Mobile classic car exhibition in Paris on 23 January 2010. It was sold for \u20ac260,500.",
-        "original_question": "How many years was the Bugatti Roadster at the bottom of the lake?",
-        "original_answer_data": {
-          "spans": [
-            "73"
+            "2"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 317
+        "line_number": 215
       }
     },
     {
-      "question": "PASSAGE: On 8 April 1918, after the defeat in Tampere and the German army intervention, the People's Delegation retreated from Helsinki to Vyborg. The loss of Helsinki pushed them to Petrograd on 25 April. The escape of the leadership embittered many Reds, and thousands of them tried to flee to Russia, but most of the refugees were encircled by White and German troops. In the Lahti area they surrendered on 1-2 May. The long Red caravans included women and children, who experienced a desperate, chaotic escape with severe losses due to White attacks. The scene was described as a \"road of tears\" for the Reds, but for the Whites, the sight of long, enemy caravans heading east was a victorious moment. The Red Guards' last strongholds between the Kouvola and Kotka area fell by 5 May, after the Battle of Ahvenkoski. The war of 1918 ended on 15 May 1918, when the Whites took over Fort Ino, a Russian coastal artillery base on the Karelian Isthmus, from the Russian troops. White Finland and General Mannerheim celebrated the victory with a large military parade in Helsinki on 16 May 1918. The Red Guards had been defeated. The initially pacifist Finnish labour movement had lost the Civil War, several military leaders committed suicide and a majority of the Reds were sent to prison camps. The Vaasa Senate returned to Helsinki on 4 May 1918, but the capital was under the control of the German army. White Finland had become a protectorate of the German Empire and General R\u00fcdiger von der Goltz was called \"the true Regent of Finland\". No armistice or peace negotiations were carried out between the Whites and Reds and an official peace treaty to end the Finnish Civil War was never signed.\n\nQUESTION: When did the Reds surrender?",
-      "answer": "1-2 May",
-      "id": "example_133",
+      "question": "PASSAGE: Looking to bounce back from a heartbreaking loss the previous week, the Patriots played a wild back-and-forth game against the rival Jets in what would be their only overtime contest of the season. The Patriots marched deep into their own territory on the opening drive of the game, but were forced to punt. The Jets responded with an 11 play, 75-yard drive, aided by a defensive holding penalty on Ras-I Dowling giving the Jets a first down, and scoring on a Shonn Greene 1-yard touchdown run. Devin McCourty returned the ensuing kickoff 104 yards for a touchdown. After a Jets three-and-out, the Patriots raced 58 yards in 7 plays, scoring on Brady's 17-yard touchdown pass to Gronkowski, taking a 14-7 lead. Two possessions later, Mark Sanchez fumbled the snap and kicked the ball out of the end zone for a safety, increasing the Patriots lead to 16-7 early in the second quarter. After a Patriots punt, the Jets drove to the Patriots 36, but Sanchez was intercepted by Dennard at the Patriots 2 for no gain. The Patriots drove to the Jets 45, but punted, as well. Starting at their own 5, the Jets raced to the Patriots 36, and Nick Folk nailed a 54-yard field goal, trimming the deficit to 16-10 at halftime. Joe McKnight returned the kickoff 37 yards to the Jets 32. With the decent starting field position, the Jets drove 66 yards to the Patriots 3, but the Patriots defense stiffened and forced the Jets to settle for Folk's 21-yard field goal, trimming the deficit to just 16-13. The Patriots countered on their next drive, putting together a 15 play, 67-yard drive in just under six minutes, converting three third-downs, and scoring on a two-yard touchdown pass from Brady to Gronkowski, extending the lead to 23-13. Two possessions later, the Jets engineered a 14 play, 91-yard drive, converting three third-downs, scoring on a 7-yard touchdown pass from Sanchez to Dustin Keller, trimming the deficit to 23-20. After a Patriots three-and-out, the Jets marched to the Patriots 25 and Folk tied the game with his 43-yard field goal. The situation turned to disaster for the Patriots when Lex Hilliard forced McCourty to fumble and Asher Allen recovered at the Patriots 18. Hightower sacked Sanchez for a 10-yard loss on third down and Folk kicked a 43-yard field goal, giving the Jets a 26-23 lead. Starting at their own 21, the Patriots marched 54 yards to the Jets 25 and Gostkowski tied the game on his 43-yard field goal as time expired. The Patriots received their opening kickoff of overtime, marching 54 yards to the Jets 30 and Gostkowski gave the Patriots the 29-26 lead on a 48-yard field goal. The Jets reached their own 40, but on 2nd-and-10, Sanchez was sacked by Ninkovich and Jermaine Cunningham with Ninkovich recovering and sealing the win. With the win, the Patriots improved to 4-3.\n\nQUESTION: How many points did the Patriots score on their first drive?",
+      "answer": "0",
+      "id": "example_147",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "On 8 April 1918, after the defeat in Tampere and the German army intervention, the People's Delegation retreated from Helsinki to Vyborg. The loss of Helsinki pushed them to Petrograd on 25 April. The escape of the leadership embittered many Reds, and thousands of them tried to flee to Russia, but most of the refugees were encircled by White and German troops. In the Lahti area they surrendered on 1-2 May. The long Red caravans included women and children, who experienced a desperate, chaotic escape with severe losses due to White attacks. The scene was described as a \"road of tears\" for the Reds, but for the Whites, the sight of long, enemy caravans heading east was a victorious moment. The Red Guards' last strongholds between the Kouvola and Kotka area fell by 5 May, after the Battle of Ahvenkoski. The war of 1918 ended on 15 May 1918, when the Whites took over Fort Ino, a Russian coastal artillery base on the Karelian Isthmus, from the Russian troops. White Finland and General Mannerheim celebrated the victory with a large military parade in Helsinki on 16 May 1918. The Red Guards had been defeated. The initially pacifist Finnish labour movement had lost the Civil War, several military leaders committed suicide and a majority of the Reds were sent to prison camps. The Vaasa Senate returned to Helsinki on 4 May 1918, but the capital was under the control of the German army. White Finland had become a protectorate of the German Empire and General R\u00fcdiger von der Goltz was called \"the true Regent of Finland\". No armistice or peace negotiations were carried out between the Whites and Reds and an official peace treaty to end the Finnish Civil War was never signed.",
-        "original_question": "When did the Reds surrender?",
+        "original_passage": "Looking to bounce back from a heartbreaking loss the previous week, the Patriots played a wild back-and-forth game against the rival Jets in what would be their only overtime contest of the season. The Patriots marched deep into their own territory on the opening drive of the game, but were forced to punt. The Jets responded with an 11 play, 75-yard drive, aided by a defensive holding penalty on Ras-I Dowling giving the Jets a first down, and scoring on a Shonn Greene 1-yard touchdown run. Devin McCourty returned the ensuing kickoff 104 yards for a touchdown. After a Jets three-and-out, the Patriots raced 58 yards in 7 plays, scoring on Brady's 17-yard touchdown pass to Gronkowski, taking a 14-7 lead. Two possessions later, Mark Sanchez fumbled the snap and kicked the ball out of the end zone for a safety, increasing the Patriots lead to 16-7 early in the second quarter. After a Patriots punt, the Jets drove to the Patriots 36, but Sanchez was intercepted by Dennard at the Patriots 2 for no gain. The Patriots drove to the Jets 45, but punted, as well. Starting at their own 5, the Jets raced to the Patriots 36, and Nick Folk nailed a 54-yard field goal, trimming the deficit to 16-10 at halftime. Joe McKnight returned the kickoff 37 yards to the Jets 32. With the decent starting field position, the Jets drove 66 yards to the Patriots 3, but the Patriots defense stiffened and forced the Jets to settle for Folk's 21-yard field goal, trimming the deficit to just 16-13. The Patriots countered on their next drive, putting together a 15 play, 67-yard drive in just under six minutes, converting three third-downs, and scoring on a two-yard touchdown pass from Brady to Gronkowski, extending the lead to 23-13. Two possessions later, the Jets engineered a 14 play, 91-yard drive, converting three third-downs, scoring on a 7-yard touchdown pass from Sanchez to Dustin Keller, trimming the deficit to 23-20. After a Patriots three-and-out, the Jets marched to the Patriots 25 and Folk tied the game with his 43-yard field goal. The situation turned to disaster for the Patriots when Lex Hilliard forced McCourty to fumble and Asher Allen recovered at the Patriots 18. Hightower sacked Sanchez for a 10-yard loss on third down and Folk kicked a 43-yard field goal, giving the Jets a 26-23 lead. Starting at their own 21, the Patriots marched 54 yards to the Jets 25 and Gostkowski tied the game on his 43-yard field goal as time expired. The Patriots received their opening kickoff of overtime, marching 54 yards to the Jets 30 and Gostkowski gave the Patriots the 29-26 lead on a 48-yard field goal. The Jets reached their own 40, but on 2nd-and-10, Sanchez was sacked by Ninkovich and Jermaine Cunningham with Ninkovich recovering and sealing the win. With the win, the Patriots improved to 4-3.",
+        "original_question": "How many points did the Patriots score on their first drive?",
         "original_answer_data": {
           "spans": [
-            "1-2 May"
+            "0"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 288
+      }
+    },
+    {
+      "question": "PASSAGE: Iran's telecommunication network enjoys the highest growth rate in the Middle East. One of the indicators that clearly illustrates this growth rate is the increase in the number of installed main lines. In 1978 there were only about 850,000 fixed lines installed in Iran. This number rose to about 1,767,000 by 1986 and to about 2,380,000 by 1989. One of the objectives of the first five-year development plan (1989-1994) for the telecommunication sector was to add one million new fixed lines to the network. However, due to the establishment and expansion of many low-capacity and high-capacity exchanges, the actual growth rate that was achieved was considerably higher. In fact more than 3.1 million new main lines were installed during the period of the first five-year plan. Four million new lines were expected to be added by the end of the second five-year plan (1994-1999), which would increase the number of installed main lines to about 9,510,000 fixed lines. Irans telecom market, which generated an estimated $9.1 billion in 2010 (of which 2/3 from \"voice\" mobile-phone and 1/10 from \"data\" mobile-phone services), has been growing significantly, especially its mobile-phone business. As of 2010, Iran had about 66 million mobile-phone subscribers covering about 70% of the population. In contrast, about 36% of Iranians had fixed-line phones.\n\nQUESTION: Did installments increase more from 1978 to 1986 or from 1986 to 1989?",
+      "answer": "1978 to 1986",
+      "id": "example_148",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Iran's telecommunication network enjoys the highest growth rate in the Middle East. One of the indicators that clearly illustrates this growth rate is the increase in the number of installed main lines. In 1978 there were only about 850,000 fixed lines installed in Iran. This number rose to about 1,767,000 by 1986 and to about 2,380,000 by 1989. One of the objectives of the first five-year development plan (1989-1994) for the telecommunication sector was to add one million new fixed lines to the network. However, due to the establishment and expansion of many low-capacity and high-capacity exchanges, the actual growth rate that was achieved was considerably higher. In fact more than 3.1 million new main lines were installed during the period of the first five-year plan. Four million new lines were expected to be added by the end of the second five-year plan (1994-1999), which would increase the number of installed main lines to about 9,510,000 fixed lines. Irans telecom market, which generated an estimated $9.1 billion in 2010 (of which 2/3 from \"voice\" mobile-phone and 1/10 from \"data\" mobile-phone services), has been growing significantly, especially its mobile-phone business. As of 2010, Iran had about 66 million mobile-phone subscribers covering about 70% of the population. In contrast, about 36% of Iranians had fixed-line phones.",
+        "original_question": "Did installments increase more from 1978 to 1986 or from 1986 to 1989?",
+        "original_answer_data": {
+          "spans": [
+            "1978 to 1986"
           ],
           "types": [
             "span"
           ]
         },
-        "line_number": 324
+        "line_number": 278
       }
     },
     {
-      "question": "PASSAGE: Coming off their win over the Cardinals the Vikings flew to Soldier Field for an NFC North rivalry match against the Bears. In the first quarter the Vikings took the lead after kicker Ryan Longwell hit a 36-yard field goal. They fell behind in the second quarter when QB Jay Cutler threw a 17-yard TD pass to TE Greg Olsen. They got the lead back after QB Brett Favre completed a 53-yard TD pass to WR Percy Harvin. They trailed again when Cutler got a 19-yard TD pass to WR Devin Hester. The Bears extended their lead in the third quarter after kicker Robbie Gould nailed a 34-yard field goal. The Vikings replied with Longwell making a 33-yard field goal, but fell further behind with Gould hitting a 37-yard field goal, and in the 4th quarter with Cutler making a 19-yard TD pass to TE Kellen Davis.\n\nQUESTION: Who made a TD pass for the 19 yards twice?",
-      "answer": "Jay Cutler",
-      "id": "example_134",
+      "question": "PASSAGE: Kiev Oblast has 795 state-run schools of general education, 219 (27.5%) of which are situated in urban areas and 576 (72.5%) of which - in rural areas. These schools are attended by 232,260 students, 141,416 (60.6%) which attend urban schools, and 98,944 (39.4%) which attend rural area schools. In addition, there are 12 evening schools with an enrollment of over 6,000 students, 15 private institutions containing about 7,000 students, 23 vocational schools containing over 14,300 students, 22 higher schools with an enrollment of over 34,900 students), and 52 Homeschooling institutions containing over 48,700 children. There are also 756 institutions of Nursery school education attended by a total of 44,400 children, 52 home-school institutions, 22 vocational institutions, having an enrollment of with 17,300 students.\n\nQUESTION: How many students were in the evening schools, private institutions and vocational schools combined?",
+      "answer": "27300",
+      "id": "example_149",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Coming off their win over the Cardinals the Vikings flew to Soldier Field for an NFC North rivalry match against the Bears. In the first quarter the Vikings took the lead after kicker Ryan Longwell hit a 36-yard field goal. They fell behind in the second quarter when QB Jay Cutler threw a 17-yard TD pass to TE Greg Olsen. They got the lead back after QB Brett Favre completed a 53-yard TD pass to WR Percy Harvin. They trailed again when Cutler got a 19-yard TD pass to WR Devin Hester. The Bears extended their lead in the third quarter after kicker Robbie Gould nailed a 34-yard field goal. The Vikings replied with Longwell making a 33-yard field goal, but fell further behind with Gould hitting a 37-yard field goal, and in the 4th quarter with Cutler making a 19-yard TD pass to TE Kellen Davis.",
-        "original_question": "Who made a TD pass for the 19 yards twice?",
+        "original_passage": "Kiev Oblast has 795 state-run schools of general education, 219 (27.5%) of which are situated in urban areas and 576 (72.5%) of which - in rural areas. These schools are attended by 232,260 students, 141,416 (60.6%) which attend urban schools, and 98,944 (39.4%) which attend rural area schools. In addition, there are 12 evening schools with an enrollment of over 6,000 students, 15 private institutions containing about 7,000 students, 23 vocational schools containing over 14,300 students, 22 higher schools with an enrollment of over 34,900 students), and 52 Homeschooling institutions containing over 48,700 children. There are also 756 institutions of Nursery school education attended by a total of 44,400 children, 52 home-school institutions, 22 vocational institutions, having an enrollment of with 17,300 students.",
+        "original_question": "How many students were in the evening schools, private institutions and vocational schools combined?",
         "original_answer_data": {
           "spans": [
-            "Jay Cutler"
+            "27300"
           ],
           "types": [
-            "span"
+            "number"
           ]
         },
-        "line_number": 880
+        "line_number": 953
       }
     },
     {
-      "question": "PASSAGE: Cincinnati scored on its first possession, when Andy Dalton threw to A. J. Green for an 82-yard touchdown. The Lions tied it later in the first quarter on a 3-yard TD pass from Matthew Stafford to Brandon Pettigrew. A 36-yard field goal by David Akers gave the Lions a 10-7 second quarter lead.  But late in the quarter, Akers had a 34-yard field goal attempt blocked by Carlos Dunlap, which the Bengals returned all the way to the Lions 40 yard line despite fumbling during the return. That set up a 12-yard TD strike from Andy Dalton to Marvin Jones just before the first half closed, giving Cincinnati a 14-10 lead. The teams exchanged TD passes in the third quarter. First, Dalton hit Tyler Eifert for a 32-yard TD, and Stafford followed shortly after with a 27-yard TD toss to Calvin Johnson. Mike Nugent connected on a 48-yard field goal late in the third to put the Bengals up 24-17.  The Lions tied the game at 24 in the fourth quarter, when Calvin Johnson leaped up and beat three Bengals defenders in the end zone on a 50-yard pass from Matthew Stafford. After the game, Stafford called Johnson's play \"one of the best catches I have ever seen.\" Late in the fourth quarter, a punt by the Bengals Kevin Huber pinned the Lions at their own 6 yard line. Detroit attempted to kill enough clock to get the game to overtime, but could only gain one first down and 17 yards. Detroit punter Sam Martin then shanked a punt that netted only 28 yards before going out of bounds at the Cincinnati 49 with 26 seconds left in the game. Three plays and 15 yards later, Mike Nugent boomed a 54-yard field goal as time expired to give the Bengals a 27-24 victory. The aerial attack for both teams produced big numbers.  Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns, while Matthew Stafford was 28-of-51 for 357 yards and 3 scores.  A. J. Green of the Bengals and Calvin Johnson of the Lions both tallied 155 yards receiving on the day.\n\nQUESTION: Which quarterback had more incomplete passes?",
-      "answer": "Matthew Stafford",
-      "id": "example_135",
+      "question": "PASSAGE: In the county, the population was spread out with 21.7% under the age of 18,  8.5% from 18 to 24, 26.9% from 25 to 44, 27.7% from 45 to 64, and 15.0% who were 65 years of age or older. The median age was 40 years. For every 100 females, there were 94.4 males. For every 100 females age 18 and over, there were 98.7 males.\n\nQUESTION: How many percent of the population was over the age of 18?",
+      "answer": "78.3",
+      "id": "example_150",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Cincinnati scored on its first possession, when Andy Dalton threw to A. J. Green for an 82-yard touchdown. The Lions tied it later in the first quarter on a 3-yard TD pass from Matthew Stafford to Brandon Pettigrew. A 36-yard field goal by David Akers gave the Lions a 10-7 second quarter lead.  But late in the quarter, Akers had a 34-yard field goal attempt blocked by Carlos Dunlap, which the Bengals returned all the way to the Lions 40 yard line despite fumbling during the return. That set up a 12-yard TD strike from Andy Dalton to Marvin Jones just before the first half closed, giving Cincinnati a 14-10 lead. The teams exchanged TD passes in the third quarter. First, Dalton hit Tyler Eifert for a 32-yard TD, and Stafford followed shortly after with a 27-yard TD toss to Calvin Johnson. Mike Nugent connected on a 48-yard field goal late in the third to put the Bengals up 24-17.  The Lions tied the game at 24 in the fourth quarter, when Calvin Johnson leaped up and beat three Bengals defenders in the end zone on a 50-yard pass from Matthew Stafford. After the game, Stafford called Johnson's play \"one of the best catches I have ever seen.\" Late in the fourth quarter, a punt by the Bengals Kevin Huber pinned the Lions at their own 6 yard line. Detroit attempted to kill enough clock to get the game to overtime, but could only gain one first down and 17 yards. Detroit punter Sam Martin then shanked a punt that netted only 28 yards before going out of bounds at the Cincinnati 49 with 26 seconds left in the game. Three plays and 15 yards later, Mike Nugent boomed a 54-yard field goal as time expired to give the Bengals a 27-24 victory. The aerial attack for both teams produced big numbers.  Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns, while Matthew Stafford was 28-of-51 for 357 yards and 3 scores.  A. J. Green of the Bengals and Calvin Johnson of the Lions both tallied 155 yards receiving on the day.",
-        "original_question": "Which quarterback had more incomplete passes?",
+        "original_passage": "In the county, the population was spread out with 21.7% under the age of 18,  8.5% from 18 to 24, 26.9% from 25 to 44, 27.7% from 45 to 64, and 15.0% who were 65 years of age or older. The median age was 40 years. For every 100 females, there were 94.4 males. For every 100 females age 18 and over, there were 98.7 males.",
+        "original_question": "How many percent of the population was over the age of 18?",
         "original_answer_data": {
           "spans": [
-            "Matthew Stafford"
+            "78.3"
           ],
           "types": [
-            "span"
+            "number"
           ]
         },
-        "line_number": 263
+        "line_number": 820
+      }
+    },
+    {
+      "question": "PASSAGE: The United States has also conducted a series of military strikes on al-Qaeda militants in Yemen since the War on Terror began. Yemen has a weak central government and a powerful tribal system that leaves large lawless areas open for militant training and operations. Al-Qaeda has a strong presence in the country. On 31 March 2011, AQAP declared the Al-Qaeda Emirate in Yemenafter its captured most of Abyan Governorate. The U.S., in an effort to support Yemeni counter-terrorism efforts, has increased their military aid package to Yemen from less than $11 million in 2006 to more than $70 million in 2009, as well as providing up to $121 million for development over the next three years.\n\nQUESTION: How many millions of dollars, approximately, did the U.S. increase their military aid package from 2006 to 2009.",
+      "answer": "59",
+      "id": "example_151",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The United States has also conducted a series of military strikes on al-Qaeda militants in Yemen since the War on Terror began. Yemen has a weak central government and a powerful tribal system that leaves large lawless areas open for militant training and operations. Al-Qaeda has a strong presence in the country. On 31 March 2011, AQAP declared the Al-Qaeda Emirate in Yemenafter its captured most of Abyan Governorate. The U.S., in an effort to support Yemeni counter-terrorism efforts, has increased their military aid package to Yemen from less than $11 million in 2006 to more than $70 million in 2009, as well as providing up to $121 million for development over the next three years.",
+        "original_question": "How many millions of dollars, approximately, did the U.S. increase their military aid package from 2006 to 2009.",
+        "original_answer_data": {
+          "spans": [
+            "59"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 109
+      }
+    },
+    {
+      "question": "PASSAGE: Pettitte was 19-10 with a 3.83 ERA and 173 strikeouts in the postseason (1995-2003, 2005, 2007, 2009-2010), with the most postseason wins in MLB history. He also holds the all-time postseason record for most starts (42) and innings pitched in the postseason (263). He was the second starting pitcher in history to win three series-clinching games (ALDS, ALCS and World Series) in the same postseason (2009). Derek Lowe did the same in 2004, but with one of the wins in relief, and additionally, Pettitte won the regular season game in which the Yankees clinched the division. When Pettitte started Game 3 of the 2009 World Series, he passed Christy Mathewson and Waite Hoyt, with the second most World Series starts. Whitey Ford is in front with 22 starts. Pettitte has played in 8 different World Series (7 with the Yankees, and 2005 World Series with the Astros), and been on the winning end of 19 postseason series - both of which are tops among active players. Andy Pettittes final postseason appearance was on Saturday, October 13, 2012 which was game one of the 2012 ALCS. Pettitte received a no decision in the game which the Yankees would lose in 12 innings.\n\nQUESTION: How many of Pettitte postseason starts were not recorded as either a win or a loss?",
+      "answer": "13",
+      "id": "example_152",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Pettitte was 19-10 with a 3.83 ERA and 173 strikeouts in the postseason (1995-2003, 2005, 2007, 2009-2010), with the most postseason wins in MLB history. He also holds the all-time postseason record for most starts (42) and innings pitched in the postseason (263). He was the second starting pitcher in history to win three series-clinching games (ALDS, ALCS and World Series) in the same postseason (2009). Derek Lowe did the same in 2004, but with one of the wins in relief, and additionally, Pettitte won the regular season game in which the Yankees clinched the division. When Pettitte started Game 3 of the 2009 World Series, he passed Christy Mathewson and Waite Hoyt, with the second most World Series starts. Whitey Ford is in front with 22 starts. Pettitte has played in 8 different World Series (7 with the Yankees, and 2005 World Series with the Astros), and been on the winning end of 19 postseason series - both of which are tops among active players. Andy Pettittes final postseason appearance was on Saturday, October 13, 2012 which was game one of the 2012 ALCS. Pettitte received a no decision in the game which the Yankees would lose in 12 innings.",
+        "original_question": "How many of Pettitte postseason starts were not recorded as either a win or a loss?",
+        "original_answer_data": {
+          "spans": [
+            "13"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 118
+      }
+    },
+    {
+      "question": "PASSAGE: In week 4, the Lions traveled south to Arlington, Texas to take on the Dallas Cowboys. The Cowboys dominated the first half, putting the Lions in a big hole for the second straight week. First came a 25-yard touchdown catch by Dez Bryant. In the second quarter, Bryant scored again on a 6-yard touchdown catch. Dallas added more points with a 41-yard field goal by Dan Bailey. The Lions then got their only points of the first half with a 33-yard field goal by Jason Hanson. The Cowboys responded with a 35-yard field goal just before halftime. After the break, Dallas added more points with a 1-yard touchdown pass to Jason Witten, putting them up 27-3. The Lions responded with two consecutive defensive touchdowns: first a 34-yard interception return by Bobby Carpenter, then a 56-yard pick-6 by Chris Houston. The Cowboys scored their final points of the game with a 23-yard field goal late in the third quarter. In the fourth quarter, the Lions continued their comeback with a 23-yard touchdown catch by Calvin Johnson. They made it a three-point game with a 51-yard field goal by Jason Hanson, then Romo threw an interception to Stephen Tulloch, and took their first lead of the game late in the final quarter when Calvin Johnson caught his second touchdown of the game from 2 yards out to become only the second player in NFL history to record at least two touchdown catches in 4 straight games (the other to do so is former Vikings receiver Cris Carter). The Lions defense held off Dallas for the win. Like the previous week, the Lions came back and won it in the final moments of the game after being down by a large margin at halftime. This was also the largest comeback the Dallas Cowboys have ever allowed, and it is the largest comeback by a road team in NFL history as the Cowboys were up by 24 in the 3rd quarter. It was the first time the Lions started 4-0 since 1980. This also was its franchise-record fifth straight road win. Ironically, their last game at Dallas saw the Lions lose their franchise-record 26th straight road game.\n\nQUESTION: How many is the difference in the number of yards of the first TD catch by Bryant and the yards of the TD catch by johnson?",
+      "answer": "2",
+      "id": "example_153",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In week 4, the Lions traveled south to Arlington, Texas to take on the Dallas Cowboys. The Cowboys dominated the first half, putting the Lions in a big hole for the second straight week. First came a 25-yard touchdown catch by Dez Bryant. In the second quarter, Bryant scored again on a 6-yard touchdown catch. Dallas added more points with a 41-yard field goal by Dan Bailey. The Lions then got their only points of the first half with a 33-yard field goal by Jason Hanson. The Cowboys responded with a 35-yard field goal just before halftime. After the break, Dallas added more points with a 1-yard touchdown pass to Jason Witten, putting them up 27-3. The Lions responded with two consecutive defensive touchdowns: first a 34-yard interception return by Bobby Carpenter, then a 56-yard pick-6 by Chris Houston. The Cowboys scored their final points of the game with a 23-yard field goal late in the third quarter. In the fourth quarter, the Lions continued their comeback with a 23-yard touchdown catch by Calvin Johnson. They made it a three-point game with a 51-yard field goal by Jason Hanson, then Romo threw an interception to Stephen Tulloch, and took their first lead of the game late in the final quarter when Calvin Johnson caught his second touchdown of the game from 2 yards out to become only the second player in NFL history to record at least two touchdown catches in 4 straight games (the other to do so is former Vikings receiver Cris Carter). The Lions defense held off Dallas for the win. Like the previous week, the Lions came back and won it in the final moments of the game after being down by a large margin at halftime. This was also the largest comeback the Dallas Cowboys have ever allowed, and it is the largest comeback by a road team in NFL history as the Cowboys were up by 24 in the 3rd quarter. It was the first time the Lions started 4-0 since 1980. This also was its franchise-record fifth straight road win. Ironically, their last game at Dallas saw the Lions lose their franchise-record 26th straight road game.",
+        "original_question": "How many is the difference in the number of yards of the first TD catch by Bryant and the yards of the TD catch by johnson?",
+        "original_answer_data": {
+          "spans": [
+            "2"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 941
+      }
+    },
+    {
+      "question": "PASSAGE: Trying to snap a two-game losing skid, the Packers went home for a Week 11 NFC North duel with their hated rival, the Chicago Bears.  In the first quarter, the Pack drew first blood as QB Aaron Rodgers completed a 3-yard TD pass to WR Greg Jennings.  In the second quarter, the Bears responded with kicker Robbie Gould getting a 35-yard field goal.  The Packers answered with RB Ryan Grant getting a 4-yard TD run, along with kicker Mason Crosby getting a 53-yard field goal. In the third quarter, Green Bay continued its assault as Rodgers completed a 5-yard TD pass to TE Donald Lee.  In the fourth quarter, the Pack ended its rout with Crosby making a 33-yard field goal, DE Jason Hunter returning a fumble 54&#160;yards for a touchdown, and Crosby nailing a 45-yard field goal.\n\nQUESTION: How many field goals over 40 yards were made?",
+      "answer": "2",
+      "id": "example_154",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Trying to snap a two-game losing skid, the Packers went home for a Week 11 NFC North duel with their hated rival, the Chicago Bears.  In the first quarter, the Pack drew first blood as QB Aaron Rodgers completed a 3-yard TD pass to WR Greg Jennings.  In the second quarter, the Bears responded with kicker Robbie Gould getting a 35-yard field goal.  The Packers answered with RB Ryan Grant getting a 4-yard TD run, along with kicker Mason Crosby getting a 53-yard field goal. In the third quarter, Green Bay continued its assault as Rodgers completed a 5-yard TD pass to TE Donald Lee.  In the fourth quarter, the Pack ended its rout with Crosby making a 33-yard field goal, DE Jason Hunter returning a fumble 54&#160;yards for a touchdown, and Crosby nailing a 45-yard field goal.",
+        "original_question": "How many field goals over 40 yards were made?",
+        "original_answer_data": {
+          "spans": [
+            "2"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 137
+      }
+    },
+    {
+      "question": "PASSAGE: In 1895, members of the Gloucestershire Engineer Volunteers reenacted their famous stand at Rorke's Drift, 18 years earlier. 25 British soldiers beat back the attack of 75 Zulus at the Grand Military Fete at the Cheltenham Winter Gardens. Veterans of the American Civil War recreated battles as a way to remember their fallen comrades and to teach others what the war was all about. The Great Reunion of 1913, celebrating the 50th anniversary of the Battle of Gettysburg, was attended by more than 50,000 Union and Confederate veterans, and included reenactments of elements of the battle, including Pickett's Charge. During the early twentieth century, historical reenactment became very popular in Russia with reenactments of the Siege of Sevastopol  , the Battle of Borodino  in St Petersburg and the Taking of Azov  in Voronezh in 1918. In 1920, there was a reenactment of the 1917 Storming of the Winter Palace on the third anniversary of the event. This reenactment inspired the scenes in Sergei Eisenstein's film October: Ten Days That Shook the World. Large scale reenactments began to be regularly held at the Royal Tournament, Aldershot Tattoo in the 1920s and 30s. A spectacular recreation of the Siege of Namur, an important military engagement of the Nine Years' War, was staged in 1934 as part of 6-day long show. In America, modern reenacting is thought to have begun during the 1961-1965 Civil War Centennial commemorations. After more than 6,000 reenactors participated in a 125th anniversary event near the original Manassas battlefield, reenacting grew in popularity during the late 1980s and 1990s, and there are today over a hundred Civil War reenactments held each year throughout the country.\n\nQUESTION: How many years did the Civil War Centennial commemorations last?",
+      "answer": "4",
+      "id": "example_155",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In 1895, members of the Gloucestershire Engineer Volunteers reenacted their famous stand at Rorke's Drift, 18 years earlier. 25 British soldiers beat back the attack of 75 Zulus at the Grand Military Fete at the Cheltenham Winter Gardens. Veterans of the American Civil War recreated battles as a way to remember their fallen comrades and to teach others what the war was all about. The Great Reunion of 1913, celebrating the 50th anniversary of the Battle of Gettysburg, was attended by more than 50,000 Union and Confederate veterans, and included reenactments of elements of the battle, including Pickett's Charge. During the early twentieth century, historical reenactment became very popular in Russia with reenactments of the Siege of Sevastopol  , the Battle of Borodino  in St Petersburg and the Taking of Azov  in Voronezh in 1918. In 1920, there was a reenactment of the 1917 Storming of the Winter Palace on the third anniversary of the event. This reenactment inspired the scenes in Sergei Eisenstein's film October: Ten Days That Shook the World. Large scale reenactments began to be regularly held at the Royal Tournament, Aldershot Tattoo in the 1920s and 30s. A spectacular recreation of the Siege of Namur, an important military engagement of the Nine Years' War, was staged in 1934 as part of 6-day long show. In America, modern reenacting is thought to have begun during the 1961-1965 Civil War Centennial commemorations. After more than 6,000 reenactors participated in a 125th anniversary event near the original Manassas battlefield, reenacting grew in popularity during the late 1980s and 1990s, and there are today over a hundred Civil War reenactments held each year throughout the country.",
+        "original_question": "How many years did the Civil War Centennial commemorations last?",
+        "original_answer_data": {
+          "spans": [
+            "4"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 106
       }
     }
   ],
   "samples_metadata": [
     {
       "source": "jsonl_dataset",
-      "original_passage": "Coming off their win over the Steelers, the Patriots stayed at home for an AFC East rematch with the 3-10 Jets. The Patriots punted on their first drive of the game, giving the Jets the ball at their own 3-yard line. After a 1-yard Thomas Jones run, Jets quarterback Clemens threw an interception to Eugene Wilson, who returned it for a touchdown. Clemens was hit by Seymour and suffered an ankle injury on the play and did not return to the game. Wilson also became the Patriots' 21st player to score a touchdown on the season, tying an NFL record set by the Denver Broncos in 2000 and Los Angeles Rams in 1987. On their ensuing possession, the Jets gained 49&#160;yards on an option play to running back Leon Washington, but then failed a fourth down conversion from the Patriots' 17-yard line. With 6:36 remaining in the first quarter, the Patriots began a drive that ended 17 plays later, in the 2nd quarter, on a 26-yard Gostkowski field goal. After a Jets punt, the Patriots moved the ball to their own 40-yard line when a Chris Hanson punt attempt was blocked by David Bowens and returned for a touchdown to cut the Patriots' lead to 10-7. On the Jets' next possession, Washington blocked a Graham punt attempt to give the Patriots the ball at the Jets' 3-yard line. A 1-yard Maroney touchdown run a play later gave the Patriots a 17-7 lead going into halftime. Gostkowski's extra point, his 67th of the season, broke Uwe von Schamann's single-season record of 66 with the Miami Dolphins in 1984. A Jets punt gave the Patriots the ball at their own 9-yard line early in the third quarter. After two Maroney rushes for a total of 5&#160;yards, a Brady pass on third down intended to Moss was intercepted by Jets cornerback Darrelle Revis. The Jets moved into the red zone, but were driven back on a Thomas Jones run for a 1-yard loss and a delay of game penalty. On third down, Pennington completed a 10-yard pass to Baker, who then fumbled. Wilson recovered it for the Patriots, but a subsequent exchange of punts kept the third quarter scoreless. Another Hanson punt began the fourth quarter, giving the Jets the ball from their own 15-yard line. The Jets then embarked upon a 17-play drive where Pennington completed 10 passes on 12 attempts, none for more than 14&#160;yards. The drive ended at the Patriots' 15-yard line, where the Jets cut the Patriots' lead to 17-10 on a 33-yard Mike Nugent field goal. The Patriots' ensuing drive began with two incompletions intended for Moss. On third down, Brady completed a 16-yard pass to Moss, and then a 46-yard pass to Moss to give the Patriots the ball at the Jets' 14-yard line. A 4-yard Maroney run, incompletion, and sack for a loss of 6&#160;yards set up a 33-yard Gostkowski field goal. The Jets' next possession ended in a 35-yard missed Nugent field goal, and the Jets failed to score on their final drive to give the Patriots a 20-10 win. It gave the Patriots a 14-0 record, tying them with the 1972 Miami Dolphins for the best record to start a season. The win also clinched home-field advantage throughout the playoffs for the Patriots.",
-      "original_question": "What was the losing score?",
+      "original_passage": "Sporadic and isolated outbursts by Tibetans against the Chinese continued especially during the unrest between September 1987 until March 1989 in the Tibetan areas of the PRC. But it wasn't until 2008 that a large-scale and coordinated uprising erupted coinciding with international protests accompanying the Olympics torch relay that would end in Beijing where the 2008 Summer Olympics were held. What originally began as an annual observance of Tibetan Uprising Day turned into street protests by large numbers of monks from various monasteries for several days. Crowd control and arrests escalated the tensions eventually setting off a riot by thousands of Tibetans in the Ramoche section of Lhasa on March 14, 2008. When the police fled the scene, rioters looted and burned more than 1200 Chinese shops, offices, and residences and set fire to nearly 100 vehicles. In the end, an estimated 22 were dead and 325 injured, mostly Han. Total damage was estimated at $40 million USD. Eventually the paramilitary People's Armed Police were sent in and 50-100 Tibetan rioters were killed before things quieted down. Meanwhile, in the Gansu Province, a demonstration by 400 monks were met with force that ignited riots by more than 5000 Tibetans who again burned down the establishments of local Han and Hui people before security forces arrived.",
+      "original_question": "How many years did the period of unrest in the Tibetan areas of the PRC last?",
       "original_answer_data": {
         "spans": [
-          "10"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 171
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The first archaeological findings around the lake belong to nomadic people living in the area in prehistoric types. The first settlements discovered date from the Copper Age. The area was later under the control of the Ligures, later replaced by the Celts. The latter were in turn conquered by the Romans, who called the lake Verbanus Lacus or Lacus Maximus. After the fall of the Western Roman Empire, the lake was under different dominations. Most of the current settlements originated in the Middle Ages, when the lake was under the Della Torre, Visconti, the Borromeo and Habsburg families. Methane was first discovered and isolated by Alessandro Volta as he analysed marsh gas from Lake Maggiore, between 1776 and 1778. In 1936, a Bugatti Type 22 Brescia Roadster, built 1925, was sunk in the lake by employees of Z\u00fcrich architect Marco Schmucklerski, when Swiss custom officials investigated whether he had paid taxes on the car. The Bugatti was attached to an iron chain making it possible to recover it once the investigation was over, yet that never happened. When the chain corroded, the car sunk to the lake bed, where it was rediscovered on 18 August 1967 by local diver Ugo Pillon and became a favourite target for divers thereafter. When one of the divers, Damiano Tamagni, was killed in a hold-up on 1 February 2008, his friends from the Ascona divers' club decided to lift and sell the carwreck to raise funds for a yet to be created foundation named after the victim. The remains of the Bugatti were recovered on 12 July 2009. The sale took place at the Retro Mobile classic car exhibition in Paris on 23 January 2010. It was sold for \u20ac260,500.",
-      "original_question": "How many years was the Bugatti Roadster at the bottom of the lake?",
-      "original_answer_data": {
-        "spans": [
-          "73"
+          "2"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 317
+      "line_number": 215
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "On 8 April 1918, after the defeat in Tampere and the German army intervention, the People's Delegation retreated from Helsinki to Vyborg. The loss of Helsinki pushed them to Petrograd on 25 April. The escape of the leadership embittered many Reds, and thousands of them tried to flee to Russia, but most of the refugees were encircled by White and German troops. In the Lahti area they surrendered on 1-2 May. The long Red caravans included women and children, who experienced a desperate, chaotic escape with severe losses due to White attacks. The scene was described as a \"road of tears\" for the Reds, but for the Whites, the sight of long, enemy caravans heading east was a victorious moment. The Red Guards' last strongholds between the Kouvola and Kotka area fell by 5 May, after the Battle of Ahvenkoski. The war of 1918 ended on 15 May 1918, when the Whites took over Fort Ino, a Russian coastal artillery base on the Karelian Isthmus, from the Russian troops. White Finland and General Mannerheim celebrated the victory with a large military parade in Helsinki on 16 May 1918. The Red Guards had been defeated. The initially pacifist Finnish labour movement had lost the Civil War, several military leaders committed suicide and a majority of the Reds were sent to prison camps. The Vaasa Senate returned to Helsinki on 4 May 1918, but the capital was under the control of the German army. White Finland had become a protectorate of the German Empire and General R\u00fcdiger von der Goltz was called \"the true Regent of Finland\". No armistice or peace negotiations were carried out between the Whites and Reds and an official peace treaty to end the Finnish Civil War was never signed.",
-      "original_question": "When did the Reds surrender?",
+      "original_passage": "Looking to bounce back from a heartbreaking loss the previous week, the Patriots played a wild back-and-forth game against the rival Jets in what would be their only overtime contest of the season. The Patriots marched deep into their own territory on the opening drive of the game, but were forced to punt. The Jets responded with an 11 play, 75-yard drive, aided by a defensive holding penalty on Ras-I Dowling giving the Jets a first down, and scoring on a Shonn Greene 1-yard touchdown run. Devin McCourty returned the ensuing kickoff 104 yards for a touchdown. After a Jets three-and-out, the Patriots raced 58 yards in 7 plays, scoring on Brady's 17-yard touchdown pass to Gronkowski, taking a 14-7 lead. Two possessions later, Mark Sanchez fumbled the snap and kicked the ball out of the end zone for a safety, increasing the Patriots lead to 16-7 early in the second quarter. After a Patriots punt, the Jets drove to the Patriots 36, but Sanchez was intercepted by Dennard at the Patriots 2 for no gain. The Patriots drove to the Jets 45, but punted, as well. Starting at their own 5, the Jets raced to the Patriots 36, and Nick Folk nailed a 54-yard field goal, trimming the deficit to 16-10 at halftime. Joe McKnight returned the kickoff 37 yards to the Jets 32. With the decent starting field position, the Jets drove 66 yards to the Patriots 3, but the Patriots defense stiffened and forced the Jets to settle for Folk's 21-yard field goal, trimming the deficit to just 16-13. The Patriots countered on their next drive, putting together a 15 play, 67-yard drive in just under six minutes, converting three third-downs, and scoring on a two-yard touchdown pass from Brady to Gronkowski, extending the lead to 23-13. Two possessions later, the Jets engineered a 14 play, 91-yard drive, converting three third-downs, scoring on a 7-yard touchdown pass from Sanchez to Dustin Keller, trimming the deficit to 23-20. After a Patriots three-and-out, the Jets marched to the Patriots 25 and Folk tied the game with his 43-yard field goal. The situation turned to disaster for the Patriots when Lex Hilliard forced McCourty to fumble and Asher Allen recovered at the Patriots 18. Hightower sacked Sanchez for a 10-yard loss on third down and Folk kicked a 43-yard field goal, giving the Jets a 26-23 lead. Starting at their own 21, the Patriots marched 54 yards to the Jets 25 and Gostkowski tied the game on his 43-yard field goal as time expired. The Patriots received their opening kickoff of overtime, marching 54 yards to the Jets 30 and Gostkowski gave the Patriots the 29-26 lead on a 48-yard field goal. The Jets reached their own 40, but on 2nd-and-10, Sanchez was sacked by Ninkovich and Jermaine Cunningham with Ninkovich recovering and sealing the win. With the win, the Patriots improved to 4-3.",
+      "original_question": "How many points did the Patriots score on their first drive?",
       "original_answer_data": {
         "spans": [
-          "1-2 May"
+          "0"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 288
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Iran's telecommunication network enjoys the highest growth rate in the Middle East. One of the indicators that clearly illustrates this growth rate is the increase in the number of installed main lines. In 1978 there were only about 850,000 fixed lines installed in Iran. This number rose to about 1,767,000 by 1986 and to about 2,380,000 by 1989. One of the objectives of the first five-year development plan (1989-1994) for the telecommunication sector was to add one million new fixed lines to the network. However, due to the establishment and expansion of many low-capacity and high-capacity exchanges, the actual growth rate that was achieved was considerably higher. In fact more than 3.1 million new main lines were installed during the period of the first five-year plan. Four million new lines were expected to be added by the end of the second five-year plan (1994-1999), which would increase the number of installed main lines to about 9,510,000 fixed lines. Irans telecom market, which generated an estimated $9.1 billion in 2010 (of which 2/3 from \"voice\" mobile-phone and 1/10 from \"data\" mobile-phone services), has been growing significantly, especially its mobile-phone business. As of 2010, Iran had about 66 million mobile-phone subscribers covering about 70% of the population. In contrast, about 36% of Iranians had fixed-line phones.",
+      "original_question": "Did installments increase more from 1978 to 1986 or from 1986 to 1989?",
+      "original_answer_data": {
+        "spans": [
+          "1978 to 1986"
         ],
         "types": [
           "span"
         ]
       },
-      "line_number": 324
+      "line_number": 278
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "Coming off their win over the Cardinals the Vikings flew to Soldier Field for an NFC North rivalry match against the Bears. In the first quarter the Vikings took the lead after kicker Ryan Longwell hit a 36-yard field goal. They fell behind in the second quarter when QB Jay Cutler threw a 17-yard TD pass to TE Greg Olsen. They got the lead back after QB Brett Favre completed a 53-yard TD pass to WR Percy Harvin. They trailed again when Cutler got a 19-yard TD pass to WR Devin Hester. The Bears extended their lead in the third quarter after kicker Robbie Gould nailed a 34-yard field goal. The Vikings replied with Longwell making a 33-yard field goal, but fell further behind with Gould hitting a 37-yard field goal, and in the 4th quarter with Cutler making a 19-yard TD pass to TE Kellen Davis.",
-      "original_question": "Who made a TD pass for the 19 yards twice?",
+      "original_passage": "Kiev Oblast has 795 state-run schools of general education, 219 (27.5%) of which are situated in urban areas and 576 (72.5%) of which - in rural areas. These schools are attended by 232,260 students, 141,416 (60.6%) which attend urban schools, and 98,944 (39.4%) which attend rural area schools. In addition, there are 12 evening schools with an enrollment of over 6,000 students, 15 private institutions containing about 7,000 students, 23 vocational schools containing over 14,300 students, 22 higher schools with an enrollment of over 34,900 students), and 52 Homeschooling institutions containing over 48,700 children. There are also 756 institutions of Nursery school education attended by a total of 44,400 children, 52 home-school institutions, 22 vocational institutions, having an enrollment of with 17,300 students.",
+      "original_question": "How many students were in the evening schools, private institutions and vocational schools combined?",
       "original_answer_data": {
         "spans": [
-          "Jay Cutler"
+          "27300"
         ],
         "types": [
-          "span"
+          "number"
         ]
       },
-      "line_number": 880
+      "line_number": 953
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "Cincinnati scored on its first possession, when Andy Dalton threw to A. J. Green for an 82-yard touchdown. The Lions tied it later in the first quarter on a 3-yard TD pass from Matthew Stafford to Brandon Pettigrew. A 36-yard field goal by David Akers gave the Lions a 10-7 second quarter lead.  But late in the quarter, Akers had a 34-yard field goal attempt blocked by Carlos Dunlap, which the Bengals returned all the way to the Lions 40 yard line despite fumbling during the return. That set up a 12-yard TD strike from Andy Dalton to Marvin Jones just before the first half closed, giving Cincinnati a 14-10 lead. The teams exchanged TD passes in the third quarter. First, Dalton hit Tyler Eifert for a 32-yard TD, and Stafford followed shortly after with a 27-yard TD toss to Calvin Johnson. Mike Nugent connected on a 48-yard field goal late in the third to put the Bengals up 24-17.  The Lions tied the game at 24 in the fourth quarter, when Calvin Johnson leaped up and beat three Bengals defenders in the end zone on a 50-yard pass from Matthew Stafford. After the game, Stafford called Johnson's play \"one of the best catches I have ever seen.\" Late in the fourth quarter, a punt by the Bengals Kevin Huber pinned the Lions at their own 6 yard line. Detroit attempted to kill enough clock to get the game to overtime, but could only gain one first down and 17 yards. Detroit punter Sam Martin then shanked a punt that netted only 28 yards before going out of bounds at the Cincinnati 49 with 26 seconds left in the game. Three plays and 15 yards later, Mike Nugent boomed a 54-yard field goal as time expired to give the Bengals a 27-24 victory. The aerial attack for both teams produced big numbers.  Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns, while Matthew Stafford was 28-of-51 for 357 yards and 3 scores.  A. J. Green of the Bengals and Calvin Johnson of the Lions both tallied 155 yards receiving on the day.",
-      "original_question": "Which quarterback had more incomplete passes?",
+      "original_passage": "In the county, the population was spread out with 21.7% under the age of 18,  8.5% from 18 to 24, 26.9% from 25 to 44, 27.7% from 45 to 64, and 15.0% who were 65 years of age or older. The median age was 40 years. For every 100 females, there were 94.4 males. For every 100 females age 18 and over, there were 98.7 males.",
+      "original_question": "How many percent of the population was over the age of 18?",
       "original_answer_data": {
         "spans": [
-          "Matthew Stafford"
+          "78.3"
         ],
         "types": [
-          "span"
+          "number"
         ]
       },
-      "line_number": 263
+      "line_number": 820
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The United States has also conducted a series of military strikes on al-Qaeda militants in Yemen since the War on Terror began. Yemen has a weak central government and a powerful tribal system that leaves large lawless areas open for militant training and operations. Al-Qaeda has a strong presence in the country. On 31 March 2011, AQAP declared the Al-Qaeda Emirate in Yemenafter its captured most of Abyan Governorate. The U.S., in an effort to support Yemeni counter-terrorism efforts, has increased their military aid package to Yemen from less than $11 million in 2006 to more than $70 million in 2009, as well as providing up to $121 million for development over the next three years.",
+      "original_question": "How many millions of dollars, approximately, did the U.S. increase their military aid package from 2006 to 2009.",
+      "original_answer_data": {
+        "spans": [
+          "59"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 109
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Pettitte was 19-10 with a 3.83 ERA and 173 strikeouts in the postseason (1995-2003, 2005, 2007, 2009-2010), with the most postseason wins in MLB history. He also holds the all-time postseason record for most starts (42) and innings pitched in the postseason (263). He was the second starting pitcher in history to win three series-clinching games (ALDS, ALCS and World Series) in the same postseason (2009). Derek Lowe did the same in 2004, but with one of the wins in relief, and additionally, Pettitte won the regular season game in which the Yankees clinched the division. When Pettitte started Game 3 of the 2009 World Series, he passed Christy Mathewson and Waite Hoyt, with the second most World Series starts. Whitey Ford is in front with 22 starts. Pettitte has played in 8 different World Series (7 with the Yankees, and 2005 World Series with the Astros), and been on the winning end of 19 postseason series - both of which are tops among active players. Andy Pettittes final postseason appearance was on Saturday, October 13, 2012 which was game one of the 2012 ALCS. Pettitte received a no decision in the game which the Yankees would lose in 12 innings.",
+      "original_question": "How many of Pettitte postseason starts were not recorded as either a win or a loss?",
+      "original_answer_data": {
+        "spans": [
+          "13"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 118
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In week 4, the Lions traveled south to Arlington, Texas to take on the Dallas Cowboys. The Cowboys dominated the first half, putting the Lions in a big hole for the second straight week. First came a 25-yard touchdown catch by Dez Bryant. In the second quarter, Bryant scored again on a 6-yard touchdown catch. Dallas added more points with a 41-yard field goal by Dan Bailey. The Lions then got their only points of the first half with a 33-yard field goal by Jason Hanson. The Cowboys responded with a 35-yard field goal just before halftime. After the break, Dallas added more points with a 1-yard touchdown pass to Jason Witten, putting them up 27-3. The Lions responded with two consecutive defensive touchdowns: first a 34-yard interception return by Bobby Carpenter, then a 56-yard pick-6 by Chris Houston. The Cowboys scored their final points of the game with a 23-yard field goal late in the third quarter. In the fourth quarter, the Lions continued their comeback with a 23-yard touchdown catch by Calvin Johnson. They made it a three-point game with a 51-yard field goal by Jason Hanson, then Romo threw an interception to Stephen Tulloch, and took their first lead of the game late in the final quarter when Calvin Johnson caught his second touchdown of the game from 2 yards out to become only the second player in NFL history to record at least two touchdown catches in 4 straight games (the other to do so is former Vikings receiver Cris Carter). The Lions defense held off Dallas for the win. Like the previous week, the Lions came back and won it in the final moments of the game after being down by a large margin at halftime. This was also the largest comeback the Dallas Cowboys have ever allowed, and it is the largest comeback by a road team in NFL history as the Cowboys were up by 24 in the 3rd quarter. It was the first time the Lions started 4-0 since 1980. This also was its franchise-record fifth straight road win. Ironically, their last game at Dallas saw the Lions lose their franchise-record 26th straight road game.",
+      "original_question": "How many is the difference in the number of yards of the first TD catch by Bryant and the yards of the TD catch by johnson?",
+      "original_answer_data": {
+        "spans": [
+          "2"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 941
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Trying to snap a two-game losing skid, the Packers went home for a Week 11 NFC North duel with their hated rival, the Chicago Bears.  In the first quarter, the Pack drew first blood as QB Aaron Rodgers completed a 3-yard TD pass to WR Greg Jennings.  In the second quarter, the Bears responded with kicker Robbie Gould getting a 35-yard field goal.  The Packers answered with RB Ryan Grant getting a 4-yard TD run, along with kicker Mason Crosby getting a 53-yard field goal. In the third quarter, Green Bay continued its assault as Rodgers completed a 5-yard TD pass to TE Donald Lee.  In the fourth quarter, the Pack ended its rout with Crosby making a 33-yard field goal, DE Jason Hunter returning a fumble 54&#160;yards for a touchdown, and Crosby nailing a 45-yard field goal.",
+      "original_question": "How many field goals over 40 yards were made?",
+      "original_answer_data": {
+        "spans": [
+          "2"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 137
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In 1895, members of the Gloucestershire Engineer Volunteers reenacted their famous stand at Rorke's Drift, 18 years earlier. 25 British soldiers beat back the attack of 75 Zulus at the Grand Military Fete at the Cheltenham Winter Gardens. Veterans of the American Civil War recreated battles as a way to remember their fallen comrades and to teach others what the war was all about. The Great Reunion of 1913, celebrating the 50th anniversary of the Battle of Gettysburg, was attended by more than 50,000 Union and Confederate veterans, and included reenactments of elements of the battle, including Pickett's Charge. During the early twentieth century, historical reenactment became very popular in Russia with reenactments of the Siege of Sevastopol  , the Battle of Borodino  in St Petersburg and the Taking of Azov  in Voronezh in 1918. In 1920, there was a reenactment of the 1917 Storming of the Winter Palace on the third anniversary of the event. This reenactment inspired the scenes in Sergei Eisenstein's film October: Ten Days That Shook the World. Large scale reenactments began to be regularly held at the Royal Tournament, Aldershot Tattoo in the 1920s and 30s. A spectacular recreation of the Siege of Namur, an important military engagement of the Nine Years' War, was staged in 1934 as part of 6-day long show. In America, modern reenacting is thought to have begun during the 1961-1965 Civil War Centennial commemorations. After more than 6,000 reenactors participated in a 125th anniversary event near the original Manassas battlefield, reenacting grew in popularity during the late 1980s and 1990s, and there are today over a hundred Civil War reenactments held each year throughout the country.",
+      "original_question": "How many years did the Civil War Centennial commemorations last?",
+      "original_answer_data": {
+        "spans": [
+          "4"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 106
     }
   ],
   "example_indices": [
-    131,
-    132,
-    133,
-    134,
-    135
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155
   ],
   "results": [
     {
       "success": true,
-      "answer": "Error in question decomposition: Failed to decompose the question successfully.",
-      "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
+      "answer": "2",
+      "output": "ANSWER_START\n2\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_18.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "0",
+      "output": "ANSWER_START\n0\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_18.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value, 0."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "To determine whether installations increased more from 1978 to 1986 or from 1986 to 1989, we need to calculate the increase in each period.\n\nFrom 1978 to 1986: 1,767,000 - 850,000 = 917,000\nFrom 1986 to 1989: 2,380,000 - 1,767,000 = 613,000\n\nSince 917,000 is greater than 613,000, the installations increased more from 1978 to 1986.\n\nFinal Answer: 1978 to 1986",
+      "output": "ANSWER_START\nTo determine whether installations increased more from 1978 to 1986 or from 1986 to 1989, we need to calculate the increase in each period.\n\nFrom 1978 to 1986: 1,767,000 - 850,000 = 917,000\nFrom 1986 to 1989: 2,380,000 - 1,767,000 = 613,000\n\nSince 917,000 is greater than 613,000, the installations increased more from 1978 to 1986.\n\nFinal Answer: 1978 to 1986\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_18.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers state that the installations increased more from 1978 to 1986."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "6,000 + 7,000 + 14,300 = 27,300",
+      "output": "ANSWER_START\n6,000 + 7,000 + 14,300 = 27,300\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_18.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer provides the correct sum of 27,300 as the final result of the calculation."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "I cannot answer this question. The passage states that 21.7% are under the age of 18, 8.5% are from 18 to 24, but it does not state the total percentage of the population over the age of 18.",
+      "output": "ANSWER_START\nI cannot answer this question. The passage states that 21.7% are under the age of 18, 8.5% are from 18 to 24, but it does not state the total percentage of the population over the age of 18.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_18.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer indicates an error in processing the question and does not provide a numerical answer. The golden answer is '10', a specific numerical value. Therefore, the system answer does not convey the same information as the golden answer."
+        "explanation": "The system answer states that it cannot provide the answer, while the golden answer provides the numerical answer. Therefore, they are not equivalent."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Error in question decomposition: Failed to decompose the question successfully.",
-      "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
+      "answer": "59",
+      "output": "ANSWER_START\n59\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_18.jsonl",
       "evaluation": {
-        "match": false,
+        "match": true,
         "confidence": 1,
-        "explanation": "The system answer indicates an error, while the golden answer provides a numerical value. These are not semantically equivalent."
+        "explanation": "Both answers are the same numerical value."
       },
-      "match": false
+      "match": true
     },
     {
       "success": true,
-      "answer": "Error in question decomposition: Failed to decompose the question successfully.",
-      "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
+      "answer": "The passage states that Pettitte had 42 postseason starts and a record of 19-10. This means he had 19 wins and 10 losses. To find the number of starts that were not recorded as a win or loss, we subtract the number of wins and losses from the total number of starts: 42 - 19 - 10 = 13. Additionally, the passage mentions that Pettitte received a no decision in his final postseason appearance.\n\n42 - 19 - 10 = 13\n\nTherefore, the answer is 13.",
+      "output": "ANSWER_START\nThe passage states that Pettitte had 42 postseason starts and a record of 19-10. This means he had 19 wins and 10 losses. To find the number of starts that were not recorded as a win or loss, we subtract the number of wins and losses from the total number of starts: 42 - 19 - 10 = 13. Additionally, the passage mentions that Pettitte received a no decision in his final postseason appearance.\n\n42 - 19 - 10 = 13\n\nTherefore, the answer is 13.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_18.jsonl",
       "evaluation": {
-        "match": false,
+        "match": true,
         "confidence": 1,
-        "explanation": "The system answer indicates an error and does not provide any information semantically equivalent to the golden answer '1-2 May'."
+        "explanation": "The system answer arrives at the correct answer of 13 by correctly extracting the relevant information from the passage, doing the calculation and presenting it clearly."
       },
-      "match": false
+      "match": true
     },
     {
       "success": true,
-      "answer": "Error in question decomposition: Failed to decompose the question successfully.",
-      "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
+      "answer": "2",
+      "output": "ANSWER_START\n2\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_18.jsonl",
       "evaluation": {
-        "match": false,
+        "match": true,
         "confidence": 1,
-        "explanation": "The system answer indicates an error and doesn't provide an answer, while the golden answer provides a specific name. They are not semantically equivalent."
+        "explanation": "Both answers are the same numerical value (2)."
       },
-      "match": false
+      "match": true
     },
     {
       "success": true,
-      "answer": "Error in question decomposition: Failed to decompose the question successfully.",
-      "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
+      "answer": "2",
+      "output": "ANSWER_START\n2\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_18.jsonl",
       "evaluation": {
-        "match": false,
+        "match": true,
         "confidence": 1,
-        "explanation": "The system answer indicates an error and doesn't provide any meaningful answer, while the golden answer provides a name. They are completely different."
+        "explanation": "Both answers are the same numerical value (2)."
       },
-      "match": false
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "4",
+      "output": "ANSWER_START\n4\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_18.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same single numerical value (4)."
+      },
+      "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.0,
-    "correct_count": 0,
-    "total_count": 5,
+    "accuracy": 0.9,
+    "correct_count": 9,
+    "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Error in question decomposition: Failed to decompose the question successfully.",
-        "golden_answer": "10",
-        "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "2",
+        "golden_answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error in processing the question and does not provide a numerical answer. The golden answer is '10', a specific numerical value. Therefore, the system answer does not convey the same information as the golden answer."
-        },
-        "capability_failures": []
+          "explanation": "Both answers are the same numerical value."
+        }
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "Error in question decomposition: Failed to decompose the question successfully.",
-        "golden_answer": "73",
-        "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "0",
+        "golden_answer": "0",
+        "output": "ANSWER_START\n0\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error, while the golden answer provides a numerical value. These are not semantically equivalent."
-        },
-        "capability_failures": []
+          "explanation": "Both answers are the same numerical value, 0."
+        }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "Error in question decomposition: Failed to decompose the question successfully.",
-        "golden_answer": "1-2 May",
-        "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "To determine whether installations increased more from 1978 to 1986 or from 1986 to 1989, we need to calculate the increase in each period.\n\nFrom 1978 to 1986: 1,767,000 - 850,000 = 917,000\nFrom 1986 to 1989: 2,380,000 - 1,767,000 = 613,000\n\nSince 917,000 is greater than 613,000, the installations increased more from 1978 to 1986.\n\nFinal Answer: 1978 to 1986",
+        "golden_answer": "1978 to 1986",
+        "output": "ANSWER_START\nTo determine whether installations increased more from 1978 to 1986 or from 1986 to 1989, we need to calculate the increase in each period.\n\nFrom 1978 to 1986: 1,767,000 - 850,000 = 917,000\nFrom 1986 to 1989: 2,380,000 - 1,767,000 = 613,000\n\nSince 917,000 is greater than 613,000, the installations increased more from 1978 to 1986.\n\nFinal Answer: 1978 to 1986\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error and does not provide any information semantically equivalent to the golden answer '1-2 May'."
-        },
-        "capability_failures": []
+          "explanation": "Both answers state that the installations increased more from 1978 to 1986."
+        }
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "Error in question decomposition: Failed to decompose the question successfully.",
-        "golden_answer": "Jay Cutler",
-        "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
-        "match": false,
+        "system_answer": "6,000 + 7,000 + 14,300 = 27,300",
+        "golden_answer": "27300",
+        "output": "ANSWER_START\n6,000 + 7,000 + 14,300 = 27,300\n\nANSWER_END\n",
+        "match": true,
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer indicates an error and doesn't provide an answer, while the golden answer provides a specific name. They are not semantically equivalent."
-        },
-        "capability_failures": []
+          "explanation": "The system answer provides the correct sum of 27,300 as the final result of the calculation."
+        }
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "Error in question decomposition: Failed to decompose the question successfully.",
-        "golden_answer": "Matthew Stafford",
-        "output": "Error calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 1/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 2/3): Error: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nError calling Gemini API: module 'google.genai' has no attribute 'configure'\nDecomposition validation failed (attempt 3/3): Error: module 'google.genai' has no attribute 'configure'\nANSWER_START\nError in question decomposition: Failed to decompose the question successfully.\nANSWER_END\n",
+        "system_answer": "I cannot answer this question. The passage states that 21.7% are under the age of 18, 8.5% are from 18 to 24, but it does not state the total percentage of the population over the age of 18.",
+        "golden_answer": "78.3",
+        "output": "ANSWER_START\nI cannot answer this question. The passage states that 21.7% are under the age of 18, 8.5% are from 18 to 24, but it does not state the total percentage of the population over the age of 18.\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer indicates an error and doesn't provide any meaningful answer, while the golden answer provides a name. They are completely different."
+          "explanation": "The system answer states that it cannot provide the answer, while the golden answer provides the numerical answer. Therefore, they are not equivalent."
         },
         "capability_failures": []
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "59",
+        "golden_answer": "59",
+        "output": "ANSWER_START\n59\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "The passage states that Pettitte had 42 postseason starts and a record of 19-10. This means he had 19 wins and 10 losses. To find the number of starts that were not recorded as a win or loss, we subtract the number of wins and losses from the total number of starts: 42 - 19 - 10 = 13. Additionally, the passage mentions that Pettitte received a no decision in his final postseason appearance.\n\n42 - 19 - 10 = 13\n\nTherefore, the answer is 13.",
+        "golden_answer": "13",
+        "output": "ANSWER_START\nThe passage states that Pettitte had 42 postseason starts and a record of 19-10. This means he had 19 wins and 10 losses. To find the number of starts that were not recorded as a win or loss, we subtract the number of wins and losses from the total number of starts: 42 - 19 - 10 = 13. Additionally, the passage mentions that Pettitte received a no decision in his final postseason appearance.\n\n42 - 19 - 10 = 13\n\nTherefore, the answer is 13.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer arrives at the correct answer of 13 by correctly extracting the relevant information from the passage, doing the calculation and presenting it clearly."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "2",
+        "golden_answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (2)."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "2",
+        "golden_answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (2)."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "4",
+        "golden_answer": "4",
+        "output": "ANSWER_START\n4\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same single numerical value (4)."
+        }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\n\nThe predominant runtime error is: `module 'google.genai' has no attribute 'configure'` This indicates a problem with the Google Gemini API configuration or installation. The system is unable to access or initialize the Gemini API correctly. This error occurs repeatedly during the question decomposition stage.\n\n## STRENGTHS\n\nSince there are no success cases, it is hard to identify strengths. However, based on the intended design, the potential strengths are:\n\n1.  **Modular Design:** The design incorporates a question decomposition stage, which is good for handling complex questions by breaking them down into simpler parts.\n2.  **API Integration:** The system attempts to leverage a powerful LLM (Gemini) for question answering.\n\n## WEAKNESSES\n\n1.  **API Dependency & Reliability:** The system is heavily reliant on the external Gemini API. When the API is unavailable or misconfigured, the entire process fails.\n2.  **Lack of Fallback Mechanism:** There is no fallback mechanism when the question decomposition fails. The system immediately throws an error instead of attempting a simpler approach.\n3.  **Error Handling:** The error handling is limited. The system reports \"Error in question decomposition: Failed to decompose the question successfully,\" but doesn't provide more context about *why* the decomposition failed, beyond the underlying API error.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Gemini API Configuration/Availability:** The inability to configure or access the Gemini API is the primary bottleneck, preventing any progress in the question-answering process.\n2.  **Question Decomposition Failure:** The inability to decompose the question effectively stops the process even before extraction of the answer.\n\n## ERROR PATTERNS\n\n1.  **Consistent API Failure:** All error cases exhibit the same `module 'google.genai' has no attribute 'configure'` error, indicating a systemic issue rather than question-specific problems.\n2.  **Early Termination:** The system fails at the question decomposition stage for all samples, without proceeding to information extraction or solution generation.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the **inability to configure and connect to the Gemini API**. This prevents the system from performing any question decomposition and, consequently, any question answering.\n\n## IMPROVEMENT AREAS\n\n1.  **API Configuration and Error Handling:** Improve the reliability and robustness of the Gemini API integration. Include comprehensive error handling for API failures.\n2.  **Fallback Mechanisms:** Implement fallback mechanisms if question decomposition fails. Consider simpler question-answering strategies as an alternative.\n3.  **Detailed Logging and Debugging:** Add more detailed logging and debugging information, especially during the question decomposition phase, to understand *why* the process fails.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Verify Gemini API Setup:** Double-check the Gemini API installation, credentials, and configuration. Ensure that the necessary environment variables are set correctly and the API key is valid.\n2.  **Implement API Health Checks:** Add API health checks to verify the API's availability before attempting question decomposition.\n3.  **Retry Mechanism with Backoff:** If the API call fails, implement a retry mechanism with exponential backoff to handle temporary API outages.\n4.  **Simplified Question Answering:** Implement a simple keyword-based search or direct pattern matching approach as a fallback if question decomposition fails. This could provide a basic answer in cases where the API is unavailable.\n5.  **Detailed Error Logging:** Capture the full stack trace and error message when the Gemini API call fails to aid in debugging.\n6. **Add intermediate outputs to the code**: Add print statements that output the questions and intermediate steps of the program, to help in later diagnosis of problems.\n\n## CAPABILITY MAPPING\n\n*   **Sample 0:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n*   **Sample 1:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n*   **Sample 2:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n*   **Sample 3:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n*   **Sample 4:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n",
+      "text_report": "## RUNTIME ERRORS\nThere are no explicit runtime errors (e.g., JSONDecodeError, TypeError) present in the provided error cases.\n\n## STRENGTHS\n1.  **Numerical Calculation:** The system correctly performs arithmetic calculations when it identifies the relevant numbers (e.g., sample_id 3, sample_id 6).\n2.  **Information Extraction (Partial):** The system can extract some information from the passage, as shown by the successful extraction of numbers and entities in several success cases. It also demonstrates the ability to identify the passage segments relevant to the question.\n\n## WEAKNESSES\n1.  **Incomplete Information Extraction:** The system struggles to synthesize information that requires combining multiple pieces of data from the passage (e.g., sample_id 4).\n2.  **Lack of Deduction:** The system is unable to perform basic deductions or inferences, such as calculating percentages based on given data. The system states that it cannot answer the question because the percentage over the age of 18 is not stated.\n3. **Lack of simple logic:** The system is unable to simply add the percentages of the population who were 18 to 24, 25 to 44, 45 to 64, and 65 or older.\n\n## CRITICAL BOTTLENECKS\n1.  **Inferential Reasoning:** The inability to perform basic deductions (e.g., calculating a missing percentage given other percentages, simple sums and differences) severely limits the system's ability to answer questions that require more than direct extraction.\n2.  **Information Synthesis:** The system struggles to combine multiple facts or pieces of information to arrive at an answer.\n\n## ERROR PATTERNS\n1.  **Inability to Calculate Derived Values:** The primary recurring pattern is the system's inability to calculate values not explicitly stated in the passage but easily derivable from the given information (e.g., total percentage for a group given percentages of subgroups).\n\n## PRIMARY ISSUE\nThe most critical problem is the system's failure in basic inferential reasoning and information synthesis. It cannot perform simple calculations like adding percentages to derive a total.\n\n## IMPROVEMENT AREAS\n1.  **Enhance Inferential Reasoning:** Implement mechanisms for the system to perform basic mathematical deductions and logical inferences.\n2.  **Improve Information Synthesis:** Enable the system to combine multiple pieces of information from the passage to derive new information or answer a question.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement Simple Arithmetic Operations:** Integrate a module that can perform basic arithmetic operations (addition, subtraction, multiplication, division) on extracted numbers based on keywords in the question (e.g., \"total,\" \"difference,\" \"sum\").\n2.  **Introduce a Basic Deduction Module:** Develop a module that can recognize patterns and apply basic logical rules to derive new information. For example, recognizing that if the percentage under 18 is given, the percentage over 18 can be calculated by subtracting from 100.\n3.  **Add intermediate steps with print statements:** To figure out what is going wrong, add intermediate steps with print statements to allow for debugging of the system to verify if values extracted are correct, and if the calculations are correct.\n4. **Add unit tests:** Add unit tests for basic arithmetic functionality.\n\n## CAPABILITY MAPPING\n*   **sample_id: 4**\n    *   information_extraction: Failed (incomplete extraction, unable to identify the need to calculate the remaining percentage)\n    *   solution_generation: Failed (unable to generate a solution because of information extraction failure)\n    *   solution_verification: Not applicable (no solution generated)\n    *   decision_making: Not applicable (no solution generated)\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The most critical problem is the **inability to configure and connect to the Gemini API**. This prevents the system from performing any question decomposition and, consequently, any question answering.",
+      "primary_issue": "The most critical problem is the system's failure in basic inferential reasoning and information synthesis. It cannot perform simple calculations like adding percentages to derive a total.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a comprehensive capability report for your AI system based on the provided performance summary, error analysis, sample execution outputs, and improvement suggestions:\n\n## CAPABILITY ASSESSMENT REPORT\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.00 (0/5)\n*   Error samples: 5/5\n\n**ERROR ANALYSIS REPORT:** (As Provided)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs clearly show a consistent and critical error: `module 'google.genai' has no attribute 'configure'`. This error occurs repeatedly during the question decomposition stage, preventing the system from progressing further. The consistent nature of this error across all samples points to a systemic issue related to the Gemini API setup rather than any problem with the specific questions being asked. The system attempts question decomposition multiple times (3 attempts), each failing. The error messages confirm that the issue originates from the API configuration, indicating problems with library installation, credentials, or environment setup.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system, in its current state, has **very limited capability**. Its core functionality is severely hampered by its inability to configure and utilize the Gemini API. While the design incorporates potentially useful modularity (question decomposition), this strength is currently unrealized. The system's ability to perform information extraction, constraint handling, solution generation, verification, and decision-making is non-existent due to the initial API failure. Overall the system is non-functional at present.\n\n## KEY STRENGTHS\n\n*   **Modular Design (Potential):** The intended modular design, particularly the question decomposition stage, is a strength to maintain. This approach is beneficial for tackling complex questions by breaking them down into smaller, manageable components.\n*   **API Integration (Potential):** The system's attempt to integrate a powerful LLM like Gemini is a strength in concept. Leveraging LLMs for question answering is a promising approach.\n\n## KEY WEAKNESSES\n\n*   **API Configuration/Access:** The *most critical* weakness is the inability to configure and reliably access the Gemini API. This is a fundamental blocker that prevents any further processing.\n*   **Lack of Robust Error Handling:** While the system detects the error, it doesn't provide enough context or recovery mechanisms. More detailed error messages and logging would be valuable.\n*   **No Fallback Mechanism:** The absence of a fallback mechanism when the API or question decomposition fails makes the system brittle.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **API Integration and Configuration**. Specifically, ensuring a reliable and robust connection to the Gemini API. Without this, no other improvements will be effective.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Immediate API Verification:**\n    *   **Verify Installation:** Double-check the `google.genai` library installation. Use `pip list` or `conda list` to confirm it's present in the correct environment.\n    *   **Check Credentials:** Ensure the Gemini API credentials (API key) are correctly set as environment variables (e.g., `GOOGLE_API_KEY`) or securely passed into the `configure` function (if not using environment variables).\n    *   **Code Review:** Review the code to pinpoint where the `google.genai.configure()` call is made and verify the parameters passed to it. Ensure they match the API's expected format.\n2.  **Implement API Health Check:**\n    *   Add a preliminary API health check *before* attempting question decomposition. This check should attempt a simple API call (e.g., a ping or echo request) to confirm API availability. This prevents cascading failures.\n3.  **Enhanced Error Handling & Logging:**\n    *   **Detailed Logging:** Log the exact exception and traceback when the API call fails. This provides more information for debugging. `import traceback; traceback.print_exc()` can be helpful.\n    *   **Specific Error Messages:** Provide more informative error messages to the user (or in the logs) describing the nature of the API failure (e.g., \"Invalid API Key,\" \"API Unavailable,\" \"Connection Error\").\n4.  **Basic Fallback Strategy:**\n    *   Implement a simple keyword-based search or pattern-matching as a temporary fallback if the API is unavailable. While it won't be as accurate as Gemini, it's better than no response at all.\n5.  **Add print statements**: To understand how the program is proceeding add `print()` statements at the beginning of each function and important steps in the logic of the program.\n\n## CAPABILITY TREND\n\nCurrently, the capability trend is **declining rapidly**. The system is non-functional. Addressing the API issue is critical to reverse this trend. Once the API connectivity is established, future iterations can focus on refining the question decomposition, information extraction, and solution generation capabilities.\n",
+      "text_report": "Okay, here's a comprehensive capability report for your AI system based on the provided performance summary, error analysis, sample execution outputs, and requested analysis framework.\n\n## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal a mixed bag of results, reinforcing observations from the Error Analysis Report.\n\n*   **Output 1 & 2:** Return only the numerical number.\n*   **Output 3:** The model has the ability to determine what is asked, and then calculate the answer. Then state the answer with supporting reasons.\n\n*   **Hallucination/Gibberish:** None.\n*   **Reasoning Style:** Mixed. While Output 3 provides explanation, it's currently inconsistent. This suggests the reasoning component is either intermittently engaged or not robust enough.\n*   **Formatting:** The \"ANSWER_START\" and \"ANSWER_END\" tags seem to be consistently used, which is positive.\n\n### CAPABILITY ASSESSMENT\n\nThe system displays rudimentary information extraction and numerical processing capabilities but struggles with basic inferential reasoning and information synthesis. It can perform calculations when explicitly prompted and when the necessary information is directly available. However, it fails when calculations require combining multiple pieces of data or deriving values not explicitly stated. The inconsistency of the model with showing its work is another capability area to improve.\n\n### KEY STRENGTHS\n\n*   **Numerical Calculation:** Accurate arithmetic calculations when it identifies the relevant numbers and operation.\n*   **Information Extraction (Partial):** Ability to extract some information and identify relevant passage segments.\n*   **Formatted Output:** Consistently uses \"ANSWER_START\" and \"ANSWER_END\" tags.\n\n### KEY WEAKNESSES\n\n*   **Inferential Reasoning:** Inability to perform basic deductions and inferences.\n*   **Information Synthesis:** Struggles to combine multiple pieces of information.\n*   **Reasoning:** Inconsistent with outputting explanations.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Inferential Reasoning**. The inability to perform even simple deductions is a major bottleneck, severely limiting the system's ability to answer a wide range of questions.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Calculation Module:**\n    *   **Details:** Integrate a module capable of performing basic arithmetic operations (addition, subtraction, multiplication, division, percentage calculations). This module should be triggered by keywords in the question (e.g., \"total,\" \"difference,\" \"percentage\").\n    *   **Implementation:**\n        *   Use regular expressions to find numbers surrounding the question\n        *   Find the keywords that indicate what the model must do\n    *   **Testing:** Create unit tests covering a range of simple arithmetic operations and percentage calculations, ensuring correct outputs for different input combinations.\n\n2.  **Develop a Deduction Module:**\n    *   **Details:** Create a module that can recognize patterns and apply basic logical rules. A key example is understanding that percentages must add up to 100% and, therefore, missing percentages can be derived.\n    *   **Implementation:**\n        *   Start with a rule-based system for simple deductions (e.g., calculating missing percentages, identifying \"greater than/less than\" relationships).\n        *   Consider using a symbolic reasoning engine for more complex deductions in the future.\n    *   **Testing:** Design unit tests to verify the module's ability to perform various logical deductions, focusing on scenarios relevant to the system's application.\n\n3.  **Implement Reasoning into the model:**\n    *   **Details:** Improve reasoning for the model so it's not intermittent. All outputs should contain its thought process as shown in Output 3.\n    *   **Implementation:**\n        *   Prompt the model to always show its work\n    *   **Testing:** Check the outputs to verify the reasoning that led to the final answer.\n\n4.  **Enhanced Debugging:**\n    *   **Details:** Insert print statements at key stages in the processing pipeline to track the values of extracted information and the results of calculations.\n    *   **Implementation:**\n        *   Add print statements before and after each arithmetic calculation.\n        *   Log the extracted values used in each step.\n    *   **Purpose:** This will allow you to pinpoint exactly where errors are occurring and how the system is interpreting the input.\n\n5.  **Refine Information Extraction:**\n    *   **Details:** Improve the system's ability to identify *all* relevant information from the passage, especially when multiple pieces of data need to be combined.\n    *   **Implementation:**\n        *   Experiment with different entity recognition models or techniques.\n        *   Use dependency parsing to identify relationships between entities and concepts.\n    *   **Testing:**  Focus on test cases where the system currently fails to extract all the necessary information.\n\n### CAPABILITY TREND\n\nBased on the limited information, it's difficult to definitively assess the capability trend. The system shows some promise in information extraction and numerical calculation, but its weakness in inferential reasoning is a significant hurdle. If the actionable recommendations are implemented and show improvement, the trend would be positive. Otherwise, it's currently stable, with limited progress.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\n\nThe predominant runtime error is: `module 'google.genai' has no attribute 'configure'` This indicates a problem with the Google Gemini API configuration or installation. The system is unable to access or initialize the Gemini API correctly. This error occurs repeatedly during the question decomposition stage.\n\n## STRENGTHS\n\nSince there are no success cases, it is hard to identify strengths. However, based on the intended design, the potential strengths are:\n\n1.  **Modular Design:** The design incorporates a question decomposition stage, which is good for handling complex questions by breaking them down into simpler parts.\n2.  **API Integration:** The system attempts to leverage a powerful LLM (Gemini) for question answering.\n\n## WEAKNESSES\n\n1.  **API Dependency & Reliability:** The system is heavily reliant on the external Gemini API. When the API is unavailable or misconfigured, the entire process fails.\n2.  **Lack of Fallback Mechanism:** There is no fallback mechanism when the question decomposition fails. The system immediately throws an error instead of attempting a simpler approach.\n3.  **Error Handling:** The error handling is limited. The system reports \"Error in question decomposition: Failed to decompose the question successfully,\" but doesn't provide more context about *why* the decomposition failed, beyond the underlying API error.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Gemini API Configuration/Availability:** The inability to configure or access the Gemini API is the primary bottleneck, preventing any progress in the question-answering process.\n2.  **Question Decomposition Failure:** The inability to decompose the question effectively stops the process even before extraction of the answer.\n\n## ERROR PATTERNS\n\n1.  **Consistent API Failure:** All error cases exhibit the same `module 'google.genai' has no attribute 'configure'` error, indicating a systemic issue rather than question-specific problems.\n2.  **Early Termination:** The system fails at the question decomposition stage for all samples, without proceeding to information extraction or solution generation.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the **inability to configure and connect to the Gemini API**. This prevents the system from performing any question decomposition and, consequently, any question answering.\n\n## IMPROVEMENT AREAS\n\n1.  **API Configuration and Error Handling:** Improve the reliability and robustness of the Gemini API integration. Include comprehensive error handling for API failures.\n2.  **Fallback Mechanisms:** Implement fallback mechanisms if question decomposition fails. Consider simpler question-answering strategies as an alternative.\n3.  **Detailed Logging and Debugging:** Add more detailed logging and debugging information, especially during the question decomposition phase, to understand *why* the process fails.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Verify Gemini API Setup:** Double-check the Gemini API installation, credentials, and configuration. Ensure that the necessary environment variables are set correctly and the API key is valid.\n2.  **Implement API Health Checks:** Add API health checks to verify the API's availability before attempting question decomposition.\n3.  **Retry Mechanism with Backoff:** If the API call fails, implement a retry mechanism with exponential backoff to handle temporary API outages.\n4.  **Simplified Question Answering:** Implement a simple keyword-based search or direct pattern matching approach as a fallback if question decomposition fails. This could provide a basic answer in cases where the API is unavailable.\n5.  **Detailed Error Logging:** Capture the full stack trace and error message when the Gemini API call fails to aid in debugging.\n6. **Add intermediate outputs to the code**: Add print statements that output the questions and intermediate steps of the program, to help in later diagnosis of problems.\n\n## CAPABILITY MAPPING\n\n*   **Sample 0:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n*   **Sample 1:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n*   **Sample 2:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n*   **Sample 3:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n*   **Sample 4:**\n    *   information_extraction: Failed (due to decomposition failure)\n    *   constraint_handling: N/A\n    *   solution_generation: N/A\n    *   solution_verification: N/A\n    *   decision_making: N/A\n",
-    "capability_report_text": "Okay, here's a comprehensive capability report for your AI system based on the provided performance summary, error analysis, sample execution outputs, and improvement suggestions:\n\n## CAPABILITY ASSESSMENT REPORT\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.00 (0/5)\n*   Error samples: 5/5\n\n**ERROR ANALYSIS REPORT:** (As Provided)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs clearly show a consistent and critical error: `module 'google.genai' has no attribute 'configure'`. This error occurs repeatedly during the question decomposition stage, preventing the system from progressing further. The consistent nature of this error across all samples points to a systemic issue related to the Gemini API setup rather than any problem with the specific questions being asked. The system attempts question decomposition multiple times (3 attempts), each failing. The error messages confirm that the issue originates from the API configuration, indicating problems with library installation, credentials, or environment setup.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system, in its current state, has **very limited capability**. Its core functionality is severely hampered by its inability to configure and utilize the Gemini API. While the design incorporates potentially useful modularity (question decomposition), this strength is currently unrealized. The system's ability to perform information extraction, constraint handling, solution generation, verification, and decision-making is non-existent due to the initial API failure. Overall the system is non-functional at present.\n\n## KEY STRENGTHS\n\n*   **Modular Design (Potential):** The intended modular design, particularly the question decomposition stage, is a strength to maintain. This approach is beneficial for tackling complex questions by breaking them down into smaller, manageable components.\n*   **API Integration (Potential):** The system's attempt to integrate a powerful LLM like Gemini is a strength in concept. Leveraging LLMs for question answering is a promising approach.\n\n## KEY WEAKNESSES\n\n*   **API Configuration/Access:** The *most critical* weakness is the inability to configure and reliably access the Gemini API. This is a fundamental blocker that prevents any further processing.\n*   **Lack of Robust Error Handling:** While the system detects the error, it doesn't provide enough context or recovery mechanisms. More detailed error messages and logging would be valuable.\n*   **No Fallback Mechanism:** The absence of a fallback mechanism when the API or question decomposition fails makes the system brittle.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **API Integration and Configuration**. Specifically, ensuring a reliable and robust connection to the Gemini API. Without this, no other improvements will be effective.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Immediate API Verification:**\n    *   **Verify Installation:** Double-check the `google.genai` library installation. Use `pip list` or `conda list` to confirm it's present in the correct environment.\n    *   **Check Credentials:** Ensure the Gemini API credentials (API key) are correctly set as environment variables (e.g., `GOOGLE_API_KEY`) or securely passed into the `configure` function (if not using environment variables).\n    *   **Code Review:** Review the code to pinpoint where the `google.genai.configure()` call is made and verify the parameters passed to it. Ensure they match the API's expected format.\n2.  **Implement API Health Check:**\n    *   Add a preliminary API health check *before* attempting question decomposition. This check should attempt a simple API call (e.g., a ping or echo request) to confirm API availability. This prevents cascading failures.\n3.  **Enhanced Error Handling & Logging:**\n    *   **Detailed Logging:** Log the exact exception and traceback when the API call fails. This provides more information for debugging. `import traceback; traceback.print_exc()` can be helpful.\n    *   **Specific Error Messages:** Provide more informative error messages to the user (or in the logs) describing the nature of the API failure (e.g., \"Invalid API Key,\" \"API Unavailable,\" \"Connection Error\").\n4.  **Basic Fallback Strategy:**\n    *   Implement a simple keyword-based search or pattern-matching as a temporary fallback if the API is unavailable. While it won't be as accurate as Gemini, it's better than no response at all.\n5.  **Add print statements**: To understand how the program is proceeding add `print()` statements at the beginning of each function and important steps in the logic of the program.\n\n## CAPABILITY TREND\n\nCurrently, the capability trend is **declining rapidly**. The system is non-functional. Addressing the API issue is critical to reverse this trend. Once the API connectivity is established, future iterations can focus on refining the question decomposition, information extraction, and solution generation capabilities.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no explicit runtime errors (e.g., JSONDecodeError, TypeError) present in the provided error cases.\n\n## STRENGTHS\n1.  **Numerical Calculation:** The system correctly performs arithmetic calculations when it identifies the relevant numbers (e.g., sample_id 3, sample_id 6).\n2.  **Information Extraction (Partial):** The system can extract some information from the passage, as shown by the successful extraction of numbers and entities in several success cases. It also demonstrates the ability to identify the passage segments relevant to the question.\n\n## WEAKNESSES\n1.  **Incomplete Information Extraction:** The system struggles to synthesize information that requires combining multiple pieces of data from the passage (e.g., sample_id 4).\n2.  **Lack of Deduction:** The system is unable to perform basic deductions or inferences, such as calculating percentages based on given data. The system states that it cannot answer the question because the percentage over the age of 18 is not stated.\n3. **Lack of simple logic:** The system is unable to simply add the percentages of the population who were 18 to 24, 25 to 44, 45 to 64, and 65 or older.\n\n## CRITICAL BOTTLENECKS\n1.  **Inferential Reasoning:** The inability to perform basic deductions (e.g., calculating a missing percentage given other percentages, simple sums and differences) severely limits the system's ability to answer questions that require more than direct extraction.\n2.  **Information Synthesis:** The system struggles to combine multiple facts or pieces of information to arrive at an answer.\n\n## ERROR PATTERNS\n1.  **Inability to Calculate Derived Values:** The primary recurring pattern is the system's inability to calculate values not explicitly stated in the passage but easily derivable from the given information (e.g., total percentage for a group given percentages of subgroups).\n\n## PRIMARY ISSUE\nThe most critical problem is the system's failure in basic inferential reasoning and information synthesis. It cannot perform simple calculations like adding percentages to derive a total.\n\n## IMPROVEMENT AREAS\n1.  **Enhance Inferential Reasoning:** Implement mechanisms for the system to perform basic mathematical deductions and logical inferences.\n2.  **Improve Information Synthesis:** Enable the system to combine multiple pieces of information from the passage to derive new information or answer a question.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement Simple Arithmetic Operations:** Integrate a module that can perform basic arithmetic operations (addition, subtraction, multiplication, division) on extracted numbers based on keywords in the question (e.g., \"total,\" \"difference,\" \"sum\").\n2.  **Introduce a Basic Deduction Module:** Develop a module that can recognize patterns and apply basic logical rules to derive new information. For example, recognizing that if the percentage under 18 is given, the percentage over 18 can be calculated by subtracting from 100.\n3.  **Add intermediate steps with print statements:** To figure out what is going wrong, add intermediate steps with print statements to allow for debugging of the system to verify if values extracted are correct, and if the calculations are correct.\n4. **Add unit tests:** Add unit tests for basic arithmetic functionality.\n\n## CAPABILITY MAPPING\n*   **sample_id: 4**\n    *   information_extraction: Failed (incomplete extraction, unable to identify the need to calculate the remaining percentage)\n    *   solution_generation: Failed (unable to generate a solution because of information extraction failure)\n    *   solution_verification: Not applicable (no solution generated)\n    *   decision_making: Not applicable (no solution generated)\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report for your AI system based on the provided performance summary, error analysis, sample execution outputs, and requested analysis framework.\n\n## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal a mixed bag of results, reinforcing observations from the Error Analysis Report.\n\n*   **Output 1 & 2:** Return only the numerical number.\n*   **Output 3:** The model has the ability to determine what is asked, and then calculate the answer. Then state the answer with supporting reasons.\n\n*   **Hallucination/Gibberish:** None.\n*   **Reasoning Style:** Mixed. While Output 3 provides explanation, it's currently inconsistent. This suggests the reasoning component is either intermittently engaged or not robust enough.\n*   **Formatting:** The \"ANSWER_START\" and \"ANSWER_END\" tags seem to be consistently used, which is positive.\n\n### CAPABILITY ASSESSMENT\n\nThe system displays rudimentary information extraction and numerical processing capabilities but struggles with basic inferential reasoning and information synthesis. It can perform calculations when explicitly prompted and when the necessary information is directly available. However, it fails when calculations require combining multiple pieces of data or deriving values not explicitly stated. The inconsistency of the model with showing its work is another capability area to improve.\n\n### KEY STRENGTHS\n\n*   **Numerical Calculation:** Accurate arithmetic calculations when it identifies the relevant numbers and operation.\n*   **Information Extraction (Partial):** Ability to extract some information and identify relevant passage segments.\n*   **Formatted Output:** Consistently uses \"ANSWER_START\" and \"ANSWER_END\" tags.\n\n### KEY WEAKNESSES\n\n*   **Inferential Reasoning:** Inability to perform basic deductions and inferences.\n*   **Information Synthesis:** Struggles to combine multiple pieces of information.\n*   **Reasoning:** Inconsistent with outputting explanations.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Inferential Reasoning**. The inability to perform even simple deductions is a major bottleneck, severely limiting the system's ability to answer a wide range of questions.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Calculation Module:**\n    *   **Details:** Integrate a module capable of performing basic arithmetic operations (addition, subtraction, multiplication, division, percentage calculations). This module should be triggered by keywords in the question (e.g., \"total,\" \"difference,\" \"percentage\").\n    *   **Implementation:**\n        *   Use regular expressions to find numbers surrounding the question\n        *   Find the keywords that indicate what the model must do\n    *   **Testing:** Create unit tests covering a range of simple arithmetic operations and percentage calculations, ensuring correct outputs for different input combinations.\n\n2.  **Develop a Deduction Module:**\n    *   **Details:** Create a module that can recognize patterns and apply basic logical rules. A key example is understanding that percentages must add up to 100% and, therefore, missing percentages can be derived.\n    *   **Implementation:**\n        *   Start with a rule-based system for simple deductions (e.g., calculating missing percentages, identifying \"greater than/less than\" relationships).\n        *   Consider using a symbolic reasoning engine for more complex deductions in the future.\n    *   **Testing:** Design unit tests to verify the module's ability to perform various logical deductions, focusing on scenarios relevant to the system's application.\n\n3.  **Implement Reasoning into the model:**\n    *   **Details:** Improve reasoning for the model so it's not intermittent. All outputs should contain its thought process as shown in Output 3.\n    *   **Implementation:**\n        *   Prompt the model to always show its work\n    *   **Testing:** Check the outputs to verify the reasoning that led to the final answer.\n\n4.  **Enhanced Debugging:**\n    *   **Details:** Insert print statements at key stages in the processing pipeline to track the values of extracted information and the results of calculations.\n    *   **Implementation:**\n        *   Add print statements before and after each arithmetic calculation.\n        *   Log the extracted values used in each step.\n    *   **Purpose:** This will allow you to pinpoint exactly where errors are occurring and how the system is interpreting the input.\n\n5.  **Refine Information Extraction:**\n    *   **Details:** Improve the system's ability to identify *all* relevant information from the passage, especially when multiple pieces of data need to be combined.\n    *   **Implementation:**\n        *   Experiment with different entity recognition models or techniques.\n        *   Use dependency parsing to identify relationships between entities and concepts.\n    *   **Testing:**  Focus on test cases where the system currently fails to extract all the necessary information.\n\n### CAPABILITY TREND\n\nBased on the limited information, it's difficult to definitively assess the capability trend. The system shows some promise in information extraction and numerical calculation, but its weakness in inferential reasoning is a significant hurdle. If the actionable recommendations are implemented and show improvement, the trend would be positive. Otherwise, it's currently stable, with limited progress.\n"
   },
-  "progressive_testing": null,
-  "execution_time": 57.79712915420532,
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 10,
+    "accuracy": 1.0,
+    "results": [
+      {
+        "success": true,
+        "answer": "Jason Elam, Dave Rayner",
+        "output": "ANSWER_START\nJason Elam, Dave Rayner\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "Jason Elam",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the golden answer as one of the elements, so they convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The question asks for the percentage of households that did NOT have children under 18. The passage states the percentage that DID have children under 18. Therefore, a calculation is needed.\n\n100% - 18.30% = 81.70%",
+        "output": "ANSWER_START\nThe question asks for the percentage of households that did NOT have children under 18. The passage states the percentage that DID have children under 18. Therefore, a calculation is needed.\n\n100% - 18.30% = 81.70%\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "81.7",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly calculates 100% - 18.30% = 81.70%, which is semantically equivalent to the golden answer of 81.7."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Arizona Cardinals",
+        "output": "ANSWER_START\nArizona Cardinals\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "the Arizona Cardinals",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The answers are semantically equivalent, with only a minor difference in the presence of the definite article 'the'."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1",
+        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same integer value, 1."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "24",
+        "output": "ANSWER_START\n24\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "24-yard",
+        "evaluation": {
+          "match": true,
+          "confidence": 0.8,
+          "explanation": "The system answer provides the numerical value '24', while the golden answer specifies '24-yard'. Although the unit is missing from the system answer, the numerical component is identical, suggesting a strong semantic overlap. The missing unit lowers the confidence slightly."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "3",
+        "output": "ANSWER_START\n3\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "3",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same single numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "the levy of Mazovia",
+        "output": "ANSWER_START\nthe levy of Mazovia\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "Mazovia",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes 'Mazovia', which is the golden answer. The addition of 'the levy of' doesn't change the core information being conveyed."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Bryce Brown",
+        "output": "ANSWER_START\nBryce Brown\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "Bryce Brown",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same name, Bryce Brown."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2",
+        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, 2."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "4",
+        "output": "ANSWER_START\n4\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_18.jsonl",
+        "golden_answer": "4",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 104.26135635375977,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

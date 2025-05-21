@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 21,
-        "sample_id": "example_155",
-        "question": 'PASSAGE: Mechelen capitulated to Henri Christian Michel de Stengel and 6,000 Frenchmen on 16 November 1792 and its garrison of one battalion of the Austrian Württemberg Infantry Regiment Nr. 38 was allowed to go free. On the 27th Stengel with 8,000 soldiers from the Army of Belgium won a minor action at Voroux-lez-Liers near Liège over Anton Sztáray and four battalions of Austrians. Antwerp fell on 29 November to Mirandas 17,600 infantry and 1,245 cavalry. The Austrian garrison of the 1st Battalion of the Hohenlohe Nr. 17, two companies of the Vierset Nr. 59 and four companies of the Würzburg Infantry Regiments, plus 140 gunners surrendered after losing two dead and four wounded. The French captured 57 cannons, 50 additional 3-pound regimental cannons, 3,150 muskets and 1,523 hundredweight of gunpowder. The 2,599-man garrison of Namur under Johann Dominik von Moitelle surrendered on 2 December to Valence and Harville after a four-week siege. The Austrian defenders included two battalions of the Kinsky Infantry Regiment Nr. 36, one battalion of the Vierset, two companies of the Le Loup Jäger (military) Battalion, a half-squadron of the Esterhazy Hussar Regiment Nr. 32 and 90 gunners. Harvilles division counted 13,256 infantry, 1,425 cavalry and 266 artillerists.\n\nQUESTION: Which items did the French capture the greatest amount, muskets or gunpowder?'
+        "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
+        "question": "PASSAGE: Coming off a home loss to the Bills (along with attending Sean Taylor's funeral in Florida), the Redskins played at home for their Week 13 Thursday night inter-conference game with the Chicago Bears. After a scoreless first quarter, the Redskins scored first when quarterback Todd Collins completed a 21-yard touchdown pass to tight end Todd Yoder for the only score of the second quarter. In the third quarter, Washington's fullback Mike Sellers scored on a 1-yard touchdown run. The Bears would reply with kicker Robbie Gould making a 30-yard field goal, and later quarterback Brian Griese completed a 17-yard touchdown pass to wide receiver Bernard Berrian. In the fourth quarter, the Redskins responded with kicker Shaun Suisham kicking a 23-yard field goal. Later, Chicago made it closer as Gould kicked a 22-yard field goal. Afterwards, the Redskins increased their lead with Collins completing a 16-yard touchdown pass to running back Ladell Betts. The Bears would answer with Gould making a 21-yard field goal, but their onside kick failed, which preserved a Washington win. Starting quarterback Jason Campbell (10/16 for 100 yards) left the game in the second quarter with a dislocated left knee cap.\n\nQUESTION: How many touchdown passes did Todd Collins throw in the second quarter?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 21,
-            "sample_id": "example_155",
+            "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Mechelen capitulated to Henri Christian Michel de Stengel and 6,000 Frenchmen on 16 November 1792 and its garrison of one battalion of the Austrian Württemberg Infantry Regiment Nr. 38 was allowed to go free. On the 27th Stengel with 8,000 soldiers from the Army of Belgium won a minor action at Voroux-lez-Liers near Liège over Anton Sztáray and four battalions of Austrians. Antwerp fell on 29 November to Mirandas 17,600 infantry and 1,245 cavalry. The Austrian garrison of the 1st Battalion of the Hohenlohe Nr. 17, two companies of the Vierset Nr. 59 and four companies of the Würzburg Infantry Regiments, plus 140 gunners surrendered after losing two dead and four wounded. The French captured 57 cannons, 50 additional 3-pound regimental cannons, 3,150 muskets and 1,523 hundredweight of gunpowder. The 2,599-man garrison of Namur under Johann Dominik von Moitelle surrendered on 2 December to Valence and Harville after a four-week siege. The Austrian defenders included two battalions of the Kinsky Infantry Regiment Nr. 36, one battalion of the Vierset, two companies of the Le Loup Jäger (military) Battalion, a half-squadron of the Esterhazy Hussar Regiment Nr. 32 and 90 gunners. Harvilles division counted 13,256 infantry, 1,425 cavalry and 266 artillerists.\n\nQUESTION: Which items did the French capture the greatest amount, muskets or gunpowder?'
+    question = "PASSAGE: Coming off a home loss to the Bills (along with attending Sean Taylor's funeral in Florida), the Redskins played at home for their Week 13 Thursday night inter-conference game with the Chicago Bears. After a scoreless first quarter, the Redskins scored first when quarterback Todd Collins completed a 21-yard touchdown pass to tight end Todd Yoder for the only score of the second quarter. In the third quarter, Washington's fullback Mike Sellers scored on a 1-yard touchdown run. The Bears would reply with kicker Robbie Gould making a 30-yard field goal, and later quarterback Brian Griese completed a 17-yard touchdown pass to wide receiver Bernard Berrian. In the fourth quarter, the Redskins responded with kicker Shaun Suisham kicking a 23-yard field goal. Later, Chicago made it closer as Gould kicked a 22-yard field goal. Afterwards, the Redskins increased their lead with Collins completing a 16-yard touchdown pass to running back Ladell Betts. The Bears would answer with Gould making a 21-yard field goal, but their onside kick failed, which preserved a Washington win. Starting quarterback Jason Campbell (10/16 for 100 yards) left the game in the second quarter with a dislocated left knee cap.\n\nQUESTION: How many touchdown passes did Todd Collins throw in the second quarter?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 21,
-            "sample_id": "example_155",
+            "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 21,
-            "sample_id": "example_155",
+            "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 18,
-        "sample_id": "example_135",
-        "question": 'PASSAGE: Cincinnati scored on its first possession, when Andy Dalton threw to A. J. Green for an 82-yard touchdown. The Lions tied it later in the first quarter on a 3-yard TD pass from Matthew Stafford to Brandon Pettigrew. A 36-yard field goal by David Akers gave the Lions a 10-7 second quarter lead.  But late in the quarter, Akers had a 34-yard field goal attempt blocked by Carlos Dunlap, which the Bengals returned all the way to the Lions 40 yard line despite fumbling during the return. That set up a 12-yard TD strike from Andy Dalton to Marvin Jones just before the first half closed, giving Cincinnati a 14-10 lead. The teams exchanged TD passes in the third quarter. First, Dalton hit Tyler Eifert for a 32-yard TD, and Stafford followed shortly after with a 27-yard TD toss to Calvin Johnson. Mike Nugent connected on a 48-yard field goal late in the third to put the Bengals up 24-17.  The Lions tied the game at 24 in the fourth quarter, when Calvin Johnson leaped up and beat three Bengals defenders in the end zone on a 50-yard pass from Matthew Stafford. After the game, Stafford called Johnson\'s play "one of the best catches I have ever seen." Late in the fourth quarter, a punt by the Bengals Kevin Huber pinned the Lions at their own 6 yard line. Detroit attempted to kill enough clock to get the game to overtime, but could only gain one first down and 17 yards. Detroit punter Sam Martin then shanked a punt that netted only 28 yards before going out of bounds at the Cincinnati 49 with 26 seconds left in the game. Three plays and 15 yards later, Mike Nugent boomed a 54-yard field goal as time expired to give the Bengals a 27-24 victory. The aerial attack for both teams produced big numbers.  Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns, while Matthew Stafford was 28-of-51 for 357 yards and 3 scores.  A. J. Green of the Bengals and Calvin Johnson of the Lions both tallied 155 yards receiving on the day.\n\nQUESTION: Which quarterback had more incomplete passes?'
+        "sample_id": "453a1f75-742c-4e46-b40c-a71e405ef8dc",
+        "question": "PASSAGE: Game summaryComing off their bye week, the Colts flew to Jacksonville Municipal Stadium for an AFC South duel on Monday Night Football with the Jacksonville Jaguars, with first place within the division on the line. In the first quarter, Indianapolis scored first with RB Kenton Keith getting a 3-yard TD run for the only score of the period.  In the second quarter, the Colts increased its lead with QB Peyton Manning getting a 1-yard TD run, along with kicker Adam Vinatieri getting a 36-yard field goal. In the third quarter, the Jaguars would get its only score of the game as RB Maurice Jones-Drew got a 1-yard TD run.  Afterwards, Indianapolis responded with DE Dwight Freeney sacking QB Quinn Gray in the endzone for a safety.  In the fourth quarter, the Colts wrapped up another win with Vinatieri nailing a 20-yard field goal and Manning completing a 35-yard TD pass to TE Dallas Clark. With the win, not only did Indianapolis improve to 6-0, but they became the third team in NFL history ('29-'31 Packers & '99-'01 Rams) to begin three consecutive seasons at 6-0.\n\nQUESTION: How many touchdowns were in the game?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 18,
-            "sample_id": "example_135",
+            "sample_id": "453a1f75-742c-4e46-b40c-a71e405ef8dc",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Cincinnati scored on its first possession, when Andy Dalton threw to A. J. Green for an 82-yard touchdown. The Lions tied it later in the first quarter on a 3-yard TD pass from Matthew Stafford to Brandon Pettigrew. A 36-yard field goal by David Akers gave the Lions a 10-7 second quarter lead.  But late in the quarter, Akers had a 34-yard field goal attempt blocked by Carlos Dunlap, which the Bengals returned all the way to the Lions 40 yard line despite fumbling during the return. That set up a 12-yard TD strike from Andy Dalton to Marvin Jones just before the first half closed, giving Cincinnati a 14-10 lead. The teams exchanged TD passes in the third quarter. First, Dalton hit Tyler Eifert for a 32-yard TD, and Stafford followed shortly after with a 27-yard TD toss to Calvin Johnson. Mike Nugent connected on a 48-yard field goal late in the third to put the Bengals up 24-17.  The Lions tied the game at 24 in the fourth quarter, when Calvin Johnson leaped up and beat three Bengals defenders in the end zone on a 50-yard pass from Matthew Stafford. After the game, Stafford called Johnson\'s play "one of the best catches I have ever seen." Late in the fourth quarter, a punt by the Bengals Kevin Huber pinned the Lions at their own 6 yard line. Detroit attempted to kill enough clock to get the game to overtime, but could only gain one first down and 17 yards. Detroit punter Sam Martin then shanked a punt that netted only 28 yards before going out of bounds at the Cincinnati 49 with 26 seconds left in the game. Three plays and 15 yards later, Mike Nugent boomed a 54-yard field goal as time expired to give the Bengals a 27-24 victory. The aerial attack for both teams produced big numbers.  Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns, while Matthew Stafford was 28-of-51 for 357 yards and 3 scores.  A. J. Green of the Bengals and Calvin Johnson of the Lions both tallied 155 yards receiving on the day.\n\nQUESTION: Which quarterback had more incomplete passes?'
+    question = "PASSAGE: Game summaryComing off their bye week, the Colts flew to Jacksonville Municipal Stadium for an AFC South duel on Monday Night Football with the Jacksonville Jaguars, with first place within the division on the line. In the first quarter, Indianapolis scored first with RB Kenton Keith getting a 3-yard TD run for the only score of the period.  In the second quarter, the Colts increased its lead with QB Peyton Manning getting a 1-yard TD run, along with kicker Adam Vinatieri getting a 36-yard field goal. In the third quarter, the Jaguars would get its only score of the game as RB Maurice Jones-Drew got a 1-yard TD run.  Afterwards, Indianapolis responded with DE Dwight Freeney sacking QB Quinn Gray in the endzone for a safety.  In the fourth quarter, the Colts wrapped up another win with Vinatieri nailing a 20-yard field goal and Manning completing a 35-yard TD pass to TE Dallas Clark. With the win, not only did Indianapolis improve to 6-0, but they became the third team in NFL history ('29-'31 Packers & '99-'01 Rams) to begin three consecutive seasons at 6-0.\n\nQUESTION: How many touchdowns were in the game?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 18,
-            "sample_id": "example_135",
+            "sample_id": "453a1f75-742c-4e46-b40c-a71e405ef8dc",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 18,
-            "sample_id": "example_135",
+            "sample_id": "453a1f75-742c-4e46-b40c-a71e405ef8dc",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

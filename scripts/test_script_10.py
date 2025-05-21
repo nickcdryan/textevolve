@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 10,
-        "sample_id": "d1f13dc6-2a84-4cb2-87ab-e94224e7c645",
-        "question": 'PASSAGE: The Church of Ireland, at 2.7% of the population, is the second largest Christian denomination. Membership declined throughout the twentieth century, but experienced an increase early in the 21st century, as have other small Christian denominations. Significant Protestant denominations are the Presbyterian Church and Methodist Church. Immigration has contributed to a growth in Hindu and Muslim populations. In percentage terms, Orthodox Christianity and Islam were the fastest growing religions, with increases of 100% and 70% respectively. Ireland\'s patron saints are Saint Patrick, Saint Bridget and Saint Columba. Saint Patrick is the only one commonly recognised as the patron saint. Saint Patrick\'s Day is celebrated on 17 March in Ireland and abroad as the Irish national day, with parades and other celebrations. As with other predominantly Catholic European states, Ireland underwent a period of legal secularisation in the late twentieth century. In 1972, the article of the Constitution naming specific religious groups was deleted by the Fifth Amendment in a referendum. Article 44 remains in the Constitution: "The State acknowledges that the homage of public worship is due to Almighty God. It shall hold His Name in reverence, and shall respect and honour religion." The article also establishes freedom of religion, prohibits endowment of any religion, prohibits the state from religious discrimination, and requires the state to treat religious and non-religious schools in a non-prejudicial manner. Religious studies was introduced as an optional Junior Certificate subject in 2001. Although many schools are run by religious organisations, a secularist trend is occurring among younger generations.\n\nQUESTION: How many percentage points difference was there between Muslims and Christians?'
+        "sample_id": "9d44a0f9-cda7-4080-a261-b118a343a092",
+        "question": "PASSAGE: Coming off their win over the Chargers, the Bills flew to Dolphin Stadium for a Week 8 AFC East duel with the Miami Dolphins.  In the first quarter, Buffalo trailed early as Dolphins QB Chad Pennington completed a 2-yard TD pass to TE Anthony Fasano.  The Bills responded with kicker Rian Lindell getting a 19-yard field goal.  In the second quarter, Buffalo took the lead as Lindell got a 43-yard and a 47-yard field goal. In the third quarter, the Bills increased their lead as RB Marshawn Lynch got an 8-yard TD run.  However, Miami began to respond as kicker Dan Carpenter got a 43-yard field goal, while RB Ricky Williams got a 3-yard TD run.  In the fourth quarter, the Dolphins sealed Buffalo's fate as Carpenter made a 45-yard field goal, LB Joey Porter causing QB Trent Edwards to fumble the ball in his own endzone (leading to a safety), and Carpenter nailing a 35-yard field goal.\n\nQUESTION: Which kicker had fewer total yards?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 10,
-            "sample_id": "d1f13dc6-2a84-4cb2-87ab-e94224e7c645",
+            "sample_id": "9d44a0f9-cda7-4080-a261-b118a343a092",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: The Church of Ireland, at 2.7% of the population, is the second largest Christian denomination. Membership declined throughout the twentieth century, but experienced an increase early in the 21st century, as have other small Christian denominations. Significant Protestant denominations are the Presbyterian Church and Methodist Church. Immigration has contributed to a growth in Hindu and Muslim populations. In percentage terms, Orthodox Christianity and Islam were the fastest growing religions, with increases of 100% and 70% respectively. Ireland\'s patron saints are Saint Patrick, Saint Bridget and Saint Columba. Saint Patrick is the only one commonly recognised as the patron saint. Saint Patrick\'s Day is celebrated on 17 March in Ireland and abroad as the Irish national day, with parades and other celebrations. As with other predominantly Catholic European states, Ireland underwent a period of legal secularisation in the late twentieth century. In 1972, the article of the Constitution naming specific religious groups was deleted by the Fifth Amendment in a referendum. Article 44 remains in the Constitution: "The State acknowledges that the homage of public worship is due to Almighty God. It shall hold His Name in reverence, and shall respect and honour religion." The article also establishes freedom of religion, prohibits endowment of any religion, prohibits the state from religious discrimination, and requires the state to treat religious and non-religious schools in a non-prejudicial manner. Religious studies was introduced as an optional Junior Certificate subject in 2001. Although many schools are run by religious organisations, a secularist trend is occurring among younger generations.\n\nQUESTION: How many percentage points difference was there between Muslims and Christians?'
+    question = "PASSAGE: Coming off their win over the Chargers, the Bills flew to Dolphin Stadium for a Week 8 AFC East duel with the Miami Dolphins.  In the first quarter, Buffalo trailed early as Dolphins QB Chad Pennington completed a 2-yard TD pass to TE Anthony Fasano.  The Bills responded with kicker Rian Lindell getting a 19-yard field goal.  In the second quarter, Buffalo took the lead as Lindell got a 43-yard and a 47-yard field goal. In the third quarter, the Bills increased their lead as RB Marshawn Lynch got an 8-yard TD run.  However, Miami began to respond as kicker Dan Carpenter got a 43-yard field goal, while RB Ricky Williams got a 3-yard TD run.  In the fourth quarter, the Dolphins sealed Buffalo's fate as Carpenter made a 45-yard field goal, LB Joey Porter causing QB Trent Edwards to fumble the ball in his own endzone (leading to a safety), and Carpenter nailing a 35-yard field goal.\n\nQUESTION: Which kicker had fewer total yards?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 10,
-            "sample_id": "d1f13dc6-2a84-4cb2-87ab-e94224e7c645",
+            "sample_id": "9d44a0f9-cda7-4080-a261-b118a343a092",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 10,
-            "sample_id": "d1f13dc6-2a84-4cb2-87ab-e94224e7c645",
+            "sample_id": "9d44a0f9-cda7-4080-a261-b118a343a092",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

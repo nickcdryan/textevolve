@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 20,
-        "sample_id": "de4c90f6-cd2a-4705-b44d-8d5309b84929",
-        "question": "PASSAGE: In week 6, the Lions visited the New Orleans Saints. The Saints opened the scoring in the first quarter via a fumble recovery in the end zone by Kenny Vaccaro. The Lions responded with a 45-yard touchdown pass from Matthew Stafford to Golden Tate to tie the game. The Saints regained the lead via a 20-yard touchdown pass from Drew Brees to Ted Ginn Jr. and a 41-yard field goal from Wil Lutz. The Saints scored 14 points in the second quarter via two touchdown runs from Mark Ingram Jr. from one and two-yards respectively. Matt Prater recorded a 41-yard field goal to make the score 31-10 in favor of New Orleans at half-time. The Saints scored 14 points in the third quarter via a two-yard touchdown pass from Brees to Michael Hoomanawanui and a 27-yard interception return from Marshon Lattimore. The Lions responded with 28 straight points in the second half. The Lions scored 14 points in the third quarter via a 22-yard touchdown pass from Stafford to Marvin Jones Jr. and a 22-yard touchdown pass from Stafford to Darren Fells. The Lions scored 14 points in the fourth quarter via a 74-yard punt return from Jamal Agnew and a two-yard interception return from A'Shawn Robinson, reducing the Saints' lead to seven points. The Lions' attempted comeback failed when Stafford's pass intended for Eric Ebron was intercepted in the end zone by Cameron Jordan, making the final score 52-38 in favor of New Orleans.\n\nQUESTION: From what distance did Matt Stafford throw two touchdown passes?"
+        "sample_id": "fb94d5a0-4008-4a73-8f1e-55b494a1bf95",
+        "question": "PASSAGE: Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.\n\nQUESTION: How many total points were scored in the game?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 20,
-            "sample_id": "de4c90f6-cd2a-4705-b44d-8d5309b84929",
+            "sample_id": "fb94d5a0-4008-4a73-8f1e-55b494a1bf95",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: In week 6, the Lions visited the New Orleans Saints. The Saints opened the scoring in the first quarter via a fumble recovery in the end zone by Kenny Vaccaro. The Lions responded with a 45-yard touchdown pass from Matthew Stafford to Golden Tate to tie the game. The Saints regained the lead via a 20-yard touchdown pass from Drew Brees to Ted Ginn Jr. and a 41-yard field goal from Wil Lutz. The Saints scored 14 points in the second quarter via two touchdown runs from Mark Ingram Jr. from one and two-yards respectively. Matt Prater recorded a 41-yard field goal to make the score 31-10 in favor of New Orleans at half-time. The Saints scored 14 points in the third quarter via a two-yard touchdown pass from Brees to Michael Hoomanawanui and a 27-yard interception return from Marshon Lattimore. The Lions responded with 28 straight points in the second half. The Lions scored 14 points in the third quarter via a 22-yard touchdown pass from Stafford to Marvin Jones Jr. and a 22-yard touchdown pass from Stafford to Darren Fells. The Lions scored 14 points in the fourth quarter via a 74-yard punt return from Jamal Agnew and a two-yard interception return from A'Shawn Robinson, reducing the Saints' lead to seven points. The Lions' attempted comeback failed when Stafford's pass intended for Eric Ebron was intercepted in the end zone by Cameron Jordan, making the final score 52-38 in favor of New Orleans.\n\nQUESTION: From what distance did Matt Stafford throw two touchdown passes?"
+    question = "PASSAGE: Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.\n\nQUESTION: How many total points were scored in the game?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 20,
-            "sample_id": "de4c90f6-cd2a-4705-b44d-8d5309b84929",
+            "sample_id": "fb94d5a0-4008-4a73-8f1e-55b494a1bf95",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 20,
-            "sample_id": "de4c90f6-cd2a-4705-b44d-8d5309b84929",
+            "sample_id": "fb94d5a0-4008-4a73-8f1e-55b494a1bf95",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

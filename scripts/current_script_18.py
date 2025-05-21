@@ -1,189 +1,190 @@
 import os
 import re
+import math
 
 def main(question):
     """
-    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.
-    This approach builds upon successful techniques from previous iterations: question decomposition, information extraction, and answer synthesis.
-    Includes detailed embedded examples in every LLM prompt for improved performance and targeted error handling.
+    Solve the question using a multi-stage LLM approach.
+    Enhanced with robust error handling and embedded examples.
     """
     try:
-        # Step 1: Decompose the question into sub-questions.
-        decomposition_result = decompose_question(question)
-        if not decomposition_result.get("is_valid"):
-            return f"Error in question decomposition: {decomposition_result.get('validation_feedback')}"
-        
-        # Step 2: Extract relevant information based on sub-questions.
-        information_extraction_result = extract_information(question, decomposition_result["sub_questions"])
-        if not information_extraction_result.get("is_valid"):
-            return f"Error in information extraction: {information_extraction_result.get('validation_feedback')}"
+        # Step 1: Analyze question type and keywords
+        question_analysis = analyze_question(question)
+        if "Error" in question_analysis:
+            return "Error analyzing question: " + question_analysis
 
-        # Step 3: Synthesize the answer from extracted information.
-        answer_synthesis_result = synthesize_answer(question, information_extraction_result["extracted_info"])
-        if not answer_synthesis_result.get("is_valid"):
-            return f"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}"
+        # Step 2: Extract relevant passage using identified keywords
+        relevant_passage = extract_relevant_passage(question, question_analysis)
+        if "Error" in relevant_passage:
+            return "Error extracting passage: " + relevant_passage
+
+        # Step 3: Generate answer using extracted passage and question type
+        answer = generate_answer(question, relevant_passage, question_analysis)
+        if "Error" in answer:
+            return "Error generating answer: " + answer
+
+        # Step 4: Verify answer
+        verified_answer = verify_answer(question, answer, relevant_passage)
+        if "Error" in verified_answer:
+            return "Error verifying answer: " + verified_answer
         
-        return answer_synthesis_result["answer"]
+        return verified_answer
 
     except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        return f"General Error: {str(e)}"
 
-def decompose_question(question, max_attempts=3):
-    """Decompose the main question into smaller, answerable sub-questions. Includes an example for prompt engineering."""
-    system_instruction = "You are an expert question decomposer."
+def analyze_question(question):
+    """Analyzes the question to identify its type and keywords. Now with multiple examples."""
+    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
+    prompt = f"""
+    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
+
+    Example 1:
+    Question: Who caught the final touchdown of the game?
+    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught", "game"]}}
+
+    Example 2:
+    Question: How many running backs ran for a touchdown?
+    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown", "ran"]}}
     
-    for attempt in range(max_attempts):
-        decomposition_prompt = f"""
-        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.
+    Example 3:
+    Question: Which player kicked the only field goal of the game?
+    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal", "kicked"]}}
 
-        Example 1:
-        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Sub-questions:
-        1. How many yards was Chris Johnson's first touchdown?
-        2. How many yards was Jason Hanson's first field goal?
-        3. What is the sum of those two values?
+    Example 4:
+    Question: How many total passing touchdown yards did Dalton have?
+    Analysis: {{"type": "calculation", "keywords": ["total", "passing", "touchdown", "yards", "Dalton"]}}
 
-        Question: {question}
-        Sub-questions:
-        """
-        
-        decomposition_result = call_llm(decomposition_prompt, system_instruction)
-        
-        # Verify if the decomposition is valid
-        verification_prompt = f"""
-        Verify if these sub-questions are valid and sufficient to answer the original question.
+    Question: {question}
+    Analysis:
+    """
+    return call_llm(prompt, system_instruction)
 
-        Original Question: {question}
-        Sub-questions: {decomposition_result}
+def extract_relevant_passage(question, question_analysis):
+    """Extracts the relevant passage from the question based on keywords. Now with more examples."""
+    system_instruction = "You are an expert at extracting relevant passages from text."
+    prompt = f"""
+    Extract the most relevant passage from the following text to answer the question, based on its type and keywords.
 
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?
-        Validation: Valid
-
-        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.
-        """
-        
-        verification_result = call_llm(verification_prompt, system_instruction)
-        
-        if "valid" in verification_result.lower():
-            return {"is_valid": True, "sub_questions": decomposition_result}
-        else:
-            print(f"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
-            
-    return {"is_valid": False, "validation_feedback": "Failed to decompose the question successfully."}
-
-def extract_information(question, sub_questions, max_attempts=3):
-    """Extract relevant information from the passage based on the sub-questions. Example is now present for prompt engineering."""
-    system_instruction = "You are an information extraction expert."
+    Example 1:
+    Question: Who caught the final touchdown of the game? PASSAGE: ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
+    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught", "game"]}}
+    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
     
-    for attempt in range(max_attempts):
-        extraction_prompt = f"""
-        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.
+    Example 2:
+    Question: How many running backs ran for a touchdown? PASSAGE: ... Chris Johnson got a 6-yard TD run... LenDale White getting a 6-yard and a 2-yard TD run.
+    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown", "ran"]}}
+    Passage: Chris Johnson got a 6-yard TD run. LenDale White getting a 6-yard and a 2-yard TD run.
 
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Sub-questions:
-        1. How many yards was Chris Johnson's first touchdown?
-        2. How many yards was Jason Hanson's first field goal?
-        Extracted Information:
-        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
+    Example 3:
+    Question: Which player kicked the only field goal of the game? PASSAGE: ...Josh Scobee nailed a 47-yard field goal.
+    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal", "kicked"]}}
+    Passage: Josh Scobee nailed a 47-yard field goal.
 
-        Original Question: {question}
-        Sub-questions: {sub_questions}
-        Extracted Information:
-        """
-        
-        extracted_info = call_llm(extraction_prompt, system_instruction)
-        
-        # Validate information extraction
-        verification_prompt = f"""
-        Verify if the extracted information is relevant and sufficient to answer the sub-questions.
+    Example 4:
+    Question: How many total passing touchdown yards did Dalton have? PASSAGE: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns... First, Dalton hit Tyler Eifert for a 32-yard TD, and Stafford followed shortly after with a 27-yard TD toss to Calvin Johnson
+    Keywords: {{"type": "calculation", "keywords": ["total", "passing", "touchdown", "yards", "Dalton"]}}
+    Passage: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns. First, Dalton hit Tyler Eifert for a 32-yard TD
 
-        Original Question: {question}
-        Sub-questions: {sub_questions}
-        Extracted Information: {extracted_info}
+    Question: {question}
+    Keywords: {question_analysis}
+    Text: {question}
+    Passage:
+    """
+    return call_llm(prompt, system_instruction)
 
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?
-        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
-        Validation: Valid
+def generate_answer(question, relevant_passage, question_analysis):
+    """Generates the answer based on the question, relevant passage, and question type. Now with multiple examples."""
+    system_instruction = "You are an expert at generating answers to questions based on provided text. Provide ONLY the direct answer. Do not include any extraneous reasoning or text."
+    prompt = f"""
+    Generate a direct answer to the question, using ONLY information from the relevant passage and question type.
 
-        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.
-        """
-        
-        verification_result = call_llm(verification_prompt, system_instruction)
-        
-        if "valid" in verification_result.lower():
-            return {"is_valid": True, "extracted_info": extracted_info}
-        else:
-            print(f"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
-            
-    return {"is_valid": False, "validation_feedback": "Failed to extract relevant information successfully."}
+    Example 1:
+    Question: Who caught the final touchdown of the game?
+    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
+    Answer: Jarrett Boykin
 
-def synthesize_answer(question, extracted_info, max_attempts=3):
-    """Synthesize the answer from the extracted information to answer the main question. Example is present."""
-    system_instruction = "You are an answer synthesis expert."
+    Example 2:
+    Question: How many running backs ran for a touchdown?
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
+    Answer: 2
+    
+    Example 3:
+    Question: Which player kicked the only field goal of the game?
+    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
+    Answer: Josh Scobee
 
-    for attempt in range(max_attempts):
-        synthesis_prompt = f"""
-        Given the original question and the extracted information, synthesize the final answer.
+    Example 4:
+    Question: How many total passing touchdown yards did Dalton have?
+    Passage: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns. First, Dalton hit Tyler Eifert for a 32-yard TD
+    Answer: 372
 
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.
-        Final Answer: 59
+    Question: {question}
+    Passage: {relevant_passage}
+    Answer:
+    """
+    return call_llm(prompt, system_instruction)
 
-        Original Question: {question}
-        Extracted Information: {extracted_info}
-        Final Answer:
-        """
-        
-        answer = call_llm(synthesis_prompt, system_instruction)
+def verify_answer(question, answer, relevant_passage):
+    """Verifies the generated answer and ensures format. Now with examples and more checks."""
+    system_instruction = "You are an expert at verifying answers to questions. Return the correct answer EXACTLY as it appears in the relevant passage, if possible. If the answer requires a calculation, perform the calculation and return the result."
+    prompt = f"""
+    Carefully verify the provided answer against the relevant passage.  If the answer is directly stated in the passage, return it exactly as it appears. If the answer requires a calculation based on the passage, perform the calculation and return the result. Ensure the answer is complete and in the correct format.
 
-        # Answer checker
-        verification_prompt = f"""
-        Check if the answer is correct and answers the original question fully.
+    Example 1:
+    Question: Who caught the final touchdown of the game?
+    Answer: Jarrett Boykin
+    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
+    Verification: Jarrett Boykin
+    
+    Example 2:
+    Question: How many running backs ran for a touchdown?
+    Answer: 2
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
+    Verification: 2
 
-        Original Question: {question}
-        Synthesized Answer: {answer}
+    Example 3:
+    Question: Which player kicked the only field goal of the game?
+    Answer: Josh Scobee
+    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
+    Verification: Josh Scobee
 
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Synthesized Answer: 59
-        Validation: Valid
+    Example 4:
+    Question: How many total passing touchdown yards did Dalton have?
+    Answer: 372
+    Passage: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns.
+    Verification: 372
 
-        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.
-        """
-        
-        verification_result = call_llm(verification_prompt, system_instruction)
-
-        if "valid" in verification_result.lower():
-            return {"is_valid": True, "answer": answer}
-        else:
-            print(f"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
-            
-    return {"is_valid": False, "validation_feedback": "Failed to synthesize a valid answer."}
+    Question: {question}
+    Answer: {answer}
+    Passage: {relevant_passage}
+    Verification:
+    """
+    return call_llm(prompt, system_instruction)
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template."""
     try:
         from google import genai
         from google.genai import types
-        import os
 
         # Initialize the Gemini client
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-        model = genai.GenerativeModel('gemini-pro')
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
         # Call the API with system instruction if provided
         if system_instruction:
-            response = model.generate_content(
-                [system_instruction, prompt]
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
             )
         else:
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
 
         return response.text
     except Exception as e:

@@ -1,12 +1,12 @@
 {
   "iteration": 4,
-  "timestamp": "2025-05-17T13:45:12.743311",
+  "timestamp": "2025-05-19T14:35:37.616925",
   "strategy": "Exploitation",
-  "explore_rate": 50,
-  "exploit_rate": 50,
+  "explore_rate": 30,
+  "exploit_rate": 70,
   "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.\n    Includes arithmetic module and refines prompts for numerical questions.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What arithmetic operation needs to be performed with the extracted data?\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n\n        Example 3:\n        Question: How many points did the Steelers score in the first quarter?\n        Sub-questions:\n        1. How many points did the Steelers score in the first quarter?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What arithmetic operation needs to be performed with the extracted data?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions. Explicitly identify if an arithmetic operation is needed.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What arithmetic operation needs to be performed with the extracted data?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards. Operation Needed: Addition\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions. Also confirm if the need for arithmetic operation is stated.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What arithmetic operation needs to be performed with the extracted data?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards. Operation Needed: Addition\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Also, is arithmetic operation needed specified? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert. You can also perform arithmetic operations.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer. If the extracted information includes numbers, perform any necessary arithmetic. If no numbers are present, respond directly based on the text.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards. Operation Needed: Addition\n        Final Answer: 59\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game?\n        Extracted Information:  The passage states that Nate Burleson caught the final touchdown.\n        Final Answer: Nate Burleson\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct, complete and based on the original question and extracted information.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game?\n        Synthesized Answer: Nate Burleson\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a chain-of-thought approach, decomposing a question into sub-questions, extracting information, and then synthesizing an answer. It employs three distinct agent roles: a question decomposer, an information extraction expert, and an answer synthesis expert. It leverages the `call_llm` function to interact with the Gemini model using specifically crafted prompts for each agent, and incorporates validation steps after each stage to ensure correctness. The script begins with the `main` function, which orchestrates the calls to `decompose_question`, `extract_information`, and `synthesize_answer`; these functions in turn use `call_llm` to generate responses which undergo validation at each step.",
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach.\n    This approach focuses on breaking down the problem into question type identification, \n    focused passage extraction, and direct answer generation with verification.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n\n    Example 4:\n    Question: How many points did the Steelers score in the first quarter?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"points\", \"Steelers\", \"first quarter\"]}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Example 4:\n    Question: How many points did the Steelers score in the first quarter?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"points\", \"Steelers\", \"first quarter\"]}}\n    Text: PASSAGE: Coming off their win over the Bengals, the Steelers stayed at home for a Week 15 intraconference duel with the New York Jets.  Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.\n    Passage: Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type. If a calculation is needed, perform it.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Example 4:\n    Question: How many points did the Steelers score in the first quarter?\n    Passage: Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.\n    Answer: 0\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies the generated answer. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions. If the answer requires a calculation or includes multiple parts, make sure all are performed and present.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage.  Return the answer if it is correct.  Return the correct answer if it is incorrect.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee\n    \n    Example 4:\n    Question: How many points did the Steelers score in the first quarter?\n    Answer: 0\n    Passage: Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.\n    Verification: 0\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script employs a multi-stage, LLM-driven approach to answer questions by identifying the question type and keywords, extracting a relevant passage from the given text, generating an answer based on the extracted passage, and then verifying the answer for correctness. It decomposes the problem into four distinct stages, each handled by a specific function acting as an agent. The functions involved are `main` which orchestrates the process, `analyze_question` which determines the question type and keywords, `extract_relevant_passage` which retrieves pertinent text, `generate_answer` which formulates the answer, `verify_answer` which checks the answer, and `call_llm` which interfaces with the Gemini LLM. The workflow begins with `main` calling `analyze_question`, followed by `extract_relevant_passage`, `generate_answer`, and finally `verify_answer`, with each function passing its output as input to the next, using `call_llm` to interact with the LLM in each step.",
   "sample_count": 10,
   "samples": [
     {
@@ -363,7 +363,7 @@
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are identical and refer to the same entity, the Abenakis people."
+        "explanation": "Both answers are the same."
       },
       "match": true
     },
@@ -375,7 +375,7 @@
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are the same: Sydney."
+        "explanation": "Both answers are the same: Sydney"
       },
       "match": true
     },
@@ -387,7 +387,7 @@
       "evaluation": {
         "match": true,
         "confidence": 0.8,
-        "explanation": "The system answer provides the numerical value, while the golden answer includes the unit \"-yard.\" While the system answer is not complete, the key numerical value is present and correct."
+        "explanation": "The system answer provides the numerical value '38', while the golden answer specifies '38-yard'. The presence of 'yard' implies that the system answer is missing the unit, but it still provides the correct number. Considering only the numerical part, the answers are equivalent. Confidence is not 1 due to missing unit."
       },
       "match": true
     },
@@ -399,7 +399,7 @@
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value, 7."
+        "explanation": "Both answers are the same numerical value (7)."
       },
       "match": true
     },
@@ -411,19 +411,19 @@
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value (2012)."
+        "explanation": "Both answers are the same numerical value."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "9495",
-      "output": "ANSWER_START\n9495\n\nANSWER_END\n",
+      "answer": "The question asks for the number of workers that weren't marginal cultivators. The passage states there were a total of 9,519 workers, and 24 marginal cultivators. So the number of workers that weren't marginal cultivators is 9,519 - 24 = 9,495.\nVerification: 9,495",
+      "output": "ANSWER_START\nThe question asks for the number of workers that weren't marginal cultivators. The passage states there were a total of 9,519 workers, and 24 marginal cultivators. So the number of workers that weren't marginal cultivators is 9,519 - 24 = 9,495.\nVerification: 9,495\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_4.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value."
+        "explanation": "The system answer explains the calculation and arrives at the correct numerical answer which matches the golden answer."
       },
       "match": true
     },
@@ -435,21 +435,21 @@
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value: 3"
+        "explanation": "Both answers are the same single number."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "3",
-      "output": "ANSWER_START\n3\n\nANSWER_END\n",
+      "answer": "There is not enough information in the passage to determine the final scores of the teams.",
+      "output": "ANSWER_START\nThere is not enough information in the passage to determine the final scores of the teams.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_4.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value."
+        "explanation": "The golden answer '3' is a numerical value while the system answer explicitly states that the final scores cannot be determined from the passage. Thus, they do not convey the same information."
       },
-      "match": true
+      "match": false
     },
     {
       "success": true,
@@ -459,7 +459,7 @@
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are identical and refer to the same person, Willie Parker."
+        "explanation": "Both answers are identical and convey the same information."
       },
       "match": true
     },
@@ -471,14 +471,14 @@
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value, 21."
+        "explanation": "Both answers are identical and convey the same information."
       },
       "match": true
     }
   ],
   "performance": {
-    "accuracy": 1.0,
-    "correct_count": 10,
+    "accuracy": 0.9,
+    "correct_count": 9,
     "total_count": 10,
     "evaluations": [
       {
@@ -491,7 +491,7 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and refer to the same entity, the Abenakis people."
+          "explanation": "Both answers are the same."
         }
       },
       {
@@ -504,7 +504,7 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same: Sydney."
+          "explanation": "Both answers are the same: Sydney"
         }
       },
       {
@@ -517,7 +517,7 @@
         "evaluation": {
           "match": true,
           "confidence": 0.8,
-          "explanation": "The system answer provides the numerical value, while the golden answer includes the unit \"-yard.\" While the system answer is not complete, the key numerical value is present and correct."
+          "explanation": "The system answer provides the numerical value '38', while the golden answer specifies '38-yard'. The presence of 'yard' implies that the system answer is missing the unit, but it still provides the correct number. Considering only the numerical part, the answers are equivalent. Confidence is not 1 due to missing unit."
         }
       },
       {
@@ -530,7 +530,7 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value, 7."
+          "explanation": "Both answers are the same numerical value (7)."
         }
       },
       {
@@ -543,20 +543,20 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value (2012)."
+          "explanation": "Both answers are the same numerical value."
         }
       },
       {
         "sample_id": 5,
         "success": true,
-        "system_answer": "9495",
+        "system_answer": "The question asks for the number of workers that weren't marginal cultivators. The passage states there were a total of 9,519 workers, and 24 marginal cultivators. So the number of workers that weren't marginal cultivators is 9,519 - 24 = 9,495.\nVerification: 9,495",
         "golden_answer": "9495",
-        "output": "ANSWER_START\n9495\n\nANSWER_END\n",
+        "output": "ANSWER_START\nThe question asks for the number of workers that weren't marginal cultivators. The passage states there were a total of 9,519 workers, and 24 marginal cultivators. So the number of workers that weren't marginal cultivators is 9,519 - 24 = 9,495.\nVerification: 9,495\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
+          "explanation": "The system answer explains the calculation and arrives at the correct numerical answer which matches the golden answer."
         }
       },
       {
@@ -569,21 +569,22 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 3"
+          "explanation": "Both answers are the same single number."
         }
       },
       {
         "sample_id": 7,
         "success": true,
-        "system_answer": "3",
+        "system_answer": "There is not enough information in the passage to determine the final scores of the teams.",
         "golden_answer": "3",
-        "output": "ANSWER_START\n3\n\nANSWER_END\n",
-        "match": true,
+        "output": "ANSWER_START\nThere is not enough information in the passage to determine the final scores of the teams.\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        }
+          "explanation": "The golden answer '3' is a numerical value while the system answer explicitly states that the final scores cannot be determined from the passage. Thus, they do not convey the same information."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 8,
@@ -595,7 +596,7 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and refer to the same person, Willie Parker."
+          "explanation": "Both answers are identical and convey the same information."
         }
       },
       {
@@ -608,27 +609,41 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value, 21."
+          "explanation": "Both answers are identical and convey the same information."
         }
       }
     ],
     "error_analysis": {
-      "text_report": "Okay, I will perform a thorough forensic analysis of the provided successful problem-solving cases.\n\n## RUNTIME ERRORS\n\nNo runtime errors were identified in the provided successful cases.\n\n## STRENGTHS\n\n1.  **Numerical Extraction and Calculation:** The system demonstrates a strong ability to extract numerical values from the passage and perform simple arithmetic operations like addition (e.g., sample ID 3 and 9).\n2.  **Entity Recognition:** The system correctly identifies and extracts specific entities mentioned in the passage (e.g., players' names, city names), particularly when directly stated in the passage (e.g., sample IDs 1 and 8).\n3.  **Direct Answer Extraction:** The system can directly extract the answer from the passage when the question is straightforward and requires finding a specific piece of information.\n\n## WEAKNESSES\n\n1.  **Lack of Precise Unit Handling:** The system sometimes fails to include units in its answers, even when they are explicitly given in the golden answer (e.g., sample ID 2). While the core information is correct, the answer is incomplete.\n2.  **Dependence on Explicit Information:** The system's reasoning is often limited to directly extracting information presented in the passage. It does not demonstrate significant inferential reasoning or the ability to combine information from different parts of the passage to arrive at an answer.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Incomplete Answer Generation:** The system does not always include all relevant details in its answers (e.g., omitting units, failing to provide sufficient context).\n2.  **Limited Inferential Reasoning:** The system struggles with questions that require more than direct extraction and simple calculations.\n\n## ERROR PATTERNS\n\nThe success cases lack error patterns as the system has answered all questions correctly.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's inability to provide fully complete answers, which sometimes lack essential context, units, or modifiers that are present in the golden answer. While the extracted information is often accurate, the completeness of the response is not always guaranteed.\n\n## IMPROVEMENT AREAS\n\n1.  **Answer Completeness:** Enhance the system's ability to provide comprehensive answers, including all relevant details and units mentioned in the passage.\n2.  **Contextual Reasoning:** Improve the system's ability to consider context and infer implicit information when constructing its answers.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Post-processing of Answer:** Implement a post-processing step that checks the generated answer against the question and passage to ensure that all necessary units, modifiers, and contextual details are included.\n2.  **Contextual Awareness Module:** Introduce a module that specifically focuses on understanding the context of the question and passage to identify and incorporate implicit information into the answer.\n\n## CAPABILITY MAPPING\n\nSince all samples were answered correctly, there were no capability failures.\n",
-      "strengths": [],
-      "weaknesses": [],
-      "primary_issue": "The primary issue is the system's inability to provide fully complete answers, which sometimes lack essential context, units, or modifiers that are present in the golden answer. While the extracted information is often accurate, the completeness of the response is not always guaranteed.",
+      "text_report": "## RUNTIME ERRORS\nThere are no identified runtime errors (e.g., JSONDecodeError, TypeError) in the provided error cases and success cases.\n\n## STRENGTHS\n*   **Information Extraction:** The system demonstrates a good ability to extract numerical values and relevant named entities (players, teams, cities, etc.) from the passages. This is evident in the success cases where it correctly identifies and extracts the necessary information to answer the questions (e.g., identifying player names, quantities of yards, etc.).\n*   **Simple Arithmetic Reasoning:** The system can perform simple arithmetic operations, such as subtraction, when the necessary information is explicitly present in the passage. Sample ID 5 in the success cases demonstrates this capability.\n*   **Direct Answer Identification:** In many cases, the system is capable of correctly identifying and extracting the answer when it is directly stated within the passage. This is shown across the success cases, such as identifying who had the longest touchdown reception in Sample ID 8.\n\n## WEAKNESSES\n*   **Complex Arithmetic Reasoning:** The system struggles with questions that require more complex arithmetic reasoning, such as calculating the difference between two scores when those scores are not directly given in the passage. This is highlighted in Error Case 7, where the system fails to determine the final scores and compute the point difference.\n*   **Inability to Track Multiple Events:** The system demonstrates difficulty in tracking multiple scoring events throughout the passage and aggregating them into a final score for each team.\n\n## CRITICAL BOTTLENECKS\n*   **Lack of Score Tracking/Aggregation:** The inability to track and aggregate multiple scoring events (touchdowns, field goals, etc.) from the passage to calculate team scores.\n*   **Limited Arithmetic Deduction:** Inability to perform simple arithmetic reasoning when the information is distributed throughout the text and requires multiple steps to derive the answer.\n\n## ERROR PATTERNS\n*   The primary error pattern is the inability to synthesize information spread across the text to derive a numerical answer, especially when the answer requires arithmetic calculations or score tracking.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to track and calculate the final scores of teams based on individual scoring plays described in the passage. This stems from a limitation in complex arithmetic reasoning and score aggregation.\n\n## IMPROVEMENT AREAS\n*   **Complex Arithmetic Reasoning:** Improve the ability to perform arithmetic calculations that involve combining information from different parts of the passage.\n*   **Score Tracking Capability:** Implement a mechanism for tracking and updating team scores based on the game events described in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Score Tracking Module:** Design a module that can parse the passage for scoring plays (touchdowns, field goals, etc.), assign points to the appropriate team, and maintain a running tally of each team's score. This module should be capable of handling various ways scoring plays are described (e.g., \"a 7-yard TD run,\" \"a 30-yard field goal\").\n2.  **Enhance Arithmetic Reasoning:** Improve the system's ability to perform arithmetic calculations. For example, after extracting all scoring plays, the system should be able to sum the scores to find the total or subtract scores to find the difference. Introduce intermediate variables to hold each team's score and make them accessible for calculations.\n3.  **Break Down Question into Sub-Questions:** Before answering the main question, have the system identify sub-questions to answer. For example, if the question is \"How many more points did the Ravens score than the Steelers?\", the sub-questions are \"What was the Ravens' final score?\" and \"What was the Steelers' final score?\". By breaking the problem down, the system is more likely to solve the problem correctly.\n4. Add more print statements or intermediate outputs to provide a step-by-step analysis of the system's reasoning when it tries to compute the score.\n\n## CAPABILITY MAPPING\n*   **Sample ID 7:**\n    *   information_extraction: Partially successful (extracted some scoring plays but not all or didn't associate them with teams)\n    *   constraint_handling: N/A\n    *   solution_generation: Failed (could not generate final scores)\n    *   solution_verification: N/A\n    *   decision_making: Incorrect (stated not enough information)\n",
+      "strengths": [
+        "Information Extraction:** The system demonstrates a good ability to extract numerical values and relevant named entities (players, teams, cities, etc.) from the passages. This is evident in the success cases where it correctly identifies and extracts the necessary information to answer the questions (e.g., identifying player names, quantities of yards, etc.).",
+        "Simple Arithmetic Reasoning:** The system can perform simple arithmetic operations, such as subtraction, when the necessary information is explicitly present in the passage. Sample ID 5 in the success cases demonstrates this capability.",
+        "Direct Answer Identification:** In many cases, the system is capable of correctly identifying and extracting the answer when it is directly stated within the passage. This is shown across the success cases, such as identifying who had the longest touchdown reception in Sample ID 8."
+      ],
+      "weaknesses": [
+        "Complex Arithmetic Reasoning:** The system struggles with questions that require more complex arithmetic reasoning, such as calculating the difference between two scores when those scores are not directly given in the passage. This is highlighted in Error Case 7, where the system fails to determine the final scores and compute the point difference.",
+        "Inability to Track Multiple Events:** The system demonstrates difficulty in tracking multiple scoring events throughout the passage and aggregating them into a final score for each team."
+      ],
+      "primary_issue": "The most critical problem is the system's inability to track and calculate the final scores of teams based on individual scoring plays described in the passage. This stems from a limitation in complex arithmetic reasoning and score aggregation.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## AI System Capability Report\n\n**System Under Analysis:** Unspecified AI System (based on provided performance and analysis).\n\n**Version:** Unspecified.\n\n**Date:** October 26, 2023\n\n**Report Prepared by:** AI System Capability Analyst\n\n### PERFORMANCE SUMMARY:\n\n*   **Accuracy:** 1.00 (10/10)\n*   **Error samples:** 0/10\n\n### ERROR ANALYSIS REPORT:\n\nBased on the provided successful problem-solving cases:\n\n**RUNTIME ERRORS:** None identified.\n\n**STRENGTHS:**\n\n1.  **Numerical Extraction and Calculation:** Strong ability to extract numerical values and perform simple arithmetic.\n2.  **Entity Recognition:** Accurately identifies and extracts entities directly stated in the passage.\n3.  **Direct Answer Extraction:** Extracts answers directly from the passage for straightforward questions.\n\n**WEAKNESSES:**\n\n1.  **Lack of Precise Unit Handling:** Fails to include units even when explicitly provided in the source text.\n2.  **Dependence on Explicit Information:** Limited inferential reasoning; primarily relies on directly extracting information.\n\n**CRITICAL BOTTLENECKS:**\n\n1.  **Incomplete Answer Generation:** Answers lack essential context, units, or modifiers.\n2.  **Limited Inferential Reasoning:** Struggles with questions requiring more than direct extraction.\n\n**ERROR PATTERNS:** No error patterns detected due to perfect accuracy on the provided dataset. This suggests the dataset is not challenging enough or that the system is very strong in certain limited contexts.\n\n**PRIMARY ISSUE:** Incomplete answers, lacking essential context, units, or modifiers present in the source text. While extracted information is often accurate, the completeness of the response is not consistently guaranteed.\n\n**IMPROVEMENT AREAS:**\n\n1.  **Answer Completeness:** Improve the system's ability to provide comprehensive answers, including all relevant details and units mentioned in the passage.\n2.  **Contextual Reasoning:** Enhance the system's ability to consider context and infer implicit information when constructing its answers.\n\n**IMPROVEMENT SUGGESTIONS:**\n\n1.  **Post-processing of Answer:** Implement a post-processing step that checks the generated answer against the question and passage to ensure that all necessary units, modifiers, and contextual details are included.\n2.  **Contextual Awareness Module:** Introduce a module that specifically focuses on understanding the context of the question and passage to identify and incorporate implicit information into the answer.\n\n**CAPABILITY MAPPING:** No capability failures observed in the provided sample data.\n\n### SAMPLE EXECUTION OUTPUTS:\n\n```\n[\n  \"ANSWER_START\\nAbenakis\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\nSydney\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\n38\\n\\nANSWER_END\\n\"\n]\n```\n\n### EXECUTION ANALYSIS\n\nThe execution outputs demonstrate a consistent formatting convention (ANSWER_START / ANSWER_END tags), which is beneficial for parsing and downstream use.  However, the brevity of the answers reveals a potential for missing context.  For example, \"38\" might be a correct numerical answer, but without context (e.g., \"38 years old\", \"38 kilometers\"), it's incomplete.  The consistency of the tags implies a structured response generation process, which is good, but the *content* within the tags needs enrichment.\n\n### CAPABILITY ASSESSMENT\n\nThe system possesses a strong foundation in information extraction, demonstrating high accuracy in the limited dataset provided. However, its ability to generate complete and contextually rich answers is limited, hindering its potential for real-world applications where nuanced understanding is crucial.  The system excels at *identifying* the correct information but falls short in *presenting* it effectively.\n\n### KEY STRENGTHS\n\n*   **High Accuracy:** Consistent accuracy (100% in the test set) in information retrieval.\n*   **Structured Output:** Well-defined output format (ANSWER_START/ANSWER_END).\n\n### KEY WEAKNESSES\n\n*   **Lack of Contextual Completeness:** Answers often lack essential units, qualifiers, or surrounding context. This is the most critical area to improve.\n*   **Limited Inferential Reasoning:** Reliant on explicit information rather than combining or inferring meaning.\n\n### IMPROVEMENT FOCUS\n\n**Answer Completeness:**  This is the single most important capability to focus on.  Improving the system's ability to generate complete, self-contained answers will significantly increase its usability and effectiveness.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Unit/Context Completion Module:** This module should be triggered after the initial answer extraction. It should:\n    *   **Identify Potential Units:** Analyze the question and surrounding passage to identify potential units of measurement (e.g., \"years\", \"km\", \"$\").\n    *   **Contextual Keywords:**  Identify relevant keywords in the question and passage that provide context (e.g., \"age\", \"distance\", \"price\").\n    *   **Append Units/Context:**  Append the identified units and/or contextual keywords to the extracted answer if they are missing.  For example, if the extracted answer is \"38\" and the question asks about age, the module should transform the answer to \"38 years old\".  Use a similarity metric to find related context in the passage.\n2.  **Train on a Dataset with Negative Examples:** Create a dataset specifically designed to highlight the importance of complete answers. This dataset should include examples where the core information is correct, but the answer is marked as incorrect because it lacks units or context.\n3.  **Refine the ANSWER_START/ANSWER_END Tagging:**  While the tags are useful, consider adding a metadata section within the tags to explicitly identify the type of answer extracted (e.g., entity, numerical value, date). This will allow for more targeted post-processing.\n4.  **Experiment with Chain of Thought Prompting (if applicable):** If the system is based on a large language model, experiment with chain-of-thought prompting techniques to encourage it to justify its answer and provide more context.\n### CAPABILITY TREND\n\nBased on the provided data, it is difficult to determine a capability trend. While accuracy is high, the limited scope of the evaluation prevents a comprehensive assessment. To establish a trend, the system needs to be evaluated on a more diverse and challenging dataset, with specific attention paid to the identified weaknesses. Future evaluations should track metrics related to answer completeness and contextual understanding.\n",
-      "strengths": [],
-      "weaknesses": [],
+      "text_report": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, improvement suggestions, capability mapping, and execution outputs you provided:\n\n## CAPABILITY ASSESSMENT REPORT\n\n**## EXECUTION ANALYSIS**\n\nThe sample execution outputs show the system is capable of extracting text spans identified as the answer to a question. The outputs are clean and adhere to the `ANSWER_START` and `ANSWER_END` format. However, without the questions corresponding to these outputs, it's difficult to assess the *correctness* of the answers beyond the information that they are extracting information. The lack of diversity in the output format suggests the system might be relying on simple pattern matching or direct extraction, which aligns with the weaknesses identified in the error analysis. There is no obvious reason to assume issues given the information, however it is impossible to be sure.\n\n**## CAPABILITY ASSESSMENT**\n\nThe system possesses a baseline capability for information extraction and direct answer identification from text. It struggles with tasks that require arithmetic reasoning, information synthesis, and tracking events to arrive at a numerical answer. The system correctly answers 9/10 questions, and demonstrates an ability to extract information such as player names, quantities of yards, and named entities, but struggles when the answer requires more complex mathmatical reasoning. The system could benefit from the incorporation of new modules to track scores and synthesize information throughout the text.\n\n**## KEY STRENGTHS**\n\n*   **Direct Information Extraction:** The system excels at identifying and extracting answers explicitly stated in the passage. This is a foundational capability that can be leveraged.\n*   **Numerical Value Identification:** The system can identify and extract numerical values, a core requirement for tasks involving arithmetic.\n*   **Named Entity Recognition:** The system demonstrates the capability to recognize Named Entities, such as players, teams, and cities.\n\n**## KEY WEAKNESSES**\n\n*   **Complex Arithmetic Reasoning & Calculation:** This is the most significant weakness, as the system struggles to perform calculations when the numbers are not directly presented in the answer.\n*   **Score Tracking & Aggregation:** The inability to track and update team scores dynamically is a critical limitation.\n*   **Information Synthesis:** The system cannot combine information from across the text to derive the answer.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on is **Complex Arithmetic Reasoning and Score Tracking/Aggregation**. Addressing this will unlock the system's ability to answer a broader range of questions and handle more complex scenarios.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\nBased on the error analysis and improvement suggestions, here's a set of specific changes to implement in the next iteration:\n\n1.  **Implement the Score Tracking Module:** Prioritize the development of a module that can parse the passage for scoring plays, associate points with teams, and maintain a running tally. This requires robust parsing and entity recognition.\n2.  **Enhance Arithmetic Reasoning with Intermediate Variables:** Modify the system to use intermediate variables to store team scores.  After extracting scoring plays, use these variables to accumulate the scores. This promotes modularity and clarity in the calculation process.\n3.  **Implement a \"Question Decomposition\" Pre-processing Step:**  Before attempting to answer the main question, have the system identify and answer sub-questions first. For example, for a question about the score difference, the sub-questions would be: \"What was Team A's final score?\" and \"What was Team B's final score?\". Store these intermediate answers.\n4.  **Introduce Detailed Logging and Intermediate Outputs:** Add print statements (or logging) at each stage of the score tracking and calculation process. This will allow for easier debugging and identification of specific points of failure. For example, log each extracted scoring play, the updated team scores, and the final calculated difference.\n5. **Test-Driven Development:** Establish a suite of test cases that explicitly test the scoring tracking and complex reasoning capabilities. These tests should include scenarios with multiple scoring plays, different types of scoring (TDs, field goals), and questions that require calculating score differences.\n\n**Example Implementation Steps for Score Tracking Module:**\n\n*   **Scoring Play Detection:** Use regular expressions or pattern matching to identify phrases indicating scoring plays (e.g., \"a 7-yard TD run,\" \"a 30-yard field goal\").\n*   **Team Association:** Implement logic to associate the scoring play with the correct team.  This might involve looking for team names mentioned near the scoring play.\n*   **Point Assignment:**  Assign the correct number of points based on the type of score (e.g., 6 points for a touchdown, 3 points for a field goal).\n*   **Score Update:** Update the team scores using intermediate variables.\n*   **Use more advanced models to better recognize and infer scores, like transformers.\n\n**## CAPABILITY TREND**\n\nBased on the provided information, the capability trend is currently **stable but limited**. The system performs well on simple tasks but lacks the advanced reasoning capabilities needed for more complex scenarios. The proposed improvements are expected to lead to a significant **improvement** in the system's overall capabilities.\n",
+      "strengths": [
+        "Information Extraction:** The system demonstrates a good ability to extract numerical values and relevant named entities (players, teams, cities, etc.) from the passages. This is evident in the success cases where it correctly identifies and extracts the necessary information to answer the questions (e.g., identifying player names, quantities of yards, etc.).",
+        "Simple Arithmetic Reasoning:** The system can perform simple arithmetic operations, such as subtraction, when the necessary information is explicitly present in the passage. Sample ID 5 in the success cases demonstrates this capability.",
+        "Direct Answer Identification:** In many cases, the system is capable of correctly identifying and extracting the answer when it is directly stated within the passage. This is shown across the success cases, such as identifying who had the longest touchdown reception in Sample ID 8."
+      ],
+      "weaknesses": [
+        "Complex Arithmetic Reasoning:** The system struggles with questions that require more complex arithmetic reasoning, such as calculating the difference between two scores when those scores are not directly given in the passage. This is highlighted in Error Case 7, where the system fails to determine the final scores and compute the point difference.",
+        "Inability to Track Multiple Events:** The system demonstrates difficulty in tracking multiple scoring events throughout the passage and aggregating them into a final score for each team."
+      ],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "Okay, I will perform a thorough forensic analysis of the provided successful problem-solving cases.\n\n## RUNTIME ERRORS\n\nNo runtime errors were identified in the provided successful cases.\n\n## STRENGTHS\n\n1.  **Numerical Extraction and Calculation:** The system demonstrates a strong ability to extract numerical values from the passage and perform simple arithmetic operations like addition (e.g., sample ID 3 and 9).\n2.  **Entity Recognition:** The system correctly identifies and extracts specific entities mentioned in the passage (e.g., players' names, city names), particularly when directly stated in the passage (e.g., sample IDs 1 and 8).\n3.  **Direct Answer Extraction:** The system can directly extract the answer from the passage when the question is straightforward and requires finding a specific piece of information.\n\n## WEAKNESSES\n\n1.  **Lack of Precise Unit Handling:** The system sometimes fails to include units in its answers, even when they are explicitly given in the golden answer (e.g., sample ID 2). While the core information is correct, the answer is incomplete.\n2.  **Dependence on Explicit Information:** The system's reasoning is often limited to directly extracting information presented in the passage. It does not demonstrate significant inferential reasoning or the ability to combine information from different parts of the passage to arrive at an answer.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Incomplete Answer Generation:** The system does not always include all relevant details in its answers (e.g., omitting units, failing to provide sufficient context).\n2.  **Limited Inferential Reasoning:** The system struggles with questions that require more than direct extraction and simple calculations.\n\n## ERROR PATTERNS\n\nThe success cases lack error patterns as the system has answered all questions correctly.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's inability to provide fully complete answers, which sometimes lack essential context, units, or modifiers that are present in the golden answer. While the extracted information is often accurate, the completeness of the response is not always guaranteed.\n\n## IMPROVEMENT AREAS\n\n1.  **Answer Completeness:** Enhance the system's ability to provide comprehensive answers, including all relevant details and units mentioned in the passage.\n2.  **Contextual Reasoning:** Improve the system's ability to consider context and infer implicit information when constructing its answers.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Post-processing of Answer:** Implement a post-processing step that checks the generated answer against the question and passage to ensure that all necessary units, modifiers, and contextual details are included.\n2.  **Contextual Awareness Module:** Introduce a module that specifically focuses on understanding the context of the question and passage to identify and incorporate implicit information into the answer.\n\n## CAPABILITY MAPPING\n\nSince all samples were answered correctly, there were no capability failures.\n",
-    "capability_report_text": "## AI System Capability Report\n\n**System Under Analysis:** Unspecified AI System (based on provided performance and analysis).\n\n**Version:** Unspecified.\n\n**Date:** October 26, 2023\n\n**Report Prepared by:** AI System Capability Analyst\n\n### PERFORMANCE SUMMARY:\n\n*   **Accuracy:** 1.00 (10/10)\n*   **Error samples:** 0/10\n\n### ERROR ANALYSIS REPORT:\n\nBased on the provided successful problem-solving cases:\n\n**RUNTIME ERRORS:** None identified.\n\n**STRENGTHS:**\n\n1.  **Numerical Extraction and Calculation:** Strong ability to extract numerical values and perform simple arithmetic.\n2.  **Entity Recognition:** Accurately identifies and extracts entities directly stated in the passage.\n3.  **Direct Answer Extraction:** Extracts answers directly from the passage for straightforward questions.\n\n**WEAKNESSES:**\n\n1.  **Lack of Precise Unit Handling:** Fails to include units even when explicitly provided in the source text.\n2.  **Dependence on Explicit Information:** Limited inferential reasoning; primarily relies on directly extracting information.\n\n**CRITICAL BOTTLENECKS:**\n\n1.  **Incomplete Answer Generation:** Answers lack essential context, units, or modifiers.\n2.  **Limited Inferential Reasoning:** Struggles with questions requiring more than direct extraction.\n\n**ERROR PATTERNS:** No error patterns detected due to perfect accuracy on the provided dataset. This suggests the dataset is not challenging enough or that the system is very strong in certain limited contexts.\n\n**PRIMARY ISSUE:** Incomplete answers, lacking essential context, units, or modifiers present in the source text. While extracted information is often accurate, the completeness of the response is not consistently guaranteed.\n\n**IMPROVEMENT AREAS:**\n\n1.  **Answer Completeness:** Improve the system's ability to provide comprehensive answers, including all relevant details and units mentioned in the passage.\n2.  **Contextual Reasoning:** Enhance the system's ability to consider context and infer implicit information when constructing its answers.\n\n**IMPROVEMENT SUGGESTIONS:**\n\n1.  **Post-processing of Answer:** Implement a post-processing step that checks the generated answer against the question and passage to ensure that all necessary units, modifiers, and contextual details are included.\n2.  **Contextual Awareness Module:** Introduce a module that specifically focuses on understanding the context of the question and passage to identify and incorporate implicit information into the answer.\n\n**CAPABILITY MAPPING:** No capability failures observed in the provided sample data.\n\n### SAMPLE EXECUTION OUTPUTS:\n\n```\n[\n  \"ANSWER_START\\nAbenakis\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\nSydney\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\n38\\n\\nANSWER_END\\n\"\n]\n```\n\n### EXECUTION ANALYSIS\n\nThe execution outputs demonstrate a consistent formatting convention (ANSWER_START / ANSWER_END tags), which is beneficial for parsing and downstream use.  However, the brevity of the answers reveals a potential for missing context.  For example, \"38\" might be a correct numerical answer, but without context (e.g., \"38 years old\", \"38 kilometers\"), it's incomplete.  The consistency of the tags implies a structured response generation process, which is good, but the *content* within the tags needs enrichment.\n\n### CAPABILITY ASSESSMENT\n\nThe system possesses a strong foundation in information extraction, demonstrating high accuracy in the limited dataset provided. However, its ability to generate complete and contextually rich answers is limited, hindering its potential for real-world applications where nuanced understanding is crucial.  The system excels at *identifying* the correct information but falls short in *presenting* it effectively.\n\n### KEY STRENGTHS\n\n*   **High Accuracy:** Consistent accuracy (100% in the test set) in information retrieval.\n*   **Structured Output:** Well-defined output format (ANSWER_START/ANSWER_END).\n\n### KEY WEAKNESSES\n\n*   **Lack of Contextual Completeness:** Answers often lack essential units, qualifiers, or surrounding context. This is the most critical area to improve.\n*   **Limited Inferential Reasoning:** Reliant on explicit information rather than combining or inferring meaning.\n\n### IMPROVEMENT FOCUS\n\n**Answer Completeness:**  This is the single most important capability to focus on.  Improving the system's ability to generate complete, self-contained answers will significantly increase its usability and effectiveness.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Unit/Context Completion Module:** This module should be triggered after the initial answer extraction. It should:\n    *   **Identify Potential Units:** Analyze the question and surrounding passage to identify potential units of measurement (e.g., \"years\", \"km\", \"$\").\n    *   **Contextual Keywords:**  Identify relevant keywords in the question and passage that provide context (e.g., \"age\", \"distance\", \"price\").\n    *   **Append Units/Context:**  Append the identified units and/or contextual keywords to the extracted answer if they are missing.  For example, if the extracted answer is \"38\" and the question asks about age, the module should transform the answer to \"38 years old\".  Use a similarity metric to find related context in the passage.\n2.  **Train on a Dataset with Negative Examples:** Create a dataset specifically designed to highlight the importance of complete answers. This dataset should include examples where the core information is correct, but the answer is marked as incorrect because it lacks units or context.\n3.  **Refine the ANSWER_START/ANSWER_END Tagging:**  While the tags are useful, consider adding a metadata section within the tags to explicitly identify the type of answer extracted (e.g., entity, numerical value, date). This will allow for more targeted post-processing.\n4.  **Experiment with Chain of Thought Prompting (if applicable):** If the system is based on a large language model, experiment with chain-of-thought prompting techniques to encourage it to justify its answer and provide more context.\n### CAPABILITY TREND\n\nBased on the provided data, it is difficult to determine a capability trend. While accuracy is high, the limited scope of the evaluation prevents a comprehensive assessment. To establish a trend, the system needs to be evaluated on a more diverse and challenging dataset, with specific attention paid to the identified weaknesses. Future evaluations should track metrics related to answer completeness and contextual understanding.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no identified runtime errors (e.g., JSONDecodeError, TypeError) in the provided error cases and success cases.\n\n## STRENGTHS\n*   **Information Extraction:** The system demonstrates a good ability to extract numerical values and relevant named entities (players, teams, cities, etc.) from the passages. This is evident in the success cases where it correctly identifies and extracts the necessary information to answer the questions (e.g., identifying player names, quantities of yards, etc.).\n*   **Simple Arithmetic Reasoning:** The system can perform simple arithmetic operations, such as subtraction, when the necessary information is explicitly present in the passage. Sample ID 5 in the success cases demonstrates this capability.\n*   **Direct Answer Identification:** In many cases, the system is capable of correctly identifying and extracting the answer when it is directly stated within the passage. This is shown across the success cases, such as identifying who had the longest touchdown reception in Sample ID 8.\n\n## WEAKNESSES\n*   **Complex Arithmetic Reasoning:** The system struggles with questions that require more complex arithmetic reasoning, such as calculating the difference between two scores when those scores are not directly given in the passage. This is highlighted in Error Case 7, where the system fails to determine the final scores and compute the point difference.\n*   **Inability to Track Multiple Events:** The system demonstrates difficulty in tracking multiple scoring events throughout the passage and aggregating them into a final score for each team.\n\n## CRITICAL BOTTLENECKS\n*   **Lack of Score Tracking/Aggregation:** The inability to track and aggregate multiple scoring events (touchdowns, field goals, etc.) from the passage to calculate team scores.\n*   **Limited Arithmetic Deduction:** Inability to perform simple arithmetic reasoning when the information is distributed throughout the text and requires multiple steps to derive the answer.\n\n## ERROR PATTERNS\n*   The primary error pattern is the inability to synthesize information spread across the text to derive a numerical answer, especially when the answer requires arithmetic calculations or score tracking.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to track and calculate the final scores of teams based on individual scoring plays described in the passage. This stems from a limitation in complex arithmetic reasoning and score aggregation.\n\n## IMPROVEMENT AREAS\n*   **Complex Arithmetic Reasoning:** Improve the ability to perform arithmetic calculations that involve combining information from different parts of the passage.\n*   **Score Tracking Capability:** Implement a mechanism for tracking and updating team scores based on the game events described in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Score Tracking Module:** Design a module that can parse the passage for scoring plays (touchdowns, field goals, etc.), assign points to the appropriate team, and maintain a running tally of each team's score. This module should be capable of handling various ways scoring plays are described (e.g., \"a 7-yard TD run,\" \"a 30-yard field goal\").\n2.  **Enhance Arithmetic Reasoning:** Improve the system's ability to perform arithmetic calculations. For example, after extracting all scoring plays, the system should be able to sum the scores to find the total or subtract scores to find the difference. Introduce intermediate variables to hold each team's score and make them accessible for calculations.\n3.  **Break Down Question into Sub-Questions:** Before answering the main question, have the system identify sub-questions to answer. For example, if the question is \"How many more points did the Ravens score than the Steelers?\", the sub-questions are \"What was the Ravens' final score?\" and \"What was the Steelers' final score?\". By breaking the problem down, the system is more likely to solve the problem correctly.\n4. Add more print statements or intermediate outputs to provide a step-by-step analysis of the system's reasoning when it tries to compute the score.\n\n## CAPABILITY MAPPING\n*   **Sample ID 7:**\n    *   information_extraction: Partially successful (extracted some scoring plays but not all or didn't associate them with teams)\n    *   constraint_handling: N/A\n    *   solution_generation: Failed (could not generate final scores)\n    *   solution_verification: N/A\n    *   decision_making: Incorrect (stated not enough information)\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, improvement suggestions, capability mapping, and execution outputs you provided:\n\n## CAPABILITY ASSESSMENT REPORT\n\n**## EXECUTION ANALYSIS**\n\nThe sample execution outputs show the system is capable of extracting text spans identified as the answer to a question. The outputs are clean and adhere to the `ANSWER_START` and `ANSWER_END` format. However, without the questions corresponding to these outputs, it's difficult to assess the *correctness* of the answers beyond the information that they are extracting information. The lack of diversity in the output format suggests the system might be relying on simple pattern matching or direct extraction, which aligns with the weaknesses identified in the error analysis. There is no obvious reason to assume issues given the information, however it is impossible to be sure.\n\n**## CAPABILITY ASSESSMENT**\n\nThe system possesses a baseline capability for information extraction and direct answer identification from text. It struggles with tasks that require arithmetic reasoning, information synthesis, and tracking events to arrive at a numerical answer. The system correctly answers 9/10 questions, and demonstrates an ability to extract information such as player names, quantities of yards, and named entities, but struggles when the answer requires more complex mathmatical reasoning. The system could benefit from the incorporation of new modules to track scores and synthesize information throughout the text.\n\n**## KEY STRENGTHS**\n\n*   **Direct Information Extraction:** The system excels at identifying and extracting answers explicitly stated in the passage. This is a foundational capability that can be leveraged.\n*   **Numerical Value Identification:** The system can identify and extract numerical values, a core requirement for tasks involving arithmetic.\n*   **Named Entity Recognition:** The system demonstrates the capability to recognize Named Entities, such as players, teams, and cities.\n\n**## KEY WEAKNESSES**\n\n*   **Complex Arithmetic Reasoning & Calculation:** This is the most significant weakness, as the system struggles to perform calculations when the numbers are not directly presented in the answer.\n*   **Score Tracking & Aggregation:** The inability to track and update team scores dynamically is a critical limitation.\n*   **Information Synthesis:** The system cannot combine information from across the text to derive the answer.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on is **Complex Arithmetic Reasoning and Score Tracking/Aggregation**. Addressing this will unlock the system's ability to answer a broader range of questions and handle more complex scenarios.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\nBased on the error analysis and improvement suggestions, here's a set of specific changes to implement in the next iteration:\n\n1.  **Implement the Score Tracking Module:** Prioritize the development of a module that can parse the passage for scoring plays, associate points with teams, and maintain a running tally. This requires robust parsing and entity recognition.\n2.  **Enhance Arithmetic Reasoning with Intermediate Variables:** Modify the system to use intermediate variables to store team scores.  After extracting scoring plays, use these variables to accumulate the scores. This promotes modularity and clarity in the calculation process.\n3.  **Implement a \"Question Decomposition\" Pre-processing Step:**  Before attempting to answer the main question, have the system identify and answer sub-questions first. For example, for a question about the score difference, the sub-questions would be: \"What was Team A's final score?\" and \"What was Team B's final score?\". Store these intermediate answers.\n4.  **Introduce Detailed Logging and Intermediate Outputs:** Add print statements (or logging) at each stage of the score tracking and calculation process. This will allow for easier debugging and identification of specific points of failure. For example, log each extracted scoring play, the updated team scores, and the final calculated difference.\n5. **Test-Driven Development:** Establish a suite of test cases that explicitly test the scoring tracking and complex reasoning capabilities. These tests should include scenarios with multiple scoring plays, different types of scoring (TDs, field goals), and questions that require calculating score differences.\n\n**Example Implementation Steps for Score Tracking Module:**\n\n*   **Scoring Play Detection:** Use regular expressions or pattern matching to identify phrases indicating scoring plays (e.g., \"a 7-yard TD run,\" \"a 30-yard field goal\").\n*   **Team Association:** Implement logic to associate the scoring play with the correct team.  This might involve looking for team names mentioned near the scoring play.\n*   **Point Assignment:**  Assign the correct number of points based on the type of score (e.g., 6 points for a touchdown, 3 points for a field goal).\n*   **Score Update:** Update the team scores using intermediate variables.\n*   **Use more advanced models to better recognize and infer scores, like transformers.\n\n**## CAPABILITY TREND**\n\nBased on the provided information, the capability trend is currently **stable but limited**. The system performs well on simple tasks but lacks the advanced reasoning capabilities needed for more complex scenarios. The proposed improvements are expected to lead to a significant **improvement** in the system's overall capabilities.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
@@ -638,42 +653,42 @@
     "results": [
       {
         "success": true,
-        "answer": "5,918",
-        "output": "ANSWER_START\n5,918\n\nANSWER_END\n",
+        "answer": "20,472 - 14,554 = 5,918\nVerification: 5,918",
+        "output": "ANSWER_START\n20,472 - 14,554 = 5,918\nVerification: 5,918\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_4.jsonl",
         "golden_answer": "5918",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The numbers are the same, the system answer just includes a comma which does not change the value."
+          "explanation": "The system answer provides the calculation and the result, which is 5,918. The golden answer is 5918. Both answers convey the same numerical value."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "6",
-        "output": "ANSWER_START\n6\n\nANSWER_END\n",
+        "answer": "5",
+        "output": "ANSWER_START\n5\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_4.jsonl",
         "golden_answer": "6",
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
+          "explanation": "The system answer '5' is not semantically equivalent to the golden answer '6'. They are different numerical values."
         },
-        "match": true
+        "match": false
       },
       {
         "success": true,
         "answer": "42, 31, and 47",
         "output": "ANSWER_START\n42, 31, and 47\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "42-yard",
+        "golden_answer": "42-yard, 31-yard, 47-yard",
         "evaluation": {
-          "match": false,
-          "confidence": 0.0,
-          "explanation": "The system answer provides a list of three numbers, while the golden answer specifies a single number with a unit of measurement (yards). The system answer does not contain the golden answer."
+          "match": true,
+          "confidence": 0.9,
+          "explanation": "The system answer provides the numerical values 42, 31, and 47, while the golden answer provides the same numerical values with \"-yard\" appended to each. The units are implied in the system answer. The numerical values are identical, so the answers convey the same information."
         },
-        "match": false
+        "match": true
       },
       {
         "success": true,
@@ -684,7 +699,7 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 74"
+          "explanation": "Both answers are the same numerical value."
         },
         "match": true
       },
@@ -697,7 +712,7 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers refer to the same month and year, just with a different order."
+          "explanation": "Both answers refer to the same month and year, just with a different order of the month and year. Therefore, they are semantically equivalent."
         },
         "match": true
       },
@@ -716,16 +731,16 @@
       },
       {
         "success": true,
-        "answer": "Two",
-        "output": "ANSWER_START\nTwo\n\nANSWER_END\n",
+        "answer": "1",
+        "output": "ANSWER_START\n1\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_4.jsonl",
         "golden_answer": "1",
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The answers 'Two' and '1' do not convey the same information as they represent different numerical values."
+          "explanation": "Both answers are exactly the same numerical value: 1."
         },
-        "match": false
+        "match": true
       },
       {
         "success": true,
@@ -736,7 +751,7 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information."
+          "explanation": "The answers are exactly the same."
         },
         "match": true
       },
@@ -749,26 +764,26 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and convey the same meaning."
+          "explanation": "The system answer and the golden answer are identical."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "Peck was in more notable films in the 1950s.",
-        "output": "ANSWER_START\nPeck was in more notable films in the 1950s.\n\nANSWER_END\n",
+        "answer": "The Gunfighter (1950), Roman Holiday (1953), Moby Dick (1956), The Big Country (1958), The Bravados (1958), Pork Chop Hill (1959) = 6 films in the 1950s\nThe Guns of Navarone (1961), Cape Fear (1962), How the West Was Won (1962) = 3 films in the 1960s\n\nVerification: Peck was in more notable films in the 1950s.",
+        "output": "ANSWER_START\nThe Gunfighter (1950), Roman Holiday (1953), Moby Dick (1956), The Big Country (1958), The Bravados (1958), Pork Chop Hill (1959) = 6 films in the 1950s\nThe Guns of Navarone (1961), Cape Fear (1962), How the West Was Won (1962) = 3 films in the 1960s\n\nVerification: Peck was in more notable films in the 1950s.\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_4.jsonl",
         "golden_answer": "1950s",
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer implies the 1950s is the period when Peck was in more notable films, which is the same information conveyed by the golden answer of '1950s'."
+          "explanation": "The system answer provides a detailed breakdown of Gregory Peck's films in the 1950s and 1960s to conclude he was in more notable films in the 1950s, while the golden answer simply states '1950s'. The system answer provides the reasoning for its conclusion, the golden answer does not."
         },
-        "match": true
+        "match": false
       }
     ]
   },
-  "execution_time": 119.44077587127686,
+  "execution_time": 110.23108386993408,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

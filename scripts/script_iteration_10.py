@@ -4,93 +4,130 @@ import math
 
 def main(question):
     """
-    This script uses a "Holistic Reading & Arithmetic Reasoner" agent.
-    Instead of strict decomposition, it combines reading comprehension with
-    arithmetic problem-solving into a single, unified step. The hypothesis is that
-    by encouraging the LLM to reason holistically about both text and numbers, it
-    can avoid the errors associated with decomposition or separate stages. This directly
-    addresses previous struggles with arithmetic and misinterpretation of intent.
-    This also uses more than one example in different parts of the code.
+    Solve the question using a novel LLM-driven approach that focuses on iterative refinement
+    of the answer based on feedback from multiple verifiers with different expertise.
     """
     try:
-        holistic_reasoner = HolisticReadingArithmeticReasoner()
-        answer = holistic_reasoner.answer_question(question)
-        return answer
+        # Step 1: Initial answer generation
+        initial_answer = generate_initial_answer(question)
+        if "Error" in initial_answer:
+            return "Error generating initial answer"
+
+        # Step 2: Iterative refinement with multiple verifiers
+        refined_answer = refine_answer_with_multiple_verifiers(question, initial_answer)
+        if "Error" in refined_answer:
+            return "Error refining answer"
+
+        return refined_answer
+
     except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        return f"General Error: {str(e)}"
 
-class HolisticReadingArithmeticReasoner:
+def generate_initial_answer(question):
+    """Generates an initial answer to the question."""
+    system_instruction = "You are an expert question answering system."
+    prompt = f"""
+    Generate an initial answer to the following question. Be as accurate and complete as possible.
+
+    Example:
+    Question: Who caught the final touchdown of the game?
+    Answer: Jarrett Boykin
+
+    Question: {question}
+    Answer:
     """
-    A class that embodies the Holistic Reading & Arithmetic Reasoner.
+    return call_llm(prompt, system_instruction)
+
+def refine_answer_with_multiple_verifiers(question, initial_answer, max_iterations=3):
+    """Refines the answer iteratively using feedback from multiple verifiers."""
+    answer = initial_answer
+    for i in range(max_iterations):
+        # Step 1: Get feedback from the factual verifier
+        factual_feedback = get_factual_feedback(question, answer)
+        if "Error" in factual_feedback:
+            return "Error getting factual feedback"
+
+        # Step 2: Get feedback from the arithmetic verifier (if applicable)
+        arithmetic_feedback = get_arithmetic_feedback(question, answer)
+        if "Error" in arithmetic_feedback:
+            return "Error getting arithmetic feedback"
+
+        # Step 3: Combine feedback and refine the answer
+        combined_feedback = f"Factual Feedback: {factual_feedback}\nArithmetic Feedback: {arithmetic_feedback}"
+        refined_answer = refine_answer(question, answer, combined_feedback)
+        if "Error" in refined_answer:
+            return "Error refining answer"
+
+        answer = refined_answer  # Update the answer for the next iteration
+    return answer
+
+def get_factual_feedback(question, answer):
+    """Gets feedback on the factual accuracy of the answer."""
+    system_instruction = "You are an expert at verifying the factual accuracy of answers to questions."
+    prompt = f"""
+    Verify the factual accuracy of the following answer to the question. Provide specific feedback on any errors or omissions. If the answer is factually correct, say "Factually correct.".
+
+    Example:
+    Question: Who caught the final touchdown of the game?
+    Answer: Jarrett Boykin
+    Feedback: Factually correct.
+
+    Question: {question}
+    Answer: {answer}
+    Feedback:
     """
-    def __init__(self):
-        self.system_instruction = """You are a Holistic Reading & Arithmetic Reasoner. You analyze the passage and question to understand both text and arithmetic aspects and provide a well-reasoned answer."""
+    return call_llm(prompt, system_instruction)
 
-    def answer_question(self, question, max_attempts=3):
-        """
-        Answers the question using a holistic understanding and reasoning approach.
-        """
-        for attempt in range(max_attempts):
-            reasoning_result = self._reason_about_question(question)
+def get_arithmetic_feedback(question, answer):
+    """Gets feedback on the arithmetic accuracy of the answer (if applicable)."""
+    system_instruction = "You are an expert at verifying the arithmetic accuracy of answers to questions."
+    prompt = f"""
+    Verify the arithmetic accuracy of the following answer to the question. If the question requires a calculation and the answer is arithmetically incorrect, provide the correct calculation. If the question does not require a calculation or the answer is arithmetically correct, say "No arithmetic required or arithmetically correct.".
 
-            # Verification stage: check if the reasoning is a valid response
-            verification_prompt = f"""
-            Verify if the reasoning result is a valid and well reasoned answer to the original problem.
+    Example:
+    Question: How many running backs ran for a touchdown?
+    Answer: 2
+    Feedback: No arithmetic required or arithmetically correct.
 
-            Original Question: {question}
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 50
+    Feedback: Arithmetically incorrect. 6 + 53 = 59. The correct answer is 59.
 
-            Reasoning result: {reasoning_result}
+    Question: {question}
+    Answer: {answer}
+    Feedback:
+    """
+    return call_llm(prompt, system_instruction)
 
-            Example 1:
-            Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-            Reasoning result: Chris Johnson's first touchdown was 6 yards and Jason Hanson's first field goal was 53 yards, therefore the answer is 59 yards.
-            Valid
+def refine_answer(question, answer, feedback):
+    """Refines the answer based on the provided feedback."""
+    system_instruction = "You are an expert at refining answers to questions based on feedback."
+    prompt = f"""
+    Refine the following answer to the question based on the provided feedback.
 
-            Example 2:
-            Original Question: Who caught the final touchdown of the game?
-            Reasoning result: Wes Welker caught the final touchdown of the game, therefore the answer is Wes Welker.
-            Valid
-            """
+    Example:
+    Question: Who caught the final touchdown of the game?
+    Answer: Jarrett Boykin
+    Feedback: Factually correct.
+    Refined Answer: Jarrett Boykin
 
-            validation_result = call_llm(verification_prompt, self.system_instruction)
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 50
+    Feedback: Arithmetically incorrect. 6 + 53 = 59. The correct answer is 59.
+    Refined Answer: 59
 
-            if "valid" in validation_result.lower():
-                # Return the answer portion only
-                answer_match = re.search(r'answer is (.*)', reasoning_result)
-                if answer_match:
-                    return answer_match.group(1).strip()
-                else:
-                    return reasoning_result
-            else:
-                print(f"Result failed to validate on attempt {attempt + 1}")
-
-        return "The holistic reasoner did not arrive at a conclusive and valid answer."
-
-    def _reason_about_question(self, question):
-        """Reason about the question using a holistic understanding of passage."""
-        reasoning_prompt = f"""
-        Reason about the question and passage to formulate a direct and comprehensive answer. Extract any relevant numerical quantities and perform calculations if necessary.
-
-        Question: {question}
-
-        Example 1:
-        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Reasoning: Chris Johnson's first touchdown was 6 yards and Jason Hanson's first field goal was 53 yards, therefore the answer is 59 yards.
-
-        Example 2:
-        Question: Who caught the final touchdown of the game?
-        Reasoning: Wes Welker caught the final touchdown of the game, therefore the answer is Wes Welker.
-
-        Reasoning:
-        """
-        return call_llm(reasoning_prompt, self.system_instruction)
+    Question: {question}
+    Answer: {answer}
+    Feedback: {feedback}
+    Refined Answer:
+    """
+    return call_llm(prompt, system_instruction)
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
-        import os  # Import the os module
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
@@ -98,7 +135,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),

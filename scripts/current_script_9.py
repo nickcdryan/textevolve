@@ -4,103 +4,167 @@ import math
 
 def main(question):
     """
-    This script uses a radically different approach: a "Reading Comprehension Expert" agent.
-    The agent will carefully review the passage and question, then engage in a self-debate
-    to ensure a correct and comprehensive answer. This avoids brittle decomposition and
-    focuses on direct reasoning. The hypothesis is that a more holistic understanding
-    will improve accuracy. Verification checks after the debate will help validate this.
+    Solve the question using a multi-stage LLM approach with improved question analysis and numerical reasoning.
     """
     try:
-        reading_comprehension_expert = ReadingComprehensionExpert()
-        answer = reading_comprehension_expert.answer_question(question)
-        return answer
+        # Step 1: Identify question type and keywords
+        question_analysis = analyze_question(question)
+        if "Error" in question_analysis:
+            return "Error analyzing question"
+
+        # Step 2: Extract relevant passage using identified keywords
+        relevant_passage = extract_relevant_passage(question, question_analysis)
+        if "Error" in relevant_passage:
+            return "Error extracting passage"
+
+        # Step 3: Generate answer using extracted passage and question type
+        answer = generate_answer(question, relevant_passage, question_analysis)
+        if "Error" in answer:
+            return "Error generating answer"
+
+        # Step 4: Verify answer and perform calculations if needed
+        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)
+        if "Error" in verified_answer:
+            return "Error verifying answer"
+        
+        return verified_answer
+
     except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        return f"General Error: {str(e)}"
 
-class ReadingComprehensionExpert:
+def analyze_question(question):
+    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
+    system_instruction = "You are an expert at analyzing questions to determine their type and keywords, including if a calculation is needed."
+    prompt = f"""
+    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.  Also determine if a calculation is REQUIRED.
+
+    Example 1:
+    Question: Who caught the final touchdown of the game?
+    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_required": false}}
+
+    Example 2:
+    Question: How many running backs ran for a touchdown?
+    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": true}}
+    
+    Example 3:
+    Question: Which player kicked the only field goal of the game?
+    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"], "calculation_required": false}}
+
+    Question: {question}
+    Analysis:
     """
-    A class that embodies the Reading Comprehension Expert.
+    return call_llm(prompt, system_instruction)
+
+def extract_relevant_passage(question, question_analysis):
+    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
+    system_instruction = "You are an expert at extracting relevant passages from text."
+    prompt = f"""
+    Extract the relevant passage from the following text based on the question and keywords.
+
+    Example 1:
+    Question: Who caught the final touchdown of the game?
+    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_required": false}}
+    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
+    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
+    
+    Example 2:
+    Question: How many running backs ran for a touchdown?
+    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": true}}
+    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
+
+    Example 3:
+    Question: Which player kicked the only field goal of the game?
+    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal"], "calculation_required": false}}
+    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
+    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
+
+    Question: {question}
+    Keywords: {question_analysis}
+    Text: {question}
+    Passage:
     """
-    def __init__(self):
-        self.system_instruction = """You are a Reading Comprehension Expert with a deep understanding of passages.
-        You will analyze the passage and question and provide a well-reasoned answer."""
+    return call_llm(prompt, system_instruction)
 
-    def answer_question(self, question, max_attempts=3):
-        """
-        Answers the question using a self-debate strategy for improved accuracy.
-        """
-        initial_analysis = self._analyze_question(question)
-        debate_result = self._conduct_self_debate(question, initial_analysis)
+def generate_answer(question, relevant_passage, question_analysis):
+    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
+    system_instruction = "You are an expert at generating answers to questions based on provided text. Prioritize extracting the specific answer rather than just saying the answer is correct."
+    prompt = f"""
+    Generate the answer to the question based on the relevant passage and question type. Prioritize extracting the SPECIFIC answer from the passage rather than simply saying 'correct'.
 
-        for attempt in range(max_attempts):
-            # Check the debate result for validity
-            verification_prompt = f"""
-            Verify the result of the self-debate is a valid and well reasoned answer to the original problem.
+    Example 1:
+    Question: Who caught the final touchdown of the game?
+    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
+    Answer: Jarrett Boykin
 
-            Original Question: {question}
+    Example 2:
+    Question: How many running backs ran for a touchdown?
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
+    Answer: 2
+    
+    Example 3:
+    Question: Which player kicked the only field goal of the game?
+    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
+    Answer: Josh Scobee
 
-            Self-Debate result: {debate_result}
+    Question: {question}
+    Passage: {relevant_passage}
+    Answer:
+    """
+    return call_llm(prompt, system_instruction)
 
-            Example:
-            Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-            Self-Debate result: The expert debater has arrived to the conclusion that the final answer is 59.
-            Valid
-            """
-            validation_result = call_llm(verification_prompt, self.system_instruction)
+def verify_answer(question, answer, relevant_passage, question_analysis):
+    """Verifies the generated answer and performs calculations if required. Includes multiple examples."""
+    system_instruction = "You are an expert at verifying answers to questions and performing basic calculations when needed. Output the final calculated result."
+    prompt = f"""
+    Verify the following answer to the question based on the relevant passage. 
 
-            if "valid" in validation_result.lower():
-                return debate_result
-            else:
-                print(f"Result failed to validate")
+    If a calculation is required (as determined in the question analysis), perform the calculation and provide the result.
+    If the answer is correct and no calculation is needed, return the answer.
+    If the answer is incorrect, return the correct answer.
 
-        return "The expert debater did not arrive at a conclusive and valid answer. Please check your source data, reasoning, and the validity of the answer."
+    Example 1:
+    Question: Who caught the final touchdown of the game?
+    Answer: Jarrett Boykin
+    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
+    Question Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_required": false}}
+    Verification: Jarrett Boykin
+    
+    Example 2:
+    Question: How many running backs ran for a touchdown?
+    Answer: 2
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
+    Question Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": true}}
+    Verification: 2
 
-    def _analyze_question(self, question):
-        """Analyzes the question and extracts key information."""
-        analysis_prompt = f"""
-        Analyze the question and passage to understand what's being asked.
+    Example 3:
+    Question: Which player kicked the only field goal of the game?
+    Answer: Josh Scobee
+    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
+    Question Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"], "calculation_required": false}}
+    Verification: Josh Scobee
 
-        Question: {question}
-
-        Example:
-        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Analysis: The question requires finding two numbers and adding them.
-
-        Analysis:
-        """
-        return call_llm(analysis_prompt, self.system_instruction)
-
-    def _conduct_self_debate(self, question, initial_analysis):
-        """Conducts a self-debate to refine the answer."""
-        debate_prompt = f"""
-        Engage in a self-debate to ensure the most accurate and comprehensive answer.
-
-        Question: {question}
-        Initial Analysis: {initial_analysis}
-
-        Example:
-        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Initial Analysis: The question requires finding two numbers and adding them.
-        Expert 1: The passage contains data on Johnson and Hanson
-        Expert 2: Let us verify those numbers and make sure the math works
-        Conclusion: The expert debater has arrived to the conclusion that the final answer is 59.
-
-        Debate:
-        """
-        return call_llm(debate_prompt, self.system_instruction + " You are an expert debater.")
+    Question: {question}
+    Answer: {answer}
+    Passage: {relevant_passage}
+    Question Analysis: {question_analysis}
+    Verification:
+    """
+    return call_llm(prompt, system_instruction)
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
-        import os
 
+        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
+        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),

@@ -1,492 +1,789 @@
 {
   "iteration": 11,
-  "timestamp": "2025-05-17T20:28:07.604261",
-  "strategy": "Exploration",
-  "explore_rate": 90,
-  "exploit_rate": 10,
-  "batch_size": 5,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script implements a \"Question Clarification & Focused Extraction\" approach.\n    The hypothesis is that by first clarifying the question's intent with the LLM,\n    we can significantly improve the precision and relevance of information extraction,\n    avoiding previous issues with misinterpretation and unnecessary decomposition.\n    This will be followed by a verification step to ensure the extraction worked.\n    \"\"\"\n    try:\n        # Step 1: Clarify the question to better understand the user's intent\n        clarification_result = clarify_question(question)\n        if not clarification_result.get(\"is_valid\"):\n            return f\"Error in question clarification: {clarification_result.get('validation_feedback')}\"\n        clarified_question = clarification_result[\"clarified_question\"]\n        print(f\"Clarified question: {clarified_question}\")\n\n        # Step 2: Extract relevant information based on the clarified question\n        extraction_result = extract_information(clarified_question, question)\n        if not extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {extraction_result.get('validation_feedback')}\"\n        extracted_info = extraction_result[\"extracted_info\"]\n        print(f\"Extracted info: {extracted_info}\")\n\n        # Step 3: Synthesize the answer from extracted information\n        answer = synthesize_answer(clarified_question, extracted_info)\n        return answer\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef clarify_question(question, max_attempts=3):\n    \"\"\"Clarifies the question to better understand the user's intent.\"\"\"\n    system_instruction = \"You are an expert at clarifying ambiguous questions.\"\n\n    for attempt in range(max_attempts):\n        clarification_prompt = f\"\"\"\n        Given a question, rephrase it to be more specific and unambiguous, clarifying the user's intent.\n\n        Example:\n        Question: How many yards did the players combine for?\n        Clarified Question: What was the total number of yards gained by all players mentioned in the passage?\n\n        Question: {question}\n        Clarified Question:\n        \"\"\"\n\n        clarified_question = call_llm(clarification_prompt, system_instruction)\n\n        verification_prompt = f\"\"\"\n        Verify that the clarified question maintains the original intent while being more specific.\n\n        Original Question: {question}\n        Clarified Question: {clarified_question}\n\n        Example:\n        Original Question: How many yards did the players combine for?\n        Clarified Question: What was the total number of yards gained by all players mentioned in the passage?\n        Verification: Valid\n\n        Is the clarified question valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n\n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"clarified_question\": clarified_question}\n        else:\n            print(f\"Clarification validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to clarify the question successfully.\"}\n\ndef extract_information(clarified_question, original_question, max_attempts=3):\n    \"\"\"Extracts relevant information from the passage based on the clarified question.\"\"\"\n    system_instruction = \"You are an information extraction expert. Extract only the relevant information and nothing else.\"\n\n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Extract the information needed to answer the following question, using the original question for context.\n\n        Original Question: {original_question}\n        Question: {clarified_question}\n        Extracted Information:\n        \"\"\"\n\n        extracted_info = call_llm(extraction_prompt, system_instruction)\n\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and complete for answering the question.\n\n        Question: {clarified_question}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Question: What was the total number of yards gained by all players mentioned in the passage?\n        Extracted Information: Player A gained 100 yards. Player B gained 50 yards.\n        Verification: Valid\n\n        Is the extracted information valid? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n\n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n\n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract the information successfully.\"}\n\ndef synthesize_answer(question, extracted_info):\n    \"\"\"Synthesizes the answer from the extracted information.\"\"\"\n    system_instruction = \"You are an expert at synthesizing answers from extracted information. Provide a direct answer based on the extracted information.\"\n    synthesis_prompt = f\"\"\"\n        Given the question and the extracted information, create a final answer.\n\n        Example:\n        Question: What was the total number of yards gained by all players mentioned in the passage?\n        Extracted Information: Player A gained 100 yards. Player B gained 50 yards.\n        Answer: 150 yards\n\n        Question: {question}\n        Extracted Information: {extracted_info}\n        Answer:\n        \"\"\"\n    answer = call_llm(synthesis_prompt, system_instruction)\n    return answer\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script employs a \"Question Clarification & Focused Extraction\" approach, using LLMs to clarify a given question, extract relevant information, and synthesize an answer. The problem is decomposed into three main steps: question clarification, information extraction, and answer synthesis, each using the `call_llm` function with specific system instructions to act as an expert in that step. The `clarify_question` and `extract_information` functions include a verification step to ensure the validity of the LLM's output. The overall workflow is: `main` calls `clarify_question`, then `extract_information`, and finally `synthesize_answer`, using `call_llm` in each to interact with the LLM.",
-  "sample_count": 5,
+  "timestamp": "2025-05-20T20:49:03.668039",
+  "strategy": "Exploitation",
+  "explore_rate": 30,
+  "exploit_rate": 70,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with enhanced question analysis and verification.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords, adding more examples and detail.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions.\"\n    prompt = f\"\"\"\n    Analyze the question to identify its type and keywords for targeted information extraction.\n    Explicitly identify if calculation is needed, and what type.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"calculation_needed\": \"no\"}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"calculation_needed\": \"yes\", \"calculation_type\": \"count\"}}\n\n    Example 3:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Analysis: {{\"type\": \"calculation\", \"keywords\": [\"Chris Johnson\", \"Jason Hanson\", \"touchdown\", \"field goal\"], \"calculation_needed\": \"yes\", \"calculation_type\": \"addition\"}}\n    \n    Example 4:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"calculation_needed\": \"no\"}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts relevant passage, also extracting the question keywords. Adding more examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage, considering question type and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n    Text: PASSAGE: ... Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    Text: PASSAGE: ...Chris Johnson got a 6-yard TD run. ...LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: Chris Johnson got a 6-yard TD run. LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Analysis: {{\"type\": \"calculation\", \"keywords\": [\"Chris Johnson\", \"Jason Hanson\", \"touchdown\", \"field goal\"], \"calculation_needed\": \"yes\", \"calculation_type\": \"addition\"}}\n    Text: PASSAGE: Chris Johnson got a 6-yard TD run. ...Jason Hanson getting a 53-yard field goal.\n    Passage: Chris Johnson got a 6-yard TD run. Jason Hanson getting a 53-yard field goal.\n    \n    Question: {question}\n    Analysis: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates answer, factoring in question analysis for more targeted responses. More examples.\"\"\"\n    system_instruction = \"You are an expert at generating concise and accurate answers.\"\n    prompt = f\"\"\"\n    Generate the answer. Use the question type, extracted passage to guide your response.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: Chris Johnson got a 6-yard TD run. LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Passage: Chris Johnson got a 6-yard TD run. Jason Hanson getting a 53-yard field goal.\n    Analysis: {{\"type\": \"calculation\", \"keywords\": [\"Chris Johnson\", \"Jason Hanson\", \"touchdown\", \"field goal\"], \"calculation_needed\": \"yes\", \"calculation_type\": \"addition\"}}\n    Answer: 59\n    \n    Question: {question}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies the answer, correcting if necessary. Uses examples that emphasize different types of reasoning.\"\"\"\n    system_instruction = \"You are an expert at verifying answers and performing calculations to arrive at the right result.\"\n    prompt = f\"\"\"\n    Verify the answer. If incorrect, provide the correct answer based on the passage. If a calculation is needed, perform it and provide the result.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: Chris Johnson got a 6-yard TD run. LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: It's Chris Johnson and Jason Hanson.\n    Passage: Chris Johnson got a 6-yard TD run. Jason Hanson getting a 53-yard field goal.\n    Verification: 59\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script implements a multi-stage question answering system leveraging LLMs with a focus on enhanced question analysis and answer verification. It decomposes the problem into four main steps: question analysis, relevant passage extraction, answer generation, and answer verification. Each step utilizes the `call_llm` function with a specific prompt and system instruction to engage the LLM as an expert in different roles. The workflow starts with `main()` which calls `analyze_question()` to determine the question type and keywords, then `extract_relevant_passage()` to find relevant information. Subsequently, `generate_answer()` creates an answer based on the extracted passage and question analysis, and finally, `verify_answer()` checks the answer for correctness.",
+  "sample_count": 10,
   "samples": [
     {
-      "question": "PASSAGE: In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:\n\nQUESTION: King Tancred of Sicily seized power from who?",
-      "answer": "Queen Joan",
-      "id": "example_86",
+      "question": "PASSAGE: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131. The Mavericks then won a dramatic Game 3 by a single point, 104\u2013103. Though Manu Gin\u00f3bili could have made a game-winning basket with five seconds on the clock, he committed an error, allowing the ball to bounce away from him with one second remaining. Dallas won a tightly-contested Game 4 123\u2013118 in overtime. The Spurs proceeded to avoid elimination by taking Game 5. In the final seconds of the game, Jason Terry was seen punching former teammate Michael Finley under the belt, leading to his suspension for Game 6. He was sorely missed as the Spurs won, taking the series back home for a Game 7. In the crucial Game 7, with 2.6 seconds to go, Nowitzki converted a three-point play to force overtime. Manu Gin\u00f3bili, who fouled Dirk on the play, had just given San Antonio their first lead one possession earlier. Tim Duncan, who had played in all 48 minutes of regulation, was too fatigued to carry his team in overtime. The Mavericks, meanwhile, were set to take control of the game and they did just that, winning 119\u2013111. The Mavericks went on to the Conference Finals where they defeated the Suns in six games, but succumbed to the champion Heat in the NBA Finals.\n\nQUESTION: How many points was the most scored by one team in any game?",
+      "answer": "123",
+      "id": "example_91",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:",
-        "original_question": "King Tancred of Sicily seized power from who?",
+        "original_passage": "During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131. The Mavericks then won a dramatic Game 3 by a single point, 104\u2013103. Though Manu Gin\u00f3bili could have made a game-winning basket with five seconds on the clock, he committed an error, allowing the ball to bounce away from him with one second remaining. Dallas won a tightly-contested Game 4 123\u2013118 in overtime. The Spurs proceeded to avoid elimination by taking Game 5. In the final seconds of the game, Jason Terry was seen punching former teammate Michael Finley under the belt, leading to his suspension for Game 6. He was sorely missed as the Spurs won, taking the series back home for a Game 7. In the crucial Game 7, with 2.6 seconds to go, Nowitzki converted a three-point play to force overtime. Manu Gin\u00f3bili, who fouled Dirk on the play, had just given San Antonio their first lead one possession earlier. Tim Duncan, who had played in all 48 minutes of regulation, was too fatigued to carry his team in overtime. The Mavericks, meanwhile, were set to take control of the game and they did just that, winning 119\u2013111. The Mavericks went on to the Conference Finals where they defeated the Suns in six games, but succumbed to the champion Heat in the NBA Finals.",
+        "original_question": "How many points was the most scored by one team in any game?",
         "original_answer_data": {
           "spans": [
-            "Queen Joan"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 909
-      }
-    },
-    {
-      "question": "PASSAGE: In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123\n\nQUESTION: Who had more casualties, the Colonists or the Abenakis?",
-      "answer": "Abenakis",
-      "id": "example_87",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
-        "original_question": "Who had more casualties, the Colonists or the Abenakis?",
-        "original_answer_data": {
-          "spans": [
-            "Abenakis"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 293
-      }
-    },
-    {
-      "question": "PASSAGE: Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.\n\nQUESTION: Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
-      "answer": "Sydney",
-      "id": "example_88",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
-        "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
-        "original_answer_data": {
-          "spans": [
-            "Sydney"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 538
-      }
-    },
-    {
-      "question": "PASSAGE:  Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.\n\nQUESTION: How many yards was Mike Nugent's longest field goal in the fourth quarter?",
-      "answer": "38-yard",
-      "id": "example_89",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
-        "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
-        "original_answer_data": {
-          "spans": [
-            "38-yard"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 24
-      }
-    },
-    {
-      "question": "PASSAGE: After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.\n\nQUESTION: How many yards total did Artose Pinner run for touchdowns in the first quarter?",
-      "answer": "7",
-      "id": "example_90",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
-        "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
-        "original_answer_data": {
-          "spans": [
-            "7"
+            "123"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 694
+        "line_number": 136
+      }
+    },
+    {
+      "question": "PASSAGE: The 1910 Chinese expedition to Tibet or the Chinese invasion of Tibet in 1910 was a military campaign of the Qing dynasty to establish direct rule in Tibet in early 1910. The expedition occupied Lhasa on February 12 and officially deposed the 13th Dalai Lama on the 25th. Qing rule of Tibet was established in the early 18th century after the 1720 Chinese expedition to Tibet, but it was essentially a protectorate rather than a direct rule. The actual rule also waned considerably with the gradual weakening of the Qing dynasty in the 19th century. After the British expedition to Tibet in 1904 and the Sino-British treaty in 1906, the Qing decided to establish direct rule over Tibet and thus sent such an expedition in 1910. As Professor Dawa Norbu stated, \"The British military expedition and subsequent convention made the Chinese realize that their power in Tibet had disappeared. So, in 1910 China invaded Tibet, and the Dalai Lama fled to India.\" In the late winter of 1910, the Manchu government in Beijing was furious with the 13th Dalai Lama. His government, having witnessed the dissolution of its domains in Khams by Qing administrators, and fearing that the amban in Lhasa was going to eliminate its temporal authority, cut this imperial officer off from the sustenance that the Tibet government had guaranteed him in a prior agreement with the Qing court. When a relief column arrived in Lhasa from Sichuan to break the amban out of his isolation, the Dalai Lama fled for British India. However, the direct rule over Tibet proved short-lived: after the outbreak of the Xinhai Revolution and the Xinhai Lhasa turmoil in 1911-1912, Qing rule essentially ended in Lhasa and other parts of Tibet. All Qing forces left Tibet by the end of 1912.\n\nQUESTION: Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?",
+      "answer": "n 1910 China invaded Tibet, outbreak of the Xinhai Revolution, in 1911-1912",
+      "id": "example_92",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The 1910 Chinese expedition to Tibet or the Chinese invasion of Tibet in 1910 was a military campaign of the Qing dynasty to establish direct rule in Tibet in early 1910. The expedition occupied Lhasa on February 12 and officially deposed the 13th Dalai Lama on the 25th. Qing rule of Tibet was established in the early 18th century after the 1720 Chinese expedition to Tibet, but it was essentially a protectorate rather than a direct rule. The actual rule also waned considerably with the gradual weakening of the Qing dynasty in the 19th century. After the British expedition to Tibet in 1904 and the Sino-British treaty in 1906, the Qing decided to establish direct rule over Tibet and thus sent such an expedition in 1910. As Professor Dawa Norbu stated, \"The British military expedition and subsequent convention made the Chinese realize that their power in Tibet had disappeared. So, in 1910 China invaded Tibet, and the Dalai Lama fled to India.\" In the late winter of 1910, the Manchu government in Beijing was furious with the 13th Dalai Lama. His government, having witnessed the dissolution of its domains in Khams by Qing administrators, and fearing that the amban in Lhasa was going to eliminate its temporal authority, cut this imperial officer off from the sustenance that the Tibet government had guaranteed him in a prior agreement with the Qing court. When a relief column arrived in Lhasa from Sichuan to break the amban out of his isolation, the Dalai Lama fled for British India. However, the direct rule over Tibet proved short-lived: after the outbreak of the Xinhai Revolution and the Xinhai Lhasa turmoil in 1911-1912, Qing rule essentially ended in Lhasa and other parts of Tibet. All Qing forces left Tibet by the end of 1912.",
+        "original_question": "Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?",
+        "original_answer_data": {
+          "spans": [
+            "n 1910 China invaded Tibet",
+            "outbreak of the Xinhai Revolution",
+            "in 1911-1912"
+          ],
+          "types": [
+            "span",
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 88
+      }
+    },
+    {
+      "question": "PASSAGE: In September 1941, Partisans organized sabotage at the General Post Office in Zagreb.As the levels of resistance to its occupation grew, the Axis Powers responded with numerous minor offensives. There were also seven major Axis operations specifically aimed at eliminating all or most Yugoslav Partisan resistance. These major offensives were typically combined efforts by the German Wehrmacht and SS, Italy, Chetniks, the Independent State of Croatia, the Serbian collaborationist government, Bulgaria, and Hungary. The First Anti-Partisan Offensive was the attack conducted by the Axis in autumn of 1941 against the \"Republic of U\u017eice\", a liberated territory the Partisans established in western Serbia. In November 1941, German troops attacked and reoccupied this territory, with the majority of Partisan forces escaping towards Bosnia. It was during this offensive that tenuous collaboration between the Partisans and the royalist Chetnik movement broke down and turned into open hostility. After fruitless negotiations, the Chetnik leader, General Mihailovi\u0107, turned against the Partisans as his main enemy. According to him, the reason was humanitarian: the prevention of German reprisals against Serbs. This however, did not stop the activities of the Partisan resistance, and Chetnik units attacked the Partisans in November 1941, while increasingly receiving supplies and cooperating with the Germans and Italians in this. The British liaison to Mihailovi\u0107 advised London to stop supplying the Chetniks after the U\u017eice attack , but Britain continued to do so. On 22 December 1941 the Partisans formed the 1st Proletarian Assault Brigade  - the first regular Partisan military unit capable of operating outside its local area. 22 December became the \"Day of the Yugoslav People's Army\".\n\nQUESTION: How many months after Partisans organized sabotage at the General Post Office was Day of the Yugoslav People's Army?",
+      "answer": "3",
+      "id": "example_93",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In September 1941, Partisans organized sabotage at the General Post Office in Zagreb.As the levels of resistance to its occupation grew, the Axis Powers responded with numerous minor offensives. There were also seven major Axis operations specifically aimed at eliminating all or most Yugoslav Partisan resistance. These major offensives were typically combined efforts by the German Wehrmacht and SS, Italy, Chetniks, the Independent State of Croatia, the Serbian collaborationist government, Bulgaria, and Hungary. The First Anti-Partisan Offensive was the attack conducted by the Axis in autumn of 1941 against the \"Republic of U\u017eice\", a liberated territory the Partisans established in western Serbia. In November 1941, German troops attacked and reoccupied this territory, with the majority of Partisan forces escaping towards Bosnia. It was during this offensive that tenuous collaboration between the Partisans and the royalist Chetnik movement broke down and turned into open hostility. After fruitless negotiations, the Chetnik leader, General Mihailovi\u0107, turned against the Partisans as his main enemy. According to him, the reason was humanitarian: the prevention of German reprisals against Serbs. This however, did not stop the activities of the Partisan resistance, and Chetnik units attacked the Partisans in November 1941, while increasingly receiving supplies and cooperating with the Germans and Italians in this. The British liaison to Mihailovi\u0107 advised London to stop supplying the Chetniks after the U\u017eice attack , but Britain continued to do so. On 22 December 1941 the Partisans formed the 1st Proletarian Assault Brigade  - the first regular Partisan military unit capable of operating outside its local area. 22 December became the \"Day of the Yugoslav People's Army\".",
+        "original_question": "How many months after Partisans organized sabotage at the General Post Office was Day of the Yugoslav People's Army?",
+        "original_answer_data": {
+          "spans": [
+            "3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 327
+      }
+    },
+    {
+      "question": "PASSAGE: The Black Death had killed an estimated one-third of the population of France from its appearance in 1348.  The concurrent Hundred Years' War slowed recovery.  It would be the early 16th century before the population recovered to mid-14th century levels. With an estimated population of 11 million in 1400, 20 million in the 17th century, and 28 million in 1789, until 1795 France was the most populated country in Europe  and the third most populous country in the world, behind only China and India. These demographic changes also led to a massive increase in urban populations, although on the whole France remained a profoundly rural country.  Paris was one of the most populated cities in Europe .  Other major French cities include Lyon, Rouen, Bordeaux, Toulouse, and Marseille. These centuries saw several periods of epidemics and crop failures due to wars and climatic change.  Between 1693 and 1694, France lost 6% of its population. In the extremely harsh winter of 1709, France lost 3.5% of its population. In the past 300 years, no period has been so proportionally deadly for the French, both World Wars included.\n\nQUESTION: Which two countries had a larger population than France in 1795?",
+      "answer": "China, India",
+      "id": "example_94",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Black Death had killed an estimated one-third of the population of France from its appearance in 1348.  The concurrent Hundred Years' War slowed recovery.  It would be the early 16th century before the population recovered to mid-14th century levels. With an estimated population of 11 million in 1400, 20 million in the 17th century, and 28 million in 1789, until 1795 France was the most populated country in Europe  and the third most populous country in the world, behind only China and India. These demographic changes also led to a massive increase in urban populations, although on the whole France remained a profoundly rural country.  Paris was one of the most populated cities in Europe .  Other major French cities include Lyon, Rouen, Bordeaux, Toulouse, and Marseille. These centuries saw several periods of epidemics and crop failures due to wars and climatic change.  Between 1693 and 1694, France lost 6% of its population. In the extremely harsh winter of 1709, France lost 3.5% of its population. In the past 300 years, no period has been so proportionally deadly for the French, both World Wars included.",
+        "original_question": "Which two countries had a larger population than France in 1795?",
+        "original_answer_data": {
+          "spans": [
+            "China",
+            "India"
+          ],
+          "types": [
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 475
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their home loss to the Titans, the Bears flew to Lambeau Field for a Week 11 NFC North duel with their hated rival, the Green Bay Packers.  In the first quarter, Chicago trailed early as Packers QB Aaron Rodgers completed a 3-yard TD pass to WR Greg Jennings. In the second quarter, the Bears got on the board with kicker Robbie Gould getting a 35-yard field goal.  Green Bay would answer with RB Ryan Grant getting a 4-yard TD run, along with kicker Mason Crosby getting a 53-yard field goal. In the third quarter, Chicago continued to trail as Rodgers completed a 5-yard TD pass to TE Donald Lee.  In the fourth quarter, the Packers pulled away as Crosby made a 33-yard field goal, DE Jason Hunter returned a fumble 54 yards for a touchdown, and Crosby nailing a 45-yard field goal.\n\nQUESTION: How many yards was the shortest touchdown pass?",
+      "answer": "3",
+      "id": "example_95",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their home loss to the Titans, the Bears flew to Lambeau Field for a Week 11 NFC North duel with their hated rival, the Green Bay Packers.  In the first quarter, Chicago trailed early as Packers QB Aaron Rodgers completed a 3-yard TD pass to WR Greg Jennings. In the second quarter, the Bears got on the board with kicker Robbie Gould getting a 35-yard field goal.  Green Bay would answer with RB Ryan Grant getting a 4-yard TD run, along with kicker Mason Crosby getting a 53-yard field goal. In the third quarter, Chicago continued to trail as Rodgers completed a 5-yard TD pass to TE Donald Lee.  In the fourth quarter, the Packers pulled away as Crosby made a 33-yard field goal, DE Jason Hunter returned a fumble 54 yards for a touchdown, and Crosby nailing a 45-yard field goal.",
+        "original_question": "How many yards was the shortest touchdown pass?",
+        "original_answer_data": {
+          "spans": [
+            "3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 981
+      }
+    },
+    {
+      "question": "PASSAGE: Due to a decrease in popularity for the game, it was flexed out of Sunday Night Football on NBC and rescheduled to 1:00 PM on CBS. Following the loss to the Titans Rex Ryan announced that Greg McElroy would start for the Jets against the Chargers.  Following a 63-yard Michael Spurlock punt return touchdown McElroy led back to back scoring drives ending in 1-yard Shonn Greene touchdowns.  The Chargers took over the game in the third quarter with two Philip Rivers touchdowns and a Nick Novak field goal while McElroy was intercepted once and strip-sacked once. With the loss, the Jets fell to 6-9, their first losing season since 2007.\n\nQUESTION: How many more losses than wins did the Jets have after this game?",
+      "answer": "3",
+      "id": "example_96",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Due to a decrease in popularity for the game, it was flexed out of Sunday Night Football on NBC and rescheduled to 1:00 PM on CBS. Following the loss to the Titans Rex Ryan announced that Greg McElroy would start for the Jets against the Chargers.  Following a 63-yard Michael Spurlock punt return touchdown McElroy led back to back scoring drives ending in 1-yard Shonn Greene touchdowns.  The Chargers took over the game in the third quarter with two Philip Rivers touchdowns and a Nick Novak field goal while McElroy was intercepted once and strip-sacked once. With the loss, the Jets fell to 6-9, their first losing season since 2007.",
+        "original_question": "How many more losses than wins did the Jets have after this game?",
+        "original_answer_data": {
+          "spans": [
+            "3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 850
+      }
+    },
+    {
+      "question": "PASSAGE: The Titans' fourth game was an AFC duel with the Broncos at home ground. The Titans trailed early in the 2nd quarter as QB Kyle Orton got a 2-yard TD pass to WR Eddie Royal. They replied with QB Vince Young getting an 8-yard TD pass to WR Kenny Britt. The Broncos' kicker Matt Prater made a 36-yard field goal to give Denver a 3-point lead, but the Titans replied when kicker Rob Bironas nailed an incredible 55-yard field goal. In the 3rd quarter the Titans trailed slightly when Matt Prater made a 36-yard field goal, but after that, WR Marc Mariani returned the kickoff and ran 98&#160;yards to the endzone for a touchdown, giving the Titans the lead. The lead was narrowed when Prater made a 35-yard field goal, but was increased again when Bironas made a 46-yard field goal. In the 4th quarter Tennessee fell behind when QB Kyle Orton completed a 6-yard TD pass to RB Correll Buckhalter, followed by Prater making another 36-yard field goal.\n\nQUESTION: How many field goals over 40 yards were made?",
+      "answer": "2",
+      "id": "example_97",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Titans' fourth game was an AFC duel with the Broncos at home ground. The Titans trailed early in the 2nd quarter as QB Kyle Orton got a 2-yard TD pass to WR Eddie Royal. They replied with QB Vince Young getting an 8-yard TD pass to WR Kenny Britt. The Broncos' kicker Matt Prater made a 36-yard field goal to give Denver a 3-point lead, but the Titans replied when kicker Rob Bironas nailed an incredible 55-yard field goal. In the 3rd quarter the Titans trailed slightly when Matt Prater made a 36-yard field goal, but after that, WR Marc Mariani returned the kickoff and ran 98&#160;yards to the endzone for a touchdown, giving the Titans the lead. The lead was narrowed when Prater made a 35-yard field goal, but was increased again when Bironas made a 46-yard field goal. In the 4th quarter Tennessee fell behind when QB Kyle Orton completed a 6-yard TD pass to RB Correll Buckhalter, followed by Prater making another 36-yard field goal.",
+        "original_question": "How many field goals over 40 yards were made?",
+        "original_answer_data": {
+          "spans": [
+            "2"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 892
+      }
+    },
+    {
+      "question": "PASSAGE: The Crimean campaigns of 1687 and 1689  were two military campaigns of the Tsardom of Russia against the Crimean Khanate. They were a part of the Russo-Turkish War  and Russo-Crimean Wars. These were the first Russian forces to come close to Crimea since 1569. They failed due to poor planning and the practical problem of moving such a large force across the steppe but nonetheless played a key role in halting the Ottoman expansion in Europe. The campaigns came as a surprise for the Ottoman leadership, spoiled its plans to invade Poland and Hungary and forced it to move significant forces from Europe to the east, which greatly helped the League in its struggle against the Ottomans. Having signed the Eternal Peace Treaty with Poland in 1686, Russia became a member of the anti-Turkish coalition , which was pushing the Turks south after their failure at Vienna in 1683 . Russia's role in 1687 was to send a force south to Perekop to bottle up the Crimeans inside their peninsula.\n\nQUESTION: Who ran the Crimean campaigns?",
+      "answer": "military",
+      "id": "example_98",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Crimean campaigns of 1687 and 1689  were two military campaigns of the Tsardom of Russia against the Crimean Khanate. They were a part of the Russo-Turkish War  and Russo-Crimean Wars. These were the first Russian forces to come close to Crimea since 1569. They failed due to poor planning and the practical problem of moving such a large force across the steppe but nonetheless played a key role in halting the Ottoman expansion in Europe. The campaigns came as a surprise for the Ottoman leadership, spoiled its plans to invade Poland and Hungary and forced it to move significant forces from Europe to the east, which greatly helped the League in its struggle against the Ottomans. Having signed the Eternal Peace Treaty with Poland in 1686, Russia became a member of the anti-Turkish coalition , which was pushing the Turks south after their failure at Vienna in 1683 . Russia's role in 1687 was to send a force south to Perekop to bottle up the Crimeans inside their peninsula.",
+        "original_question": "Who ran the Crimean campaigns?",
+        "original_answer_data": {
+          "spans": [
+            "military"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 375
+      }
+    },
+    {
+      "question": "PASSAGE: With a chance to clinch a playoff spot for the first time since 2002, the Raiders traveled to Kansas City for a crucial Thursday night matchup to determine the AFC West division lead. The Raiders needed a win and a Miami Dolphins loss or a win and a Denver Broncos loss to clinch a playoff berth. Oakland started well, recovering a muffed fumble by Tyreek Hill on a punt following their first drive and setting them up at the Kansas City 38-yard line. However, the Raiders had to settle for a field goal by Sebastian Janikowsi to take the early 3-0 lead. It would be the last lead the Raiders enjoyed on the night. Oakland's offense could muster little for most of the first half including after the Raider defense stopped KC on a fourth and one at the Oakland 27. The Chiefs took the lead early in the second quarter on a 36-yard pass from Alex Smith to Hill to make the score 7-3. After a four-and-out possession for the Raiders, the Chiefs again went down the field scoring on a Charcandrick West three-yard touchdown run. Following another Raiders short offensive possession, Hill returned a punt 78 yards for a touchdown to extend the Chief lead to 21-3. With six minutes remaining in the half, the Raiders went up-tempo and moved the ball down the field capping the drive with a one-yard touchdown run by Latavius Murray with 14 seconds remaining. At the half, the Raiders trailed 21-10. To begin the second half, the Raider defense stepped up intercepting Smith on the second play of the half and giving the offense the ball at the KC 23. However, the offense was shut down by the KC defense and settled for another Janikowski field goal, bringing them within a touchdown of the Chiefs at 21-13. On the next offensive play for the Chiefs, Khalil Mack sacked and stripped Smith of the ball and the Raiders recovered at the KC 18-yard line. The offense again managed little and was forced to settle for a field goal attempt. However, a bad snap resulted in Marquette King being tackled for three-yard loss. Both offenses mustered very little for the remainder of the game. With seven minutes left in the game, the Raiders needed a touchdown to tie and moved down to the KC 19-yard line, but were stopped on fourth down and the Chiefs ran the clock out. Derek Carr struggled mightily with his accuracy on the night, only completing 17 of his 41 pass attempts for 117 yards. He often missed open receivers or badly threw behind receivers. Carr admitted he had a bad night saying, \"Obviously, we didn't do enough.\" The loss ended the Raiders six-game win streak and gave the Chiefs the lead in the division with a 2-0 record over the Raiders. The Raiders, still, in prime playoff position, would have to finish ahead of the Chiefs to win the division.\n\nQUESTION: How many points were scored in the first half?",
+      "answer": "31",
+      "id": "example_99",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "With a chance to clinch a playoff spot for the first time since 2002, the Raiders traveled to Kansas City for a crucial Thursday night matchup to determine the AFC West division lead. The Raiders needed a win and a Miami Dolphins loss or a win and a Denver Broncos loss to clinch a playoff berth. Oakland started well, recovering a muffed fumble by Tyreek Hill on a punt following their first drive and setting them up at the Kansas City 38-yard line. However, the Raiders had to settle for a field goal by Sebastian Janikowsi to take the early 3-0 lead. It would be the last lead the Raiders enjoyed on the night. Oakland's offense could muster little for most of the first half including after the Raider defense stopped KC on a fourth and one at the Oakland 27. The Chiefs took the lead early in the second quarter on a 36-yard pass from Alex Smith to Hill to make the score 7-3. After a four-and-out possession for the Raiders, the Chiefs again went down the field scoring on a Charcandrick West three-yard touchdown run. Following another Raiders short offensive possession, Hill returned a punt 78 yards for a touchdown to extend the Chief lead to 21-3. With six minutes remaining in the half, the Raiders went up-tempo and moved the ball down the field capping the drive with a one-yard touchdown run by Latavius Murray with 14 seconds remaining. At the half, the Raiders trailed 21-10. To begin the second half, the Raider defense stepped up intercepting Smith on the second play of the half and giving the offense the ball at the KC 23. However, the offense was shut down by the KC defense and settled for another Janikowski field goal, bringing them within a touchdown of the Chiefs at 21-13. On the next offensive play for the Chiefs, Khalil Mack sacked and stripped Smith of the ball and the Raiders recovered at the KC 18-yard line. The offense again managed little and was forced to settle for a field goal attempt. However, a bad snap resulted in Marquette King being tackled for three-yard loss. Both offenses mustered very little for the remainder of the game. With seven minutes left in the game, the Raiders needed a touchdown to tie and moved down to the KC 19-yard line, but were stopped on fourth down and the Chiefs ran the clock out. Derek Carr struggled mightily with his accuracy on the night, only completing 17 of his 41 pass attempts for 117 yards. He often missed open receivers or badly threw behind receivers. Carr admitted he had a bad night saying, \"Obviously, we didn't do enough.\" The loss ended the Raiders six-game win streak and gave the Chiefs the lead in the division with a 2-0 record over the Raiders. The Raiders, still, in prime playoff position, would have to finish ahead of the Chiefs to win the division.",
+        "original_question": "How many points were scored in the first half?",
+        "original_answer_data": {
+          "spans": [
+            "31"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 178
+      }
+    },
+    {
+      "question": "PASSAGE: On 12 April 1204, the weather conditions finally favoured the crusaders. A strong northern wind aided the Venetian ships in coming close to the walls, and after a short battle approximately seventy crusaders managed to enter the city. Some were able to knock holes in the walls, large enough for only a few knights at a time to crawl through; the Venetians were also successful at scaling the walls from the sea, though there was fighting with the Varangians. The Anglo-Saxon \"axe bearers\" had been amongst the most effective of the city's defenders, but they now attempted to negotiate higher wages from their Byzantine employers, before dispersing or surrendering. The crusaders captured the Blachernae section of the city in the northwest and used it as a base to attack the rest of the city. While attempting to defend themselves with a wall of fire, however, they burned even more of the city. This second fire left 15,000 people homeless. The crusaders completely took the city on 13 April. The crusaders sacked Constantinople for three days, during which many ancient Greco-Roman and medieval Byzantine works of art were stolen or ruined. Many of the civilian population of the city were killed and their property looted. Despite the threat of excommunication, the crusaders destroyed, defiled and looted the city's churches and monasteries. It was said that the total amount looted from Constantinople was about 900,000 silver marks. The Venetians received 150,000 silver marks that was their due, while the crusaders received 50,000 silver marks. A further 100,000 silver marks were divided evenly up between the crusaders and Venetians. The remaining 500,000 silver marks were secretly kept back by many crusader knights. Speros Vryonis in Byzantium and Europe gives a vivid account of the sack:\n\nQUESTION: How many different countries works of art were ruined?",
+      "answer": "2",
+      "id": "example_100",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "On 12 April 1204, the weather conditions finally favoured the crusaders. A strong northern wind aided the Venetian ships in coming close to the walls, and after a short battle approximately seventy crusaders managed to enter the city. Some were able to knock holes in the walls, large enough for only a few knights at a time to crawl through; the Venetians were also successful at scaling the walls from the sea, though there was fighting with the Varangians. The Anglo-Saxon \"axe bearers\" had been amongst the most effective of the city's defenders, but they now attempted to negotiate higher wages from their Byzantine employers, before dispersing or surrendering. The crusaders captured the Blachernae section of the city in the northwest and used it as a base to attack the rest of the city. While attempting to defend themselves with a wall of fire, however, they burned even more of the city. This second fire left 15,000 people homeless. The crusaders completely took the city on 13 April. The crusaders sacked Constantinople for three days, during which many ancient Greco-Roman and medieval Byzantine works of art were stolen or ruined. Many of the civilian population of the city were killed and their property looted. Despite the threat of excommunication, the crusaders destroyed, defiled and looted the city's churches and monasteries. It was said that the total amount looted from Constantinople was about 900,000 silver marks. The Venetians received 150,000 silver marks that was their due, while the crusaders received 50,000 silver marks. A further 100,000 silver marks were divided evenly up between the crusaders and Venetians. The remaining 500,000 silver marks were secretly kept back by many crusader knights. Speros Vryonis in Byzantium and Europe gives a vivid account of the sack:",
+        "original_question": "How many different countries works of art were ruined?",
+        "original_answer_data": {
+          "spans": [
+            "2"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 26
       }
     }
   ],
   "samples_metadata": [
     {
       "source": "jsonl_dataset",
-      "original_passage": "In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:",
-      "original_question": "King Tancred of Sicily seized power from who?",
+      "original_passage": "During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131. The Mavericks then won a dramatic Game 3 by a single point, 104\u2013103. Though Manu Gin\u00f3bili could have made a game-winning basket with five seconds on the clock, he committed an error, allowing the ball to bounce away from him with one second remaining. Dallas won a tightly-contested Game 4 123\u2013118 in overtime. The Spurs proceeded to avoid elimination by taking Game 5. In the final seconds of the game, Jason Terry was seen punching former teammate Michael Finley under the belt, leading to his suspension for Game 6. He was sorely missed as the Spurs won, taking the series back home for a Game 7. In the crucial Game 7, with 2.6 seconds to go, Nowitzki converted a three-point play to force overtime. Manu Gin\u00f3bili, who fouled Dirk on the play, had just given San Antonio their first lead one possession earlier. Tim Duncan, who had played in all 48 minutes of regulation, was too fatigued to carry his team in overtime. The Mavericks, meanwhile, were set to take control of the game and they did just that, winning 119\u2013111. The Mavericks went on to the Conference Finals where they defeated the Suns in six games, but succumbed to the champion Heat in the NBA Finals.",
+      "original_question": "How many points was the most scored by one team in any game?",
       "original_answer_data": {
         "spans": [
-          "Queen Joan"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 909
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
-      "original_question": "Who had more casualties, the Colonists or the Abenakis?",
-      "original_answer_data": {
-        "spans": [
-          "Abenakis"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 293
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
-      "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
-      "original_answer_data": {
-        "spans": [
-          "Sydney"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 538
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
-      "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
-      "original_answer_data": {
-        "spans": [
-          "38-yard"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 24
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
-      "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
-      "original_answer_data": {
-        "spans": [
-          "7"
+          "123"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 694
+      "line_number": 136
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The 1910 Chinese expedition to Tibet or the Chinese invasion of Tibet in 1910 was a military campaign of the Qing dynasty to establish direct rule in Tibet in early 1910. The expedition occupied Lhasa on February 12 and officially deposed the 13th Dalai Lama on the 25th. Qing rule of Tibet was established in the early 18th century after the 1720 Chinese expedition to Tibet, but it was essentially a protectorate rather than a direct rule. The actual rule also waned considerably with the gradual weakening of the Qing dynasty in the 19th century. After the British expedition to Tibet in 1904 and the Sino-British treaty in 1906, the Qing decided to establish direct rule over Tibet and thus sent such an expedition in 1910. As Professor Dawa Norbu stated, \"The British military expedition and subsequent convention made the Chinese realize that their power in Tibet had disappeared. So, in 1910 China invaded Tibet, and the Dalai Lama fled to India.\" In the late winter of 1910, the Manchu government in Beijing was furious with the 13th Dalai Lama. His government, having witnessed the dissolution of its domains in Khams by Qing administrators, and fearing that the amban in Lhasa was going to eliminate its temporal authority, cut this imperial officer off from the sustenance that the Tibet government had guaranteed him in a prior agreement with the Qing court. When a relief column arrived in Lhasa from Sichuan to break the amban out of his isolation, the Dalai Lama fled for British India. However, the direct rule over Tibet proved short-lived: after the outbreak of the Xinhai Revolution and the Xinhai Lhasa turmoil in 1911-1912, Qing rule essentially ended in Lhasa and other parts of Tibet. All Qing forces left Tibet by the end of 1912.",
+      "original_question": "Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?",
+      "original_answer_data": {
+        "spans": [
+          "n 1910 China invaded Tibet",
+          "outbreak of the Xinhai Revolution",
+          "in 1911-1912"
+        ],
+        "types": [
+          "span",
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 88
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In September 1941, Partisans organized sabotage at the General Post Office in Zagreb.As the levels of resistance to its occupation grew, the Axis Powers responded with numerous minor offensives. There were also seven major Axis operations specifically aimed at eliminating all or most Yugoslav Partisan resistance. These major offensives were typically combined efforts by the German Wehrmacht and SS, Italy, Chetniks, the Independent State of Croatia, the Serbian collaborationist government, Bulgaria, and Hungary. The First Anti-Partisan Offensive was the attack conducted by the Axis in autumn of 1941 against the \"Republic of U\u017eice\", a liberated territory the Partisans established in western Serbia. In November 1941, German troops attacked and reoccupied this territory, with the majority of Partisan forces escaping towards Bosnia. It was during this offensive that tenuous collaboration between the Partisans and the royalist Chetnik movement broke down and turned into open hostility. After fruitless negotiations, the Chetnik leader, General Mihailovi\u0107, turned against the Partisans as his main enemy. According to him, the reason was humanitarian: the prevention of German reprisals against Serbs. This however, did not stop the activities of the Partisan resistance, and Chetnik units attacked the Partisans in November 1941, while increasingly receiving supplies and cooperating with the Germans and Italians in this. The British liaison to Mihailovi\u0107 advised London to stop supplying the Chetniks after the U\u017eice attack , but Britain continued to do so. On 22 December 1941 the Partisans formed the 1st Proletarian Assault Brigade  - the first regular Partisan military unit capable of operating outside its local area. 22 December became the \"Day of the Yugoslav People's Army\".",
+      "original_question": "How many months after Partisans organized sabotage at the General Post Office was Day of the Yugoslav People's Army?",
+      "original_answer_data": {
+        "spans": [
+          "3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 327
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Black Death had killed an estimated one-third of the population of France from its appearance in 1348.  The concurrent Hundred Years' War slowed recovery.  It would be the early 16th century before the population recovered to mid-14th century levels. With an estimated population of 11 million in 1400, 20 million in the 17th century, and 28 million in 1789, until 1795 France was the most populated country in Europe  and the third most populous country in the world, behind only China and India. These demographic changes also led to a massive increase in urban populations, although on the whole France remained a profoundly rural country.  Paris was one of the most populated cities in Europe .  Other major French cities include Lyon, Rouen, Bordeaux, Toulouse, and Marseille. These centuries saw several periods of epidemics and crop failures due to wars and climatic change.  Between 1693 and 1694, France lost 6% of its population. In the extremely harsh winter of 1709, France lost 3.5% of its population. In the past 300 years, no period has been so proportionally deadly for the French, both World Wars included.",
+      "original_question": "Which two countries had a larger population than France in 1795?",
+      "original_answer_data": {
+        "spans": [
+          "China",
+          "India"
+        ],
+        "types": [
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 475
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their home loss to the Titans, the Bears flew to Lambeau Field for a Week 11 NFC North duel with their hated rival, the Green Bay Packers.  In the first quarter, Chicago trailed early as Packers QB Aaron Rodgers completed a 3-yard TD pass to WR Greg Jennings. In the second quarter, the Bears got on the board with kicker Robbie Gould getting a 35-yard field goal.  Green Bay would answer with RB Ryan Grant getting a 4-yard TD run, along with kicker Mason Crosby getting a 53-yard field goal. In the third quarter, Chicago continued to trail as Rodgers completed a 5-yard TD pass to TE Donald Lee.  In the fourth quarter, the Packers pulled away as Crosby made a 33-yard field goal, DE Jason Hunter returned a fumble 54 yards for a touchdown, and Crosby nailing a 45-yard field goal.",
+      "original_question": "How many yards was the shortest touchdown pass?",
+      "original_answer_data": {
+        "spans": [
+          "3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 981
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Due to a decrease in popularity for the game, it was flexed out of Sunday Night Football on NBC and rescheduled to 1:00 PM on CBS. Following the loss to the Titans Rex Ryan announced that Greg McElroy would start for the Jets against the Chargers.  Following a 63-yard Michael Spurlock punt return touchdown McElroy led back to back scoring drives ending in 1-yard Shonn Greene touchdowns.  The Chargers took over the game in the third quarter with two Philip Rivers touchdowns and a Nick Novak field goal while McElroy was intercepted once and strip-sacked once. With the loss, the Jets fell to 6-9, their first losing season since 2007.",
+      "original_question": "How many more losses than wins did the Jets have after this game?",
+      "original_answer_data": {
+        "spans": [
+          "3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 850
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Titans' fourth game was an AFC duel with the Broncos at home ground. The Titans trailed early in the 2nd quarter as QB Kyle Orton got a 2-yard TD pass to WR Eddie Royal. They replied with QB Vince Young getting an 8-yard TD pass to WR Kenny Britt. The Broncos' kicker Matt Prater made a 36-yard field goal to give Denver a 3-point lead, but the Titans replied when kicker Rob Bironas nailed an incredible 55-yard field goal. In the 3rd quarter the Titans trailed slightly when Matt Prater made a 36-yard field goal, but after that, WR Marc Mariani returned the kickoff and ran 98&#160;yards to the endzone for a touchdown, giving the Titans the lead. The lead was narrowed when Prater made a 35-yard field goal, but was increased again when Bironas made a 46-yard field goal. In the 4th quarter Tennessee fell behind when QB Kyle Orton completed a 6-yard TD pass to RB Correll Buckhalter, followed by Prater making another 36-yard field goal.",
+      "original_question": "How many field goals over 40 yards were made?",
+      "original_answer_data": {
+        "spans": [
+          "2"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 892
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Crimean campaigns of 1687 and 1689  were two military campaigns of the Tsardom of Russia against the Crimean Khanate. They were a part of the Russo-Turkish War  and Russo-Crimean Wars. These were the first Russian forces to come close to Crimea since 1569. They failed due to poor planning and the practical problem of moving such a large force across the steppe but nonetheless played a key role in halting the Ottoman expansion in Europe. The campaigns came as a surprise for the Ottoman leadership, spoiled its plans to invade Poland and Hungary and forced it to move significant forces from Europe to the east, which greatly helped the League in its struggle against the Ottomans. Having signed the Eternal Peace Treaty with Poland in 1686, Russia became a member of the anti-Turkish coalition , which was pushing the Turks south after their failure at Vienna in 1683 . Russia's role in 1687 was to send a force south to Perekop to bottle up the Crimeans inside their peninsula.",
+      "original_question": "Who ran the Crimean campaigns?",
+      "original_answer_data": {
+        "spans": [
+          "military"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 375
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "With a chance to clinch a playoff spot for the first time since 2002, the Raiders traveled to Kansas City for a crucial Thursday night matchup to determine the AFC West division lead. The Raiders needed a win and a Miami Dolphins loss or a win and a Denver Broncos loss to clinch a playoff berth. Oakland started well, recovering a muffed fumble by Tyreek Hill on a punt following their first drive and setting them up at the Kansas City 38-yard line. However, the Raiders had to settle for a field goal by Sebastian Janikowsi to take the early 3-0 lead. It would be the last lead the Raiders enjoyed on the night. Oakland's offense could muster little for most of the first half including after the Raider defense stopped KC on a fourth and one at the Oakland 27. The Chiefs took the lead early in the second quarter on a 36-yard pass from Alex Smith to Hill to make the score 7-3. After a four-and-out possession for the Raiders, the Chiefs again went down the field scoring on a Charcandrick West three-yard touchdown run. Following another Raiders short offensive possession, Hill returned a punt 78 yards for a touchdown to extend the Chief lead to 21-3. With six minutes remaining in the half, the Raiders went up-tempo and moved the ball down the field capping the drive with a one-yard touchdown run by Latavius Murray with 14 seconds remaining. At the half, the Raiders trailed 21-10. To begin the second half, the Raider defense stepped up intercepting Smith on the second play of the half and giving the offense the ball at the KC 23. However, the offense was shut down by the KC defense and settled for another Janikowski field goal, bringing them within a touchdown of the Chiefs at 21-13. On the next offensive play for the Chiefs, Khalil Mack sacked and stripped Smith of the ball and the Raiders recovered at the KC 18-yard line. The offense again managed little and was forced to settle for a field goal attempt. However, a bad snap resulted in Marquette King being tackled for three-yard loss. Both offenses mustered very little for the remainder of the game. With seven minutes left in the game, the Raiders needed a touchdown to tie and moved down to the KC 19-yard line, but were stopped on fourth down and the Chiefs ran the clock out. Derek Carr struggled mightily with his accuracy on the night, only completing 17 of his 41 pass attempts for 117 yards. He often missed open receivers or badly threw behind receivers. Carr admitted he had a bad night saying, \"Obviously, we didn't do enough.\" The loss ended the Raiders six-game win streak and gave the Chiefs the lead in the division with a 2-0 record over the Raiders. The Raiders, still, in prime playoff position, would have to finish ahead of the Chiefs to win the division.",
+      "original_question": "How many points were scored in the first half?",
+      "original_answer_data": {
+        "spans": [
+          "31"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 178
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "On 12 April 1204, the weather conditions finally favoured the crusaders. A strong northern wind aided the Venetian ships in coming close to the walls, and after a short battle approximately seventy crusaders managed to enter the city. Some were able to knock holes in the walls, large enough for only a few knights at a time to crawl through; the Venetians were also successful at scaling the walls from the sea, though there was fighting with the Varangians. The Anglo-Saxon \"axe bearers\" had been amongst the most effective of the city's defenders, but they now attempted to negotiate higher wages from their Byzantine employers, before dispersing or surrendering. The crusaders captured the Blachernae section of the city in the northwest and used it as a base to attack the rest of the city. While attempting to defend themselves with a wall of fire, however, they burned even more of the city. This second fire left 15,000 people homeless. The crusaders completely took the city on 13 April. The crusaders sacked Constantinople for three days, during which many ancient Greco-Roman and medieval Byzantine works of art were stolen or ruined. Many of the civilian population of the city were killed and their property looted. Despite the threat of excommunication, the crusaders destroyed, defiled and looted the city's churches and monasteries. It was said that the total amount looted from Constantinople was about 900,000 silver marks. The Venetians received 150,000 silver marks that was their due, while the crusaders received 50,000 silver marks. A further 100,000 silver marks were divided evenly up between the crusaders and Venetians. The remaining 500,000 silver marks were secretly kept back by many crusader knights. Speros Vryonis in Byzantium and Europe gives a vivid account of the sack:",
+      "original_question": "How many different countries works of art were ruined?",
+      "original_answer_data": {
+        "spans": [
+          "2"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 26
     }
   ],
   "example_indices": [
-    86,
-    87,
-    88,
-    89,
-    90
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99,
+    100
   ],
   "results": [
     {
       "success": true,
-      "answer": "King William II of Sicily",
-      "output": "Clarified question: From whom did King Tancred of Sicily seize power, according to the provided passage?\n\nExtracted info: King William II of Sicily\n\nANSWER_START\nKing William II of Sicily\n\nANSWER_END\n",
+      "answer": "The passage mentions the following scores for each game:\n*   Game 1: San Antonio 87, Mavericks 85\n*   Game 2: Mavericks 113, San Antonio 91\n*   Game 3: Mavericks 104, San Antonio 103\n*   Game 4: Mavericks 123, San Antonio 118\n*   Game 5: Spurs won (score not specified)\n*   Game 6: Spurs won (score not specified)\n*   Game 7: Mavericks 119, Spurs 111\n\nThe highest score by one team is 123, scored by the Mavericks in Game 4.\n\nVerification: 123",
+      "output": "ANSWER_START\nThe passage mentions the following scores for each game:\n*   Game 1: San Antonio 87, Mavericks 85\n*   Game 2: Mavericks 113, San Antonio 91\n*   Game 3: Mavericks 104, San Antonio 103\n*   Game 4: Mavericks 123, San Antonio 118\n*   Game 5: Spurs won (score not specified)\n*   Game 6: Spurs won (score not specified)\n*   Game 7: Mavericks 119, Spurs 111\n\nThe highest score by one team is 123, scored by the Mavericks in Game 4.\n\nVerification: 123\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_11.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer identifies the highest score by a team as 123, which is the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Verification: The outbreak of the Xinhai Revolution",
+      "output": "ANSWER_START\nVerification: The outbreak of the Xinhai Revolution\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_11.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers mention the outbreak of the Xinhai Revolution."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Verification: 3",
+      "output": "ANSWER_START\nVerification: 3\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_11.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers provide the same numerical value, '3'."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "China and India",
+      "output": "ANSWER_START\nChina and India\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_11.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers list China and India. The only difference is the presence of a comma in the golden answer, which doesn't change the meaning."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "3",
+      "output": "ANSWER_START\n3\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_11.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The Jets had 6 wins and 9 losses. The difference between losses and wins is 9 - 6 = 3.\nVerification: 3",
+      "output": "ANSWER_START\nThe Jets had 6 wins and 9 losses. The difference between losses and wins is 9 - 6 = 3.\nVerification: 3\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_11.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers indicate the same numerical value: 3. The system answer shows the steps to derive the number 3, while the golden answer just directly outputs 3."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Verification: 2",
+      "output": "ANSWER_START\nVerification: 2\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_11.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers clearly state the number 2."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Tsardom of Russia",
+      "output": "ANSWER_START\nTsardom of Russia\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_11.jsonl",
       "evaluation": {
         "match": false,
-        "confidence": 1,
-        "explanation": "The two answers refer to different individuals; King William II of Sicily is not the same person as Queen Joan."
+        "confidence": 0,
+        "explanation": "The system answer is \"Tsardom of Russia\", while the golden answer is \"military\". These answers are completely different and do not convey the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "The Abenakis suffered a greater number of deaths.",
-      "output": "Clarified question: Which side, the Colonists or the Abenakis, suffered a greater number of deaths in the conflict described in the passage?\n\nExtracted info: Colonists: two militiamen and one Mohawk\nAbenakis: Rale, a leading chief, and nearly two dozen women and children. At least 31 chose to fight, and most of them were killed.\n\nANSWER_START\nThe Abenakis suffered a greater number of deaths.\n\nANSWER_END\n",
+      "answer": "Raiders field goal: 3 points\nChiefs touchdown: 7 points\nChiefs punt return touchdown: 7 points\nRaiders touchdown: 7 points\nTotal: 3 + 7 + 7 + 7 = 24\n\nVerification: 24",
+      "output": "ANSWER_START\nRaiders field goal: 3 points\nChiefs touchdown: 7 points\nChiefs punt return touchdown: 7 points\nRaiders touchdown: 7 points\nTotal: 3 + 7 + 7 + 7 = 24\n\nVerification: 24\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_11.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "The system answer implies that the Abenakis suffered more, which is the same as saying 'Abenakis' as the answer."
+        "explanation": "The system answer provides a breakdown of points scored by each team, but the final total (24) is incorrect when compared to the golden answer (31)."
       },
-      "match": true
+      "match": false
     },
     {
       "success": true,
-      "answer": "Yes, Sydney's manufacturing output exceeded Melbourne's in 2013.",
-      "output": "Clarified question: In 2013, did Sydney's manufacturing output exceed Melbourne's manufacturing output, according to the information provided in the passage?\n\nExtracted info: Sydney's manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion.\n\nANSWER_START\nYes, Sydney's manufacturing output exceeded Melbourne's in 2013.\n\nANSWER_END\n",
+      "answer": "Verification: 3",
+      "output": "ANSWER_START\nVerification: 3\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_11.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "The system answer confirms Sydney exceeded Melbourne's manufacturing output, thus implying Sydney had the higher output, matching the golden answer 'Sydney'."
+        "explanation": "The system answer provides '3', while the golden answer provides '2'. These are distinct numerical answers, so the system answer does not convey the same information as the golden answer."
       },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "38 yards",
-      "output": "Clarified question: What was the distance, in yards, of the longest field goal made by Mike Nugent during the fourth quarter of the Bengals-Ravens game described in the passage?\n\nExtracted info: 38\n\nANSWER_START\n38 yards\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_11.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The answers are semantically equivalent, both referring to a length of 38 yards."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "7 yards",
-      "output": "Clarified question: What was the sum of the yardage gained by Artose Pinner on his touchdown runs in the first quarter of the game described in the passage?\n\nExtracted info: 3-yard and a 4-yard TD run\n\nANSWER_START\n7 yards\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_11.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers refer to the quantity 7. The system answer includes the unit 'yards', while the golden answer does not, but in the context of a numerical answer, the numerical value is the key information, and thus they are semantically equivalent."
-      },
-      "match": true
+      "match": false
     }
   ],
   "performance": {
-    "accuracy": 0.8,
-    "correct_count": 4,
-    "total_count": 5,
+    "accuracy": 0.7,
+    "correct_count": 7,
+    "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "King William II of Sicily",
-        "golden_answer": "Queen Joan",
-        "output": "Clarified question: From whom did King Tancred of Sicily seize power, according to the provided passage?\n\nExtracted info: King William II of Sicily\n\nANSWER_START\nKing William II of Sicily\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The two answers refer to different individuals; King William II of Sicily is not the same person as Queen Joan."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 1,
-        "success": true,
-        "system_answer": "The Abenakis suffered a greater number of deaths.",
-        "golden_answer": "Abenakis",
-        "output": "Clarified question: Which side, the Colonists or the Abenakis, suffered a greater number of deaths in the conflict described in the passage?\n\nExtracted info: Colonists: two militiamen and one Mohawk\nAbenakis: Rale, a leading chief, and nearly two dozen women and children. At least 31 chose to fight, and most of them were killed.\n\nANSWER_START\nThe Abenakis suffered a greater number of deaths.\n\nANSWER_END\n",
+        "system_answer": "The passage mentions the following scores for each game:\n*   Game 1: San Antonio 87, Mavericks 85\n*   Game 2: Mavericks 113, San Antonio 91\n*   Game 3: Mavericks 104, San Antonio 103\n*   Game 4: Mavericks 123, San Antonio 118\n*   Game 5: Spurs won (score not specified)\n*   Game 6: Spurs won (score not specified)\n*   Game 7: Mavericks 119, Spurs 111\n\nThe highest score by one team is 123, scored by the Mavericks in Game 4.\n\nVerification: 123",
+        "golden_answer": "123",
+        "output": "ANSWER_START\nThe passage mentions the following scores for each game:\n*   Game 1: San Antonio 87, Mavericks 85\n*   Game 2: Mavericks 113, San Antonio 91\n*   Game 3: Mavericks 104, San Antonio 103\n*   Game 4: Mavericks 123, San Antonio 118\n*   Game 5: Spurs won (score not specified)\n*   Game 6: Spurs won (score not specified)\n*   Game 7: Mavericks 119, Spurs 111\n\nThe highest score by one team is 123, scored by the Mavericks in Game 4.\n\nVerification: 123\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer implies that the Abenakis suffered more, which is the same as saying 'Abenakis' as the answer."
+          "explanation": "The system answer identifies the highest score by a team as 123, which is the golden answer."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "Verification: The outbreak of the Xinhai Revolution",
+        "golden_answer": "n 1910 China invaded Tibet, outbreak of the Xinhai Revolution, in 1911-1912",
+        "output": "ANSWER_START\nVerification: The outbreak of the Xinhai Revolution\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers mention the outbreak of the Xinhai Revolution."
         }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "Yes, Sydney's manufacturing output exceeded Melbourne's in 2013.",
-        "golden_answer": "Sydney",
-        "output": "Clarified question: In 2013, did Sydney's manufacturing output exceed Melbourne's manufacturing output, according to the information provided in the passage?\n\nExtracted info: Sydney's manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion.\n\nANSWER_START\nYes, Sydney's manufacturing output exceeded Melbourne's in 2013.\n\nANSWER_END\n",
+        "system_answer": "Verification: 3",
+        "golden_answer": "3",
+        "output": "ANSWER_START\nVerification: 3\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer confirms Sydney exceeded Melbourne's manufacturing output, thus implying Sydney had the higher output, matching the golden answer 'Sydney'."
+          "explanation": "Both answers provide the same numerical value, '3'."
         }
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "38 yards",
-        "golden_answer": "38-yard",
-        "output": "Clarified question: What was the distance, in yards, of the longest field goal made by Mike Nugent during the fourth quarter of the Bengals-Ravens game described in the passage?\n\nExtracted info: 38\n\nANSWER_START\n38 yards\n\nANSWER_END\n",
+        "system_answer": "China and India",
+        "golden_answer": "China, India",
+        "output": "ANSWER_START\nChina and India\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The answers are semantically equivalent, both referring to a length of 38 yards."
+          "explanation": "Both answers list China and India. The only difference is the presence of a comma in the golden answer, which doesn't change the meaning."
         }
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "7 yards",
-        "golden_answer": "7",
-        "output": "Clarified question: What was the sum of the yardage gained by Artose Pinner on his touchdown runs in the first quarter of the game described in the passage?\n\nExtracted info: 3-yard and a 4-yard TD run\n\nANSWER_START\n7 yards\n\nANSWER_END\n",
+        "system_answer": "3",
+        "golden_answer": "3",
+        "output": "ANSWER_START\n3\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers refer to the quantity 7. The system answer includes the unit 'yards', while the golden answer does not, but in the context of a numerical answer, the numerical value is the key information, and thus they are semantically equivalent."
+          "explanation": "Both answers are the same numerical value."
         }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "The Jets had 6 wins and 9 losses. The difference between losses and wins is 9 - 6 = 3.\nVerification: 3",
+        "golden_answer": "3",
+        "output": "ANSWER_START\nThe Jets had 6 wins and 9 losses. The difference between losses and wins is 9 - 6 = 3.\nVerification: 3\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers indicate the same numerical value: 3. The system answer shows the steps to derive the number 3, while the golden answer just directly outputs 3."
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "Verification: 2",
+        "golden_answer": "2",
+        "output": "ANSWER_START\nVerification: 2\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers clearly state the number 2."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "Tsardom of Russia",
+        "golden_answer": "military",
+        "output": "ANSWER_START\nTsardom of Russia\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 0,
+          "explanation": "The system answer is \"Tsardom of Russia\", while the golden answer is \"military\". These answers are completely different and do not convey the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "Raiders field goal: 3 points\nChiefs touchdown: 7 points\nChiefs punt return touchdown: 7 points\nRaiders touchdown: 7 points\nTotal: 3 + 7 + 7 + 7 = 24\n\nVerification: 24",
+        "golden_answer": "31",
+        "output": "ANSWER_START\nRaiders field goal: 3 points\nChiefs touchdown: 7 points\nChiefs punt return touchdown: 7 points\nRaiders touchdown: 7 points\nTotal: 3 + 7 + 7 + 7 = 24\n\nVerification: 24\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer provides a breakdown of points scored by each team, but the final total (24) is incorrect when compared to the golden answer (31)."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "Verification: 3",
+        "golden_answer": "2",
+        "output": "ANSWER_START\nVerification: 3\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer provides '3', while the golden answer provides '2'. These are distinct numerical answers, so the system answer does not convey the same information as the golden answer."
+        },
+        "capability_failures": []
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nNone\n\n## STRENGTHS\n*   The system is generally capable of clarifying questions and extracting relevant information from the passage.\n*   The system can correctly identify numerical values and perform simple calculations when necessary.\n\n## WEAKNESSES\n*   The system struggles with differentiating between individuals who are mentioned in close proximity in the text. In the error case, the system failed to identify the correct person from whom power was seized.\n*   The system struggles to differentiate between \"seizing power\" and being the \"legal heir\".\n\n## CRITICAL BOTTLENECKS\n*   Difficulty in discerning relationships and actions between entities described in the text, leading to incorrect information extraction.\n*   The system prioritizes mentioning a person from the passage, rather than focusing on the specific relationship.\n\n## ERROR PATTERNS\n*   The primary error pattern is misinterpreting the relationship between different entities described in the passage and extracting the wrong individual as the subject of a particular action.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to accurately identify the subject of the action \"seizing power\" from the text. The system can identify that someone seized power, but grabs the wrong person as being the target.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction:** Needs to be significantly improved to accurately extract entities and their relationships. Focus specifically on understanding the context and identifying the correct actor and object of actions described in the passage.\n*   **Reasoning/Deduction:** The system needs to be able to make inferences about relationships between entities. For example, it should be able to deduce that if Tancred seized power *after* the death of William, William could not be the target of the power seizure.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Enhanced Relationship Extraction:** Implement a more sophisticated relationship extraction module that goes beyond simple keyword matching. This module should consider sentence structure, co-reference resolution, and contextual information to accurately identify the relationships between entities.\n2.  **Contextual Reasoning:** Add a reasoning step that uses the extracted relationships to answer the question. For example, before selecting an answer, the system should verify that the selected entity is the correct target of the action described in the question.\n3.  **Negative Constraints:** Explicitly program the system to identify negative constraints. In the error case, a negative constraint could be: \"Tancred cannot seize power from someone who is already dead.\"\n4.  **Fine-tune Training Data:** Augment the training data with more examples that specifically target the identification of relationships between entities, and in particular identify who is acting on whom.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information_extraction: Failed - Incorrectly identified who King Tancred seized power from.\n    *   reasoning/deduction: Failed - The system failed to rule out dead candidates.\n",
-      "strengths": [
-        "The system is generally capable of clarifying questions and extracting relevant information from the passage.",
-        "The system can correctly identify numerical values and perform simple calculations when necessary."
-      ],
-      "weaknesses": [
-        "The system struggles with differentiating between individuals who are mentioned in close proximity in the text. In the error case, the system failed to identify the correct person from whom power was seized.",
-        "The system struggles to differentiate between \"seizing power\" and being the \"legal heir\"."
-      ],
-      "primary_issue": "The most critical problem is the system's inability to accurately identify the subject of the action \"seizing power\" from the text. The system can identify that someone seized power, but grabs the wrong person as being the target.",
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors were explicitly found in the 'output' fields.\n\n## STRENGTHS\n1.  **Accurate Information Extraction:** The system demonstrates a good ability to extract specific information from the passage, as seen in the success cases where it correctly identifies relevant facts and figures.\n2.  **Numerical Calculation (Sometimes):** In some cases, the system correctly performs arithmetic operations (addition, subtraction) when required to solve the problem, as demonstrated in success cases 5 and 0.\n3. **Step-by-Step Reasoning (Sometimes):** The system attempts to provide a step-by-step breakdown of its reasoning process, which is helpful for debugging and understanding its approach (Success case 0 and 5).\n\n## WEAKNESSES\n1.  **Inaccurate Arithmetic Calculation:** The system sometimes makes errors in performing calculations, particularly addition, leading to incorrect final answers (Error Case 8).\n2.  **Lack of Precision in Identifying the Correct Information:** The system sometimes extracts information that is related to the question but does not directly answer the question accurately or completely (Error Case 7).\n3. **Ambiguity in Interpreting the Question:** The system sometimes misinterprets what the question is asking (Error Case 9).\n\n## CRITICAL BOTTLENECKS\n1.  **Arithmetic Error:** Inaccurate arithmetic operations prevent the system from arriving at the correct final answer, even when it identifies the correct pieces of information to process.\n2.  **Precise Understanding of the Question:** Misinterpretation of the question's intent can lead the system to extract and process irrelevant or incorrect information, resulting in a wrong answer.\n\n## ERROR PATTERNS\n1.  **Calculation Errors:** A recurring pattern involves incorrect arithmetic calculations, specifically simple addition (Error Case 8).\n2.  **Information Misinterpretation:** The system misinterprets the intent behind the questions, leading to the generation of incorrect answers (Error Cases 7 and 9).\n\n## PRIMARY ISSUE\nThe most critical problem to fix is the system's **inability to accurately perform arithmetic operations, specifically addition,** which prevents it from arriving at the correct answer even when it identifies the relevant information.\n\n## IMPROVEMENT AREAS\n1.  **Numerical Reasoning:** Focus on improving the system's ability to perform accurate arithmetic calculations.\n2.  **Question Understanding:** Enhance the system's understanding of the question to extract the most relevant information and avoid misinterpretations.\n3. **Answer Validation:** Implement a more rigorous validation process to ensure that the final answer is not just plausible, but the best possible given the information at hand.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement Unit Tests for Arithmetic Operations:** Create a comprehensive suite of unit tests to specifically test the system's ability to perform addition, subtraction, multiplication, and division.\n2.  **Add Verification Step:** Add a second verification step to double-check the arithmetic and information extraction before outputting the final answer.\n3.  **Implement a More Robust Question Parsing Mechanism:** Use more advanced NLP techniques (e.g., semantic parsing, dependency parsing) to better understand the question's intent and identify key entities and relationships.\n\n## CAPABILITY MAPPING\n*   **Sample ID 7:** information\\_extraction, solution\\_generation\n*   **Sample ID 8:** solution\\_generation, solution\\_verification\n*   **Sample ID 9:** information\\_extraction\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The most critical problem to fix is the system's **inability to accurately perform arithmetic operations, specifically addition,** which prevents it from arriving at the correct answer even when it identifies the relevant information.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n**ERROR ANALYSIS REPORT:**\n\n(Provided in original prompt)\n\n**SAMPLE EXECUTION OUTPUTS:**\n\n(Provided in original prompt)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs reveal the system's strengths and weaknesses in practice. The first example demonstrates the critical error: misidentifying the target of the \"seize power\" action. While the system correctly identifies King Tancred and the act of seizing power, it attributes the target to King William II incorrectly. This suggests an issue with understanding the temporal context or logical relationships between entities.\n\nThe second and third examples demonstrate the system's capability to:\n\n*   Extract numerical information (number of deaths, manufacturing outputs)\n*   Compare numerical values and provide accurate comparative answers.\n*   Answer simple yes/no questions based on extracted data.\n\nThe consistency of the successful executions indicates that the core information extraction and numerical processing components are functioning reasonably well. The identified issue seems to be confined to more complex scenarios requiring deeper contextual understanding and relationship extraction. The system successfully clarified the questions prior to extraction in all cases, implying that the question answering component is satisfactory. The failure is pinpointed to the identification of the correct subject-verb-object triples.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a baseline capability for question answering and information extraction. It can effectively handle questions requiring simple fact retrieval and numerical comparisons. However, its performance significantly degrades when the task demands understanding complex relationships between entities, discerning temporal order, or applying logical deduction. The system prioritizes superficial matches (like mentions of people in the passage) over deeper semantic understanding of the relationships *between* those people. The success rate of 80% indicates good performance with simple questions, but the system is ultimately unable to successfully handle more complex queries.\n\n## KEY STRENGTHS\n\n*   **Clarifying Questions:** Effectively reformulates questions to focus on key information.\n*   **Numerical Information Extraction:** Adept at extracting and comparing numerical data.\n*   **Simple Question Answering:** Competent in answering questions that require direct fact retrieval.\n\n## KEY WEAKNESSES\n\n*   **Relationship Extraction:** Fails to accurately identify the relationships between entities, particularly in the context of actions and events.\n*   **Contextual Reasoning:** Lacks the ability to perform logical deductions based on temporal or causal relationships described in the text.\n*   **Entity Disambiguation:** Struggles to differentiate between entities mentioned in close proximity, especially when they are involved in similar actions.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Relationship Extraction**. Accurately identifying how entities relate to each other is fundamental to answering complex questions and understanding the meaning of the text. Without accurate relationship extraction, reasoning and deduction are impossible.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Triplet Extraction Module:** Introduce a dedicated module designed to extract subject-verb-object triplets from the text. Train this module specifically on datasets designed for relationship extraction. The module should be configurable with different relationship types to target extraction.\n2.  **Incorporate Dependency Parsing:** Integrate dependency parsing into the information extraction pipeline. Use dependency parsing to identify the grammatical relationships between words in a sentence and guide the extraction of entities and their relationships.\n3.  **Augment Training Data with Negative Examples:** Include negative examples in the training data that explicitly demonstrate *incorrect* relationships. For instance, examples showing instances where Tancred *did not* seize power from William. This will help the system learn to differentiate between true and false relationships.\n4.  **Implement Role-Based Entity Typing:** Improve entity recognition by incorporating role-based entity typing. Instead of just identifying \"person,\" identify the role of the person in the given context (e.g., \"ruler,\" \"heir,\" \"enemy\"). This will help the system differentiate between entities that might be mentioned in similar contexts.\n\n## CAPABILITY TREND\n\nBased on the current performance, the AI system's capabilities are **stable** with respect to simple fact retrieval and numerical comparisons. However, the system is significantly lacking in complex reasoning capabilities. To improve, changes must be made in extraction of relationships.\n",
-      "strengths": [
-        "The system is generally capable of clarifying questions and extracting relevant information from the passage.",
-        "The system can correctly identify numerical values and perform simple calculations when necessary."
-      ],
-      "weaknesses": [
-        "The system struggles with differentiating between individuals who are mentioned in close proximity in the text. In the error case, the system failed to identify the correct person from whom power was seized.",
-        "The system struggles to differentiate between \"seizing power\" and being the \"legal heir\"."
-      ],
+      "text_report": "Okay, here's a comprehensive capability report for your AI system, based on the provided performance summary, error analysis, and sample execution outputs.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**## EXECUTION ANALYSIS**\n\nThe provided `SAMPLE EXECUTION OUTPUTS` show examples of the system generating answers wrapped in \"ANSWER_START\" and \"ANSWER_END\" tags. This indicates a structured output format, which is good for parsing and further processing. However, only three outputs are provided, making it difficult to generalize about the system's capabilities across a wide range of tasks. The outputs themselves suggest different capabilities being tested, from factual recall and numerical reasoning to event identification.\n\n*   **Sample ID 7 (related to Error Case 7):** This output demonstrates an attempt at identifying the highest score in a series of basketball games. While it extracts the correct information (123) from the passage and identifies the scoring team, the analysis indicates it may have struggled with the nuances of the question or extracting the most relevant information. This aligns with weakness #2 'Lack of Precision in Identifying the Correct Information.' The inclusion of the games and scores is positive, but indicates it maybe included too much information that the question didn't ask for.\n*   **Sample ID 8 (related to Error Case 8):**  This output provides very little context. Without knowing the original question, it's impossible to assess its accuracy or relevance. The reference to the \"Xinhai Revolution\" suggests a historical question. This highlights a problem:  We need more data points (more \"SAMPLE EXECUTION OUTPUTS\" with corresponding questions) to fully diagnose the issues.\n*   **Sample ID 9 (related to Error Case 9):** This output is similar to Sample ID 8, providing no context. The answer \"3\" could be anything. Without the question, we cannot assess the validity of the analysis provided.\n\n**## CAPABILITY ASSESSMENT**\n\nThe system demonstrates a mixed bag of capabilities. It shows promise in information extraction, and attempts at reasoning, but struggles with accuracy, precision, and question interpretation. The accuracy of 70% suggests a functional, but unreliable system. The core capabilities it attempts to perform include:\n\n*   **Information Extraction:** Pulling relevant facts from a source text.\n*   **Numerical Reasoning:** Performing basic arithmetic.\n*   **Question Answering:** Providing answers based on given information.\n*   **Step-by-Step Reasoning:** Explaining its thought process.\n\nThe system's weakness in arithmetic is particularly concerning as it can negate the benefits of otherwise correct information extraction and reasoning. The execution output highlights a critical need for better understanding of the questions asked and generating answers that are not ambiguous.\n\n**## KEY STRENGTHS**\n\n*   **Information Extraction (Potential):**  The system demonstrates the ability to extract data from text, when it understands the question being asked.\n*   **Structured Output:** Using \"ANSWER_START\" and \"ANSWER_END\" tags is excellent for automated parsing and evaluation.\n\n**## KEY WEAKNESSES**\n\n*   **Inaccurate Arithmetic Calculation:** This is the most pressing weakness.  A system that cannot perform basic calculations is severely limited.\n*   **Ambiguous Question Understanding:** The system frequently misinterprets the intent of the question, leading to irrelevant or incorrect answers.\n*   **Lack of Contextual Precision:** The system sometimes provides information that is too broad, not focused enough to directly answer the question.\n\n**## IMPROVEMENT FOCUS**\n\nThe primary focus should be on **improving numerical reasoning, specifically arithmetic accuracy.** This is the most critical bottleneck preventing the system from achieving reliable performance. If the system cannot accurately compute, other strengths are diminished.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\n1.  **Implement Rigorous Unit Tests for Arithmetic Operations:**  Create a comprehensive suite of unit tests specifically designed to test addition, subtraction, multiplication, and division across various number types (integers, decimals, negative numbers). This is crucial.\n2.  **Implement Error Logging and Debugging for Arithmetic:**  When an arithmetic operation is performed, log the input values, the operation performed, and the result.  This will make it easier to identify the source of errors.\n3.  **Focus on Question Parsing with Examples:** Create a large dataset of question-answer pairs, focusing on the types of questions where the system currently struggles.  Use this dataset to train a more robust question parsing mechanism. You can use techniques like fine-tuning existing language models or employing semantic parsing.\n4. **Expand Sample Execution Outputs with Questions:** The current output snippets are useless without context. For every sample output you include, *always* include the original question. This is non-negotiable for effective analysis.\n\n**## CAPABILITY TREND**\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, the accuracy of 70% and the identified weaknesses suggest the system is currently at a **plateau or potentially declining** if the complexity of tasks is increasing without corresponding improvements in core capabilities. Addressing the numerical reasoning issues and improving question understanding are essential to reverse this trend.\n",
+      "strengths": [],
+      "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nNone\n\n## STRENGTHS\n*   The system is generally capable of clarifying questions and extracting relevant information from the passage.\n*   The system can correctly identify numerical values and perform simple calculations when necessary.\n\n## WEAKNESSES\n*   The system struggles with differentiating between individuals who are mentioned in close proximity in the text. In the error case, the system failed to identify the correct person from whom power was seized.\n*   The system struggles to differentiate between \"seizing power\" and being the \"legal heir\".\n\n## CRITICAL BOTTLENECKS\n*   Difficulty in discerning relationships and actions between entities described in the text, leading to incorrect information extraction.\n*   The system prioritizes mentioning a person from the passage, rather than focusing on the specific relationship.\n\n## ERROR PATTERNS\n*   The primary error pattern is misinterpreting the relationship between different entities described in the passage and extracting the wrong individual as the subject of a particular action.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to accurately identify the subject of the action \"seizing power\" from the text. The system can identify that someone seized power, but grabs the wrong person as being the target.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction:** Needs to be significantly improved to accurately extract entities and their relationships. Focus specifically on understanding the context and identifying the correct actor and object of actions described in the passage.\n*   **Reasoning/Deduction:** The system needs to be able to make inferences about relationships between entities. For example, it should be able to deduce that if Tancred seized power *after* the death of William, William could not be the target of the power seizure.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Enhanced Relationship Extraction:** Implement a more sophisticated relationship extraction module that goes beyond simple keyword matching. This module should consider sentence structure, co-reference resolution, and contextual information to accurately identify the relationships between entities.\n2.  **Contextual Reasoning:** Add a reasoning step that uses the extracted relationships to answer the question. For example, before selecting an answer, the system should verify that the selected entity is the correct target of the action described in the question.\n3.  **Negative Constraints:** Explicitly program the system to identify negative constraints. In the error case, a negative constraint could be: \"Tancred cannot seize power from someone who is already dead.\"\n4.  **Fine-tune Training Data:** Augment the training data with more examples that specifically target the identification of relationships between entities, and in particular identify who is acting on whom.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information_extraction: Failed - Incorrectly identified who King Tancred seized power from.\n    *   reasoning/deduction: Failed - The system failed to rule out dead candidates.\n",
-    "capability_report_text": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n**ERROR ANALYSIS REPORT:**\n\n(Provided in original prompt)\n\n**SAMPLE EXECUTION OUTPUTS:**\n\n(Provided in original prompt)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs reveal the system's strengths and weaknesses in practice. The first example demonstrates the critical error: misidentifying the target of the \"seize power\" action. While the system correctly identifies King Tancred and the act of seizing power, it attributes the target to King William II incorrectly. This suggests an issue with understanding the temporal context or logical relationships between entities.\n\nThe second and third examples demonstrate the system's capability to:\n\n*   Extract numerical information (number of deaths, manufacturing outputs)\n*   Compare numerical values and provide accurate comparative answers.\n*   Answer simple yes/no questions based on extracted data.\n\nThe consistency of the successful executions indicates that the core information extraction and numerical processing components are functioning reasonably well. The identified issue seems to be confined to more complex scenarios requiring deeper contextual understanding and relationship extraction. The system successfully clarified the questions prior to extraction in all cases, implying that the question answering component is satisfactory. The failure is pinpointed to the identification of the correct subject-verb-object triples.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a baseline capability for question answering and information extraction. It can effectively handle questions requiring simple fact retrieval and numerical comparisons. However, its performance significantly degrades when the task demands understanding complex relationships between entities, discerning temporal order, or applying logical deduction. The system prioritizes superficial matches (like mentions of people in the passage) over deeper semantic understanding of the relationships *between* those people. The success rate of 80% indicates good performance with simple questions, but the system is ultimately unable to successfully handle more complex queries.\n\n## KEY STRENGTHS\n\n*   **Clarifying Questions:** Effectively reformulates questions to focus on key information.\n*   **Numerical Information Extraction:** Adept at extracting and comparing numerical data.\n*   **Simple Question Answering:** Competent in answering questions that require direct fact retrieval.\n\n## KEY WEAKNESSES\n\n*   **Relationship Extraction:** Fails to accurately identify the relationships between entities, particularly in the context of actions and events.\n*   **Contextual Reasoning:** Lacks the ability to perform logical deductions based on temporal or causal relationships described in the text.\n*   **Entity Disambiguation:** Struggles to differentiate between entities mentioned in close proximity, especially when they are involved in similar actions.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Relationship Extraction**. Accurately identifying how entities relate to each other is fundamental to answering complex questions and understanding the meaning of the text. Without accurate relationship extraction, reasoning and deduction are impossible.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Triplet Extraction Module:** Introduce a dedicated module designed to extract subject-verb-object triplets from the text. Train this module specifically on datasets designed for relationship extraction. The module should be configurable with different relationship types to target extraction.\n2.  **Incorporate Dependency Parsing:** Integrate dependency parsing into the information extraction pipeline. Use dependency parsing to identify the grammatical relationships between words in a sentence and guide the extraction of entities and their relationships.\n3.  **Augment Training Data with Negative Examples:** Include negative examples in the training data that explicitly demonstrate *incorrect* relationships. For instance, examples showing instances where Tancred *did not* seize power from William. This will help the system learn to differentiate between true and false relationships.\n4.  **Implement Role-Based Entity Typing:** Improve entity recognition by incorporating role-based entity typing. Instead of just identifying \"person,\" identify the role of the person in the given context (e.g., \"ruler,\" \"heir,\" \"enemy\"). This will help the system differentiate between entities that might be mentioned in similar contexts.\n\n## CAPABILITY TREND\n\nBased on the current performance, the AI system's capabilities are **stable** with respect to simple fact retrieval and numerical comparisons. However, the system is significantly lacking in complex reasoning capabilities. To improve, changes must be made in extraction of relationships.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors were explicitly found in the 'output' fields.\n\n## STRENGTHS\n1.  **Accurate Information Extraction:** The system demonstrates a good ability to extract specific information from the passage, as seen in the success cases where it correctly identifies relevant facts and figures.\n2.  **Numerical Calculation (Sometimes):** In some cases, the system correctly performs arithmetic operations (addition, subtraction) when required to solve the problem, as demonstrated in success cases 5 and 0.\n3. **Step-by-Step Reasoning (Sometimes):** The system attempts to provide a step-by-step breakdown of its reasoning process, which is helpful for debugging and understanding its approach (Success case 0 and 5).\n\n## WEAKNESSES\n1.  **Inaccurate Arithmetic Calculation:** The system sometimes makes errors in performing calculations, particularly addition, leading to incorrect final answers (Error Case 8).\n2.  **Lack of Precision in Identifying the Correct Information:** The system sometimes extracts information that is related to the question but does not directly answer the question accurately or completely (Error Case 7).\n3. **Ambiguity in Interpreting the Question:** The system sometimes misinterprets what the question is asking (Error Case 9).\n\n## CRITICAL BOTTLENECKS\n1.  **Arithmetic Error:** Inaccurate arithmetic operations prevent the system from arriving at the correct final answer, even when it identifies the correct pieces of information to process.\n2.  **Precise Understanding of the Question:** Misinterpretation of the question's intent can lead the system to extract and process irrelevant or incorrect information, resulting in a wrong answer.\n\n## ERROR PATTERNS\n1.  **Calculation Errors:** A recurring pattern involves incorrect arithmetic calculations, specifically simple addition (Error Case 8).\n2.  **Information Misinterpretation:** The system misinterprets the intent behind the questions, leading to the generation of incorrect answers (Error Cases 7 and 9).\n\n## PRIMARY ISSUE\nThe most critical problem to fix is the system's **inability to accurately perform arithmetic operations, specifically addition,** which prevents it from arriving at the correct answer even when it identifies the relevant information.\n\n## IMPROVEMENT AREAS\n1.  **Numerical Reasoning:** Focus on improving the system's ability to perform accurate arithmetic calculations.\n2.  **Question Understanding:** Enhance the system's understanding of the question to extract the most relevant information and avoid misinterpretations.\n3. **Answer Validation:** Implement a more rigorous validation process to ensure that the final answer is not just plausible, but the best possible given the information at hand.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement Unit Tests for Arithmetic Operations:** Create a comprehensive suite of unit tests to specifically test the system's ability to perform addition, subtraction, multiplication, and division.\n2.  **Add Verification Step:** Add a second verification step to double-check the arithmetic and information extraction before outputting the final answer.\n3.  **Implement a More Robust Question Parsing Mechanism:** Use more advanced NLP techniques (e.g., semantic parsing, dependency parsing) to better understand the question's intent and identify key entities and relationships.\n\n## CAPABILITY MAPPING\n*   **Sample ID 7:** information\\_extraction, solution\\_generation\n*   **Sample ID 8:** solution\\_generation, solution\\_verification\n*   **Sample ID 9:** information\\_extraction\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report for your AI system, based on the provided performance summary, error analysis, and sample execution outputs.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**## EXECUTION ANALYSIS**\n\nThe provided `SAMPLE EXECUTION OUTPUTS` show examples of the system generating answers wrapped in \"ANSWER_START\" and \"ANSWER_END\" tags. This indicates a structured output format, which is good for parsing and further processing. However, only three outputs are provided, making it difficult to generalize about the system's capabilities across a wide range of tasks. The outputs themselves suggest different capabilities being tested, from factual recall and numerical reasoning to event identification.\n\n*   **Sample ID 7 (related to Error Case 7):** This output demonstrates an attempt at identifying the highest score in a series of basketball games. While it extracts the correct information (123) from the passage and identifies the scoring team, the analysis indicates it may have struggled with the nuances of the question or extracting the most relevant information. This aligns with weakness #2 'Lack of Precision in Identifying the Correct Information.' The inclusion of the games and scores is positive, but indicates it maybe included too much information that the question didn't ask for.\n*   **Sample ID 8 (related to Error Case 8):**  This output provides very little context. Without knowing the original question, it's impossible to assess its accuracy or relevance. The reference to the \"Xinhai Revolution\" suggests a historical question. This highlights a problem:  We need more data points (more \"SAMPLE EXECUTION OUTPUTS\" with corresponding questions) to fully diagnose the issues.\n*   **Sample ID 9 (related to Error Case 9):** This output is similar to Sample ID 8, providing no context. The answer \"3\" could be anything. Without the question, we cannot assess the validity of the analysis provided.\n\n**## CAPABILITY ASSESSMENT**\n\nThe system demonstrates a mixed bag of capabilities. It shows promise in information extraction, and attempts at reasoning, but struggles with accuracy, precision, and question interpretation. The accuracy of 70% suggests a functional, but unreliable system. The core capabilities it attempts to perform include:\n\n*   **Information Extraction:** Pulling relevant facts from a source text.\n*   **Numerical Reasoning:** Performing basic arithmetic.\n*   **Question Answering:** Providing answers based on given information.\n*   **Step-by-Step Reasoning:** Explaining its thought process.\n\nThe system's weakness in arithmetic is particularly concerning as it can negate the benefits of otherwise correct information extraction and reasoning. The execution output highlights a critical need for better understanding of the questions asked and generating answers that are not ambiguous.\n\n**## KEY STRENGTHS**\n\n*   **Information Extraction (Potential):**  The system demonstrates the ability to extract data from text, when it understands the question being asked.\n*   **Structured Output:** Using \"ANSWER_START\" and \"ANSWER_END\" tags is excellent for automated parsing and evaluation.\n\n**## KEY WEAKNESSES**\n\n*   **Inaccurate Arithmetic Calculation:** This is the most pressing weakness.  A system that cannot perform basic calculations is severely limited.\n*   **Ambiguous Question Understanding:** The system frequently misinterprets the intent of the question, leading to irrelevant or incorrect answers.\n*   **Lack of Contextual Precision:** The system sometimes provides information that is too broad, not focused enough to directly answer the question.\n\n**## IMPROVEMENT FOCUS**\n\nThe primary focus should be on **improving numerical reasoning, specifically arithmetic accuracy.** This is the most critical bottleneck preventing the system from achieving reliable performance. If the system cannot accurately compute, other strengths are diminished.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\n1.  **Implement Rigorous Unit Tests for Arithmetic Operations:**  Create a comprehensive suite of unit tests specifically designed to test addition, subtraction, multiplication, and division across various number types (integers, decimals, negative numbers). This is crucial.\n2.  **Implement Error Logging and Debugging for Arithmetic:**  When an arithmetic operation is performed, log the input values, the operation performed, and the result.  This will make it easier to identify the source of errors.\n3.  **Focus on Question Parsing with Examples:** Create a large dataset of question-answer pairs, focusing on the types of questions where the system currently struggles.  Use this dataset to train a more robust question parsing mechanism. You can use techniques like fine-tuning existing language models or employing semantic parsing.\n4. **Expand Sample Execution Outputs with Questions:** The current output snippets are useless without context. For every sample output you include, *always* include the original question. This is non-negotiable for effective analysis.\n\n**## CAPABILITY TREND**\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, the accuracy of 70% and the identified weaknesses suggest the system is currently at a **plateau or potentially declining** if the complexity of tasks is increasing without corresponding improvements in core capabilities. Addressing the numerical reasoning issues and improving question understanding are essential to reverse this trend.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
     "successful_runs": 10,
-    "matches": 9,
-    "accuracy": 0.9,
+    "matches": 7,
+    "accuracy": 0.7,
     "results": [
       {
         "success": true,
-        "answer": "The Vikings won by 13 points.",
-        "output": "Clarified question: What was the point differential between the Packers and their opponent, the Minnesota Vikings, in the game described in the passage, with the Vikings winning?\n\nExtracted info: Packers took a 23-10 loss.\n\nANSWER_START\nThe Vikings won by 13 points.\n\nANSWER_END\n",
+        "answer": "The passage states that German nationals controlled about 80 percent of the country's international commerce, not 80 percent of Hispaniola.\n\nVerification: Incorrect",
+        "output": "ANSWER_START\nThe passage states that German nationals controlled about 80 percent of the country's international commerce, not 80 percent of Hispaniola.\n\nVerification: Incorrect\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "13",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer includes the numerical value '13' within its text, which is the exact value specified in the golden answer. The additional context in the system answer does not invalidate the presence and correctness of the numerical value."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Marvin Harrison played for the Colts.",
-        "output": "Clarified question: Who was the specific player who caught the touchdown pass in the first quarter, and for which team did they play?\n\nExtracted info: Marvin Harrison, Colts\nANSWER_START\nMarvin Harrison played for the Colts.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "Marvin Harrison",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer includes \"Marvin Harrison\" which is the golden answer. The additional information about playing for the Colts doesn't negate the presence of the correct answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Tampa Bay Buccaneers",
-        "output": "Clarified question: Which of the two teams mentioned in the passage, the Tampa Bay Buccaneers and the Philadelphia Eagles, did not score any points during the first quarter of the Week 5 game?\n\nExtracted info: Tampa Bay Buccaneers\nANSWER_START\nTampa Bay Buccaneers\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "Tampa Bay",
-        "evaluation": {
-          "match": true,
-          "confidence": 0.8,
-          "explanation": "The golden answer is a shorter version of the system answer and still conveys the same information. Both refer to the Tampa Bay Buccaneers, with the system answer being more specific."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Tony Romo",
-        "output": "Clarified question: What is the name of the player who threw the touchdown pass with the greatest yardage, as described in the passage?\n\nExtracted info: Tony Romo\n\nANSWER_START\nTony Romo\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "Tony Romo",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and refer to the same person, Tony Romo."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "One.",
-        "output": "Clarified question: How many of the three Slavic allies (Serbia, Montenegro, and Bulgaria) had to fight the Ottoman forces in a specific theater of war (Sand\u017eak, Macedonia, or Thrace) without direct military assistance from the other two Slavic allies?\n\nExtracted info: Bulgaria alone in the Thracian theater.\n\nANSWER_START\nOne.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers represent the same numerical value, '1', with the system answer expressing it in word form and the golden answer in numerical form."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Mark Bradley caught a 13-yard touchdown pass and Bobby Wade caught a 9-yard touchdown pass from Matt Cassel.",
-        "output": "Clarified question: What were the names of the wide receivers who caught touchdown passes from Matt Cassel, and how long were those touchdown passes, according to the provided passage?\n\nExtracted info: Mark Bradley, 13-yard touchdown pass; Bobby Wade, 9-yard touchdown pass.\n\nANSWER_START\nMark Bradley caught a 13-yard touchdown pass and Bobby Wade caught a 9-yard touchdown pass from Matt Cassel.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "13-yard",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer states that Mark Bradley caught a 13-yard touchdown pass, which contains the golden answer '13-yard'."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "The Packers led the Browns by 14 points.",
-        "output": "Clarified question: At the end of the second quarter (halftime), what was the point difference between the Packers' score and the Browns' score?\n\nExtracted info: At halftime, the Packers led 17-3.\n\nANSWER_START\nThe Packers led the Browns by 14 points.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "14",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer states that the Packers led by 14 points, therefore '14' is a valid and correct answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "4 yards",
-        "output": "Clarified question: What is the difference in yardage between Neil Rackers' 36-yard field goal and Jason Hanson's 32-yard field goal, as described in the passage?\n\nExtracted info: Neil Rackers' field goal: 36 yards\nJason Hanson's field goal: 32 yards\n\nANSWER_START\n4 yards\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "4",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers convey the same numerical value. The system answer includes the unit 'yards' which is implied in the context, but the core numerical value is the same."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Northeast",
-        "output": "Clarified question: Which of the regions mentioned in the passage (Northeast, South, and North) had the largest percentage of its population living in poverty in 2016, relative to that region's total population?\n\nExtracted info: - Northeast: 12.96%\n- South: 12.35%\n- North: 9.83%\n- Year: 2016\n\nANSWER_START\nNortheast\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "the Northeast",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The answers refer to the same geographical region; the presence or absence of the definite article \"the\" doesn't alter the meaning."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Dan Carpenter",
-        "output": "Clarified question: Which of the kickers mentioned in the passage, Rian Lindell or Dan Carpenter, had a lower total number of yards gained from field goals?\n\nExtracted info: Rian Lindell: 19-yard, 43-yard, and 47-yard field goals.\nDan Carpenter: 43-yard, 45-yard, and 35-yard field goals.\n\nANSWER_START\nDan Carpenter\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_11.jsonl",
-        "golden_answer": "Rian Lindell",
+        "golden_answer": "80",
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The two answers refer to different people, so they do not convey the same information."
+          "explanation": "The system answer provides a complete explanation but does not arrive at the numerical answer of 80."
         },
         "match": false
+      },
+      {
+        "success": true,
+        "answer": "The question asks for the percentage difference between \"housing and buildings\" and the sum of \"industrial buildings\" and \"water and power infrastructures\".\n\nHousing and buildings: 10.7%\nIndustrial buildings: 1.7%\nPower and water infrastructure: 3.5%\n\nSum of industrial buildings and power/water infrastructure: 1.7% + 3.5% = 5.2%\n\nDifference: 10.7% - 5.2% = 5.5%\n\nVerification: 5.5",
+        "output": "ANSWER_START\nThe question asks for the percentage difference between \"housing and buildings\" and the sum of \"industrial buildings\" and \"water and power infrastructures\".\n\nHousing and buildings: 10.7%\nIndustrial buildings: 1.7%\nPower and water infrastructure: 3.5%\n\nSum of industrial buildings and power/water infrastructure: 1.7% + 3.5% = 5.2%\n\nDifference: 10.7% - 5.2% = 5.5%\n\nVerification: 5.5\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "5.5",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer calculates the correct percentage difference and arrives at the same final answer as the golden answer (5.5)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Verification: 91.3%",
+        "output": "ANSWER_START\nVerification: 91.3%\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "91.3",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value, 91.3. The system answer includes the word 'Verification:' but this doesn't change the numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The question is asking for the percentage of the population that is *not* in the 45-64 age range. The passage states that 25.9% of the population is from 45 to 64. Therefore, to find the percentage that is *not* in this range, we subtract 25.9% from 100%.\n\n100% - 25.9% = 74.1%\n\nVerification: 74.1",
+        "output": "ANSWER_START\nThe question is asking for the percentage of the population that is *not* in the 45-64 age range. The passage states that 25.9% of the population is from 45 to 64. Therefore, to find the percentage that is *not* in this range, we subtract 25.9% from 100%.\n\n100% - 25.9% = 74.1%\n\nVerification: 74.1\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "74.1",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer provides the correct numerical answer of 74.1%, which matches the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The passage states the American advantage grew from 1890 to 1914.\n\n1914 - 1890 = 24\n\nVerification: 24",
+        "output": "ANSWER_START\nThe passage states the American advantage grew from 1890 to 1914.\n\n1914 - 1890 = 24\n\nVerification: 24\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "24",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer shows the calculation and states the answer is 24, which is the same as the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "31",
+        "output": "ANSWER_START\n31\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "31",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 31."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The Cowboys scored 30 points and the Packers scored 16 points. So, 30 + 16 = 46.\n\nVerification: 46",
+        "output": "ANSWER_START\nThe Cowboys scored 30 points and the Packers scored 16 points. So, 30 + 16 = 46.\n\nVerification: 46\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "46",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the calculation and arrives at the correct final answer of 46, which matches the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Verification: Jason Elam",
+        "output": "ANSWER_START\nVerification: Jason Elam\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "Stephen Gostkowski",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers refer to different NFL players. Jason Elam is not the same person as Stephen Gostkowski."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "Verification: 7",
+        "output": "ANSWER_START\nVerification: 7\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "6",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers are numerical and different. The system answer is 7, while the golden answer is 6."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "Verification: 25 to 44",
+        "output": "ANSWER_START\nVerification: 25 to 44\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_11.jsonl",
+        "golden_answer": "25 to 44",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers state the range 25 to 44."
+        },
+        "match": true
       }
     ]
   },
-  "execution_time": 97.84140300750732,
+  "execution_time": 104.93515586853027,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

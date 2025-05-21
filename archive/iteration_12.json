@@ -1,206 +1,464 @@
 {
   "iteration": 12,
-  "timestamp": "2025-05-17T20:30:07.754438",
+  "timestamp": "2025-05-20T20:51:12.598847",
   "strategy": "Exploitation",
-  "explore_rate": 50,
-  "exploit_rate": 50,
-  "batch_size": 5,
-  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n        2. What was the name of the person who scored it?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer. Provide the answer without explanations.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully. Consider if the answer is a valid value if that's the case.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script solves a question by decomposing it into sub-questions, extracting relevant information, and synthesizing an answer, using the Gemini LLM for each step with a chain-of-thought approach and validation at each stage. It uses the `decompose_question`, `extract_information`, and `synthesize_answer` functions sequentially, each acting as a distinct agent role (question decomposer, information extractor, and answer synthesizer, respectively) and validating their results with an LLM before proceeding. The `call_llm` function is used to interact with the Gemini model, and the main function orchestrates the overall workflow.",
-  "sample_count": 5,
+  "explore_rate": 40,
+  "exploit_rate": 60,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with enhanced error handling and explicit examples.\n    This approach focuses on breaking down the problem into question type identification,\n    focused passage extraction, and direct answer generation with verification.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n\n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n\n    Example 4: \n    Question: How many points was the most scored by one team in any game?\n    Analysis: {{\"type\": \"calculation\", \"keywords\": [\"points\", \"most\", \"scored\", \"team\"]}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Example 4:\n    Question: How many points was the most scored by one team in any game?\n    Keywords: {{\"type\": \"calculation\", \"keywords\": [\"points\", \"most\", \"scored\", \"team\"]}}\n    Text: PASSAGE: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\\u201385. The Mavericks got revenge the next game, winning 113\\u201391 and evening the series up at 1\\u20131.\n    Passage: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\\u201385. The Mavericks got revenge the next game, winning 113\\u201391 and evening the series up at 1\\u20131.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Example 4:\n    Question: How many points was the most scored by one team in any game?\n    Passage: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\\u201385. The Mavericks got revenge the next game, winning 113\\u201391 and evening the series up at 1\\u20131.\n    Answer: 113\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies the generated answer. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage.  Return the answer if it is correct.  Return the correct answer if it is incorrect.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee\n\n    Example 4:\n    Question: How many points was the most scored by one team in any game?\n    Answer: 113\n    Passage: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\\u201385. The Mavericks got revenge the next game, winning 113\\u201391 and evening the series up at 1\\u20131.\n    Verification: 113\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script implements a multi-stage LLM approach to answer questions, using chain-of-thought reasoning and verification. It decomposes the problem into question analysis, relevant passage extraction, answer generation, and answer verification. The agent roles are question analyzer, passage extractor, answer generator, and answer verifier, each implemented within their corresponding functions. The `main` function orchestrates the process, calling `analyze_question`, `extract_relevant_passage`, `generate_answer`, and `verify_answer` in sequence, with `call_llm` used to interact with the Gemini LLM in each of these functions.",
+  "sample_count": 10,
   "samples": [
     {
-      "question": "PASSAGE: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131. The Mavericks then won a dramatic Game 3 by a single point, 104\u2013103. Though Manu Gin\u00f3bili could have made a game-winning basket with five seconds on the clock, he committed an error, allowing the ball to bounce away from him with one second remaining. Dallas won a tightly-contested Game 4 123\u2013118 in overtime. The Spurs proceeded to avoid elimination by taking Game 5. In the final seconds of the game, Jason Terry was seen punching former teammate Michael Finley under the belt, leading to his suspension for Game 6. He was sorely missed as the Spurs won, taking the series back home for a Game 7. In the crucial Game 7, with 2.6 seconds to go, Nowitzki converted a three-point play to force overtime. Manu Gin\u00f3bili, who fouled Dirk on the play, had just given San Antonio their first lead one possession earlier. Tim Duncan, who had played in all 48 minutes of regulation, was too fatigued to carry his team in overtime. The Mavericks, meanwhile, were set to take control of the game and they did just that, winning 119\u2013111. The Mavericks went on to the Conference Finals where they defeated the Suns in six games, but succumbed to the champion Heat in the NBA Finals.\n\nQUESTION: How many points was the most scored by one team in any game?",
-      "answer": "123",
-      "id": "example_91",
+      "question": "PASSAGE: According to the 2011 census of India, the total population of Karnataka was 61,095,297 of which 30,966,657 (50.7%) were male and 30,128,640 (49.3%) were female, or 1000 males for every 973 females. This represents a 15.60% increase over the population in 2001. The population density was 319 per km2 and 38.67% of the people lived in urban areas. The literacy rate was 75.36% with 82.47% of males and 68.08% of females being literate. 84.00% of the population were Hindu, 12.92% were Muslim, 1.87% were Christian, 0.72% were Jains, 0.16% were Buddhist, 0.05% were Sikh and 0.02% were belonging to other religions and 0.27% of the population did not state their religion.\n\nQUESTION: How many in percent in Karnataka from the census weren't Christian?",
+      "answer": "98.13",
+      "id": "example_101",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131. The Mavericks then won a dramatic Game 3 by a single point, 104\u2013103. Though Manu Gin\u00f3bili could have made a game-winning basket with five seconds on the clock, he committed an error, allowing the ball to bounce away from him with one second remaining. Dallas won a tightly-contested Game 4 123\u2013118 in overtime. The Spurs proceeded to avoid elimination by taking Game 5. In the final seconds of the game, Jason Terry was seen punching former teammate Michael Finley under the belt, leading to his suspension for Game 6. He was sorely missed as the Spurs won, taking the series back home for a Game 7. In the crucial Game 7, with 2.6 seconds to go, Nowitzki converted a three-point play to force overtime. Manu Gin\u00f3bili, who fouled Dirk on the play, had just given San Antonio their first lead one possession earlier. Tim Duncan, who had played in all 48 minutes of regulation, was too fatigued to carry his team in overtime. The Mavericks, meanwhile, were set to take control of the game and they did just that, winning 119\u2013111. The Mavericks went on to the Conference Finals where they defeated the Suns in six games, but succumbed to the champion Heat in the NBA Finals.",
-        "original_question": "How many points was the most scored by one team in any game?",
+        "original_passage": "According to the 2011 census of India, the total population of Karnataka was 61,095,297 of which 30,966,657 (50.7%) were male and 30,128,640 (49.3%) were female, or 1000 males for every 973 females. This represents a 15.60% increase over the population in 2001. The population density was 319 per km2 and 38.67% of the people lived in urban areas. The literacy rate was 75.36% with 82.47% of males and 68.08% of females being literate. 84.00% of the population were Hindu, 12.92% were Muslim, 1.87% were Christian, 0.72% were Jains, 0.16% were Buddhist, 0.05% were Sikh and 0.02% were belonging to other religions and 0.27% of the population did not state their religion.",
+        "original_question": "How many in percent in Karnataka from the census weren't Christian?",
         "original_answer_data": {
           "spans": [
-            "123"
+            "98.13"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 136
+        "line_number": 628
       }
     },
     {
-      "question": "PASSAGE: The 1910 Chinese expedition to Tibet or the Chinese invasion of Tibet in 1910 was a military campaign of the Qing dynasty to establish direct rule in Tibet in early 1910. The expedition occupied Lhasa on February 12 and officially deposed the 13th Dalai Lama on the 25th. Qing rule of Tibet was established in the early 18th century after the 1720 Chinese expedition to Tibet, but it was essentially a protectorate rather than a direct rule. The actual rule also waned considerably with the gradual weakening of the Qing dynasty in the 19th century. After the British expedition to Tibet in 1904 and the Sino-British treaty in 1906, the Qing decided to establish direct rule over Tibet and thus sent such an expedition in 1910. As Professor Dawa Norbu stated, \"The British military expedition and subsequent convention made the Chinese realize that their power in Tibet had disappeared. So, in 1910 China invaded Tibet, and the Dalai Lama fled to India.\" In the late winter of 1910, the Manchu government in Beijing was furious with the 13th Dalai Lama. His government, having witnessed the dissolution of its domains in Khams by Qing administrators, and fearing that the amban in Lhasa was going to eliminate its temporal authority, cut this imperial officer off from the sustenance that the Tibet government had guaranteed him in a prior agreement with the Qing court. When a relief column arrived in Lhasa from Sichuan to break the amban out of his isolation, the Dalai Lama fled for British India. However, the direct rule over Tibet proved short-lived: after the outbreak of the Xinhai Revolution and the Xinhai Lhasa turmoil in 1911-1912, Qing rule essentially ended in Lhasa and other parts of Tibet. All Qing forces left Tibet by the end of 1912.\n\nQUESTION: Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?",
-      "answer": "n 1910 China invaded Tibet",
-      "id": "example_92",
+      "question": "PASSAGE: Polin succeeded ambassador Antoine de Rincon  in Constantinople. In early 1542, Polin successfully negotiated the details of a Franco-Ottoman alliance for the Italian War of 1542-1546, with the Ottoman Empire promising to send 27,500 troops against the territories of the Spanish king Ferdinand, as well as 110 galleys against Charles, while France promised to attack Flanders, harass the coasts of Spain with a naval force, and send 40 galleys to assist the Turks for operations in the Levant. Polin tried to convince Venice to join the alliance, but in vain. The execution of the alliance would most notably lead to the Franco-Ottoman Siege of Nice in 1543. In July 1543, Polin sailed on board the Ottoman fleet of Barbarossa to the \u00cele Saint-Honorat in the L\u00e9rins Islands off Cannes on 5 July 1543, only to find very little ready for the offensive on the French side. Polin went to see king Francis I of France to obtain troops, which led to the Siege of Nice in August 1543. Polin supervised the wintering of the Ottomans at Toulon.\n\nQUESTION: How many years in total did the Italian War last?",
+      "answer": "4",
+      "id": "example_102",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "The 1910 Chinese expedition to Tibet or the Chinese invasion of Tibet in 1910 was a military campaign of the Qing dynasty to establish direct rule in Tibet in early 1910. The expedition occupied Lhasa on February 12 and officially deposed the 13th Dalai Lama on the 25th. Qing rule of Tibet was established in the early 18th century after the 1720 Chinese expedition to Tibet, but it was essentially a protectorate rather than a direct rule. The actual rule also waned considerably with the gradual weakening of the Qing dynasty in the 19th century. After the British expedition to Tibet in 1904 and the Sino-British treaty in 1906, the Qing decided to establish direct rule over Tibet and thus sent such an expedition in 1910. As Professor Dawa Norbu stated, \"The British military expedition and subsequent convention made the Chinese realize that their power in Tibet had disappeared. So, in 1910 China invaded Tibet, and the Dalai Lama fled to India.\" In the late winter of 1910, the Manchu government in Beijing was furious with the 13th Dalai Lama. His government, having witnessed the dissolution of its domains in Khams by Qing administrators, and fearing that the amban in Lhasa was going to eliminate its temporal authority, cut this imperial officer off from the sustenance that the Tibet government had guaranteed him in a prior agreement with the Qing court. When a relief column arrived in Lhasa from Sichuan to break the amban out of his isolation, the Dalai Lama fled for British India. However, the direct rule over Tibet proved short-lived: after the outbreak of the Xinhai Revolution and the Xinhai Lhasa turmoil in 1911-1912, Qing rule essentially ended in Lhasa and other parts of Tibet. All Qing forces left Tibet by the end of 1912.",
-        "original_question": "Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?",
+        "original_passage": "Polin succeeded ambassador Antoine de Rincon  in Constantinople. In early 1542, Polin successfully negotiated the details of a Franco-Ottoman alliance for the Italian War of 1542-1546, with the Ottoman Empire promising to send 27,500 troops against the territories of the Spanish king Ferdinand, as well as 110 galleys against Charles, while France promised to attack Flanders, harass the coasts of Spain with a naval force, and send 40 galleys to assist the Turks for operations in the Levant. Polin tried to convince Venice to join the alliance, but in vain. The execution of the alliance would most notably lead to the Franco-Ottoman Siege of Nice in 1543. In July 1543, Polin sailed on board the Ottoman fleet of Barbarossa to the \u00cele Saint-Honorat in the L\u00e9rins Islands off Cannes on 5 July 1543, only to find very little ready for the offensive on the French side. Polin went to see king Francis I of France to obtain troops, which led to the Siege of Nice in August 1543. Polin supervised the wintering of the Ottomans at Toulon.",
+        "original_question": "How many years in total did the Italian War last?",
         "original_answer_data": {
           "spans": [
-            "n 1910 China invaded Tibet",
-            "outbreak of the Xinhai Revolution",
-            "in 1911-1912"
-          ],
-          "types": [
-            "span",
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 88
-      }
-    },
-    {
-      "question": "PASSAGE: In September 1941, Partisans organized sabotage at the General Post Office in Zagreb.As the levels of resistance to its occupation grew, the Axis Powers responded with numerous minor offensives. There were also seven major Axis operations specifically aimed at eliminating all or most Yugoslav Partisan resistance. These major offensives were typically combined efforts by the German Wehrmacht and SS, Italy, Chetniks, the Independent State of Croatia, the Serbian collaborationist government, Bulgaria, and Hungary. The First Anti-Partisan Offensive was the attack conducted by the Axis in autumn of 1941 against the \"Republic of U\u017eice\", a liberated territory the Partisans established in western Serbia. In November 1941, German troops attacked and reoccupied this territory, with the majority of Partisan forces escaping towards Bosnia. It was during this offensive that tenuous collaboration between the Partisans and the royalist Chetnik movement broke down and turned into open hostility. After fruitless negotiations, the Chetnik leader, General Mihailovi\u0107, turned against the Partisans as his main enemy. According to him, the reason was humanitarian: the prevention of German reprisals against Serbs. This however, did not stop the activities of the Partisan resistance, and Chetnik units attacked the Partisans in November 1941, while increasingly receiving supplies and cooperating with the Germans and Italians in this. The British liaison to Mihailovi\u0107 advised London to stop supplying the Chetniks after the U\u017eice attack , but Britain continued to do so. On 22 December 1941 the Partisans formed the 1st Proletarian Assault Brigade  - the first regular Partisan military unit capable of operating outside its local area. 22 December became the \"Day of the Yugoslav People's Army\".\n\nQUESTION: How many months after Partisans organized sabotage at the General Post Office was Day of the Yugoslav People's Army?",
-      "answer": "3",
-      "id": "example_93",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In September 1941, Partisans organized sabotage at the General Post Office in Zagreb.As the levels of resistance to its occupation grew, the Axis Powers responded with numerous minor offensives. There were also seven major Axis operations specifically aimed at eliminating all or most Yugoslav Partisan resistance. These major offensives were typically combined efforts by the German Wehrmacht and SS, Italy, Chetniks, the Independent State of Croatia, the Serbian collaborationist government, Bulgaria, and Hungary. The First Anti-Partisan Offensive was the attack conducted by the Axis in autumn of 1941 against the \"Republic of U\u017eice\", a liberated territory the Partisans established in western Serbia. In November 1941, German troops attacked and reoccupied this territory, with the majority of Partisan forces escaping towards Bosnia. It was during this offensive that tenuous collaboration between the Partisans and the royalist Chetnik movement broke down and turned into open hostility. After fruitless negotiations, the Chetnik leader, General Mihailovi\u0107, turned against the Partisans as his main enemy. According to him, the reason was humanitarian: the prevention of German reprisals against Serbs. This however, did not stop the activities of the Partisan resistance, and Chetnik units attacked the Partisans in November 1941, while increasingly receiving supplies and cooperating with the Germans and Italians in this. The British liaison to Mihailovi\u0107 advised London to stop supplying the Chetniks after the U\u017eice attack , but Britain continued to do so. On 22 December 1941 the Partisans formed the 1st Proletarian Assault Brigade  - the first regular Partisan military unit capable of operating outside its local area. 22 December became the \"Day of the Yugoslav People's Army\".",
-        "original_question": "How many months after Partisans organized sabotage at the General Post Office was Day of the Yugoslav People's Army?",
-        "original_answer_data": {
-          "spans": [
-            "3"
+            "4"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 327
+        "line_number": 423
       }
     },
     {
-      "question": "PASSAGE: The Black Death had killed an estimated one-third of the population of France from its appearance in 1348.  The concurrent Hundred Years' War slowed recovery.  It would be the early 16th century before the population recovered to mid-14th century levels. With an estimated population of 11 million in 1400, 20 million in the 17th century, and 28 million in 1789, until 1795 France was the most populated country in Europe  and the third most populous country in the world, behind only China and India. These demographic changes also led to a massive increase in urban populations, although on the whole France remained a profoundly rural country.  Paris was one of the most populated cities in Europe .  Other major French cities include Lyon, Rouen, Bordeaux, Toulouse, and Marseille. These centuries saw several periods of epidemics and crop failures due to wars and climatic change.  Between 1693 and 1694, France lost 6% of its population. In the extremely harsh winter of 1709, France lost 3.5% of its population. In the past 300 years, no period has been so proportionally deadly for the French, both World Wars included.\n\nQUESTION: Which two countries had a larger population than France in 1795?",
-      "answer": "China",
-      "id": "example_94",
+      "question": "PASSAGE: In the 17th century there were many of these independent local bodies levying their own taxes and administering justice. This early form of local government played a role in the development of a political system in the Netherlands that was decentralised and dependent on communal cooperation. Widespread experience with decentralized government was a factor in the formation of the Dutch Republic in the 16th and 17th centuries. The mandate of Rijkswaterstaat , established in 1798 under French rule, was to centralise water control in the Netherlands. Local water boards refused to give up their autonomy however, so Rijkswaterstaat ended up working alongside the local water boards. Today Rijkswaterstaat has responsibility for major water control structures and other infrastructure like motorways. By 1850 there were about 3,500 water boards in the country. In modern times water boards merged as they dealt with joint  interests. Mergers eventually reduced the number to 25 water boards in 2011. The tasks of water boards remain basically unchanged. Having a rich history dating back to the Middle Ages, they are the oldest governing bodies and the oldest democratic institutions in the Netherlands. Dutch water boards have their own coat of arms, a colourful reminder of their importance in Dutch history. The historic buildings that used to house the water boards are another legacy. Called gemeenlandshuis or waterschaphuis, these charming old buildings can be found at the heart of many Dutch towns.\n\nQUESTION: How many more water boards were there roughly in 1850 than in 2011",
+      "answer": "3475",
+      "id": "example_103",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "The Black Death had killed an estimated one-third of the population of France from its appearance in 1348.  The concurrent Hundred Years' War slowed recovery.  It would be the early 16th century before the population recovered to mid-14th century levels. With an estimated population of 11 million in 1400, 20 million in the 17th century, and 28 million in 1789, until 1795 France was the most populated country in Europe  and the third most populous country in the world, behind only China and India. These demographic changes also led to a massive increase in urban populations, although on the whole France remained a profoundly rural country.  Paris was one of the most populated cities in Europe .  Other major French cities include Lyon, Rouen, Bordeaux, Toulouse, and Marseille. These centuries saw several periods of epidemics and crop failures due to wars and climatic change.  Between 1693 and 1694, France lost 6% of its population. In the extremely harsh winter of 1709, France lost 3.5% of its population. In the past 300 years, no period has been so proportionally deadly for the French, both World Wars included.",
-        "original_question": "Which two countries had a larger population than France in 1795?",
+        "original_passage": "In the 17th century there were many of these independent local bodies levying their own taxes and administering justice. This early form of local government played a role in the development of a political system in the Netherlands that was decentralised and dependent on communal cooperation. Widespread experience with decentralized government was a factor in the formation of the Dutch Republic in the 16th and 17th centuries. The mandate of Rijkswaterstaat , established in 1798 under French rule, was to centralise water control in the Netherlands. Local water boards refused to give up their autonomy however, so Rijkswaterstaat ended up working alongside the local water boards. Today Rijkswaterstaat has responsibility for major water control structures and other infrastructure like motorways. By 1850 there were about 3,500 water boards in the country. In modern times water boards merged as they dealt with joint  interests. Mergers eventually reduced the number to 25 water boards in 2011. The tasks of water boards remain basically unchanged. Having a rich history dating back to the Middle Ages, they are the oldest governing bodies and the oldest democratic institutions in the Netherlands. Dutch water boards have their own coat of arms, a colourful reminder of their importance in Dutch history. The historic buildings that used to house the water boards are another legacy. Called gemeenlandshuis or waterschaphuis, these charming old buildings can be found at the heart of many Dutch towns.",
+        "original_question": "How many more water boards were there roughly in 1850 than in 2011",
         "original_answer_data": {
           "spans": [
-            "China",
-            "India"
+            "3475"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 843
+      }
+    },
+    {
+      "question": "PASSAGE: The Vikings scored first, and quickly. After the Lions failed on a field goal attempt when new punter/holder Sam Martin fumbled the snap, the Vikings took over on their own 22. On the first play from scrimmage, Adrian Peterson scampered 78 yards for a touchdown. David Akers made it 7-3 on a 33-yard field goal, though the Lions missed out on seven points that series when a touchdown reception by Calvin Johnson was reversed. In the second quarter, Akers connected on a 42-yard field goal to make the score 7-6. The Vikings responded with a 65-yard touchdown drive, capped by a 4-yard TD run from Peterson, to go up 14-6. The Lions closed the gap late in the half when Joique Bell finished off a 70-yard drive with a 1-yard run to make it 14-13. Bell plunged over from the 1-yard line again in the third quarter to put the Lions up for the first time in the game, 20-14. The Vikings' Blair Walsh narrowed the lead to 20-17 with a 52-yard field goal. The Lions then went up 27-17 when Matthew Stafford and new acquisition Reggie Bush connected on a 77-yard pass play. Adrian Peterson scored his third touchdown of the day, on a 4-yard pass from Christian Ponder, to put the Vikings within 3 points again, 27-24. The Lions would get the only score of the fourth quarter, a 1-yard touchdown pass from Stafford to rookie tight end Joseph Fauria, making the final score Detroit 34, Minnesota 24. Reggie Bush had 191 yards from scrimmage on the afternoon (90 rushing, 101 receiving), while Matthew Stafford was 28-of-43 passing for 357 yards, two touchdowns and one interception. After Adrian Peterson's opening 78-yard run, the Lions defense held him to just 15 yards on 17 carries.\n\nQUESTION: How many yards were each of Stafford's touchdowns?",
+      "answer": "1-yard, 77-yard",
+      "id": "example_104",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Vikings scored first, and quickly. After the Lions failed on a field goal attempt when new punter/holder Sam Martin fumbled the snap, the Vikings took over on their own 22. On the first play from scrimmage, Adrian Peterson scampered 78 yards for a touchdown. David Akers made it 7-3 on a 33-yard field goal, though the Lions missed out on seven points that series when a touchdown reception by Calvin Johnson was reversed. In the second quarter, Akers connected on a 42-yard field goal to make the score 7-6. The Vikings responded with a 65-yard touchdown drive, capped by a 4-yard TD run from Peterson, to go up 14-6. The Lions closed the gap late in the half when Joique Bell finished off a 70-yard drive with a 1-yard run to make it 14-13. Bell plunged over from the 1-yard line again in the third quarter to put the Lions up for the first time in the game, 20-14. The Vikings' Blair Walsh narrowed the lead to 20-17 with a 52-yard field goal. The Lions then went up 27-17 when Matthew Stafford and new acquisition Reggie Bush connected on a 77-yard pass play. Adrian Peterson scored his third touchdown of the day, on a 4-yard pass from Christian Ponder, to put the Vikings within 3 points again, 27-24. The Lions would get the only score of the fourth quarter, a 1-yard touchdown pass from Stafford to rookie tight end Joseph Fauria, making the final score Detroit 34, Minnesota 24. Reggie Bush had 191 yards from scrimmage on the afternoon (90 rushing, 101 receiving), while Matthew Stafford was 28-of-43 passing for 357 yards, two touchdowns and one interception. After Adrian Peterson's opening 78-yard run, the Lions defense held him to just 15 yards on 17 carries.",
+        "original_question": "How many yards were each of Stafford's touchdowns?",
+        "original_answer_data": {
+          "spans": [
+            "1-yard",
+            "77-yard"
           ],
           "types": [
             "span",
             "span"
           ]
         },
-        "line_number": 475
+        "line_number": 10
       }
     },
     {
-      "question": "PASSAGE: Hoping to rebound from their home loss to the Titans, the Bears flew to Lambeau Field for a Week 11 NFC North duel with their hated rival, the Green Bay Packers.  In the first quarter, Chicago trailed early as Packers QB Aaron Rodgers completed a 3-yard TD pass to WR Greg Jennings. In the second quarter, the Bears got on the board with kicker Robbie Gould getting a 35-yard field goal.  Green Bay would answer with RB Ryan Grant getting a 4-yard TD run, along with kicker Mason Crosby getting a 53-yard field goal. In the third quarter, Chicago continued to trail as Rodgers completed a 5-yard TD pass to TE Donald Lee.  In the fourth quarter, the Packers pulled away as Crosby made a 33-yard field goal, DE Jason Hunter returned a fumble 54 yards for a touchdown, and Crosby nailing a 45-yard field goal.\n\nQUESTION: How many yards was the shortest touchdown pass?",
-      "answer": "3",
-      "id": "example_95",
+      "question": "PASSAGE: In the county, the population was spread out with 23.20% under the age of 18, 7.70% from 18 to 24, 27.00% from 25 to 44, 28.00% from 45 to 64, and 14.10% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 97.00 males.  For every 100 females age 18 and over, there were 96.40 males.\n\nQUESTION: Were there more males or females?",
+      "answer": "females",
+      "id": "example_105",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "Hoping to rebound from their home loss to the Titans, the Bears flew to Lambeau Field for a Week 11 NFC North duel with their hated rival, the Green Bay Packers.  In the first quarter, Chicago trailed early as Packers QB Aaron Rodgers completed a 3-yard TD pass to WR Greg Jennings. In the second quarter, the Bears got on the board with kicker Robbie Gould getting a 35-yard field goal.  Green Bay would answer with RB Ryan Grant getting a 4-yard TD run, along with kicker Mason Crosby getting a 53-yard field goal. In the third quarter, Chicago continued to trail as Rodgers completed a 5-yard TD pass to TE Donald Lee.  In the fourth quarter, the Packers pulled away as Crosby made a 33-yard field goal, DE Jason Hunter returned a fumble 54 yards for a touchdown, and Crosby nailing a 45-yard field goal.",
-        "original_question": "How many yards was the shortest touchdown pass?",
+        "original_passage": "In the county, the population was spread out with 23.20% under the age of 18, 7.70% from 18 to 24, 27.00% from 25 to 44, 28.00% from 45 to 64, and 14.10% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 97.00 males.  For every 100 females age 18 and over, there were 96.40 males.",
+        "original_question": "Were there more males or females?",
         "original_answer_data": {
           "spans": [
-            "3"
+            "females"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 199
+      }
+    },
+    {
+      "question": "PASSAGE: From the time of its start until the approach of World War II, the First World War was called simply the World War or the Great War and thereafter the First World War or World War I. At the time, it was also sometimes called \"the war to end war\" or \"the war to end all wars\" due to its then-unparalleled scale and devastation. In Canada, Maclean's magazine in October 1914 wrote, \"Some wars name themselves. This is the Great War.\" During the interwar period , the war was most often called the World War and the Great War in English-speaking countries. The term \"First World War\" was first used in September 1914 by the German biologist and philosopher Ernst Haeckel, who claimed that \"there is no doubt that the course and character of the feared 'European War'\u00a0... will become the first world war in the full sense of the word,\" citing a wire service report in The Indianapolis Star on 20 September 1914. After the onset of the Second World War in 1939, the terms World War I or the First World War became standard, with British and Canadian historians favouring the First World War, and Americans World War I. In the introduction to his book, Waterloo in 100 Objects, historian Gareth Glover states: \"This opening statement will cause some bewilderment to many who have grown up with the appellation of the Great War firmly applied to the 1914-18 First World War. But to anyone living before 1918, the title of the Great War was applied to the Revolutionary and Napoleonic wars in which Britain fought France almost continuously for twenty-two years from 1793 to 1815.\" In 1911, the historian John Holland Rose published a book titled William Pitt and the Great War.\n\nQUESTION: Who preferred to name the first world war \"World War I\"?",
+      "answer": "Americans",
+      "id": "example_106",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "From the time of its start until the approach of World War II, the First World War was called simply the World War or the Great War and thereafter the First World War or World War I. At the time, it was also sometimes called \"the war to end war\" or \"the war to end all wars\" due to its then-unparalleled scale and devastation. In Canada, Maclean's magazine in October 1914 wrote, \"Some wars name themselves. This is the Great War.\" During the interwar period , the war was most often called the World War and the Great War in English-speaking countries. The term \"First World War\" was first used in September 1914 by the German biologist and philosopher Ernst Haeckel, who claimed that \"there is no doubt that the course and character of the feared 'European War'\u00a0... will become the first world war in the full sense of the word,\" citing a wire service report in The Indianapolis Star on 20 September 1914. After the onset of the Second World War in 1939, the terms World War I or the First World War became standard, with British and Canadian historians favouring the First World War, and Americans World War I. In the introduction to his book, Waterloo in 100 Objects, historian Gareth Glover states: \"This opening statement will cause some bewilderment to many who have grown up with the appellation of the Great War firmly applied to the 1914-18 First World War. But to anyone living before 1918, the title of the Great War was applied to the Revolutionary and Napoleonic wars in which Britain fought France almost continuously for twenty-two years from 1793 to 1815.\" In 1911, the historian John Holland Rose published a book titled William Pitt and the Great War.",
+        "original_question": "Who preferred to name the first world war \"World War I\"?",
+        "original_answer_data": {
+          "spans": [
+            "Americans"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 425
+      }
+    },
+    {
+      "question": "PASSAGE: One of the most famous religious revolts is the Pule Revolt, more formally known as the Religious Revolt of Hermano Pule. Undertaken between June 1840 and November 1841, this revolt was led by Apolinario de la Cruz, otherwise known as \"Hermano Pule\".  De la Cruz started his own religious order, the Confraternity of Saint Joseph  in Lucban, located in the present-day province of Quezon , in June 1840. However, there were two types of priests in the Philippines then: secular priests, or parish priests, which were usually Indio, and religious priests, or convent priests, which were usually Spanish. Due to the concentration of Spanish religious power and authority in the already-established religious orders  and the concept that Filipino priests should only stay in the church and not the convent and vice versa , the Spanish government banned the new order, especially due to its deviation from original Catholic rituals and teachings, such as prayers and rituals suited for Filipinos.However, thousands of people in Tayabas, Batangas, Laguna and even Manila already joined. Because of this, the Spanish government sent in troops to forcibly break up the order, forcing De la Cruz and his followers to rise in armed revolt in self-defense. Many bloody battles were fought with the order's last stand in Mount San Cristobal, near Mount Banahaw, in October 1841. The Spaniards eventually won, and Apolinario de la Cruz was executed on November 4, 1841 in the then-provincial capital, Tayabas.\n\nQUESTION: How many years did the Pule Revolt last?",
+      "answer": "1",
+      "id": "example_107",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "One of the most famous religious revolts is the Pule Revolt, more formally known as the Religious Revolt of Hermano Pule. Undertaken between June 1840 and November 1841, this revolt was led by Apolinario de la Cruz, otherwise known as \"Hermano Pule\".  De la Cruz started his own religious order, the Confraternity of Saint Joseph  in Lucban, located in the present-day province of Quezon , in June 1840. However, there were two types of priests in the Philippines then: secular priests, or parish priests, which were usually Indio, and religious priests, or convent priests, which were usually Spanish. Due to the concentration of Spanish religious power and authority in the already-established religious orders  and the concept that Filipino priests should only stay in the church and not the convent and vice versa , the Spanish government banned the new order, especially due to its deviation from original Catholic rituals and teachings, such as prayers and rituals suited for Filipinos.However, thousands of people in Tayabas, Batangas, Laguna and even Manila already joined. Because of this, the Spanish government sent in troops to forcibly break up the order, forcing De la Cruz and his followers to rise in armed revolt in self-defense. Many bloody battles were fought with the order's last stand in Mount San Cristobal, near Mount Banahaw, in October 1841. The Spaniards eventually won, and Apolinario de la Cruz was executed on November 4, 1841 in the then-provincial capital, Tayabas.",
+        "original_question": "How many years did the Pule Revolt last?",
+        "original_answer_data": {
+          "spans": [
+            "1"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 981
+        "line_number": 534
+      }
+    },
+    {
+      "question": "PASSAGE: In week 5 the Lions hosted the St. Louis Rams. The Lions started the scoring early with a 30-yard Jason Hanson field goal. The Rams tied it up at the end of the first quarter with a 28-yard field goal by Josh Brown. To start the second quarter, the Lions took the lead with a 105-yard kickoff return by Stefan Logan, the longest touchdown run in the NFL this season. The Lions added to their lead a few minutes later with a 1-yard TD catch by Calvin Johnson. The Rams kicked another 28-yard field goal a few minutes later. The Lions made it 24-6 just before halftime with a 3-yard TD catch by Brandon Pettigrew. The Lions' defense shut out the Rams in the second half. The only score of the third quarter was a 26-yard TD catch by Nate Burleson. In the fourth quarter the Lions kicked 2 field goals: from 48 then from 47. The Lions capped off their victory with a 42-yard interception return TD by Alphonso Smith.  With the win, not only did the Lions improve to 1-4, but it was their largest margin of victory since 1995 and their first win since November 22, 2009.\n\nQUESTION: Who scored the second longest touchdown?",
+      "answer": "Alphonso Smith",
+      "id": "example_108",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In week 5 the Lions hosted the St. Louis Rams. The Lions started the scoring early with a 30-yard Jason Hanson field goal. The Rams tied it up at the end of the first quarter with a 28-yard field goal by Josh Brown. To start the second quarter, the Lions took the lead with a 105-yard kickoff return by Stefan Logan, the longest touchdown run in the NFL this season. The Lions added to their lead a few minutes later with a 1-yard TD catch by Calvin Johnson. The Rams kicked another 28-yard field goal a few minutes later. The Lions made it 24-6 just before halftime with a 3-yard TD catch by Brandon Pettigrew. The Lions' defense shut out the Rams in the second half. The only score of the third quarter was a 26-yard TD catch by Nate Burleson. In the fourth quarter the Lions kicked 2 field goals: from 48 then from 47. The Lions capped off their victory with a 42-yard interception return TD by Alphonso Smith.  With the win, not only did the Lions improve to 1-4, but it was their largest margin of victory since 1995 and their first win since November 22, 2009.",
+        "original_question": "Who scored the second longest touchdown?",
+        "original_answer_data": {
+          "spans": [
+            "Alphonso Smith"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 31
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their shutout road win over the Browns, the Ravens went home for a Week 11 duel with the Indianapolis Colts.  Baltimore would trail in the first quarter as Colts quarterback Peyton Manning threw a 1-yard touchdown pass to tight end Dallas Clark.  The Ravens would answer with recently signed kicker Billy Cundiff (after Steven Hauschka was cut) making a 46-yard and a 44-yard field goal.  Baltimore would take the lead in the second quarter with Cundiff's 38-yard field goal, but Indianapolis would answer with a 5-yard touchdown run from running back Joseph Addai.  The Ravens would close out the half with Cundiff nailing a 36-yard field goal.  After a scoreless third quarter, Baltimore regained the lead again in the fourth quarter with a 20-yard field goal from Cundiff, but the Colts would get the last laugh as former Ravens kicker Matt Stover booted a 25-yard field goal.\n\nQUESTION: How many field goals did Cundiff kick in the first half?",
+      "answer": "4",
+      "id": "example_109",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their shutout road win over the Browns, the Ravens went home for a Week 11 duel with the Indianapolis Colts.  Baltimore would trail in the first quarter as Colts quarterback Peyton Manning threw a 1-yard touchdown pass to tight end Dallas Clark.  The Ravens would answer with recently signed kicker Billy Cundiff (after Steven Hauschka was cut) making a 46-yard and a 44-yard field goal.  Baltimore would take the lead in the second quarter with Cundiff's 38-yard field goal, but Indianapolis would answer with a 5-yard touchdown run from running back Joseph Addai.  The Ravens would close out the half with Cundiff nailing a 36-yard field goal.  After a scoreless third quarter, Baltimore regained the lead again in the fourth quarter with a 20-yard field goal from Cundiff, but the Colts would get the last laugh as former Ravens kicker Matt Stover booted a 25-yard field goal.",
+        "original_question": "How many field goals did Cundiff kick in the first half?",
+        "original_answer_data": {
+          "spans": [
+            "4"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 579
+      }
+    },
+    {
+      "question": "PASSAGE: Painting has continued to be a prominent form of artistic expression in Danish culture, inspired by and also influencing major international trends in this area. These include impressionism and the modernist styles of expressionism, abstract painting and surrealism. While international co-operation and activity has almost always been essential to the Danish artistic community, influential art collectives with a firm Danish base includes De Tretten (1909\u20131912), Linien (1930s and 1940s), COBRA (avant-garde movement) (1948\u201351), Fluxus (1960s and 1970s), Junge Wilde (1980s) and more recently Superflex (founded in 1993). Most Danish painters of modern times have also been very active with other forms of artistic expressions, such as sculpting, ceramics, art installations, activism, film and experimental architecture. Notable Danish painters from modern times representing various art movements include Theodor Philipsen (1840\u20131920, impressionism and naturalism), Anna Klindt S\u00f8rensen (1899\u20131985, expressionism), Franciska Clausen (1899\u20131986, Neue Sachlichkeit, cubism, surrealism and others), Henry Heerup (1907\u20131993, naivism), Robert Jacobsen (1912\u20131993, abstract painting), Carl Henning Pedersen (1913\u20132007, abstract painting), Asger Jorn (1914\u20131973, Situationist, abstract painting), Bj\u00f8rn Wiinblad (1918\u20132006, art deco, orientalism), Per Kirkeby (b. 1938, neo-expressionism, abstract painting), Per Arnoldi (b. 1941, pop art), Michael Kvium (b. 1955, neo-surrealism) and Simone Aaberg K\u00e6rn (b. 1969, superrealism).\n\nQUESTION: Who died first: Theodor Philipsen or Anna Klindt S\u00f8rensen?",
+      "answer": "Theodor Philipsen",
+      "id": "example_110",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Painting has continued to be a prominent form of artistic expression in Danish culture, inspired by and also influencing major international trends in this area. These include impressionism and the modernist styles of expressionism, abstract painting and surrealism. While international co-operation and activity has almost always been essential to the Danish artistic community, influential art collectives with a firm Danish base includes De Tretten (1909\u20131912), Linien (1930s and 1940s), COBRA (avant-garde movement) (1948\u201351), Fluxus (1960s and 1970s), Junge Wilde (1980s) and more recently Superflex (founded in 1993). Most Danish painters of modern times have also been very active with other forms of artistic expressions, such as sculpting, ceramics, art installations, activism, film and experimental architecture. Notable Danish painters from modern times representing various art movements include Theodor Philipsen (1840\u20131920, impressionism and naturalism), Anna Klindt S\u00f8rensen (1899\u20131985, expressionism), Franciska Clausen (1899\u20131986, Neue Sachlichkeit, cubism, surrealism and others), Henry Heerup (1907\u20131993, naivism), Robert Jacobsen (1912\u20131993, abstract painting), Carl Henning Pedersen (1913\u20132007, abstract painting), Asger Jorn (1914\u20131973, Situationist, abstract painting), Bj\u00f8rn Wiinblad (1918\u20132006, art deco, orientalism), Per Kirkeby (b. 1938, neo-expressionism, abstract painting), Per Arnoldi (b. 1941, pop art), Michael Kvium (b. 1955, neo-surrealism) and Simone Aaberg K\u00e6rn (b. 1969, superrealism).",
+        "original_question": "Who died first: Theodor Philipsen or Anna Klindt S\u00f8rensen?",
+        "original_answer_data": {
+          "spans": [
+            "Theodor Philipsen"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 404
       }
     }
   ],
   "samples_metadata": [
     {
       "source": "jsonl_dataset",
-      "original_passage": "During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131. The Mavericks then won a dramatic Game 3 by a single point, 104\u2013103. Though Manu Gin\u00f3bili could have made a game-winning basket with five seconds on the clock, he committed an error, allowing the ball to bounce away from him with one second remaining. Dallas won a tightly-contested Game 4 123\u2013118 in overtime. The Spurs proceeded to avoid elimination by taking Game 5. In the final seconds of the game, Jason Terry was seen punching former teammate Michael Finley under the belt, leading to his suspension for Game 6. He was sorely missed as the Spurs won, taking the series back home for a Game 7. In the crucial Game 7, with 2.6 seconds to go, Nowitzki converted a three-point play to force overtime. Manu Gin\u00f3bili, who fouled Dirk on the play, had just given San Antonio their first lead one possession earlier. Tim Duncan, who had played in all 48 minutes of regulation, was too fatigued to carry his team in overtime. The Mavericks, meanwhile, were set to take control of the game and they did just that, winning 119\u2013111. The Mavericks went on to the Conference Finals where they defeated the Suns in six games, but succumbed to the champion Heat in the NBA Finals.",
-      "original_question": "How many points was the most scored by one team in any game?",
+      "original_passage": "According to the 2011 census of India, the total population of Karnataka was 61,095,297 of which 30,966,657 (50.7%) were male and 30,128,640 (49.3%) were female, or 1000 males for every 973 females. This represents a 15.60% increase over the population in 2001. The population density was 319 per km2 and 38.67% of the people lived in urban areas. The literacy rate was 75.36% with 82.47% of males and 68.08% of females being literate. 84.00% of the population were Hindu, 12.92% were Muslim, 1.87% were Christian, 0.72% were Jains, 0.16% were Buddhist, 0.05% were Sikh and 0.02% were belonging to other religions and 0.27% of the population did not state their religion.",
+      "original_question": "How many in percent in Karnataka from the census weren't Christian?",
       "original_answer_data": {
         "spans": [
-          "123"
+          "98.13"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 136
+      "line_number": 628
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "The 1910 Chinese expedition to Tibet or the Chinese invasion of Tibet in 1910 was a military campaign of the Qing dynasty to establish direct rule in Tibet in early 1910. The expedition occupied Lhasa on February 12 and officially deposed the 13th Dalai Lama on the 25th. Qing rule of Tibet was established in the early 18th century after the 1720 Chinese expedition to Tibet, but it was essentially a protectorate rather than a direct rule. The actual rule also waned considerably with the gradual weakening of the Qing dynasty in the 19th century. After the British expedition to Tibet in 1904 and the Sino-British treaty in 1906, the Qing decided to establish direct rule over Tibet and thus sent such an expedition in 1910. As Professor Dawa Norbu stated, \"The British military expedition and subsequent convention made the Chinese realize that their power in Tibet had disappeared. So, in 1910 China invaded Tibet, and the Dalai Lama fled to India.\" In the late winter of 1910, the Manchu government in Beijing was furious with the 13th Dalai Lama. His government, having witnessed the dissolution of its domains in Khams by Qing administrators, and fearing that the amban in Lhasa was going to eliminate its temporal authority, cut this imperial officer off from the sustenance that the Tibet government had guaranteed him in a prior agreement with the Qing court. When a relief column arrived in Lhasa from Sichuan to break the amban out of his isolation, the Dalai Lama fled for British India. However, the direct rule over Tibet proved short-lived: after the outbreak of the Xinhai Revolution and the Xinhai Lhasa turmoil in 1911-1912, Qing rule essentially ended in Lhasa and other parts of Tibet. All Qing forces left Tibet by the end of 1912.",
-      "original_question": "Which happened later, Chinese invasion of tibet or the outbreak of the Xinhai Revolution?",
+      "original_passage": "Polin succeeded ambassador Antoine de Rincon  in Constantinople. In early 1542, Polin successfully negotiated the details of a Franco-Ottoman alliance for the Italian War of 1542-1546, with the Ottoman Empire promising to send 27,500 troops against the territories of the Spanish king Ferdinand, as well as 110 galleys against Charles, while France promised to attack Flanders, harass the coasts of Spain with a naval force, and send 40 galleys to assist the Turks for operations in the Levant. Polin tried to convince Venice to join the alliance, but in vain. The execution of the alliance would most notably lead to the Franco-Ottoman Siege of Nice in 1543. In July 1543, Polin sailed on board the Ottoman fleet of Barbarossa to the \u00cele Saint-Honorat in the L\u00e9rins Islands off Cannes on 5 July 1543, only to find very little ready for the offensive on the French side. Polin went to see king Francis I of France to obtain troops, which led to the Siege of Nice in August 1543. Polin supervised the wintering of the Ottomans at Toulon.",
+      "original_question": "How many years in total did the Italian War last?",
       "original_answer_data": {
         "spans": [
-          "n 1910 China invaded Tibet",
-          "outbreak of the Xinhai Revolution",
-          "in 1911-1912"
-        ],
-        "types": [
-          "span",
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 88
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In September 1941, Partisans organized sabotage at the General Post Office in Zagreb.As the levels of resistance to its occupation grew, the Axis Powers responded with numerous minor offensives. There were also seven major Axis operations specifically aimed at eliminating all or most Yugoslav Partisan resistance. These major offensives were typically combined efforts by the German Wehrmacht and SS, Italy, Chetniks, the Independent State of Croatia, the Serbian collaborationist government, Bulgaria, and Hungary. The First Anti-Partisan Offensive was the attack conducted by the Axis in autumn of 1941 against the \"Republic of U\u017eice\", a liberated territory the Partisans established in western Serbia. In November 1941, German troops attacked and reoccupied this territory, with the majority of Partisan forces escaping towards Bosnia. It was during this offensive that tenuous collaboration between the Partisans and the royalist Chetnik movement broke down and turned into open hostility. After fruitless negotiations, the Chetnik leader, General Mihailovi\u0107, turned against the Partisans as his main enemy. According to him, the reason was humanitarian: the prevention of German reprisals against Serbs. This however, did not stop the activities of the Partisan resistance, and Chetnik units attacked the Partisans in November 1941, while increasingly receiving supplies and cooperating with the Germans and Italians in this. The British liaison to Mihailovi\u0107 advised London to stop supplying the Chetniks after the U\u017eice attack , but Britain continued to do so. On 22 December 1941 the Partisans formed the 1st Proletarian Assault Brigade  - the first regular Partisan military unit capable of operating outside its local area. 22 December became the \"Day of the Yugoslav People's Army\".",
-      "original_question": "How many months after Partisans organized sabotage at the General Post Office was Day of the Yugoslav People's Army?",
-      "original_answer_data": {
-        "spans": [
-          "3"
+          "4"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 327
+      "line_number": 423
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "The Black Death had killed an estimated one-third of the population of France from its appearance in 1348.  The concurrent Hundred Years' War slowed recovery.  It would be the early 16th century before the population recovered to mid-14th century levels. With an estimated population of 11 million in 1400, 20 million in the 17th century, and 28 million in 1789, until 1795 France was the most populated country in Europe  and the third most populous country in the world, behind only China and India. These demographic changes also led to a massive increase in urban populations, although on the whole France remained a profoundly rural country.  Paris was one of the most populated cities in Europe .  Other major French cities include Lyon, Rouen, Bordeaux, Toulouse, and Marseille. These centuries saw several periods of epidemics and crop failures due to wars and climatic change.  Between 1693 and 1694, France lost 6% of its population. In the extremely harsh winter of 1709, France lost 3.5% of its population. In the past 300 years, no period has been so proportionally deadly for the French, both World Wars included.",
-      "original_question": "Which two countries had a larger population than France in 1795?",
+      "original_passage": "In the 17th century there were many of these independent local bodies levying their own taxes and administering justice. This early form of local government played a role in the development of a political system in the Netherlands that was decentralised and dependent on communal cooperation. Widespread experience with decentralized government was a factor in the formation of the Dutch Republic in the 16th and 17th centuries. The mandate of Rijkswaterstaat , established in 1798 under French rule, was to centralise water control in the Netherlands. Local water boards refused to give up their autonomy however, so Rijkswaterstaat ended up working alongside the local water boards. Today Rijkswaterstaat has responsibility for major water control structures and other infrastructure like motorways. By 1850 there were about 3,500 water boards in the country. In modern times water boards merged as they dealt with joint  interests. Mergers eventually reduced the number to 25 water boards in 2011. The tasks of water boards remain basically unchanged. Having a rich history dating back to the Middle Ages, they are the oldest governing bodies and the oldest democratic institutions in the Netherlands. Dutch water boards have their own coat of arms, a colourful reminder of their importance in Dutch history. The historic buildings that used to house the water boards are another legacy. Called gemeenlandshuis or waterschaphuis, these charming old buildings can be found at the heart of many Dutch towns.",
+      "original_question": "How many more water boards were there roughly in 1850 than in 2011",
       "original_answer_data": {
         "spans": [
-          "China",
-          "India"
+          "3475"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 843
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Vikings scored first, and quickly. After the Lions failed on a field goal attempt when new punter/holder Sam Martin fumbled the snap, the Vikings took over on their own 22. On the first play from scrimmage, Adrian Peterson scampered 78 yards for a touchdown. David Akers made it 7-3 on a 33-yard field goal, though the Lions missed out on seven points that series when a touchdown reception by Calvin Johnson was reversed. In the second quarter, Akers connected on a 42-yard field goal to make the score 7-6. The Vikings responded with a 65-yard touchdown drive, capped by a 4-yard TD run from Peterson, to go up 14-6. The Lions closed the gap late in the half when Joique Bell finished off a 70-yard drive with a 1-yard run to make it 14-13. Bell plunged over from the 1-yard line again in the third quarter to put the Lions up for the first time in the game, 20-14. The Vikings' Blair Walsh narrowed the lead to 20-17 with a 52-yard field goal. The Lions then went up 27-17 when Matthew Stafford and new acquisition Reggie Bush connected on a 77-yard pass play. Adrian Peterson scored his third touchdown of the day, on a 4-yard pass from Christian Ponder, to put the Vikings within 3 points again, 27-24. The Lions would get the only score of the fourth quarter, a 1-yard touchdown pass from Stafford to rookie tight end Joseph Fauria, making the final score Detroit 34, Minnesota 24. Reggie Bush had 191 yards from scrimmage on the afternoon (90 rushing, 101 receiving), while Matthew Stafford was 28-of-43 passing for 357 yards, two touchdowns and one interception. After Adrian Peterson's opening 78-yard run, the Lions defense held him to just 15 yards on 17 carries.",
+      "original_question": "How many yards were each of Stafford's touchdowns?",
+      "original_answer_data": {
+        "spans": [
+          "1-yard",
+          "77-yard"
         ],
         "types": [
           "span",
           "span"
         ]
       },
-      "line_number": 475
+      "line_number": 10
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "Hoping to rebound from their home loss to the Titans, the Bears flew to Lambeau Field for a Week 11 NFC North duel with their hated rival, the Green Bay Packers.  In the first quarter, Chicago trailed early as Packers QB Aaron Rodgers completed a 3-yard TD pass to WR Greg Jennings. In the second quarter, the Bears got on the board with kicker Robbie Gould getting a 35-yard field goal.  Green Bay would answer with RB Ryan Grant getting a 4-yard TD run, along with kicker Mason Crosby getting a 53-yard field goal. In the third quarter, Chicago continued to trail as Rodgers completed a 5-yard TD pass to TE Donald Lee.  In the fourth quarter, the Packers pulled away as Crosby made a 33-yard field goal, DE Jason Hunter returned a fumble 54 yards for a touchdown, and Crosby nailing a 45-yard field goal.",
-      "original_question": "How many yards was the shortest touchdown pass?",
+      "original_passage": "In the county, the population was spread out with 23.20% under the age of 18, 7.70% from 18 to 24, 27.00% from 25 to 44, 28.00% from 45 to 64, and 14.10% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 97.00 males.  For every 100 females age 18 and over, there were 96.40 males.",
+      "original_question": "Were there more males or females?",
       "original_answer_data": {
         "spans": [
-          "3"
+          "females"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 199
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "From the time of its start until the approach of World War II, the First World War was called simply the World War or the Great War and thereafter the First World War or World War I. At the time, it was also sometimes called \"the war to end war\" or \"the war to end all wars\" due to its then-unparalleled scale and devastation. In Canada, Maclean's magazine in October 1914 wrote, \"Some wars name themselves. This is the Great War.\" During the interwar period , the war was most often called the World War and the Great War in English-speaking countries. The term \"First World War\" was first used in September 1914 by the German biologist and philosopher Ernst Haeckel, who claimed that \"there is no doubt that the course and character of the feared 'European War'\u00a0... will become the first world war in the full sense of the word,\" citing a wire service report in The Indianapolis Star on 20 September 1914. After the onset of the Second World War in 1939, the terms World War I or the First World War became standard, with British and Canadian historians favouring the First World War, and Americans World War I. In the introduction to his book, Waterloo in 100 Objects, historian Gareth Glover states: \"This opening statement will cause some bewilderment to many who have grown up with the appellation of the Great War firmly applied to the 1914-18 First World War. But to anyone living before 1918, the title of the Great War was applied to the Revolutionary and Napoleonic wars in which Britain fought France almost continuously for twenty-two years from 1793 to 1815.\" In 1911, the historian John Holland Rose published a book titled William Pitt and the Great War.",
+      "original_question": "Who preferred to name the first world war \"World War I\"?",
+      "original_answer_data": {
+        "spans": [
+          "Americans"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 425
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "One of the most famous religious revolts is the Pule Revolt, more formally known as the Religious Revolt of Hermano Pule. Undertaken between June 1840 and November 1841, this revolt was led by Apolinario de la Cruz, otherwise known as \"Hermano Pule\".  De la Cruz started his own religious order, the Confraternity of Saint Joseph  in Lucban, located in the present-day province of Quezon , in June 1840. However, there were two types of priests in the Philippines then: secular priests, or parish priests, which were usually Indio, and religious priests, or convent priests, which were usually Spanish. Due to the concentration of Spanish religious power and authority in the already-established religious orders  and the concept that Filipino priests should only stay in the church and not the convent and vice versa , the Spanish government banned the new order, especially due to its deviation from original Catholic rituals and teachings, such as prayers and rituals suited for Filipinos.However, thousands of people in Tayabas, Batangas, Laguna and even Manila already joined. Because of this, the Spanish government sent in troops to forcibly break up the order, forcing De la Cruz and his followers to rise in armed revolt in self-defense. Many bloody battles were fought with the order's last stand in Mount San Cristobal, near Mount Banahaw, in October 1841. The Spaniards eventually won, and Apolinario de la Cruz was executed on November 4, 1841 in the then-provincial capital, Tayabas.",
+      "original_question": "How many years did the Pule Revolt last?",
+      "original_answer_data": {
+        "spans": [
+          "1"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 981
+      "line_number": 534
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In week 5 the Lions hosted the St. Louis Rams. The Lions started the scoring early with a 30-yard Jason Hanson field goal. The Rams tied it up at the end of the first quarter with a 28-yard field goal by Josh Brown. To start the second quarter, the Lions took the lead with a 105-yard kickoff return by Stefan Logan, the longest touchdown run in the NFL this season. The Lions added to their lead a few minutes later with a 1-yard TD catch by Calvin Johnson. The Rams kicked another 28-yard field goal a few minutes later. The Lions made it 24-6 just before halftime with a 3-yard TD catch by Brandon Pettigrew. The Lions' defense shut out the Rams in the second half. The only score of the third quarter was a 26-yard TD catch by Nate Burleson. In the fourth quarter the Lions kicked 2 field goals: from 48 then from 47. The Lions capped off their victory with a 42-yard interception return TD by Alphonso Smith.  With the win, not only did the Lions improve to 1-4, but it was their largest margin of victory since 1995 and their first win since November 22, 2009.",
+      "original_question": "Who scored the second longest touchdown?",
+      "original_answer_data": {
+        "spans": [
+          "Alphonso Smith"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 31
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their shutout road win over the Browns, the Ravens went home for a Week 11 duel with the Indianapolis Colts.  Baltimore would trail in the first quarter as Colts quarterback Peyton Manning threw a 1-yard touchdown pass to tight end Dallas Clark.  The Ravens would answer with recently signed kicker Billy Cundiff (after Steven Hauschka was cut) making a 46-yard and a 44-yard field goal.  Baltimore would take the lead in the second quarter with Cundiff's 38-yard field goal, but Indianapolis would answer with a 5-yard touchdown run from running back Joseph Addai.  The Ravens would close out the half with Cundiff nailing a 36-yard field goal.  After a scoreless third quarter, Baltimore regained the lead again in the fourth quarter with a 20-yard field goal from Cundiff, but the Colts would get the last laugh as former Ravens kicker Matt Stover booted a 25-yard field goal.",
+      "original_question": "How many field goals did Cundiff kick in the first half?",
+      "original_answer_data": {
+        "spans": [
+          "4"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 579
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Painting has continued to be a prominent form of artistic expression in Danish culture, inspired by and also influencing major international trends in this area. These include impressionism and the modernist styles of expressionism, abstract painting and surrealism. While international co-operation and activity has almost always been essential to the Danish artistic community, influential art collectives with a firm Danish base includes De Tretten (1909\u20131912), Linien (1930s and 1940s), COBRA (avant-garde movement) (1948\u201351), Fluxus (1960s and 1970s), Junge Wilde (1980s) and more recently Superflex (founded in 1993). Most Danish painters of modern times have also been very active with other forms of artistic expressions, such as sculpting, ceramics, art installations, activism, film and experimental architecture. Notable Danish painters from modern times representing various art movements include Theodor Philipsen (1840\u20131920, impressionism and naturalism), Anna Klindt S\u00f8rensen (1899\u20131985, expressionism), Franciska Clausen (1899\u20131986, Neue Sachlichkeit, cubism, surrealism and others), Henry Heerup (1907\u20131993, naivism), Robert Jacobsen (1912\u20131993, abstract painting), Carl Henning Pedersen (1913\u20132007, abstract painting), Asger Jorn (1914\u20131973, Situationist, abstract painting), Bj\u00f8rn Wiinblad (1918\u20132006, art deco, orientalism), Per Kirkeby (b. 1938, neo-expressionism, abstract painting), Per Arnoldi (b. 1941, pop art), Michael Kvium (b. 1955, neo-surrealism) and Simone Aaberg K\u00e6rn (b. 1969, superrealism).",
+      "original_question": "Who died first: Theodor Philipsen or Anna Klindt S\u00f8rensen?",
+      "original_answer_data": {
+        "spans": [
+          "Theodor Philipsen"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 404
     }
   ],
   "example_indices": [
-    91,
-    92,
-    93,
-    94,
-    95
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110
   ],
   "results": [
     {
       "success": true,
-      "answer": "123",
-      "output": "ANSWER_START\n123\n\nANSWER_END\n",
+      "answer": "98.13%",
+      "output": "ANSWER_START\n98.13%\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_12.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer provides the same numerical value as the golden answer. The addition of the percentage sign doesn't change the meaning."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "4",
+      "output": "ANSWER_START\n4\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_12.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same single numerical value (4)."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "3475",
+      "output": "ANSWER_START\n3475\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_12.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "77 and 1",
+      "output": "ANSWER_START\n77 and 1\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_12.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer includes units (yard), whereas the system answer only provides the numerical values. Additionally, the order is different, which could be confusing."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Females",
+      "output": "ANSWER_START\nFemales\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_12.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers convey the same information: 'females'."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Americans",
+      "output": "ANSWER_START\nAmericans\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_12.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and refer to the same group of people."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "1",
+      "output": "ANSWER_START\n1\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_12.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer and the golden answer are identical, both being '1'."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Alphonso Smith",
+      "output": "ANSWER_START\nAlphonso Smith\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_12.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "4",
+      "output": "ANSWER_START\n4\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_12.jsonl",
       "evaluation": {
         "match": true,
@@ -211,64 +469,133 @@
     },
     {
       "success": true,
-      "answer": "The outbreak of the Xinhai Revolution",
-      "output": "ANSWER_START\nThe outbreak of the Xinhai Revolution\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_12.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 0.0,
-        "explanation": "The Xinhai Revolution and China invading Tibet are completely unrelated events in history."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "3",
-      "output": "ANSWER_START\n3\n\nANSWER_END\n",
+      "answer": "Theodor Philipsen",
+      "output": "ANSWER_START\nTheodor Philipsen\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_12.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value (3)."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "China and India",
-      "output": "ANSWER_START\nChina and India\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_12.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer includes 'China' and 'India', while the golden answer only specifies 'China'. Therefore, they do not convey the same information."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "3",
-      "output": "ANSWER_START\n3\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_12.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value: 3"
+        "explanation": "Both answers are identical and refer to the same person, Theodor Philipsen."
       },
       "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.6,
-    "correct_count": 3,
-    "total_count": 5,
+    "accuracy": 0.9,
+    "correct_count": 9,
+    "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "123",
-        "golden_answer": "123",
-        "output": "ANSWER_START\n123\n\nANSWER_END\n",
+        "system_answer": "98.13%",
+        "golden_answer": "98.13",
+        "output": "ANSWER_START\n98.13%\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer provides the same numerical value as the golden answer. The addition of the percentage sign doesn't change the meaning."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "4",
+        "golden_answer": "4",
+        "output": "ANSWER_START\n4\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same single numerical value (4)."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "3475",
+        "golden_answer": "3475",
+        "output": "ANSWER_START\n3475\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same numerical value."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "77 and 1",
+        "golden_answer": "1-yard, 77-yard",
+        "output": "ANSWER_START\n77 and 1\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer includes units (yard), whereas the system answer only provides the numerical values. Additionally, the order is different, which could be confusing."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "Females",
+        "golden_answer": "females",
+        "output": "ANSWER_START\nFemales\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers convey the same information: 'females'."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "Americans",
+        "golden_answer": "Americans",
+        "output": "ANSWER_START\nAmericans\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same group of people."
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "1",
+        "golden_answer": "1",
+        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer and the golden answer are identical, both being '1'."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "Alphonso Smith",
+        "golden_answer": "Alphonso Smith",
+        "output": "ANSWER_START\nAlphonso Smith\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "4",
+        "golden_answer": "4",
+        "output": "ANSWER_START\n4\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
@@ -277,77 +604,50 @@
         }
       },
       {
-        "sample_id": 1,
+        "sample_id": 9,
         "success": true,
-        "system_answer": "The outbreak of the Xinhai Revolution",
-        "golden_answer": "n 1910 China invaded Tibet",
-        "output": "ANSWER_START\nThe outbreak of the Xinhai Revolution\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 0.0,
-          "explanation": "The Xinhai Revolution and China invading Tibet are completely unrelated events in history."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 2,
-        "success": true,
-        "system_answer": "3",
-        "golden_answer": "3",
-        "output": "ANSWER_START\n3\n\nANSWER_END\n",
+        "system_answer": "Theodor Philipsen",
+        "golden_answer": "Theodor Philipsen",
+        "output": "ANSWER_START\nTheodor Philipsen\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value (3)."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "China and India",
-        "golden_answer": "China",
-        "output": "ANSWER_START\nChina and India\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer includes 'China' and 'India', while the golden answer only specifies 'China'. Therefore, they do not convey the same information."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "3",
-        "golden_answer": "3",
-        "output": "ANSWER_START\n3\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 3"
+          "explanation": "Both answers are identical and refer to the same person, Theodor Philipsen."
         }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nThere are no explicit runtime errors (like JSONDecodeError, TypeError) visible in the provided error cases' `output` fields.\n\n## STRENGTHS\n\n1.  **Numerical Extraction:** The system demonstrates a good ability to extract numerical values from the passage, as shown in the success cases (sample IDs 0, 2, and 4). It can identify and retrieve specific numbers relevant to the question.\n2.  **Passage Comprehension:** The system is able to generally understand the context and subject of the passages as it attempts to answer the questions, as shown by the answers it gives, even if they are incorrect..\n\n## WEAKNESSES\n\n1.  **Temporal Reasoning and Event Ordering:** The system struggles with questions requiring temporal reasoning, specifically determining which event occurred later in time (sample ID 1). It struggles to correctly relate events within the passage.\n2.  **Precise Information Retrieval:** In some cases, the system provides an answer that includes the correct information but also additional, incorrect information (sample ID 3). This shows a weakness in identifying and extracting the *most* specific and relevant information.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Temporal Relation Extraction:** The most critical bottleneck is the system's inability to accurately extract and reason about temporal relationships between events described in the passage. This directly impacts its ability to answer questions about event ordering.\n2.  **Granularity of Information Extraction:** The system needs to be more precise about which specific information answers the question. The system often gives answers that are too broad by including information that does not answer the question precisely.\n\n## ERROR PATTERNS\n\n*   **Incorrect event ordering:** Error case #1 demonstrates a recurring pattern of misunderstanding or misinterpreting the sequence of historical events presented in the passage. The system fails to establish the temporal relationship between the Chinese invasion of Tibet and the Xinhai Revolution.\n*   **Overly Broad Answers:** The AI sometimes provides partially correct but ultimately incorrect answers by including irrelevant information, as seen in error case #3, where it correctly identifies \"China\" but incorrectly includes \"India.\"\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's lack of robust temporal reasoning capabilities, leading to incorrect answers when questions require understanding the order of events or specific dates within the passage.\n\n## IMPROVEMENT AREAS\n\n1.  **Temporal Reasoning Module:** The system needs a dedicated module to specifically extract and reason about temporal information. This module should be able to identify dates, durations, and temporal relationships (before, after, during, etc.) between events.\n2.  **Answer Precision Module:** The system needs a component to ensure the answer it provides is highly specific and accurate by pruning any extraneous information, as shown in error #3.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a Temporal Relation Extraction System:** Integrate a pre-trained or fine-tuned model for temporal relation extraction. These models are designed to identify temporal entities and relationships within text.\n2.  **Refine Extraction Logic:** Modify the information extraction logic to prioritize answers that directly address the question's focus. Post-processing the extracted information by comparing the question to extracted components can help filter out the best answer.\n3.  **Add Intermediate Outputs for Debugging:** Add detailed print statements to the `output` field which will display each reasoning step. This will provide greater visibility into why errors are happening in real time.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 1:**\n    *   Failed Capabilities: Information Extraction (related to dates) and Solution Generation (inferring the correct temporal order)\n*   **Sample ID 3:**\n    *   Failed Capabilities: Information extraction (specificity) and Solution Verification (assuring precision and eliminating redundancy).\n",
-      "strengths": [],
-      "weaknesses": [],
-      "primary_issue": "The primary issue is the system's lack of robust temporal reasoning capabilities, leading to incorrect answers when questions require understanding the order of events or specific dates within the passage.",
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors were found in the provided error cases.\n\n## STRENGTHS\n*   **Numerical Calculation:** The system is generally accurate in performing basic numerical calculations, as demonstrated by the success case where it correctly calculated the difference in water boards.\n*   **Information Retrieval:** The system is capable of retrieving the relevant information from the text passage, like names, numbers, and concepts.\n*   **Simple Comparisons:** The system can perform basic comparisons, such as determining who died first between two individuals in the success cases.\n\n## WEAKNESSES\n*   **Incomplete Answer Generation:** The system sometimes provides answers without including necessary units of measurement.\n*   **Lack of Consistency in Answer Format:** The system struggles to match the format of the golden answer, especially when it comes to units and order of elements.\n\n## CRITICAL BOTTLENECKS\n*   **Answer Formatting:** The system's inability to consistently format answers according to the expected format (including units, ordering of information) is a critical bottleneck.\n\n## ERROR PATTERNS\n*   **Missing Units:** The system tends to omit units of measurement from numerical answers, even when the question context implies their importance.\n\n## PRIMARY ISSUE\nThe primary issue is the system's inconsistent answer formatting, specifically the omission of units of measurement and incorrect ordering of multiple answer components, leading to mismatches with the golden answers.\n\n## IMPROVEMENT AREAS\n*   **Answer Formatting Logic:** Improve the system's answer formatting logic to ensure that the generated answers include relevant units of measurement and are presented in the expected order.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Unit Detection and Inclusion:** Implement a mechanism to detect when units are needed (e.g., by analyzing the question's wording and the passage's context) and automatically include them in the answer. For example, if the question asks about \"yards,\" ensure the answer includes \"yards.\"\n2.  **Ordered Output Generation:** If the question demands multiple data points (like Stafford's touchdown yards), explicitly order the answer as they appear in the passage or reorder them to fit the Golden Answer.\n\n## CAPABILITY MAPPING\n*   **Sample ID 3:** Solution Generation (failed to include units and correct order).\n",
+      "strengths": [
+        "Numerical Calculation:** The system is generally accurate in performing basic numerical calculations, as demonstrated by the success case where it correctly calculated the difference in water boards.",
+        "Information Retrieval:** The system is capable of retrieving the relevant information from the text passage, like names, numbers, and concepts.",
+        "Simple Comparisons:** The system can perform basic comparisons, such as determining who died first between two individuals in the success cases."
+      ],
+      "weaknesses": [
+        "Incomplete Answer Generation:** The system sometimes provides answers without including necessary units of measurement.",
+        "Lack of Consistency in Answer Format:** The system struggles to match the format of the golden answer, especially when it comes to units and order of elements."
+      ],
+      "primary_issue": "The primary issue is the system's inconsistent answer formatting, specifically the omission of units of measurement and incorrect ordering of multiple answer components, leading to mismatches with the golden answers.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## AI System Capability Report\n\n### EXECUTION ANALYSIS\n\nThe execution outputs reveal a few key observations:\n\n1.  **Inconsistent Formatting:** The presence of \"ANSWER\\_START\" and \"ANSWER\\_END\" tags suggests a structured approach to answer extraction. However, the content within these tags is not consistently formatted. For instance, some outputs directly contain the answer, while others present more complex phrases.\n2.  **Direct Answer Extraction:** The system seems to be directly extracting spans of text from the input passage and presenting them as answers. This explains the \"Overly Broad Answers\" weakness, as the extracted span might contain extraneous information.\n3.  **Lack of Reasoning Steps:** The raw outputs do not provide any insight into the reasoning process used to arrive at the answers. This makes debugging and targeted improvement difficult. The missing temporal reasoning and answer precision modules are particularly relevant here.\n4.  **Numerical Answer Format:** When the answer is a number, the system correctly extracts it, as seen in Samples 0 and 2. This confirms the \"Numerical Extraction\" strength.\n\n### CAPABILITY ASSESSMENT\n\nOverall, the system demonstrates a basic capability for information extraction, but lacks sophisticated reasoning skills. It can identify and extract numerical values and some textual spans, but struggles with tasks requiring temporal reasoning, precise information retrieval, and contextual understanding. The system is heavily reliant on direct extraction, rather than a generate-and-verify approach.\n\n### KEY STRENGTHS\n\n*   **Numerical Extraction:** Consistently and accurately extracts numerical data from the text. This is a foundational strength that should be maintained.\n\n### KEY WEAKNESSES\n\n*   **Temporal Reasoning:** The most critical weakness is the inability to accurately understand and reason about temporal relationships between events.\n*   **Answer Precision:** The tendency to provide overly broad answers by including irrelevant information. This reduces the overall accuracy and usability of the system.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Temporal Reasoning**. Addressing this weakness will have the most significant positive impact on the system's overall performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Temporal Relation Extraction System:**\n    *   **Action:** Integrate a pre-trained or fine-tuned model specifically designed for temporal relation extraction.\n    *   **Details:** Utilize a model like `allenai/temporal-roberta-base` fine-tuned on a dataset like TimeBank or MATRES. This will help identify and categorize temporal relationships (e.g., BEFORE, AFTER, DURING) between events in the passage.\n2.  **Refine Extraction Logic with Question-Answering:**\n    *   **Action:** Post-process extracted information by comparing extracted components against the initial question to filter down to the best answer.\n    *   **Details:** This could involve embedding both the question and extracted answer candidates and then selecting the candidate with the highest cosine similarity to the question embedding.\n3.  **Implement Intermediate Reasoning Logging:**\n    *   **Action:** Modify the code to include logging of intermediate reasoning steps in the `output` field.\n    *   **Details:** This will provide valuable insight into the decision-making process of the system. The `output` field should show the question being answered, the text being assessed, the extracted answer, and the final reasoning for why it provided that answer. An example might look like: `\"Reasoning: Question: 'When did X happen?' Text: 'X happened after Y.' Conclusion: Therefore, the answer is [date of event X].\"`\n\n### CAPABILITY TREND\n\nBased on the current performance and error analysis, it is difficult to determine a clear capability trend. The accuracy of 0.60 suggests a baseline level of performance, but without iterative improvements and monitoring, it's impossible to know if the capabilities are improving, declining, or remaining stable. The key is to measure again after implementing the Actionable Recommendations above.\n",
-      "strengths": [],
-      "weaknesses": [],
+      "text_report": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and your instructions:\n\n## AI System Capability Report\n\n**System Description:**  AI system designed to answer questions based on provided text passages, likely involving numerical calculations, information retrieval, and comparisons.\n\n**Performance Metrics:**\n\n*   Accuracy: 0.90 (9/10)\n*   Error Rate: 1/10\n\n## EXECUTION ANALYSIS\n\nThe sample execution outputs highlight the core issue:  while the *numerical values themselves* seem correct in some cases (further validation is needed based on the source passage), the outputs are consistently **isolated numbers with no context, units, or labels**. The \"ANSWER\\_START\" and \"ANSWER\\_END\" tags further emphasize the system's understanding of the beginning and end of an answer, but the *content* within those tags is often incomplete and lacks crucial elements. The fact that the system knows where the answer should start and end but is only putting raw numbers suggests a disconnect between the information extraction and the formatting/generation modules. The missing context surrounding the numbers (units, explanation, etc.) shows that the model might be having trouble with the \"generation\" part of the pipeline.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a promising ability to extract numerical data and perform basic calculations. However, its current capability is significantly hampered by its inability to present answers in a complete and usable format.  The core functionality of information retrieval and basic calculation seems to be functioning, but the \"last mile\" of answer formatting is deficient. This makes the system unreliable in a real-world scenario where users need answers presented clearly and with the correct units.  The system understands the concept of an answer (ANSWER\\_START and ANSWER\\_END), but the contents are not sufficiently detailed.\n\n## KEY STRENGTHS\n\n*   **Numerical Information Extraction:** The system is good at identifying and extracting numerical values from text.\n*   **Basic Calculation:**  The system can perform basic numerical calculations accurately (based on the success cases).\n*   **Information retrieval:** The system can retrieve relevant information from the text passage (names, numbers, concepts).\n\n## KEY WEAKNESSES\n\n*   **Answer Formatting:**  Inconsistent and incomplete answer formatting is the most significant weakness. Specifically, the omission of units of measurement and failure to provide context for numerical answers.\n*   **Contextual Awareness for Formatting:** The system lacks the ability to infer necessary units or other formatting elements based on the question and passage context.\n*   **Lack of consistency in answer format:** The system struggles to match the format of the golden answer.\n\n## IMPROVEMENT FOCUS\n\nThe **primary improvement focus** should be on **strengthening the answer formatting capability** to ensure that answers include necessary units of measurement and are presented in a clear, contextually appropriate manner. This will likely involve a combination of unit detection, rule-based formatting, and possibly fine-tuning a language model for answer generation.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Unit Detection and Inclusion:**\n    *   Develop a rule-based system that identifies when a unit is required based on keywords in the question (e.g., \"distance,\" \"speed,\" \"area\").\n    *   Augment the extracted numerical value with the appropriate unit found in the source passage.  For example, if the question asks for \"distance in yards,\" and the passage contains \"100 yards,\" the answer should be \"100 yards,\" not just \"100\".\n    *   Leverage existing NLP libraries for named entity recognition to identify units of measurement.\n2.  **Develop a Formatting Module:**\n    *   Create a dedicated module responsible for formatting the extracted information into a coherent answer.\n    *   This module should handle issues like ordering information, adding units, and providing necessary context.\n    *   The formatting module should be data driven so that if the Golden Answer expects \"x [unit]\", the model can learn to repeat this behavior.\n3.  **Fine-tune Answer Generation (Optional, but Recommended):**\n    *   Fine-tune a pre-trained language model (e.g., T5, BART) on a dataset of question-answer pairs where the answers are formatted correctly, including units and context.\n    *   Use the extracted numerical value and the question text as input to the fine-tuned language model to generate a more complete and natural-sounding answer.\n4.  **Review and expand the Golden Answer dataset:**\n    *  Consider expanding the training dataset to include more varied questions and expected answer formats.\n    *  Ensure the Golden Answers are themselves highly consistent in their unit usage and answer ordering.\n5.  **Implement a strict validation suite:**\n    *  Implement a rigorous validation suite using high-quality, diverse, manually-created answer keys.\n    *  This validation suite should explicitly check for the presence and correctness of units, ordering of information, and overall answer clarity.\n\n## CAPABILITY TREND\n\nBased on the provided data, the system demonstrates potential for accurate numerical information extraction, but its overall capability is currently **stable but incomplete**. The core algorithms appear to be working.  However, the lack of proper answer formatting severely limits its usefulness. Implementing the actionable recommendations above should lead to a **significant improvement** in the system's overall capability.\n",
+      "strengths": [
+        "Numerical Calculation:** The system is generally accurate in performing basic numerical calculations, as demonstrated by the success case where it correctly calculated the difference in water boards.",
+        "Information Retrieval:** The system is capable of retrieving the relevant information from the text passage, like names, numbers, and concepts.",
+        "Simple Comparisons:** The system can perform basic comparisons, such as determining who died first between two individuals in the success cases."
+      ],
+      "weaknesses": [
+        "Incomplete Answer Generation:** The system sometimes provides answers without including necessary units of measurement.",
+        "Lack of Consistency in Answer Format:** The system struggles to match the format of the golden answer, especially when it comes to units and order of elements."
+      ],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nThere are no explicit runtime errors (like JSONDecodeError, TypeError) visible in the provided error cases' `output` fields.\n\n## STRENGTHS\n\n1.  **Numerical Extraction:** The system demonstrates a good ability to extract numerical values from the passage, as shown in the success cases (sample IDs 0, 2, and 4). It can identify and retrieve specific numbers relevant to the question.\n2.  **Passage Comprehension:** The system is able to generally understand the context and subject of the passages as it attempts to answer the questions, as shown by the answers it gives, even if they are incorrect..\n\n## WEAKNESSES\n\n1.  **Temporal Reasoning and Event Ordering:** The system struggles with questions requiring temporal reasoning, specifically determining which event occurred later in time (sample ID 1). It struggles to correctly relate events within the passage.\n2.  **Precise Information Retrieval:** In some cases, the system provides an answer that includes the correct information but also additional, incorrect information (sample ID 3). This shows a weakness in identifying and extracting the *most* specific and relevant information.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Temporal Relation Extraction:** The most critical bottleneck is the system's inability to accurately extract and reason about temporal relationships between events described in the passage. This directly impacts its ability to answer questions about event ordering.\n2.  **Granularity of Information Extraction:** The system needs to be more precise about which specific information answers the question. The system often gives answers that are too broad by including information that does not answer the question precisely.\n\n## ERROR PATTERNS\n\n*   **Incorrect event ordering:** Error case #1 demonstrates a recurring pattern of misunderstanding or misinterpreting the sequence of historical events presented in the passage. The system fails to establish the temporal relationship between the Chinese invasion of Tibet and the Xinhai Revolution.\n*   **Overly Broad Answers:** The AI sometimes provides partially correct but ultimately incorrect answers by including irrelevant information, as seen in error case #3, where it correctly identifies \"China\" but incorrectly includes \"India.\"\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's lack of robust temporal reasoning capabilities, leading to incorrect answers when questions require understanding the order of events or specific dates within the passage.\n\n## IMPROVEMENT AREAS\n\n1.  **Temporal Reasoning Module:** The system needs a dedicated module to specifically extract and reason about temporal information. This module should be able to identify dates, durations, and temporal relationships (before, after, during, etc.) between events.\n2.  **Answer Precision Module:** The system needs a component to ensure the answer it provides is highly specific and accurate by pruning any extraneous information, as shown in error #3.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a Temporal Relation Extraction System:** Integrate a pre-trained or fine-tuned model for temporal relation extraction. These models are designed to identify temporal entities and relationships within text.\n2.  **Refine Extraction Logic:** Modify the information extraction logic to prioritize answers that directly address the question's focus. Post-processing the extracted information by comparing the question to extracted components can help filter out the best answer.\n3.  **Add Intermediate Outputs for Debugging:** Add detailed print statements to the `output` field which will display each reasoning step. This will provide greater visibility into why errors are happening in real time.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 1:**\n    *   Failed Capabilities: Information Extraction (related to dates) and Solution Generation (inferring the correct temporal order)\n*   **Sample ID 3:**\n    *   Failed Capabilities: Information extraction (specificity) and Solution Verification (assuring precision and eliminating redundancy).\n",
-    "capability_report_text": "## AI System Capability Report\n\n### EXECUTION ANALYSIS\n\nThe execution outputs reveal a few key observations:\n\n1.  **Inconsistent Formatting:** The presence of \"ANSWER\\_START\" and \"ANSWER\\_END\" tags suggests a structured approach to answer extraction. However, the content within these tags is not consistently formatted. For instance, some outputs directly contain the answer, while others present more complex phrases.\n2.  **Direct Answer Extraction:** The system seems to be directly extracting spans of text from the input passage and presenting them as answers. This explains the \"Overly Broad Answers\" weakness, as the extracted span might contain extraneous information.\n3.  **Lack of Reasoning Steps:** The raw outputs do not provide any insight into the reasoning process used to arrive at the answers. This makes debugging and targeted improvement difficult. The missing temporal reasoning and answer precision modules are particularly relevant here.\n4.  **Numerical Answer Format:** When the answer is a number, the system correctly extracts it, as seen in Samples 0 and 2. This confirms the \"Numerical Extraction\" strength.\n\n### CAPABILITY ASSESSMENT\n\nOverall, the system demonstrates a basic capability for information extraction, but lacks sophisticated reasoning skills. It can identify and extract numerical values and some textual spans, but struggles with tasks requiring temporal reasoning, precise information retrieval, and contextual understanding. The system is heavily reliant on direct extraction, rather than a generate-and-verify approach.\n\n### KEY STRENGTHS\n\n*   **Numerical Extraction:** Consistently and accurately extracts numerical data from the text. This is a foundational strength that should be maintained.\n\n### KEY WEAKNESSES\n\n*   **Temporal Reasoning:** The most critical weakness is the inability to accurately understand and reason about temporal relationships between events.\n*   **Answer Precision:** The tendency to provide overly broad answers by including irrelevant information. This reduces the overall accuracy and usability of the system.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Temporal Reasoning**. Addressing this weakness will have the most significant positive impact on the system's overall performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Temporal Relation Extraction System:**\n    *   **Action:** Integrate a pre-trained or fine-tuned model specifically designed for temporal relation extraction.\n    *   **Details:** Utilize a model like `allenai/temporal-roberta-base` fine-tuned on a dataset like TimeBank or MATRES. This will help identify and categorize temporal relationships (e.g., BEFORE, AFTER, DURING) between events in the passage.\n2.  **Refine Extraction Logic with Question-Answering:**\n    *   **Action:** Post-process extracted information by comparing extracted components against the initial question to filter down to the best answer.\n    *   **Details:** This could involve embedding both the question and extracted answer candidates and then selecting the candidate with the highest cosine similarity to the question embedding.\n3.  **Implement Intermediate Reasoning Logging:**\n    *   **Action:** Modify the code to include logging of intermediate reasoning steps in the `output` field.\n    *   **Details:** This will provide valuable insight into the decision-making process of the system. The `output` field should show the question being answered, the text being assessed, the extracted answer, and the final reasoning for why it provided that answer. An example might look like: `\"Reasoning: Question: 'When did X happen?' Text: 'X happened after Y.' Conclusion: Therefore, the answer is [date of event X].\"`\n\n### CAPABILITY TREND\n\nBased on the current performance and error analysis, it is difficult to determine a clear capability trend. The accuracy of 0.60 suggests a baseline level of performance, but without iterative improvements and monitoring, it's impossible to know if the capabilities are improving, declining, or remaining stable. The key is to measure again after implementing the Actionable Recommendations above.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors were found in the provided error cases.\n\n## STRENGTHS\n*   **Numerical Calculation:** The system is generally accurate in performing basic numerical calculations, as demonstrated by the success case where it correctly calculated the difference in water boards.\n*   **Information Retrieval:** The system is capable of retrieving the relevant information from the text passage, like names, numbers, and concepts.\n*   **Simple Comparisons:** The system can perform basic comparisons, such as determining who died first between two individuals in the success cases.\n\n## WEAKNESSES\n*   **Incomplete Answer Generation:** The system sometimes provides answers without including necessary units of measurement.\n*   **Lack of Consistency in Answer Format:** The system struggles to match the format of the golden answer, especially when it comes to units and order of elements.\n\n## CRITICAL BOTTLENECKS\n*   **Answer Formatting:** The system's inability to consistently format answers according to the expected format (including units, ordering of information) is a critical bottleneck.\n\n## ERROR PATTERNS\n*   **Missing Units:** The system tends to omit units of measurement from numerical answers, even when the question context implies their importance.\n\n## PRIMARY ISSUE\nThe primary issue is the system's inconsistent answer formatting, specifically the omission of units of measurement and incorrect ordering of multiple answer components, leading to mismatches with the golden answers.\n\n## IMPROVEMENT AREAS\n*   **Answer Formatting Logic:** Improve the system's answer formatting logic to ensure that the generated answers include relevant units of measurement and are presented in the expected order.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Unit Detection and Inclusion:** Implement a mechanism to detect when units are needed (e.g., by analyzing the question's wording and the passage's context) and automatically include them in the answer. For example, if the question asks about \"yards,\" ensure the answer includes \"yards.\"\n2.  **Ordered Output Generation:** If the question demands multiple data points (like Stafford's touchdown yards), explicitly order the answer as they appear in the passage or reorder them to fit the Golden Answer.\n\n## CAPABILITY MAPPING\n*   **Sample ID 3:** Solution Generation (failed to include units and correct order).\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and your instructions:\n\n## AI System Capability Report\n\n**System Description:**  AI system designed to answer questions based on provided text passages, likely involving numerical calculations, information retrieval, and comparisons.\n\n**Performance Metrics:**\n\n*   Accuracy: 0.90 (9/10)\n*   Error Rate: 1/10\n\n## EXECUTION ANALYSIS\n\nThe sample execution outputs highlight the core issue:  while the *numerical values themselves* seem correct in some cases (further validation is needed based on the source passage), the outputs are consistently **isolated numbers with no context, units, or labels**. The \"ANSWER\\_START\" and \"ANSWER\\_END\" tags further emphasize the system's understanding of the beginning and end of an answer, but the *content* within those tags is often incomplete and lacks crucial elements. The fact that the system knows where the answer should start and end but is only putting raw numbers suggests a disconnect between the information extraction and the formatting/generation modules. The missing context surrounding the numbers (units, explanation, etc.) shows that the model might be having trouble with the \"generation\" part of the pipeline.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a promising ability to extract numerical data and perform basic calculations. However, its current capability is significantly hampered by its inability to present answers in a complete and usable format.  The core functionality of information retrieval and basic calculation seems to be functioning, but the \"last mile\" of answer formatting is deficient. This makes the system unreliable in a real-world scenario where users need answers presented clearly and with the correct units.  The system understands the concept of an answer (ANSWER\\_START and ANSWER\\_END), but the contents are not sufficiently detailed.\n\n## KEY STRENGTHS\n\n*   **Numerical Information Extraction:** The system is good at identifying and extracting numerical values from text.\n*   **Basic Calculation:**  The system can perform basic numerical calculations accurately (based on the success cases).\n*   **Information retrieval:** The system can retrieve relevant information from the text passage (names, numbers, concepts).\n\n## KEY WEAKNESSES\n\n*   **Answer Formatting:**  Inconsistent and incomplete answer formatting is the most significant weakness. Specifically, the omission of units of measurement and failure to provide context for numerical answers.\n*   **Contextual Awareness for Formatting:** The system lacks the ability to infer necessary units or other formatting elements based on the question and passage context.\n*   **Lack of consistency in answer format:** The system struggles to match the format of the golden answer.\n\n## IMPROVEMENT FOCUS\n\nThe **primary improvement focus** should be on **strengthening the answer formatting capability** to ensure that answers include necessary units of measurement and are presented in a clear, contextually appropriate manner. This will likely involve a combination of unit detection, rule-based formatting, and possibly fine-tuning a language model for answer generation.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Unit Detection and Inclusion:**\n    *   Develop a rule-based system that identifies when a unit is required based on keywords in the question (e.g., \"distance,\" \"speed,\" \"area\").\n    *   Augment the extracted numerical value with the appropriate unit found in the source passage.  For example, if the question asks for \"distance in yards,\" and the passage contains \"100 yards,\" the answer should be \"100 yards,\" not just \"100\".\n    *   Leverage existing NLP libraries for named entity recognition to identify units of measurement.\n2.  **Develop a Formatting Module:**\n    *   Create a dedicated module responsible for formatting the extracted information into a coherent answer.\n    *   This module should handle issues like ordering information, adding units, and providing necessary context.\n    *   The formatting module should be data driven so that if the Golden Answer expects \"x [unit]\", the model can learn to repeat this behavior.\n3.  **Fine-tune Answer Generation (Optional, but Recommended):**\n    *   Fine-tune a pre-trained language model (e.g., T5, BART) on a dataset of question-answer pairs where the answers are formatted correctly, including units and context.\n    *   Use the extracted numerical value and the question text as input to the fine-tuned language model to generate a more complete and natural-sounding answer.\n4.  **Review and expand the Golden Answer dataset:**\n    *  Consider expanding the training dataset to include more varied questions and expected answer formats.\n    *  Ensure the Golden Answers are themselves highly consistent in their unit usage and answer ordering.\n5.  **Implement a strict validation suite:**\n    *  Implement a rigorous validation suite using high-quality, diverse, manually-created answer keys.\n    *  This validation suite should explicitly check for the presence and correctness of units, ordering of information, and overall answer clarity.\n\n## CAPABILITY TREND\n\nBased on the provided data, the system demonstrates potential for accurate numerical information extraction, but its overall capability is currently **stable but incomplete**. The core algorithms appear to be working.  However, the lack of proper answer formatting severely limits its usefulness. Implementing the actionable recommendations above should lead to a **significant improvement** in the system's overall capability.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
@@ -357,118 +657,66 @@
     "results": [
       {
         "success": true,
-        "answer": "210",
-        "output": "ANSWER_START\n210\n\nANSWER_END\n",
+        "answer": "10.6 is incorrect. The passage states that 89.4% of the population was white. Therefore, 100% - 89.4% = 10.6% of the population was not white. However, the passage also states that 10.8% of the population was Hispanic or Latino of any race. The question asks for the percentage of people that were not white, not the percentage of people that were Hispanic or Latino. Therefore, the correct answer should be 10.6%.",
+        "output": "ANSWER_START\n10.6 is incorrect. The passage states that 89.4% of the population was white. Therefore, 100% - 89.4% = 10.6% of the population was not white. However, the passage also states that 10.8% of the population was Hispanic or Latino of any race. The question asks for the percentage of people that were not white, not the percentage of people that were Hispanic or Latino. Therefore, the correct answer should be 10.6%.\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_12.jsonl",
-        "golden_answer": "210",
+        "golden_answer": "10.6",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value (210)."
+          "explanation": "Both answers identify 10.6 as the final answer. The system answer provides reasoning, but the core answer matches the golden answer."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "Drew Brees",
-        "output": "ANSWER_START\nDrew Brees\n\nANSWER_END\n",
+        "answer": "99",
+        "output": "ANSWER_START\n99\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_12.jsonl",
-        "golden_answer": "Drew Brees",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information: Drew Brees."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "110",
-        "output": "ANSWER_START\n110\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_12.jsonl",
-        "golden_answer": "110",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value, '110'."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "2",
-        "output": "ANSWER_START\n2\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_12.jsonl",
-        "golden_answer": "1",
+        "golden_answer": "103",
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The answers are different numerical values (2 vs 1), so they do not communicate the same information."
+          "explanation": "The answers are numerical and require precision. 99 and 103 are different numbers."
         },
         "match": false
       },
       {
         "success": true,
-        "answer": "1,483,353",
-        "output": "ANSWER_START\n1,483,353\n\nANSWER_END\n",
+        "answer": "17",
+        "output": "ANSWER_START\n17\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_12.jsonl",
-        "golden_answer": "1483353",
+        "golden_answer": "17",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers represent the same numerical value, differing only in the presence or absence of a comma separator."
+          "explanation": "Both answers are the same numerical value: 17."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "Seahawks",
-        "output": "ANSWER_START\nSeahawks\n\nANSWER_END\n",
+        "answer": "10",
+        "output": "ANSWER_START\n10\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_12.jsonl",
-        "golden_answer": "Seahawks",
+        "golden_answer": "10",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and refer to the same team."
+          "explanation": "Both answers are the same numerical value."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "Two",
-        "output": "ANSWER_START\nTwo\n\nANSWER_END\n",
+        "answer": "10",
+        "output": "ANSWER_START\n10\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_12.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer is 'Two' which represents the number 2. The golden answer is '1'. These numbers are different and therefore do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "7",
-        "output": "ANSWER_START\n7\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_12.jsonl",
-        "golden_answer": "7",
+        "golden_answer": "10",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value, 7."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "13",
-        "output": "ANSWER_START\n13\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_12.jsonl",
-        "golden_answer": "13",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value, 13."
+          "explanation": "Both answers are the same numerical value, 10."
         },
         "match": true
       },
@@ -481,13 +729,65 @@
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same single number."
+          "explanation": "Both answers are identical and convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Steven Jackson",
+        "output": "ANSWER_START\nSteven Jackson\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_12.jsonl",
+        "golden_answer": "Steven Jackson",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same entity, Steven Jackson."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "29.6%",
+        "output": "ANSWER_START\n29.6%\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_12.jsonl",
+        "golden_answer": "45.1",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The values 29.6% and 45.1 are significantly different, indicating a mismatch in the answers."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "39",
+        "output": "ANSWER_START\n39\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_12.jsonl",
+        "golden_answer": "39",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical numerical values (39)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "50, 35, and 27",
+        "output": "ANSWER_START\n50, 35, and 27\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_12.jsonl",
+        "golden_answer": "50, 35, 27",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers provide the same sequence of numbers: 50, 35, and 27."
         },
         "match": true
       }
     ]
   },
-  "execution_time": 90.64236760139465,
+  "execution_time": 99.98484635353088,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

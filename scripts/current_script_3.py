@@ -1,181 +1,89 @@
 import os
 import re
+import math
 
 def main(question):
     """
-    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.
-    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.
+    Solve the question using a multi-stage LLM approach. Enhanced for ordinality and error handling.
     """
     try:
-        # Step 1: Decompose the question into sub-questions.
-        decomposition_result = decompose_question(question)
-        if not decomposition_result.get("is_valid"):
-            return f"Error in question decomposition: {decomposition_result.get('validation_feedback')}"
-        
-        # Step 2: Extract relevant information based on sub-questions.
-        information_extraction_result = extract_information(question, decomposition_result["sub_questions"])
-        if not information_extraction_result.get("is_valid"):
-            return f"Error in information extraction: {information_extraction_result.get('validation_feedback')}"
+        # Step 1: Identify question type and keywords
+        question_analysis = analyze_question(question)
+        if "Error" in question_analysis:
+            return "Error analyzing question"
 
-        # Step 3: Synthesize the answer from extracted information.
-        answer_synthesis_result = synthesize_answer(question, information_extraction_result["extracted_info"])
-        if not answer_synthesis_result.get("is_valid"):
-            return f"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}"
+        # Step 2: Extract relevant passage, enhance to find *all* relevant info
+        relevant_passage = extract_relevant_passage(question, question_analysis)
+        if "Error" in relevant_passage:
+            return "Error extracting passage"
+
+        # Step 3: Generate answer using extracted passage and question type
+        answer = generate_answer(question, relevant_passage, question_analysis)
+        if "Error" in answer:
+            return "Error generating answer"
+
+        # Step 4: Verify answer
+        verified_answer = verify_answer(question, answer, relevant_passage)
+        if "Error" in verified_answer:
+            return "Error verifying answer"
         
-        return answer_synthesis_result["answer"]
+        return verified_answer
 
     except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        return f"General Error: {str(e)}"
 
-def decompose_question(question, max_attempts=3):
-    """Decompose the main question into smaller, answerable sub-questions."""
-    system_instruction = "You are an expert question decomposer."
-    
-    for attempt in range(max_attempts):
-        decomposition_prompt = f"""
-        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.
+def analyze_question(question):
+    """Analyzes the question, identifying type and keywords. Now handles ordinal questions."""
+    system_instruction = "You are an expert question analyzer."
+    prompt = f"""
+    Analyze the question to identify its type and keywords. Identify if it is ordinal.
+    Example 1: Question: Who caught the final touchdown? Analysis: {{"type": "fact extraction", "keywords": ["final touchdown"], "ordinal": true}}
+    Example 2: Question: How many RBs ran for a TD? Analysis: {{"type": "counting", "keywords": ["RB", "touchdown"], "ordinal": false}}
+    Example 3: Question: Which player kicked the only FG? Analysis: {{"type": "fact extraction", "keywords": ["player", "FG"], "ordinal": false}}
+    Question: {question} Analysis:
+    """
+    return call_llm(prompt, system_instruction)
 
-        Example 1:
-        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Sub-questions:
-        1. How many yards was Chris Johnson's first touchdown?
-        2. How many yards was Jason Hanson's first field goal?
-        3. What is the sum of those two values?
+def extract_relevant_passage(question, question_analysis):
+    """Extracts the relevant passage. Now extracts *all* potentially relevant sentences."""
+    system_instruction = "You are an expert at passage extraction."
+    prompt = f"""
+    Extract all sentences that *might* be relevant to the question.
+    Example 1: Question: Who caught the final TD? Passage: "The final TD was caught by X."
+    Example 2: Question: How many RBs scored? Passage: "RB A scored. RB B also scored."
+    Example 3: Question: Which player kicked the only FG? Passage: "Player C kicked the only FG."
+    Question: {question} Text: {question} Passage:
+    """
+    return call_llm(prompt, system_instruction)
 
-        Example 2:
-        Question: Who caught the final touchdown of the game?
-        Sub-questions:
-        1. Who scored the final touchdown of the game?
+def generate_answer(question, relevant_passage, question_analysis):
+    """Generates the answer. Enhanced to handle ordinality and complex reasoning."""
+    system_instruction = "You are an expert answer generator."
+    prompt = f"""
+    Generate the answer from the passage, using the question type.
+    Example 1: Question: Who caught the final TD? Passage: "The final TD was caught by X." Answer: X
+    Example 2: Question: How many RBs scored? Passage: "RB A scored. RB B also scored." Answer: 2
+    Example 3: Question: Which player kicked the only FG? Passage: "Player C kicked the only FG." Answer: Player C
+    Question: {question} Passage: {relevant_passage} Answer:
+    """
+    return call_llm(prompt, system_instruction)
 
-        Question: {question}
-        Sub-questions:
-        """
-        
-        decomposition_result = call_llm(decomposition_prompt, system_instruction)
-        
-        # Verify if the decomposition is valid
-        verification_prompt = f"""
-        Verify if these sub-questions are valid and sufficient to answer the original question.
-
-        Original Question: {question}
-        Sub-questions: {decomposition_result}
-
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?
-        Validation: Valid - The sub-questions are sufficient to answer the original question
-
-        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid' and a short explanation.
-        """
-        
-        verification_result = call_llm(verification_prompt, system_instruction)
-        
-        if "valid" in verification_result.lower():
-            return {"is_valid": True, "sub_questions": decomposition_result}
-        else:
-            print(f"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
-            
-    return {"is_valid": False, "validation_feedback": "Failed to decompose the question successfully."}
-
-def extract_information(question, sub_questions, max_attempts=3):
-    """Extract relevant information from the passage based on the sub-questions."""
-    system_instruction = "You are an information extraction expert."
-    
-    for attempt in range(max_attempts):
-        extraction_prompt = f"""
-        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.
-
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Sub-questions:
-        1. How many yards was Chris Johnson's first touchdown?
-        2. How many yards was Jason Hanson's first field goal?
-        Extracted Information:
-        Chris Johnson's first touchdown was a 28-yard run. Jason Hanson did not have a field goal in the provided text.
-
-        Original Question: {question}
-        Sub-questions: {sub_questions}
-        Extracted Information:
-        """
-        
-        extracted_info = call_llm(extraction_prompt, system_instruction)
-        
-        # Validate information extraction
-        verification_prompt = f"""
-        Verify if the extracted information is relevant and sufficient to answer the sub-questions.
-
-        Original Question: {question}
-        Sub-questions: {sub_questions}
-        Extracted Information: {extracted_info}
-
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?
-        Extracted Information: Chris Johnson's first touchdown was a 28-yard run. Jason Hanson did not have a field goal in the provided text.
-        Validation: Valid - All sub-questions can be answered with the extracted info.
-
-        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid' and a short explanation.
-        """
-        
-        verification_result = call_llm(verification_prompt, system_instruction)
-        
-        if "valid" in verification_result.lower():
-            return {"is_valid": True, "extracted_info": extracted_info}
-        else:
-            print(f"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
-            
-    return {"is_valid": False, "validation_feedback": "Failed to extract relevant information successfully."}
-
-def synthesize_answer(question, extracted_info, max_attempts=3):
-    """Synthesize the answer from the extracted information to answer the main question."""
-    system_instruction = "You are an answer synthesis expert."
-
-    for attempt in range(max_attempts):
-        synthesis_prompt = f"""
-        Given the original question and the extracted information, synthesize the final answer.
-
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Extracted Information: Chris Johnson's first touchdown was a 28-yard run. Jason Hanson did not have a field goal in the provided text.
-        Final Answer: Chris Johnson's first touchdown was 28 yards, and Jason Hanson didn't have a field goal, so a combined value can't be computed.
-
-        Original Question: {question}
-        Extracted Information: {extracted_info}
-        Final Answer:
-        """
-        
-        answer = call_llm(synthesis_prompt, system_instruction)
-
-        # Answer checker
-        verification_prompt = f"""
-        Check if the answer is correct and answers the original question fully.
-
-        Original Question: {question}
-        Synthesized Answer: {answer}
-
-        Example:
-        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Synthesized Answer: Chris Johnson's first touchdown was 28 yards, and Jason Hanson didn't have a field goal, so a combined value can't be computed.
-        Validation: Valid - The synthesized answer accurately reflects the information available.
-
-        Is the answer correct and complete? Respond with 'Valid' or 'Invalid' and a short explanation.
-        """
-        
-        verification_result = call_llm(verification_prompt, system_instruction)
-
-        if "valid" in verification_result.lower():
-            return {"is_valid": True, "answer": answer}
-        else:
-            print(f"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
-            
-    return {"is_valid": False, "validation_feedback": "Failed to synthesize a valid answer."}
+def verify_answer(question, answer, relevant_passage):
+    """Verifies the generated answer. Enhanced for feedback if incorrect."""
+    system_instruction = "You are an expert answer verifier."
+    prompt = f"""
+    Verify if the answer is correct based on the passage. If incorrect, provide the correct answer.
+    Example 1: Question: Who caught the final TD? Answer: X. Passage: "The final TD was caught by X." Verification: X
+    Example 2: Question: How many RBs scored? Answer: 3. Passage: "RB A scored. RB B also scored." Verification: 2
+    Question: {question} Answer: {answer} Passage: {relevant_passage} Verification:
+    """
+    return call_llm(prompt, system_instruction)
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response."""
     try:
         from google import genai
         from google.genai import types
-        import os  # Import the os module
 
         # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))

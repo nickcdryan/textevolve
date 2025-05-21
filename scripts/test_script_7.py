@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 7,
-        "sample_id": "example_65",
-        "question": 'PASSAGE: The total population in sub-Saharan Africa is projected to increase to almost one billion people, making it the most populated region outside of South-Central Asia. According to the United Nations, the population of Nigeria will reach 411 million by 2050. Nigeria might then be the 3rd most populous country in the world. In 2100, the population of Nigeria may reach 794 million. While the overall population is expected to increase, the growth rate is estimated to decrease from 1.2 percent per year in 2010 to 0.4 percent per year in 2050. The birth rate is also projected to decrease from 20.7 to 13.7, while the death rate is projected to increase from 8.5 in 2010 to 9.8 in 2050. List of countries by life expectancy is all expected to increase from 67.0 years in 2010 to 75.2 years in 2050. By 2050 the percent of the population estimated to be living in urban areas is 69.6% compared to the 50.6% in 2010.\n\nQUESTION: How many millions of people is the population of Nigeria expected to grow by in 2100 compared to 2050?'
+        "sample_id": "example_60",
+        "question": "PASSAGE: In 1766, Hyder Ali of Mysore captured Calicut and then Guruvayur. To refrain from the demolition of the Hindu temple at Guruvayur, Mysore demanded 10,000 fanams from the authorities, which was paid. At the request of Governor of Malabar, Shrinivasa Rao, Hyder Ali granted a devadaya  and the temple at Guruvayur was saved from destruction. Tippu Sultan again invaded the Zamorin of Calicut's province in 1789. Aware of the risk to the idol, it was hidden underground and the Utsava vigraha was taken to Ambalappuzha Sri Krishna Temple by Mallisseri Namboodiri and Kakkad Othikkan. Tippu destroyed the smaller shrines and set fire to the temple, but it was saved due to timely rain. Tippu lost to the Zamorin, Travancore and the English in 1792. Although the hidden idol and the Utsava vigraha were re-installed on 17 September 1792, the daily poojas and routines were seriously disrupted.\n\nQUESTION: How many years were between the time Hyder Ali of Mysore captured Calicut and the time Tippu lost to the Zamorin, Travancore and the English?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 7,
-            "sample_id": "example_65",
+            "sample_id": "example_60",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: The total population in sub-Saharan Africa is projected to increase to almost one billion people, making it the most populated region outside of South-Central Asia. According to the United Nations, the population of Nigeria will reach 411 million by 2050. Nigeria might then be the 3rd most populous country in the world. In 2100, the population of Nigeria may reach 794 million. While the overall population is expected to increase, the growth rate is estimated to decrease from 1.2 percent per year in 2010 to 0.4 percent per year in 2050. The birth rate is also projected to decrease from 20.7 to 13.7, while the death rate is projected to increase from 8.5 in 2010 to 9.8 in 2050. List of countries by life expectancy is all expected to increase from 67.0 years in 2010 to 75.2 years in 2050. By 2050 the percent of the population estimated to be living in urban areas is 69.6% compared to the 50.6% in 2010.\n\nQUESTION: How many millions of people is the population of Nigeria expected to grow by in 2100 compared to 2050?'
+    question = "PASSAGE: In 1766, Hyder Ali of Mysore captured Calicut and then Guruvayur. To refrain from the demolition of the Hindu temple at Guruvayur, Mysore demanded 10,000 fanams from the authorities, which was paid. At the request of Governor of Malabar, Shrinivasa Rao, Hyder Ali granted a devadaya  and the temple at Guruvayur was saved from destruction. Tippu Sultan again invaded the Zamorin of Calicut's province in 1789. Aware of the risk to the idol, it was hidden underground and the Utsava vigraha was taken to Ambalappuzha Sri Krishna Temple by Mallisseri Namboodiri and Kakkad Othikkan. Tippu destroyed the smaller shrines and set fire to the temple, but it was saved due to timely rain. Tippu lost to the Zamorin, Travancore and the English in 1792. Although the hidden idol and the Utsava vigraha were re-installed on 17 September 1792, the daily poojas and routines were seriously disrupted.\n\nQUESTION: How many years were between the time Hyder Ali of Mysore captured Calicut and the time Tippu lost to the Zamorin, Travancore and the English?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 7,
-            "sample_id": "example_65",
+            "sample_id": "example_60",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 7,
-            "sample_id": "example_65",
+            "sample_id": "example_60",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

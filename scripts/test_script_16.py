@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 16,
-        "sample_id": "ba364d0d-a1d8-4099-8df4-fa92449ff35b",
-        "question": 'PASSAGE: Coming off their win over the Bills the Bears played on home ground for an NFC North rivalry match against the Vikings. In the first quarter the Bears trailed early after kicker Ryan Longwell hit a 36-yard field goal. They took the lead in the second quarter when QB Jay Cutler threw a 17-yard TD pass to TE Greg Olsen. They fell behind after QB Brett Favre completed a 53-yard TD pass to WR Percy Harvin. They got the lead back when Cutler got a 19-yard TD pass to WR Devin Hester. The Bears extended their lead in the third quarter after kicker Robbie Gould nailed a 34-yard field goal. The Vikings replied with Longwell making a 33-yard field goal, but the Bears continued to score with Gould hitting a 37-yard field goal, and in the 4th quarter with Cutler making a 19-yard TD pass to TE Kellen Davis.\n\nQUESTION: How many field goals did Ryan Longwell kick?'
+        "sample_id": "a66db53d-97f0-452d-bdde-17b674f91d71",
+        "question": 'PASSAGE: Coming off their win over the Seahawks the Chiefs played on home ground for an AFC West rivalry rematch against the Broncos. The Chiefs took the early lead as QB Matt Cassel got a 2-yard TD pass to TE Leonard Pope. The Broncos replied with kicker Matt Prater getting a 25-yard field goal, but the Chiefs increased their lead with kicker Ryan Succop nailing a 47-yard field goal. The lead was narrowed when Prater nailed a 41-yard field goal.\n\nQUESTION: How many more field goals were there than touchdowns?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 16,
-            "sample_id": "ba364d0d-a1d8-4099-8df4-fa92449ff35b",
+            "sample_id": "a66db53d-97f0-452d-bdde-17b674f91d71",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Coming off their win over the Bills the Bears played on home ground for an NFC North rivalry match against the Vikings. In the first quarter the Bears trailed early after kicker Ryan Longwell hit a 36-yard field goal. They took the lead in the second quarter when QB Jay Cutler threw a 17-yard TD pass to TE Greg Olsen. They fell behind after QB Brett Favre completed a 53-yard TD pass to WR Percy Harvin. They got the lead back when Cutler got a 19-yard TD pass to WR Devin Hester. The Bears extended their lead in the third quarter after kicker Robbie Gould nailed a 34-yard field goal. The Vikings replied with Longwell making a 33-yard field goal, but the Bears continued to score with Gould hitting a 37-yard field goal, and in the 4th quarter with Cutler making a 19-yard TD pass to TE Kellen Davis.\n\nQUESTION: How many field goals did Ryan Longwell kick?'
+    question = 'PASSAGE: Coming off their win over the Seahawks the Chiefs played on home ground for an AFC West rivalry rematch against the Broncos. The Chiefs took the early lead as QB Matt Cassel got a 2-yard TD pass to TE Leonard Pope. The Broncos replied with kicker Matt Prater getting a 25-yard field goal, but the Chiefs increased their lead with kicker Ryan Succop nailing a 47-yard field goal. The lead was narrowed when Prater nailed a 41-yard field goal.\n\nQUESTION: How many more field goals were there than touchdowns?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 16,
-            "sample_id": "ba364d0d-a1d8-4099-8df4-fa92449ff35b",
+            "sample_id": "a66db53d-97f0-452d-bdde-17b674f91d71",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 16,
-            "sample_id": "ba364d0d-a1d8-4099-8df4-fa92449ff35b",
+            "sample_id": "a66db53d-97f0-452d-bdde-17b674f91d71",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

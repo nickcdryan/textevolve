@@ -1,0 +1,803 @@
+{
+  "iteration": 26,
+  "timestamp": "2025-05-20T21:30:44.980454",
+  "strategy": "Exploitation",
+  "explore_rate": 20,
+  "exploit_rate": 80,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"Solve the question using a multi-stage LLM approach with enhanced reasoning and error handling.\"\"\"\n    try:\n        # Step 1: Analyze question (enhanced type and keyword identification)\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question: \" + question_analysis\n\n        # Step 2: Extract relevant passage (focused extraction)\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage: \" + relevant_passage\n\n        # Step 3: Generate answer (explicit calculation instruction)\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer: \" + answer\n\n        # Step 4: Verify answer (numerical accuracy and unit check)\n        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer: \" + verified_answer\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type, keywords, and whether calculation is needed.\"\"\"\n    system_instruction = \"You are an expert question analyzer.\"\n    prompt = f\"\"\"\n    Analyze the question and identify its type, keywords, and if calculation is needed.\n\n    Example 1:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"calculation_needed\": false}}\n\n    Example 2:\n    Question: How many total points were scored in the game?\n    Analysis: {{\"type\": \"calculation\", \"keywords\": [\"total points\", \"scored\"], \"calculation_needed\": true}}\n\n    Example 3:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"calculation_needed\": false}}\n    \n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage based on keywords, with a focus on extracting all key information.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text to answer questions.\"\n    prompt = f\"\"\"\n    Extract the relevant passage containing the answer.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"calculation_needed\": false}}\n    Text: PASSAGE: ...Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"calculation_needed\": false}}\n    Text: PASSAGE: ...Chris Johnson got a 6-yard TD run. LenDale White got a 6-yard and a 2-yard TD run.\n    Passage: Chris Johnson got a 6-yard TD run. LenDale White got a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: How many total points were scored in the game?\n    Keywords: {{\"type\": \"calculation\", \"keywords\": [\"total points\", \"scored\"], \"calculation_needed\": true}}\n    Text: PASSAGE: ...The score was 24-17...They scored a touchdown and extra point...\n    Passage: The score was 24-17...They scored a touchdown and extra point...\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer. If calculation is needed, explicitly instruct the LLM to calculate.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions from provided text. If a calculation is needed, perform the calculation.\"\n    prompt = f\"\"\"\n    Generate the answer to the question. If the question requires a calculation, perform it.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: Chris Johnson got a 6-yard TD run. LenDale White got a 6-yard and a 2-yard TD run.\n    Answer: 2\n\n    Example 3:\n    Question: How many total points were scored in the game?\n    Passage: The score was 24-17...They scored a touchdown and extra point...(7 points)\n    Answer: 48\n    \n    Question: {question}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage, question_analysis):\n    \"\"\"Verifies the generated answer, performing explicit numerical checks if needed.\"\"\"\n    system_instruction = \"You are an expert at verifying answers, especially numerical accuracy.\"\n    prompt = f\"\"\"\n    Verify the answer. If the question involved calculation, check the numerical accuracy. Return the verified answer, or the correct answer if the original was wrong.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: Chris Johnson got a 6-yard TD run. LenDale White got a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: How many total points were scored in the game?\n    Answer: 48\n    Passage: The score was 24-17...They scored a touchdown and extra point...(7 points)\n    Verification: 48\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                config=types.GenerateContentConfig(system_instruction=system_instruction),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a multi-stage LLM approach to answer questions, incorporating question analysis, information extraction, answer generation, and verification. The problem is decomposed into these four distinct steps, each handled by a specialized LLM agent. The `analyze_question` function identifies the question type and keywords, `extract_relevant_passage` retrieves the necessary information, `generate_answer` produces the answer, and `verify_answer` checks its correctness, using numerical checks when needed. The `call_llm` function is used in each step to interface with the Gemini model by packaging the prompt and system instruction. The `main` function orchestrates these steps sequentially, handling potential errors along the way.",
+  "sample_count": 10,
+  "samples": [
+    {
+      "question": "PASSAGE: As of the census of 2010, there were 7,708 people, 2,380 households, and 907 families residing in the city. The population density was . There were 2,516 housing units at an average density of . The racial makeup of the city was 85.2% White (U.S. Census), 1.0% African American (U.S. Census), 0.4% Native American (U.S. Census), 11.2% Asian (U.S. Census), 0.1% Race (U.S. Census), 0.4% from Race (U.S. Census), and 1.8% from two or more races. Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 1.8% of the population.\n\nQUESTION: How many in percent from the census weren't African American?",
+      "answer": "99",
+      "id": "example_211",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "As of the census of 2010, there were 7,708 people, 2,380 households, and 907 families residing in the city. The population density was . There were 2,516 housing units at an average density of . The racial makeup of the city was 85.2% White (U.S. Census), 1.0% African American (U.S. Census), 0.4% Native American (U.S. Census), 11.2% Asian (U.S. Census), 0.1% Race (U.S. Census), 0.4% from Race (U.S. Census), and 1.8% from two or more races. Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 1.8% of the population.",
+        "original_question": "How many in percent from the census weren't African American?",
+        "original_answer_data": {
+          "spans": [
+            "99"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 801
+      }
+    },
+    {
+      "question": "PASSAGE: At the start of World War II, the 24th Infantry was stationed at Fort Benning as school troops for the Infantry School. They participated in the Carolina Maneuvers of October - December 1941. During World War II, the 24th Infantry fought in the South Pacific Theatre as a separate regiment. Deploying on 4 April 1942 from the San Francisco Port of Embarkation, the regiment arrived in the New Hebrides Islands on 4 May 1942. The 24th moved to Guadalcanal on 28 August 1943, and was assigned to the XIV Corps. 1st Battalion deployed to Bougainville, attached to the 37th Infantry Division, from March to May 1944 for perimeter defense duty. The regiment departed Guadalcanal on 8 December 1944, and landed on Saipan and Tinian on 19 December 1944 for Garrison Duty that included mopping up the remaining Japanese forces that had yet to surrender. The regiment was assigned to the Pacific Ocean Area Command on 15 March 1945, and then to the Central Pacific Base Command on 15 May 1945, and to the Western pacific Base Command on 22 June 1945. The regiment departed Saipan and Tinian on 9 July 1945, and arrived on the Kerama Islands off Okinawa on 29 July 1945. At the end of the war, the 24th took the surrender of forces on the island of Aka-shima, the first formal surrender of a Japanese Imperial Army garrison. The regiment remained on Okinawa through 1946.\n\nQUESTION: How many months did the Carolina Manuevers last during 1941?",
+      "answer": "3",
+      "id": "example_212",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "At the start of World War II, the 24th Infantry was stationed at Fort Benning as school troops for the Infantry School. They participated in the Carolina Maneuvers of October - December 1941. During World War II, the 24th Infantry fought in the South Pacific Theatre as a separate regiment. Deploying on 4 April 1942 from the San Francisco Port of Embarkation, the regiment arrived in the New Hebrides Islands on 4 May 1942. The 24th moved to Guadalcanal on 28 August 1943, and was assigned to the XIV Corps. 1st Battalion deployed to Bougainville, attached to the 37th Infantry Division, from March to May 1944 for perimeter defense duty. The regiment departed Guadalcanal on 8 December 1944, and landed on Saipan and Tinian on 19 December 1944 for Garrison Duty that included mopping up the remaining Japanese forces that had yet to surrender. The regiment was assigned to the Pacific Ocean Area Command on 15 March 1945, and then to the Central Pacific Base Command on 15 May 1945, and to the Western pacific Base Command on 22 June 1945. The regiment departed Saipan and Tinian on 9 July 1945, and arrived on the Kerama Islands off Okinawa on 29 July 1945. At the end of the war, the 24th took the surrender of forces on the island of Aka-shima, the first formal surrender of a Japanese Imperial Army garrison. The regiment remained on Okinawa through 1946.",
+        "original_question": "How many months did the Carolina Manuevers last during 1941?",
+        "original_answer_data": {
+          "spans": [
+            "3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 648
+      }
+    },
+    {
+      "question": "PASSAGE: Still looking for their first win, the Bengals flew to The Meadowlands for a Week 6 duel with the throwback-clad New York Jets.  With QB Carson Palmer out again nursing an injured elbow, QB Ryan Fitzpatrick was again named the starter. In the first quarter, Cincinnati pounced first as strong safety Chinedum Ndukwe returned a fumble 15 yards for a touchdown.  The Jets responded with QB Brett Favre completing a 2-yard TD pass to RB Thomas Jones.  In the second quarter, New York took the lead as kicker Jay Feely got a 38-yard field goal, while Jones got a 7-yard TD run.  The Bengals closed out the half with Fitzpatrick getting a 1-yard TD run. In the third quarter, the Jets began to pull away as Feely got a 43-yard field goal.  In the fourth quarter, New York sealed the win as Jones got a 1-yard TD run (with a failed 2-point conversion). With the loss, Cincinnati fell to 0-6 and it became their first 0-6 start as well as 6-game losing streak since 2002.\n\nQUESTION: Who scored the first touchdown of the game?",
+      "answer": "Chinedum Ndukwe",
+      "id": "example_213",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Still looking for their first win, the Bengals flew to The Meadowlands for a Week 6 duel with the throwback-clad New York Jets.  With QB Carson Palmer out again nursing an injured elbow, QB Ryan Fitzpatrick was again named the starter. In the first quarter, Cincinnati pounced first as strong safety Chinedum Ndukwe returned a fumble 15 yards for a touchdown.  The Jets responded with QB Brett Favre completing a 2-yard TD pass to RB Thomas Jones.  In the second quarter, New York took the lead as kicker Jay Feely got a 38-yard field goal, while Jones got a 7-yard TD run.  The Bengals closed out the half with Fitzpatrick getting a 1-yard TD run. In the third quarter, the Jets began to pull away as Feely got a 43-yard field goal.  In the fourth quarter, New York sealed the win as Jones got a 1-yard TD run (with a failed 2-point conversion). With the loss, Cincinnati fell to 0-6 and it became their first 0-6 start as well as 6-game losing streak since 2002.",
+        "original_question": "Who scored the first touchdown of the game?",
+        "original_answer_data": {
+          "spans": [
+            "Chinedum Ndukwe"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 806
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their road loss to the Vikings, the Panthers went home for a Week 4 NFC South duel with the Atlanta Falcons.  In the first quarter, Carolina pounced first with rookie RB Jonathan Stewart getting an 8-yard TD run.  The Falcons responded with kicker Jason Elam getting a 33-yard field goal.  In the second quarter, Atlanta crept closer as Elam kicked a 33-yard field goal.  Carolina would reply with QB Jake Delhomme completing a 56-yard TD pass to WR Steve Smith.  The Falcons closed out the half with Elam getting a 44-yard field goal. In the third quarter, the Panthers answered with kicker John Kasay nailing a 44-yard field goal.  In the fourth quarter, Carolina closed the game out with Delhomme completing a 36-yard TD pass to WR Muhsin Muhammad. During the game, Muhsin Muhammad (8 receptions for 147 yards and a touchdown) became the Panthers All-Time WR Leader in Receptions (600) and TD Receptions (45).\n\nQUESTION: How many yards shorter was Jake Delhomme's second touchdown pass compared to his first?",
+      "answer": "20",
+      "id": "example_214",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their road loss to the Vikings, the Panthers went home for a Week 4 NFC South duel with the Atlanta Falcons.  In the first quarter, Carolina pounced first with rookie RB Jonathan Stewart getting an 8-yard TD run.  The Falcons responded with kicker Jason Elam getting a 33-yard field goal.  In the second quarter, Atlanta crept closer as Elam kicked a 33-yard field goal.  Carolina would reply with QB Jake Delhomme completing a 56-yard TD pass to WR Steve Smith.  The Falcons closed out the half with Elam getting a 44-yard field goal. In the third quarter, the Panthers answered with kicker John Kasay nailing a 44-yard field goal.  In the fourth quarter, Carolina closed the game out with Delhomme completing a 36-yard TD pass to WR Muhsin Muhammad. During the game, Muhsin Muhammad (8 receptions for 147 yards and a touchdown) became the Panthers All-Time WR Leader in Receptions (600) and TD Receptions (45).",
+        "original_question": "How many yards shorter was Jake Delhomme's second touchdown pass compared to his first?",
+        "original_answer_data": {
+          "spans": [
+            "20"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 536
+      }
+    },
+    {
+      "question": "PASSAGE: In 2000 there were 79,667 households out of which 38.70% had children under the age of 18 living with them, 61.90% were married couples living together, 10.20% had a female householder with no husband present, and 24.20% were non-families. 19.70% of all households were made up of individuals and 6.80% had someone living alone who was 65 years of age or older.  The average household size was 2.72 and the average family size was 3.14.\n\nQUESTION: How many percent are not non-families?",
+      "answer": "24.2",
+      "id": "example_215",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In 2000 there were 79,667 households out of which 38.70% had children under the age of 18 living with them, 61.90% were married couples living together, 10.20% had a female householder with no husband present, and 24.20% were non-families. 19.70% of all households were made up of individuals and 6.80% had someone living alone who was 65 years of age or older.  The average household size was 2.72 and the average family size was 3.14.",
+        "original_question": "How many percent are not non-families?",
+        "original_answer_data": {
+          "spans": [
+            "24.2"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 503
+      }
+    },
+    {
+      "question": "PASSAGE: The 49ers first road game of the year ends in a disaster. The 49ers defense had no answer for Ben Roethlisberger, who went 21 for 27, 369 yards and three touchdown passes as the Steelers won 43-18. The Steelers took a commanding 29-3 halftime lead. Despite only scoring 18 points, the 49ers offense opened up in the second half, with Kaepernick leading the 49ers into the Steelers red zone four times, but only able to score one touchdown (along with a field goal and two turnover on downs). The highlight for the 49ers was Kaepernick hitting wide receiver Torrey Smith for a 75-yard touchdown pass in the fourth quarter.  The Steelers' defense had a field day on Kaepernick by sacking him 5 times and making him lose a fumble.\n\nQUESTION: How many points did Pittsburgh win by?",
+      "answer": "25",
+      "id": "example_216",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The 49ers first road game of the year ends in a disaster. The 49ers defense had no answer for Ben Roethlisberger, who went 21 for 27, 369 yards and three touchdown passes as the Steelers won 43-18. The Steelers took a commanding 29-3 halftime lead. Despite only scoring 18 points, the 49ers offense opened up in the second half, with Kaepernick leading the 49ers into the Steelers red zone four times, but only able to score one touchdown (along with a field goal and two turnover on downs). The highlight for the 49ers was Kaepernick hitting wide receiver Torrey Smith for a 75-yard touchdown pass in the fourth quarter.  The Steelers' defense had a field day on Kaepernick by sacking him 5 times and making him lose a fumble.",
+        "original_question": "How many points did Pittsburgh win by?",
+        "original_answer_data": {
+          "spans": [
+            "25"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 737
+      }
+    },
+    {
+      "question": "PASSAGE: As of the census of 2000, there were 210,528 people, 88,413 households, and 62,507 families residing in the county.  The population density was 221 people per square mile (85/km\u00b2).  There were 102,830 housing units at an average density of 108 per square mile (42/km\u00b2).  The racial makeup of the county was 87.46% Race (United States Census), 8.31% Race (United States Census) or Race (United States Census), 0.33% Race (United States Census), 0.79% Race (United States Census), 0.04% Race (United States Census), 1.88% from Race (United States Census), and 1.18% from two or more races.  5.61% of the population were Race (United States Census) or Race (United States Census) of any race.\n\nQUESTION: Which group is larger according to the census: people or families?",
+      "answer": "people",
+      "id": "example_217",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "As of the census of 2000, there were 210,528 people, 88,413 households, and 62,507 families residing in the county.  The population density was 221 people per square mile (85/km\u00b2).  There were 102,830 housing units at an average density of 108 per square mile (42/km\u00b2).  The racial makeup of the county was 87.46% Race (United States Census), 8.31% Race (United States Census) or Race (United States Census), 0.33% Race (United States Census), 0.79% Race (United States Census), 0.04% Race (United States Census), 1.88% from Race (United States Census), and 1.18% from two or more races.  5.61% of the population were Race (United States Census) or Race (United States Census) of any race.",
+        "original_question": "Which group is larger according to the census: people or families?",
+        "original_answer_data": {
+          "spans": [
+            "people"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 559
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their shutout loss to the Buccaneers, the 49ers flew to the University of Phoenix Stadium for a Week 12 NFC West duel with the Arizona Cardinals on Monday night.  San Francisco made the opening strike in the first quarter as quarterback Troy Smith found wide receiver Michael Crabtree on a 38-yard touchdown pass.  The Cardinals answered with kicker Jay Feely getting a 31-yard field goal, yet the 49ers responded with a 1-yard touchdown run from rookie running back Anthony Dixon.  San Francisco added onto their lead in the second quarter with an 8-yard touchdown pass from running back Brian Westbrook.  Arizona would hang on with Feely's 39-yard field goal.  Afterwards, the 49ers pulled away with a 38-yard field goal in the third quarter and a 26-yard field goal in the fourth quarter from kicker Shane Andrus.\n\nQUESTION: How many yards was the longest run for a touchdown?",
+      "answer": "8",
+      "id": "example_218",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their shutout loss to the Buccaneers, the 49ers flew to the University of Phoenix Stadium for a Week 12 NFC West duel with the Arizona Cardinals on Monday night.  San Francisco made the opening strike in the first quarter as quarterback Troy Smith found wide receiver Michael Crabtree on a 38-yard touchdown pass.  The Cardinals answered with kicker Jay Feely getting a 31-yard field goal, yet the 49ers responded with a 1-yard touchdown run from rookie running back Anthony Dixon.  San Francisco added onto their lead in the second quarter with an 8-yard touchdown pass from running back Brian Westbrook.  Arizona would hang on with Feely's 39-yard field goal.  Afterwards, the 49ers pulled away with a 38-yard field goal in the third quarter and a 26-yard field goal in the fourth quarter from kicker Shane Andrus.",
+        "original_question": "How many yards was the longest run for a touchdown?",
+        "original_answer_data": {
+          "spans": [
+            "8"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 544
+      }
+    },
+    {
+      "question": "PASSAGE: In 1602 O'Neill destroyed his capital at Dungannon due to the approach of Mountjoy's forces, and withdrew to hide in the woods. In a symbolic gesture Mountjoy smashed the O'Neills' inauguration stone at Tullaghogue. Famine soon hit Ulster as a result of the English scorched earth strategy. O'Neill's uirithe or sub-lords  began to surrender and Rory O'Donnell, Hugh Roe's brother and successor, surrendered on terms at the end of 1602. However, with a secure base in the large and dense forests of Tir Eoghain, O'Neill held out until 30 March 1603, when he surrendered on good terms to Mountjoy, signing the Treaty of Mellifont. Elizabeth I had died on 24 March. Although the war had effectively ended with the signing of the Treaty of Mellifont, its final battles were fought during the English invasion of West Breifne in April 1603, which remained the sole holdout Irish kingdom following O'Neill's capitulation. The kingdom was ruled by Brian \u00d3g O'Rourke, one of the alliance's chief lieutenants and leader of the Irish forces during the Battle of Curlew Pass. He failed to secure any concessions from the treaty as his half-brother Tadhg O'Rourke had fought with the English during the war and was granted lordship of West Breifne in return. Following a twelve-day siege, a force of 3,000 men led by Tadhg, Henry Folliott and Rory O'Donnell eventually brought the area, and thus all of Ireland, under English control on 25 April 1603.\n\nQUESTION: Who surrendered later, Rory O'Donnell or O'Neill?",
+      "answer": "O'Neill",
+      "id": "example_219",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In 1602 O'Neill destroyed his capital at Dungannon due to the approach of Mountjoy's forces, and withdrew to hide in the woods. In a symbolic gesture Mountjoy smashed the O'Neills' inauguration stone at Tullaghogue. Famine soon hit Ulster as a result of the English scorched earth strategy. O'Neill's uirithe or sub-lords  began to surrender and Rory O'Donnell, Hugh Roe's brother and successor, surrendered on terms at the end of 1602. However, with a secure base in the large and dense forests of Tir Eoghain, O'Neill held out until 30 March 1603, when he surrendered on good terms to Mountjoy, signing the Treaty of Mellifont. Elizabeth I had died on 24 March. Although the war had effectively ended with the signing of the Treaty of Mellifont, its final battles were fought during the English invasion of West Breifne in April 1603, which remained the sole holdout Irish kingdom following O'Neill's capitulation. The kingdom was ruled by Brian \u00d3g O'Rourke, one of the alliance's chief lieutenants and leader of the Irish forces during the Battle of Curlew Pass. He failed to secure any concessions from the treaty as his half-brother Tadhg O'Rourke had fought with the English during the war and was granted lordship of West Breifne in return. Following a twelve-day siege, a force of 3,000 men led by Tadhg, Henry Folliott and Rory O'Donnell eventually brought the area, and thus all of Ireland, under English control on 25 April 1603.",
+        "original_question": "Who surrendered later, Rory O'Donnell or O'Neill?",
+        "original_answer_data": {
+          "spans": [
+            "O'Neill"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 356
+      }
+    },
+    {
+      "question": "PASSAGE: At the 2011 Italian census, there were 179,149  people residing in the city. The population density was 978.9 persons per square kilometre. Minors (children ages 18 and younger) totalled 16.20 percent of the population compared to pensioners who number 22.54 percent. This compares with the Italian average of 18.06 percent (minors) and 19.94 percent (pensioners). The average age of Modena resident is 44 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Modena experienced 2.42% growth, while Italy as a whole grew by 3.56 percent. The current birth rate of Modena is 9.62 births per 1,000 inhabitants compared to the Italian average of 9.45 births.\n\nQUESTION: How many more percentage points did the population of Italy grow between 2002 and 2007 compared to Modena?",
+      "answer": "1.14",
+      "id": "example_220",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "At the 2011 Italian census, there were 179,149  people residing in the city. The population density was 978.9 persons per square kilometre. Minors (children ages 18 and younger) totalled 16.20 percent of the population compared to pensioners who number 22.54 percent. This compares with the Italian average of 18.06 percent (minors) and 19.94 percent (pensioners). The average age of Modena resident is 44 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Modena experienced 2.42% growth, while Italy as a whole grew by 3.56 percent. The current birth rate of Modena is 9.62 births per 1,000 inhabitants compared to the Italian average of 9.45 births.",
+        "original_question": "How many more percentage points did the population of Italy grow between 2002 and 2007 compared to Modena?",
+        "original_answer_data": {
+          "spans": [
+            "1.14"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 206
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "As of the census of 2010, there were 7,708 people, 2,380 households, and 907 families residing in the city. The population density was . There were 2,516 housing units at an average density of . The racial makeup of the city was 85.2% White (U.S. Census), 1.0% African American (U.S. Census), 0.4% Native American (U.S. Census), 11.2% Asian (U.S. Census), 0.1% Race (U.S. Census), 0.4% from Race (U.S. Census), and 1.8% from two or more races. Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 1.8% of the population.",
+      "original_question": "How many in percent from the census weren't African American?",
+      "original_answer_data": {
+        "spans": [
+          "99"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 801
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "At the start of World War II, the 24th Infantry was stationed at Fort Benning as school troops for the Infantry School. They participated in the Carolina Maneuvers of October - December 1941. During World War II, the 24th Infantry fought in the South Pacific Theatre as a separate regiment. Deploying on 4 April 1942 from the San Francisco Port of Embarkation, the regiment arrived in the New Hebrides Islands on 4 May 1942. The 24th moved to Guadalcanal on 28 August 1943, and was assigned to the XIV Corps. 1st Battalion deployed to Bougainville, attached to the 37th Infantry Division, from March to May 1944 for perimeter defense duty. The regiment departed Guadalcanal on 8 December 1944, and landed on Saipan and Tinian on 19 December 1944 for Garrison Duty that included mopping up the remaining Japanese forces that had yet to surrender. The regiment was assigned to the Pacific Ocean Area Command on 15 March 1945, and then to the Central Pacific Base Command on 15 May 1945, and to the Western pacific Base Command on 22 June 1945. The regiment departed Saipan and Tinian on 9 July 1945, and arrived on the Kerama Islands off Okinawa on 29 July 1945. At the end of the war, the 24th took the surrender of forces on the island of Aka-shima, the first formal surrender of a Japanese Imperial Army garrison. The regiment remained on Okinawa through 1946.",
+      "original_question": "How many months did the Carolina Manuevers last during 1941?",
+      "original_answer_data": {
+        "spans": [
+          "3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 648
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Still looking for their first win, the Bengals flew to The Meadowlands for a Week 6 duel with the throwback-clad New York Jets.  With QB Carson Palmer out again nursing an injured elbow, QB Ryan Fitzpatrick was again named the starter. In the first quarter, Cincinnati pounced first as strong safety Chinedum Ndukwe returned a fumble 15 yards for a touchdown.  The Jets responded with QB Brett Favre completing a 2-yard TD pass to RB Thomas Jones.  In the second quarter, New York took the lead as kicker Jay Feely got a 38-yard field goal, while Jones got a 7-yard TD run.  The Bengals closed out the half with Fitzpatrick getting a 1-yard TD run. In the third quarter, the Jets began to pull away as Feely got a 43-yard field goal.  In the fourth quarter, New York sealed the win as Jones got a 1-yard TD run (with a failed 2-point conversion). With the loss, Cincinnati fell to 0-6 and it became their first 0-6 start as well as 6-game losing streak since 2002.",
+      "original_question": "Who scored the first touchdown of the game?",
+      "original_answer_data": {
+        "spans": [
+          "Chinedum Ndukwe"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 806
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their road loss to the Vikings, the Panthers went home for a Week 4 NFC South duel with the Atlanta Falcons.  In the first quarter, Carolina pounced first with rookie RB Jonathan Stewart getting an 8-yard TD run.  The Falcons responded with kicker Jason Elam getting a 33-yard field goal.  In the second quarter, Atlanta crept closer as Elam kicked a 33-yard field goal.  Carolina would reply with QB Jake Delhomme completing a 56-yard TD pass to WR Steve Smith.  The Falcons closed out the half with Elam getting a 44-yard field goal. In the third quarter, the Panthers answered with kicker John Kasay nailing a 44-yard field goal.  In the fourth quarter, Carolina closed the game out with Delhomme completing a 36-yard TD pass to WR Muhsin Muhammad. During the game, Muhsin Muhammad (8 receptions for 147 yards and a touchdown) became the Panthers All-Time WR Leader in Receptions (600) and TD Receptions (45).",
+      "original_question": "How many yards shorter was Jake Delhomme's second touchdown pass compared to his first?",
+      "original_answer_data": {
+        "spans": [
+          "20"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 536
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In 2000 there were 79,667 households out of which 38.70% had children under the age of 18 living with them, 61.90% were married couples living together, 10.20% had a female householder with no husband present, and 24.20% were non-families. 19.70% of all households were made up of individuals and 6.80% had someone living alone who was 65 years of age or older.  The average household size was 2.72 and the average family size was 3.14.",
+      "original_question": "How many percent are not non-families?",
+      "original_answer_data": {
+        "spans": [
+          "24.2"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 503
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The 49ers first road game of the year ends in a disaster. The 49ers defense had no answer for Ben Roethlisberger, who went 21 for 27, 369 yards and three touchdown passes as the Steelers won 43-18. The Steelers took a commanding 29-3 halftime lead. Despite only scoring 18 points, the 49ers offense opened up in the second half, with Kaepernick leading the 49ers into the Steelers red zone four times, but only able to score one touchdown (along with a field goal and two turnover on downs). The highlight for the 49ers was Kaepernick hitting wide receiver Torrey Smith for a 75-yard touchdown pass in the fourth quarter.  The Steelers' defense had a field day on Kaepernick by sacking him 5 times and making him lose a fumble.",
+      "original_question": "How many points did Pittsburgh win by?",
+      "original_answer_data": {
+        "spans": [
+          "25"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 737
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "As of the census of 2000, there were 210,528 people, 88,413 households, and 62,507 families residing in the county.  The population density was 221 people per square mile (85/km\u00b2).  There were 102,830 housing units at an average density of 108 per square mile (42/km\u00b2).  The racial makeup of the county was 87.46% Race (United States Census), 8.31% Race (United States Census) or Race (United States Census), 0.33% Race (United States Census), 0.79% Race (United States Census), 0.04% Race (United States Census), 1.88% from Race (United States Census), and 1.18% from two or more races.  5.61% of the population were Race (United States Census) or Race (United States Census) of any race.",
+      "original_question": "Which group is larger according to the census: people or families?",
+      "original_answer_data": {
+        "spans": [
+          "people"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 559
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their shutout loss to the Buccaneers, the 49ers flew to the University of Phoenix Stadium for a Week 12 NFC West duel with the Arizona Cardinals on Monday night.  San Francisco made the opening strike in the first quarter as quarterback Troy Smith found wide receiver Michael Crabtree on a 38-yard touchdown pass.  The Cardinals answered with kicker Jay Feely getting a 31-yard field goal, yet the 49ers responded with a 1-yard touchdown run from rookie running back Anthony Dixon.  San Francisco added onto their lead in the second quarter with an 8-yard touchdown pass from running back Brian Westbrook.  Arizona would hang on with Feely's 39-yard field goal.  Afterwards, the 49ers pulled away with a 38-yard field goal in the third quarter and a 26-yard field goal in the fourth quarter from kicker Shane Andrus.",
+      "original_question": "How many yards was the longest run for a touchdown?",
+      "original_answer_data": {
+        "spans": [
+          "8"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 544
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In 1602 O'Neill destroyed his capital at Dungannon due to the approach of Mountjoy's forces, and withdrew to hide in the woods. In a symbolic gesture Mountjoy smashed the O'Neills' inauguration stone at Tullaghogue. Famine soon hit Ulster as a result of the English scorched earth strategy. O'Neill's uirithe or sub-lords  began to surrender and Rory O'Donnell, Hugh Roe's brother and successor, surrendered on terms at the end of 1602. However, with a secure base in the large and dense forests of Tir Eoghain, O'Neill held out until 30 March 1603, when he surrendered on good terms to Mountjoy, signing the Treaty of Mellifont. Elizabeth I had died on 24 March. Although the war had effectively ended with the signing of the Treaty of Mellifont, its final battles were fought during the English invasion of West Breifne in April 1603, which remained the sole holdout Irish kingdom following O'Neill's capitulation. The kingdom was ruled by Brian \u00d3g O'Rourke, one of the alliance's chief lieutenants and leader of the Irish forces during the Battle of Curlew Pass. He failed to secure any concessions from the treaty as his half-brother Tadhg O'Rourke had fought with the English during the war and was granted lordship of West Breifne in return. Following a twelve-day siege, a force of 3,000 men led by Tadhg, Henry Folliott and Rory O'Donnell eventually brought the area, and thus all of Ireland, under English control on 25 April 1603.",
+      "original_question": "Who surrendered later, Rory O'Donnell or O'Neill?",
+      "original_answer_data": {
+        "spans": [
+          "O'Neill"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 356
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "At the 2011 Italian census, there were 179,149  people residing in the city. The population density was 978.9 persons per square kilometre. Minors (children ages 18 and younger) totalled 16.20 percent of the population compared to pensioners who number 22.54 percent. This compares with the Italian average of 18.06 percent (minors) and 19.94 percent (pensioners). The average age of Modena resident is 44 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Modena experienced 2.42% growth, while Italy as a whole grew by 3.56 percent. The current birth rate of Modena is 9.62 births per 1,000 inhabitants compared to the Italian average of 9.45 births.",
+      "original_question": "How many more percentage points did the population of Italy grow between 2002 and 2007 compared to Modena?",
+      "original_answer_data": {
+        "spans": [
+          "1.14"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 206
+    }
+  ],
+  "example_indices": [
+    211,
+    212,
+    213,
+    214,
+    215,
+    216,
+    217,
+    218,
+    219,
+    220
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "The passage states that 1.0% of the population is African American. Therefore, 100% - 1.0% = 99.0% of the population is not African American.\nVerified answer: 99.0%",
+      "output": "ANSWER_START\nThe passage states that 1.0% of the population is African American. Therefore, 100% - 1.0% = 99.0% of the population is not African American.\nVerified answer: 99.0%\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers, 99.0% and 99, represent the same proportion (ninety-nine percent), despite the slight difference in formatting (presence or absence of the '.0%')."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "October to December is a total of 3 months.\nVerified Answer: 3",
+      "output": "ANSWER_START\nOctober to December is a total of 3 months.\nVerified Answer: 3\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer correctly states that October to December is a total of 3 months, which implies the answer 3. This is equivalent to the golden answer '3'."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Chinedum Ndukwe",
+      "output": "ANSWER_START\nChinedum Ndukwe\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and refer to the same entity."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "56 - 36 = 20\nThe answer is correct.",
+      "output": "ANSWER_START\n56 - 36 = 20\nThe answer is correct.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer shows the calculation and arrives at the correct answer, which is also the golden answer. The calculation provides extra information, but the final result is the same."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The passage states that 24.20% were non-families. To find the percentage that are not non-families, we subtract this from 100%.\n100% - 24.20% = 75.80%\n\nVerification: 75.80%",
+      "output": "ANSWER_START\nThe passage states that 24.20% were non-families. To find the percentage that are not non-families, we subtract this from 100%.\n100% - 24.20% = 75.80%\n\nVerification: 75.80%\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer gives the percentage of non-families while the system answer gives the percentage of families."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "43 - 18 = 25\nThe Steelers won by 25 points.\nFinal Answer: 25",
+      "output": "ANSWER_START\n43 - 18 = 25\nThe Steelers won by 25 points.\nFinal Answer: 25\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer correctly identifies the final answer as 25, which matches the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "People",
+      "output": "ANSWER_START\nPeople\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The answers are identical, differing only in capitalization."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "1",
+      "output": "ANSWER_START\n1\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer is '1' while the golden answer is '8'. These are different numerical values, so they do not convey the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Rory O'Donnell surrendered at the end of 1602, while O'Neill surrendered on March 30, 1603. Therefore, O'Neill surrendered later.\n\n    Verification: O'Neill",
+      "output": "ANSWER_START\nRory O'Donnell surrendered at the end of 1602, while O'Neill surrendered on March 30, 1603. Therefore, O'Neill surrendered later.\n\n    Verification: O'Neill\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer correctly identifies that O'Neill surrendered later, which implies that O'Neill is the answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "3.  56 - 2.42 = 1.14\n    Verification: 1.14",
+      "output": "ANSWER_START\n3.  56 - 2.42 = 1.14\n    Verification: 1.14\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_26.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer includes the correct numerical answer (1.14) within its response."
+      },
+      "match": true
+    }
+  ],
+  "performance": {
+    "accuracy": 0.8,
+    "correct_count": 8,
+    "total_count": 10,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "The passage states that 1.0% of the population is African American. Therefore, 100% - 1.0% = 99.0% of the population is not African American.\nVerified answer: 99.0%",
+        "golden_answer": "99",
+        "output": "ANSWER_START\nThe passage states that 1.0% of the population is African American. Therefore, 100% - 1.0% = 99.0% of the population is not African American.\nVerified answer: 99.0%\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers, 99.0% and 99, represent the same proportion (ninety-nine percent), despite the slight difference in formatting (presence or absence of the '.0%')."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "October to December is a total of 3 months.\nVerified Answer: 3",
+        "golden_answer": "3",
+        "output": "ANSWER_START\nOctober to December is a total of 3 months.\nVerified Answer: 3\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly states that October to December is a total of 3 months, which implies the answer 3. This is equivalent to the golden answer '3'."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "Chinedum Ndukwe",
+        "golden_answer": "Chinedum Ndukwe",
+        "output": "ANSWER_START\nChinedum Ndukwe\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same entity."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "56 - 36 = 20\nThe answer is correct.",
+        "golden_answer": "20",
+        "output": "ANSWER_START\n56 - 36 = 20\nThe answer is correct.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer shows the calculation and arrives at the correct answer, which is also the golden answer. The calculation provides extra information, but the final result is the same."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "The passage states that 24.20% were non-families. To find the percentage that are not non-families, we subtract this from 100%.\n100% - 24.20% = 75.80%\n\nVerification: 75.80%",
+        "golden_answer": "24.2",
+        "output": "ANSWER_START\nThe passage states that 24.20% were non-families. To find the percentage that are not non-families, we subtract this from 100%.\n100% - 24.20% = 75.80%\n\nVerification: 75.80%\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer gives the percentage of non-families while the system answer gives the percentage of families."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "43 - 18 = 25\nThe Steelers won by 25 points.\nFinal Answer: 25",
+        "golden_answer": "25",
+        "output": "ANSWER_START\n43 - 18 = 25\nThe Steelers won by 25 points.\nFinal Answer: 25\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly identifies the final answer as 25, which matches the golden answer."
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "People",
+        "golden_answer": "people",
+        "output": "ANSWER_START\nPeople\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The answers are identical, differing only in capitalization."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "1",
+        "golden_answer": "8",
+        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer is '1' while the golden answer is '8'. These are different numerical values, so they do not convey the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "Rory O'Donnell surrendered at the end of 1602, while O'Neill surrendered on March 30, 1603. Therefore, O'Neill surrendered later.\n\n    Verification: O'Neill",
+        "golden_answer": "O'Neill",
+        "output": "ANSWER_START\nRory O'Donnell surrendered at the end of 1602, while O'Neill surrendered on March 30, 1603. Therefore, O'Neill surrendered later.\n\n    Verification: O'Neill\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly identifies that O'Neill surrendered later, which implies that O'Neill is the answer."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "3.  56 - 2.42 = 1.14\n    Verification: 1.14",
+        "golden_answer": "1.14",
+        "output": "ANSWER_START\n3.  56 - 2.42 = 1.14\n    Verification: 1.14\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the correct numerical answer (1.14) within its response."
+        }
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\nThere are no runtime errors or exceptions found in the 'output' fields.\n\n## STRENGTHS\n\n*   **Numerical Calculation:** The system demonstrates the ability to perform basic arithmetic operations such as addition, subtraction, and percentage calculations accurately, as shown in successful cases (sample IDs 0, 3, 5, 9).\n*   **Information Extraction:** The system can generally extract relevant numerical and textual information from the passage, correctly identifying key entities and values, as seen in the majority of the successful cases.\n\n## WEAKNESSES\n\n*   **Question Interpretation:** The system struggles with accurately interpreting the intent of the question, leading to providing the wrong answer despite correctly extracting information (sample ID 4). The system misinterprets \"How many percent are not non-families?\"\n*   **Contextual Understanding and Unit Recognition:** The system sometimes fails to understand the context of the extracted information, especially regarding units and relationships between different pieces of information (sample ID 7). Specifically, failing to identify the longest touchdown *run*.\n\n## CRITICAL BOTTLENECKS\n\n*   **Accurate Question Interpretation:** The inability to correctly interpret the question's intent is a significant bottleneck, leading to wasted effort in performing calculations or extractions based on a flawed understanding.\n*   **Contextual Understanding:** Lack of understanding of contextual relationships between information extracted from the passage impacts the ability to identify the correct type of information to look for.\n\n## ERROR PATTERNS\n\n*   **Misinterpretation of Negation:** The system demonstrates a weakness in handling questions involving negation, as evidenced by sample ID 4 where it answers the opposite of what was asked.\n*   **Failure to identify qualifying constraints:** the system fails to identify that it is looking for a *run* and that the distance is associated with that specific type of play.\n\n## PRIMARY ISSUE\n\nThe primary issue is the **inaccurate interpretation of questions**, particularly those involving negation or subtle contextual constraints. This leads to the system performing calculations or extractions based on a flawed understanding, resulting in incorrect answers.\n\n## IMPROVEMENT AREAS\n\n*   **Question Understanding Module:** The system needs a more robust question understanding module that can accurately parse the question's intent, identify keywords and constraints, and determine the expected answer format.\n*   **Contextual Reasoning:** The system requires improved contextual reasoning abilities to understand the relationships between different pieces of information within the passage and how they relate to the question being asked.\n\n## IMPROVEMENT SUGGESTIONS\n\n*   **Implement a Question Type Classifier:** Train a classifier to categorize questions based on their intent (e.g., negation, comparison, calculation, fact retrieval). This would allow the system to apply different reasoning strategies based on the question type.\n*   **Enhance Keyword and Constraint Extraction:** Improve the system's ability to identify keywords and constraints within the question. For example, explicitly mark keywords and their relationships to the entities within the passage.\n*   **Introduce a \"Sense-Making\" Step:** Before performing calculations or extractions, introduce a \"sense-making\" step where the system explicitly reasons about the question's intent and the relevant information in the passage. This could involve generating a summary of the question's requirements and the relevant context from the passage.\n*   **Introduce more test cases with varied sentence structures:** This will help to ensure that the system is able to understand the question and the context of the passage.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 4:** information_extraction, decision_making\n*   **Sample ID 7:** information_extraction, constraint_handling, decision_making\n",
+      "strengths": [
+        "Numerical Calculation:** The system demonstrates the ability to perform basic arithmetic operations such as addition, subtraction, and percentage calculations accurately, as shown in successful cases (sample IDs 0, 3, 5, 9).",
+        "Information Extraction:** The system can generally extract relevant numerical and textual information from the passage, correctly identifying key entities and values, as seen in the majority of the successful cases."
+      ],
+      "weaknesses": [
+        "Question Interpretation:** The system struggles with accurately interpreting the intent of the question, leading to providing the wrong answer despite correctly extracting information (sample ID 4). The system misinterprets \"How many percent are not non-families?\"",
+        "Contextual Understanding and Unit Recognition:** The system sometimes fails to understand the context of the extracted information, especially regarding units and relationships between different pieces of information (sample ID 7). Specifically, failing to identify the longest touchdown *run*."
+      ],
+      "primary_issue": "The primary issue is the **inaccurate interpretation of questions**, particularly those involving negation or subtle contextual constraints. This leads to the system performing calculations or extractions based on a flawed understanding, resulting in incorrect answers.",
+      "improvement_suggestions": [
+        "Implement a Question Type Classifier:** Train a classifier to categorize questions based on their intent (e.g., negation, comparison, calculation, fact retrieval). This would allow the system to apply different reasoning strategies based on the question type.",
+        "Enhance Keyword and Constraint Extraction:** Improve the system's ability to identify keywords and constraints within the question. For example, explicitly mark keywords and their relationships to the entities within the passage.",
+        "Introduce a \"Sense-Making\" Step:** Before performing calculations or extractions, introduce a \"sense-making\" step where the system explicitly reasons about the question's intent and the relevant information in the passage. This could involve generating a summary of the question's requirements and the relevant context from the passage.",
+        "Introduce more test cases with varied sentence structures:** This will help to ensure that the system is able to understand the question and the context of the passage."
+      ],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, and sample execution outputs.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**## EXECUTION ANALYSIS**\n\nThe sample execution outputs provide limited insight into the system's reasoning process, as we only see the final answers and justifications. However, a few observations can be made:\n\n*   **Positive Justification:** The system attempts to provide justifications for its answers, which is a good sign.  This transparency can be helpful for debugging and understanding the system's reasoning. The justification quality needs to be assessed for accuracy.\n*   **Extraction of Names:** The system can accurately extract names.\n*   **Missing Outputs:** The provided examples have some missing execution outputs, so we need to be careful drawing any sweeping conclusions based solely on these examples.\n\n**## CAPABILITY ASSESSMENT**\n\nBased on the combined information, the AI system demonstrates moderate capability in question answering. It shows proficiency in numerical calculation and information extraction. However, significant weaknesses exist in question interpretation, contextual understanding, and handling negation. The system's overall effectiveness is hindered by these limitations, preventing it from consistently providing accurate answers. The system struggles with nuance and requires more robust logic to understand the intent of the question.\n\n**## KEY STRENGTHS**\n\n*   **Numerical Calculation:**  The ability to perform basic arithmetic operations is a fundamental strength that should be maintained and expanded.\n*   **Information Extraction:**  The capacity to extract relevant information from passages is crucial for question answering.\n\n**## KEY WEAKNESSES**\n\n*   **Question Interpretation:**  The inability to accurately interpret the question's intent, especially with negation or implicit constraints, is the most critical weakness.\n*   **Contextual Understanding:**  The lack of understanding of contextual relationships between different pieces of information significantly impacts performance.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on improving is **Question Interpretation.** Addressing this weakness will have the most significant positive impact on the system's overall accuracy and reliability.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\nTo improve question interpretation, implement the following changes in the next iteration:\n\n1.  **Implement Negation Detection and Handling:**\n    *   **Action:** Develop a specific module dedicated to identifying and processing negation in questions. This module should analyze the sentence structure to detect negative words (e.g., \"not,\" \"no,\" \"never\") and phrases (e.g., \"except for,\" \"other than\").\n    *   **Rationale:** This will directly address the observed errors in handling negative questions (Sample ID 4).\n    *   **Testing:** Create a test suite specifically designed to evaluate the system's performance on questions with different types of negation.\n\n2.  **Enhance Keyword and Constraint Extraction with Semantic Analysis:**\n    *   **Action:**  Augment the existing keyword extraction process with semantic analysis. Use techniques like part-of-speech tagging and dependency parsing to identify the *type* of keywords and their relationships to entities in the passage.  For example, in the question about the \"longest touchdown *run*,\" identify \"run\" as a key constraint related to a type of play.\n    *   **Rationale:** This will help the system identify qualifying constraints to avoid extracting incorrect information (Sample ID 7).\n    *   **Testing:** Develop test cases where the correct answer depends on understanding the semantic relationship between keywords and entities.\n\n3.  **Introduce a \"Question Decomposition\" Step:**\n    *   **Action:** Before information extraction, add a step where the system breaks down the question into smaller, more manageable sub-questions or logical statements. For example, the question \"How many percent are not non-families?\" could be decomposed into:\n        *   \"What is the percentage of non-families?\"\n        *   \"Subtract that percentage from 100%.\"\n    *   **Rationale:** This will force the system to explicitly reason about the question's intent before attempting to find an answer.\n    *   **Testing:** Evaluate the system's ability to correctly decompose different types of questions, including those with negation, comparison, and calculation.\n\n4.  **Expand Training Data with Diverse Sentence Structures and Contexts:**\n    *   **Action:** Increase the diversity of the training data to include a wider range of sentence structures, question types, and contextual scenarios. Focus on examples that highlight the importance of contextual understanding and handling negation.\n    *   **Rationale:** This will improve the system's ability to generalize to new and unseen questions.\n    *   **Metrics:**  Track the system's performance on a held-out test set to monitor its ability to generalize to new data.\n\n**## CAPABILITY TREND**\n\nBased on the provided information, it's difficult to definitively assess the capability trend. However, the error patterns suggest that the system's capabilities are likely **stable with room for improvement** but not rapidly improving. Targeted improvements in question interpretation and contextual reasoning are necessary to drive significant progress.  Collecting more data points over time will be important to see what capabilities are improving and what capabilities are not.\n",
+      "strengths": [
+        "Numerical Calculation:** The system demonstrates the ability to perform basic arithmetic operations such as addition, subtraction, and percentage calculations accurately, as shown in successful cases (sample IDs 0, 3, 5, 9).",
+        "Information Extraction:** The system can generally extract relevant numerical and textual information from the passage, correctly identifying key entities and values, as seen in the majority of the successful cases."
+      ],
+      "weaknesses": [
+        "Question Interpretation:** The system struggles with accurately interpreting the intent of the question, leading to providing the wrong answer despite correctly extracting information (sample ID 4). The system misinterprets \"How many percent are not non-families?\"",
+        "Contextual Understanding and Unit Recognition:** The system sometimes fails to understand the context of the extracted information, especially regarding units and relationships between different pieces of information (sample ID 7). Specifically, failing to identify the longest touchdown *run*."
+      ],
+      "improvement_suggestions": [
+        "Implement a Question Type Classifier:** Train a classifier to categorize questions based on their intent (e.g., negation, comparison, calculation, fact retrieval). This would allow the system to apply different reasoning strategies based on the question type.",
+        "Enhance Keyword and Constraint Extraction:** Improve the system's ability to identify keywords and constraints within the question. For example, explicitly mark keywords and their relationships to the entities within the passage.",
+        "Introduce a \"Sense-Making\" Step:** Before performing calculations or extractions, introduce a \"sense-making\" step where the system explicitly reasons about the question's intent and the relevant information in the passage. This could involve generating a summary of the question's requirements and the relevant context from the passage.",
+        "Introduce more test cases with varied sentence structures:** This will help to ensure that the system is able to understand the question and the context of the passage."
+      ],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no runtime errors or exceptions found in the 'output' fields.\n\n## STRENGTHS\n\n*   **Numerical Calculation:** The system demonstrates the ability to perform basic arithmetic operations such as addition, subtraction, and percentage calculations accurately, as shown in successful cases (sample IDs 0, 3, 5, 9).\n*   **Information Extraction:** The system can generally extract relevant numerical and textual information from the passage, correctly identifying key entities and values, as seen in the majority of the successful cases.\n\n## WEAKNESSES\n\n*   **Question Interpretation:** The system struggles with accurately interpreting the intent of the question, leading to providing the wrong answer despite correctly extracting information (sample ID 4). The system misinterprets \"How many percent are not non-families?\"\n*   **Contextual Understanding and Unit Recognition:** The system sometimes fails to understand the context of the extracted information, especially regarding units and relationships between different pieces of information (sample ID 7). Specifically, failing to identify the longest touchdown *run*.\n\n## CRITICAL BOTTLENECKS\n\n*   **Accurate Question Interpretation:** The inability to correctly interpret the question's intent is a significant bottleneck, leading to wasted effort in performing calculations or extractions based on a flawed understanding.\n*   **Contextual Understanding:** Lack of understanding of contextual relationships between information extracted from the passage impacts the ability to identify the correct type of information to look for.\n\n## ERROR PATTERNS\n\n*   **Misinterpretation of Negation:** The system demonstrates a weakness in handling questions involving negation, as evidenced by sample ID 4 where it answers the opposite of what was asked.\n*   **Failure to identify qualifying constraints:** the system fails to identify that it is looking for a *run* and that the distance is associated with that specific type of play.\n\n## PRIMARY ISSUE\n\nThe primary issue is the **inaccurate interpretation of questions**, particularly those involving negation or subtle contextual constraints. This leads to the system performing calculations or extractions based on a flawed understanding, resulting in incorrect answers.\n\n## IMPROVEMENT AREAS\n\n*   **Question Understanding Module:** The system needs a more robust question understanding module that can accurately parse the question's intent, identify keywords and constraints, and determine the expected answer format.\n*   **Contextual Reasoning:** The system requires improved contextual reasoning abilities to understand the relationships between different pieces of information within the passage and how they relate to the question being asked.\n\n## IMPROVEMENT SUGGESTIONS\n\n*   **Implement a Question Type Classifier:** Train a classifier to categorize questions based on their intent (e.g., negation, comparison, calculation, fact retrieval). This would allow the system to apply different reasoning strategies based on the question type.\n*   **Enhance Keyword and Constraint Extraction:** Improve the system's ability to identify keywords and constraints within the question. For example, explicitly mark keywords and their relationships to the entities within the passage.\n*   **Introduce a \"Sense-Making\" Step:** Before performing calculations or extractions, introduce a \"sense-making\" step where the system explicitly reasons about the question's intent and the relevant information in the passage. This could involve generating a summary of the question's requirements and the relevant context from the passage.\n*   **Introduce more test cases with varied sentence structures:** This will help to ensure that the system is able to understand the question and the context of the passage.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 4:** information_extraction, decision_making\n*   **Sample ID 7:** information_extraction, constraint_handling, decision_making\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, and sample execution outputs.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**## EXECUTION ANALYSIS**\n\nThe sample execution outputs provide limited insight into the system's reasoning process, as we only see the final answers and justifications. However, a few observations can be made:\n\n*   **Positive Justification:** The system attempts to provide justifications for its answers, which is a good sign.  This transparency can be helpful for debugging and understanding the system's reasoning. The justification quality needs to be assessed for accuracy.\n*   **Extraction of Names:** The system can accurately extract names.\n*   **Missing Outputs:** The provided examples have some missing execution outputs, so we need to be careful drawing any sweeping conclusions based solely on these examples.\n\n**## CAPABILITY ASSESSMENT**\n\nBased on the combined information, the AI system demonstrates moderate capability in question answering. It shows proficiency in numerical calculation and information extraction. However, significant weaknesses exist in question interpretation, contextual understanding, and handling negation. The system's overall effectiveness is hindered by these limitations, preventing it from consistently providing accurate answers. The system struggles with nuance and requires more robust logic to understand the intent of the question.\n\n**## KEY STRENGTHS**\n\n*   **Numerical Calculation:**  The ability to perform basic arithmetic operations is a fundamental strength that should be maintained and expanded.\n*   **Information Extraction:**  The capacity to extract relevant information from passages is crucial for question answering.\n\n**## KEY WEAKNESSES**\n\n*   **Question Interpretation:**  The inability to accurately interpret the question's intent, especially with negation or implicit constraints, is the most critical weakness.\n*   **Contextual Understanding:**  The lack of understanding of contextual relationships between different pieces of information significantly impacts performance.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on improving is **Question Interpretation.** Addressing this weakness will have the most significant positive impact on the system's overall accuracy and reliability.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\nTo improve question interpretation, implement the following changes in the next iteration:\n\n1.  **Implement Negation Detection and Handling:**\n    *   **Action:** Develop a specific module dedicated to identifying and processing negation in questions. This module should analyze the sentence structure to detect negative words (e.g., \"not,\" \"no,\" \"never\") and phrases (e.g., \"except for,\" \"other than\").\n    *   **Rationale:** This will directly address the observed errors in handling negative questions (Sample ID 4).\n    *   **Testing:** Create a test suite specifically designed to evaluate the system's performance on questions with different types of negation.\n\n2.  **Enhance Keyword and Constraint Extraction with Semantic Analysis:**\n    *   **Action:**  Augment the existing keyword extraction process with semantic analysis. Use techniques like part-of-speech tagging and dependency parsing to identify the *type* of keywords and their relationships to entities in the passage.  For example, in the question about the \"longest touchdown *run*,\" identify \"run\" as a key constraint related to a type of play.\n    *   **Rationale:** This will help the system identify qualifying constraints to avoid extracting incorrect information (Sample ID 7).\n    *   **Testing:** Develop test cases where the correct answer depends on understanding the semantic relationship between keywords and entities.\n\n3.  **Introduce a \"Question Decomposition\" Step:**\n    *   **Action:** Before information extraction, add a step where the system breaks down the question into smaller, more manageable sub-questions or logical statements. For example, the question \"How many percent are not non-families?\" could be decomposed into:\n        *   \"What is the percentage of non-families?\"\n        *   \"Subtract that percentage from 100%.\"\n    *   **Rationale:** This will force the system to explicitly reason about the question's intent before attempting to find an answer.\n    *   **Testing:** Evaluate the system's ability to correctly decompose different types of questions, including those with negation, comparison, and calculation.\n\n4.  **Expand Training Data with Diverse Sentence Structures and Contexts:**\n    *   **Action:** Increase the diversity of the training data to include a wider range of sentence structures, question types, and contextual scenarios. Focus on examples that highlight the importance of contextual understanding and handling negation.\n    *   **Rationale:** This will improve the system's ability to generalize to new and unseen questions.\n    *   **Metrics:**  Track the system's performance on a held-out test set to monitor its ability to generalize to new data.\n\n**## CAPABILITY TREND**\n\nBased on the provided information, it's difficult to definitively assess the capability trend. However, the error patterns suggest that the system's capabilities are likely **stable with room for improvement** but not rapidly improving. Targeted improvements in question interpretation and contextual reasoning are necessary to drive significant progress.  Collecting more data points over time will be important to see what capabilities are improving and what capabilities are not.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 10,
+    "accuracy": 1.0,
+    "results": [
+      {
+        "success": true,
+        "answer": "45-32 = 13\nThe answer is correct.",
+        "output": "ANSWER_START\n45-32 = 13\nThe answer is correct.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "13",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer shows the calculation and the correct result (13), which matches the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Death of his son Dimitri",
+        "output": "ANSWER_START\nDeath of his son Dimitri\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "death of his son Dimitri",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Second quarter",
+        "output": "ANSWER_START\nSecond quarter\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "second quarter",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers refer to the same period, \"second quarter,\" and the difference in capitalization doesn't affect the meaning."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Lynell Hamilton",
+        "output": "ANSWER_START\nLynell Hamilton\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "Lynell Hamilton",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are exactly the same."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "478,403 - 190,638 = 287,765\nVerified answer: 287,765",
+        "output": "ANSWER_START\n478,403 - 190,638 = 287,765\nVerified answer: 287,765\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "287765",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the calculation and the final answer, which is 287,765. The golden answer is 287765. These are equivalent (one contains comma separators and the other doesn't). Verified answer is also equivalent."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Verified Answer: Chuck Smith, Jessie Tuggle, and Cornelius Bennett",
+        "output": "ANSWER_START\nVerified Answer: Chuck Smith, Jessie Tuggle, and Cornelius Bennett\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "Chuck Smith, Jessie Tuggle, Cornelius Bennett",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers list the same three names in the same order."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1922 - 1801 = 121\nVerified Answer: 121",
+        "output": "ANSWER_START\n1922 - 1801 = 121\nVerified Answer: 121\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "121",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer contains the correct numerical answer (121), even though it also includes the calculation leading to it. The golden answer is simply the final numerical result."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1636 - 1626 = 10\nThe answer is correct.\nVerification: 10",
+        "output": "ANSWER_START\n1636 - 1626 = 10\nThe answer is correct.\nVerification: 10\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "10",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer shows the calculation and the final result which is equal to the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Redskins",
+        "output": "ANSWER_START\nRedskins\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "Redskins",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same entity."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The question asks what percentage of the population was *not* under the age of 15. The passage states that 28.1% of the population was under the age of 15. To find the percentage that was not under 15, we subtract 28.1% from 100%.\n100% - 28.1% = 71.9%\nSo, 71.9% of the population was not under the age of 15.\n\nVerified answer: 71.9",
+        "output": "ANSWER_START\nThe question asks what percentage of the population was *not* under the age of 15. The passage states that 28.1% of the population was under the age of 15. To find the percentage that was not under 15, we subtract 28.1% from 100%.\n100% - 28.1% = 71.9%\nSo, 71.9% of the population was not under the age of 15.\n\nVerified answer: 71.9\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_26.jsonl",
+        "golden_answer": "71.9",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly identifies the need to subtract 28.1% from 100% to find the percentage of the population not under 15, and the calculation results in 71.9%, which matches the golden answer."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 98.65493750572205,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

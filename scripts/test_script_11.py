@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 11,
-        "sample_id": "9d44a0f9-cda7-4080-a261-b118a343a092",
-        "question": "PASSAGE: Coming off their win over the Chargers, the Bills flew to Dolphin Stadium for a Week 8 AFC East duel with the Miami Dolphins.  In the first quarter, Buffalo trailed early as Dolphins QB Chad Pennington completed a 2-yard TD pass to TE Anthony Fasano.  The Bills responded with kicker Rian Lindell getting a 19-yard field goal.  In the second quarter, Buffalo took the lead as Lindell got a 43-yard and a 47-yard field goal. In the third quarter, the Bills increased their lead as RB Marshawn Lynch got an 8-yard TD run.  However, Miami began to respond as kicker Dan Carpenter got a 43-yard field goal, while RB Ricky Williams got a 3-yard TD run.  In the fourth quarter, the Dolphins sealed Buffalo's fate as Carpenter made a 45-yard field goal, LB Joey Porter causing QB Trent Edwards to fumble the ball in his own endzone (leading to a safety), and Carpenter nailing a 35-yard field goal.\n\nQUESTION: Which kicker had fewer total yards?"
+        "sample_id": "d34f24e6-1616-41ba-be07-58dcbae4bb58",
+        "question": 'PASSAGE: In the county, the age distribution of the population shows 27.90% under the age of 18, 6.80% from 18 to 24, 31.60% from 25 to 44, 23.70% from 45 to 64, and 10.10% who were 65 years of age or older. The median age was 36 years. For every 100 females there were 96.00 males. For every 100 females age 18 and over, there were 92.50 males.\n\nQUESTION: Which age group is larger: 25 to 44 or 45 to 64?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 11,
-            "sample_id": "9d44a0f9-cda7-4080-a261-b118a343a092",
+            "sample_id": "d34f24e6-1616-41ba-be07-58dcbae4bb58",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Coming off their win over the Chargers, the Bills flew to Dolphin Stadium for a Week 8 AFC East duel with the Miami Dolphins.  In the first quarter, Buffalo trailed early as Dolphins QB Chad Pennington completed a 2-yard TD pass to TE Anthony Fasano.  The Bills responded with kicker Rian Lindell getting a 19-yard field goal.  In the second quarter, Buffalo took the lead as Lindell got a 43-yard and a 47-yard field goal. In the third quarter, the Bills increased their lead as RB Marshawn Lynch got an 8-yard TD run.  However, Miami began to respond as kicker Dan Carpenter got a 43-yard field goal, while RB Ricky Williams got a 3-yard TD run.  In the fourth quarter, the Dolphins sealed Buffalo's fate as Carpenter made a 45-yard field goal, LB Joey Porter causing QB Trent Edwards to fumble the ball in his own endzone (leading to a safety), and Carpenter nailing a 35-yard field goal.\n\nQUESTION: Which kicker had fewer total yards?"
+    question = 'PASSAGE: In the county, the age distribution of the population shows 27.90% under the age of 18, 6.80% from 18 to 24, 31.60% from 25 to 44, 23.70% from 45 to 64, and 10.10% who were 65 years of age or older. The median age was 36 years. For every 100 females there were 96.00 males. For every 100 females age 18 and over, there were 92.50 males.\n\nQUESTION: Which age group is larger: 25 to 44 or 45 to 64?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 11,
-            "sample_id": "9d44a0f9-cda7-4080-a261-b118a343a092",
+            "sample_id": "d34f24e6-1616-41ba-be07-58dcbae4bb58",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 11,
-            "sample_id": "9d44a0f9-cda7-4080-a261-b118a343a092",
+            "sample_id": "d34f24e6-1616-41ba-be07-58dcbae4bb58",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

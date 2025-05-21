@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 17,
-        "sample_id": "3c825795-6584-4a05-8534-7db17776c0ab",
-        "question": "PASSAGE: Coming off their win over the Redskins, the Dolphins stayed at home for a Week 11 AFC East showdown with the Buffalo Bills.  Miami trailed early in the first quarter as Bills kicker Dave Rayner made a 30-yard field goal, yet the Dolphins immediately answered with quarterback Matt Moore finding tight end Anthony Fasano on a 1-yard touchdown pass, followed by a 5-yard touchdown run from running back Reggie Bush.  Miami would add onto their lead in the second quarter with Moore connecting with fullback Charles Clay on a 12-yard touchdown pass, followed by wide receiver Davone Bess on a 4-yard touchdown pass.  Buffalo would close out the half with Rayner booting a 56-yard field goal. The Dolphins continued their dominating day in the third quarter with running back Lex Hilliard recovering a blocked punt in the endzone for a touchdown (the team's first TD off of a blocked punt since 1990).  The Bills tried to rally as linebacker Kelvin Sheppard tackled rookie running back Daniel Thomas in the endzone for a safety, but Miami's lead proved to be too much to overcome. This game also marked the first time since 1990 that Miami allowed 10 points or fewer in three-straight games.They have now become the 3rd team in NFL History to win 3 straight after starting season at least 0-7 ('78 Cardinals & '86 Colts).\n\nQUESTION: Which player had the shortest touchdown scoring play?"
+        "sample_id": "af1e3a01-ac7c-4ded-aebd-1c718c06f7be",
+        "question": 'PASSAGE: After securing their first win of the season, the Browns went on the road to take on their archrival Pittsburgh Steelers. The Browns came into the game having lost their last 11 games against the Steelers. The Steelers struck first with two touchdown passes from Ben Roethlisberger in the 2nd quarter. Josh Cribbs ran a kickoff back 98 yards for a touchdown, and got the Browns within 7. However, the Browns could never close the gap, and fell to the Steelers, 27-14.\n\nQUESTION: Which team scored the most points?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 17,
-            "sample_id": "3c825795-6584-4a05-8534-7db17776c0ab",
+            "sample_id": "af1e3a01-ac7c-4ded-aebd-1c718c06f7be",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Coming off their win over the Redskins, the Dolphins stayed at home for a Week 11 AFC East showdown with the Buffalo Bills.  Miami trailed early in the first quarter as Bills kicker Dave Rayner made a 30-yard field goal, yet the Dolphins immediately answered with quarterback Matt Moore finding tight end Anthony Fasano on a 1-yard touchdown pass, followed by a 5-yard touchdown run from running back Reggie Bush.  Miami would add onto their lead in the second quarter with Moore connecting with fullback Charles Clay on a 12-yard touchdown pass, followed by wide receiver Davone Bess on a 4-yard touchdown pass.  Buffalo would close out the half with Rayner booting a 56-yard field goal. The Dolphins continued their dominating day in the third quarter with running back Lex Hilliard recovering a blocked punt in the endzone for a touchdown (the team's first TD off of a blocked punt since 1990).  The Bills tried to rally as linebacker Kelvin Sheppard tackled rookie running back Daniel Thomas in the endzone for a safety, but Miami's lead proved to be too much to overcome. This game also marked the first time since 1990 that Miami allowed 10 points or fewer in three-straight games.They have now become the 3rd team in NFL History to win 3 straight after starting season at least 0-7 ('78 Cardinals & '86 Colts).\n\nQUESTION: Which player had the shortest touchdown scoring play?"
+    question = 'PASSAGE: After securing their first win of the season, the Browns went on the road to take on their archrival Pittsburgh Steelers. The Browns came into the game having lost their last 11 games against the Steelers. The Steelers struck first with two touchdown passes from Ben Roethlisberger in the 2nd quarter. Josh Cribbs ran a kickoff back 98 yards for a touchdown, and got the Browns within 7. However, the Browns could never close the gap, and fell to the Steelers, 27-14.\n\nQUESTION: Which team scored the most points?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 17,
-            "sample_id": "3c825795-6584-4a05-8534-7db17776c0ab",
+            "sample_id": "af1e3a01-ac7c-4ded-aebd-1c718c06f7be",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 17,
-            "sample_id": "3c825795-6584-4a05-8534-7db17776c0ab",
+            "sample_id": "af1e3a01-ac7c-4ded-aebd-1c718c06f7be",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

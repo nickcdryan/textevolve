@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 13,
-        "sample_id": "8291060d-12ca-41fb-9bee-ed11713af7cb",
-        "question": 'PASSAGE: Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.\n\nQUESTION: What problems did the engines have?'
+        "sample_id": "example_120",
+        "question": 'PASSAGE: At the start of World War II, the 24th Infantry was stationed at Fort Benning as school troops for the Infantry School. They participated in the Carolina Maneuvers of October - December 1941. During World War II, the 24th Infantry fought in the South Pacific Theatre as a separate regiment. Deploying on 4 April 1942 from the San Francisco Port of Embarkation, the regiment arrived in the New Hebrides Islands on 4 May 1942. The 24th moved to Guadalcanal on 28 August 1943, and was assigned to the XIV Corps. 1st Battalion deployed to Bougainville, attached to the 37th Infantry Division, from March to May 1944 for perimeter defense duty. The regiment departed Guadalcanal on 8 December 1944, and landed on Saipan and Tinian on 19 December 1944 for Garrison Duty that included mopping up the remaining Japanese forces that had yet to surrender. The regiment was assigned to the Pacific Ocean Area Command on 15 March 1945, and then to the Central Pacific Base Command on 15 May 1945, and to the Western pacific Base Command on 22 June 1945. The regiment departed Saipan and Tinian on 9 July 1945, and arrived on the Kerama Islands off Okinawa on 29 July 1945. At the end of the war, the 24th took the surrender of forces on the island of Aka-shima, the first formal surrender of a Japanese Imperial Army garrison. The regiment remained on Okinawa through 1946.\n\nQUESTION: How many months did the Carolina Manuevers last during 1941?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 13,
-            "sample_id": "8291060d-12ca-41fb-9bee-ed11713af7cb",
+            "sample_id": "example_120",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.\n\nQUESTION: What problems did the engines have?'
+    question = 'PASSAGE: At the start of World War II, the 24th Infantry was stationed at Fort Benning as school troops for the Infantry School. They participated in the Carolina Maneuvers of October - December 1941. During World War II, the 24th Infantry fought in the South Pacific Theatre as a separate regiment. Deploying on 4 April 1942 from the San Francisco Port of Embarkation, the regiment arrived in the New Hebrides Islands on 4 May 1942. The 24th moved to Guadalcanal on 28 August 1943, and was assigned to the XIV Corps. 1st Battalion deployed to Bougainville, attached to the 37th Infantry Division, from March to May 1944 for perimeter defense duty. The regiment departed Guadalcanal on 8 December 1944, and landed on Saipan and Tinian on 19 December 1944 for Garrison Duty that included mopping up the remaining Japanese forces that had yet to surrender. The regiment was assigned to the Pacific Ocean Area Command on 15 March 1945, and then to the Central Pacific Base Command on 15 May 1945, and to the Western pacific Base Command on 22 June 1945. The regiment departed Saipan and Tinian on 9 July 1945, and arrived on the Kerama Islands off Okinawa on 29 July 1945. At the end of the war, the 24th took the surrender of forces on the island of Aka-shima, the first formal surrender of a Japanese Imperial Army garrison. The regiment remained on Okinawa through 1946.\n\nQUESTION: How many months did the Carolina Manuevers last during 1941?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 13,
-            "sample_id": "8291060d-12ca-41fb-9bee-ed11713af7cb",
+            "sample_id": "example_120",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 13,
-            "sample_id": "8291060d-12ca-41fb-9bee-ed11713af7cb",
+            "sample_id": "example_120",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

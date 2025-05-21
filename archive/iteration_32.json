@@ -1,0 +1,801 @@
+{
+  "iteration": 32,
+  "timestamp": "2025-05-20T21:44:07.714035",
+  "strategy": "Exploitation",
+  "explore_rate": 25,
+  "exploit_rate": 75,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach.\n    This approach focuses on breaking down the problem into question type identification, \n    focused passage extraction, and direct answer generation with verification.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\", \"who\"]}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\", \"how many\"]}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\", \"which\"]}}\n\n    Example 4:\n    Question: How many more yards did Chris Johnson gain on his first touchdown run than LenDale White on his first touchdown run?\n    Analysis: {{\"type\": \"comparison/calculation\", \"keywords\": [\"Chris Johnson\", \"LenDale White\", \"first touchdown\", \"how many more yards\"]}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text. Focus on complete sentences for context.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\", \"who\"]}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\", \"how many\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\", \"which\"]}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Example 4:\n    Question: How many more yards did Chris Johnson gain on his first touchdown run than LenDale White on his first touchdown run?\n    Keywords: {{\"type\": \"comparison/calculation\", \"keywords\": [\"Chris Johnson\", \"LenDale White\", \"first touchdown\", \"how many more yards\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. ... In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating accurate and complete answers to questions based on provided text. If calculation is needed, show your work.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Example 4:\n    Question: How many more yards did Chris Johnson gain on his first touchdown run than LenDale White on his first touchdown run?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. ... In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: Chris Johnson gained 6 yards and LenDale White gained 6 yards. 6-6 = 0. So Chris Johnson gained 0 more yards than LenDale White.\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies the generated answer. Includes multiple examples. If the answer is wrong and calculable, calculate and return the correct answer.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions. If the answer is incorrect and can be determined from the passage, correct it.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage. Return the answer if it is correct. Return the correct answer if it is incorrect, *especially* if calculation is involved. Show your work and explain your answer.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin is correct.\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2 is correct. Chris Johnson and LenDale White both ran for touchdowns.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee is correct.\n\n    Example 4:\n    Question: How many more yards did Chris Johnson gain on his first touchdown run than LenDale White on his first touchdown run?\n    Answer: Chris Johnson gained 2 more yards than LenDale White.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. ... In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: Incorrect. Chris Johnson gained 6 yards on his first touchdown run. LenDale White gained 6 yards on his first touchdown run. 6 - 6 = 0. The correct answer is 0.\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a multi-stage LLM approach, incorporating chain-of-thought reasoning and verification to answer questions. The problem is decomposed into question analysis, relevant passage extraction, answer generation, and answer verification. The agent roles are question analyzer, passage extractor, answer generator, and answer verifier.\n\nThe functions used are: `main` (orchestrates the entire process), `analyze_question` (identifies question type and keywords), `extract_relevant_passage` (extracts relevant text), `generate_answer` (generates an initial answer), `verify_answer` (verifies and corrects the answer), and `call_llm` (interface with the Gemini LLM).\n\nThe overall workflow involves analyzing the question, extracting relevant information, generating an answer, and then verifying the generated answer for accuracy, using the `call_llm` function to interact with the Gemini model at each stage.",
+  "sample_count": 10,
+  "samples": [
+    {
+      "question": "PASSAGE: Coming off their bye week, the Broncos went home for a Week 9 duel with the Miami Dolphins.  In the first quarter, Denver trailed early as Dolphins kicker Dan Carpenter got a 45-yard and a 47-yard field goal, along with CB Will Allen returning an interception 32 yards for a touchdown.  The Broncos would answer with QB Jay Cutler completing a 2-yard TD pass to rookie WR Eddie Royal.  In the second quarter, Miami answered with Carpenter getting a 23-yard field goal. In the third quarter, Denver tried to rally as kicker Matt Prater got a 50-yard field goal.  In the fourth quarter, the Dolphins replied with Carpenter nailing a 41-yard field goal.  The Broncos tried to come back as Cutler completed a 1-yard TD pass to rookie FB Peyton Hillis.  However, Miami pulled away as RB Ronnie Brown got a 2-yard TD run.\n\nQUESTION: Which player scored more field goals, Dan Carpenter or Matt Prater?",
+      "answer": "Dan Carpenter",
+      "id": "example_256",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their bye week, the Broncos went home for a Week 9 duel with the Miami Dolphins.  In the first quarter, Denver trailed early as Dolphins kicker Dan Carpenter got a 45-yard and a 47-yard field goal, along with CB Will Allen returning an interception 32 yards for a touchdown.  The Broncos would answer with QB Jay Cutler completing a 2-yard TD pass to rookie WR Eddie Royal.  In the second quarter, Miami answered with Carpenter getting a 23-yard field goal. In the third quarter, Denver tried to rally as kicker Matt Prater got a 50-yard field goal.  In the fourth quarter, the Dolphins replied with Carpenter nailing a 41-yard field goal.  The Broncos tried to come back as Cutler completed a 1-yard TD pass to rookie FB Peyton Hillis.  However, Miami pulled away as RB Ronnie Brown got a 2-yard TD run.",
+        "original_question": "Which player scored more field goals, Dan Carpenter or Matt Prater?",
+        "original_answer_data": {
+          "spans": [
+            "Dan Carpenter"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 167
+      }
+    },
+    {
+      "question": "PASSAGE:  Eight years after their last game in Indianapolis (a 29-13 victory), the Bears returned to play the Colts in week five. The 43rd game between the two franchise, the Bears trailed the series 19-23, but won the last two games, recently a 41-21 win in 2012. \"An efficient offensive attack\", particularly a rushing-based offense like against the Lions, was a key to success against the Colts defense, according to Jeff Joniak; the Colts allowed the second-highest runs of at least four yards with 51.5 percent. He added the offense should punctuate the run with deep passes, as the Colts were the most penalized defense in the NFL with six pass interference and three personal fouls, along with just four turnovers forced resulting in only three total points. Meanwhile, the Bears defense had to attack Colts quarterback Andrew Luck; Indianapolis was allowing a league-high 15 sacks, was ranked 29th in pass protection efficiency, the second-most hurries (35) the highest number of knockdowns (33) allowed, along with 10 combined false start and holding penalties. Joniak added jet lag could play a factor in the game, as the Colts had lost in London the week before and had no bye week. Connor Barth scored the first points of the game when he kicked a 35-yard field goal on the Bears' opening drive. Adam Vinatieri responded with a 54-yard field goal and the Colts took the lead in the second quarter when Luck threw a one-yard touchdown pass to Dwayne Allen. Both teams traded field goals on their next drives before Brian Hoyer threw a 14-yard touchdown pass to Cameron Meredith. With 11 seconds left in the first half, Vinatieri kicked a 26-yard field goal to give Indianapolis the 16-13 lead at halftime. He converted a 41-yard field goal in the third quarter to increase the margin to six points; when Barth tried a 49-yarder on the next series, he missed it wide left, but redeemed himself with a 24-yard kick in the fourth. Hoyer later led the Bears on a 96-yard drive, ending it with a 21-yard touchdown pass to Jordan Howard; the drive was the longest touchdown-scoring series since a 97-yard possession against the Steelers in 2009. Luck responded with a 35-yard touchdown pass to T. Y. Hilton, who beat Jacoby Glenn for the score, followed by Vinatieri's 35-yard field goal after Meredith lost a fumble. Down by six points, Hoyer attempted to rally the Bears on one last drive but missed an open Alshon Jeffery on fourth down, throwing an incomplete pass to Meredith. The Colts ran out the clock to end the game. With the loss, the Bears fell to 1-4, their worst five-week start since they started the 2004 season 1-4. They ended the game with 522 offensive yards, the most since they recorded 542 in a 1989 win against the Lions and the most in a loss since 1940.\n\nQUESTION: How many total points were scored in the first half?",
+      "answer": "29",
+      "id": "example_257",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": " Eight years after their last game in Indianapolis (a 29-13 victory), the Bears returned to play the Colts in week five. The 43rd game between the two franchise, the Bears trailed the series 19-23, but won the last two games, recently a 41-21 win in 2012. \"An efficient offensive attack\", particularly a rushing-based offense like against the Lions, was a key to success against the Colts defense, according to Jeff Joniak; the Colts allowed the second-highest runs of at least four yards with 51.5 percent. He added the offense should punctuate the run with deep passes, as the Colts were the most penalized defense in the NFL with six pass interference and three personal fouls, along with just four turnovers forced resulting in only three total points. Meanwhile, the Bears defense had to attack Colts quarterback Andrew Luck; Indianapolis was allowing a league-high 15 sacks, was ranked 29th in pass protection efficiency, the second-most hurries (35) the highest number of knockdowns (33) allowed, along with 10 combined false start and holding penalties. Joniak added jet lag could play a factor in the game, as the Colts had lost in London the week before and had no bye week. Connor Barth scored the first points of the game when he kicked a 35-yard field goal on the Bears' opening drive. Adam Vinatieri responded with a 54-yard field goal and the Colts took the lead in the second quarter when Luck threw a one-yard touchdown pass to Dwayne Allen. Both teams traded field goals on their next drives before Brian Hoyer threw a 14-yard touchdown pass to Cameron Meredith. With 11 seconds left in the first half, Vinatieri kicked a 26-yard field goal to give Indianapolis the 16-13 lead at halftime. He converted a 41-yard field goal in the third quarter to increase the margin to six points; when Barth tried a 49-yarder on the next series, he missed it wide left, but redeemed himself with a 24-yard kick in the fourth. Hoyer later led the Bears on a 96-yard drive, ending it with a 21-yard touchdown pass to Jordan Howard; the drive was the longest touchdown-scoring series since a 97-yard possession against the Steelers in 2009. Luck responded with a 35-yard touchdown pass to T. Y. Hilton, who beat Jacoby Glenn for the score, followed by Vinatieri's 35-yard field goal after Meredith lost a fumble. Down by six points, Hoyer attempted to rally the Bears on one last drive but missed an open Alshon Jeffery on fourth down, throwing an incomplete pass to Meredith. The Colts ran out the clock to end the game. With the loss, the Bears fell to 1-4, their worst five-week start since they started the 2004 season 1-4. They ended the game with 522 offensive yards, the most since they recorded 542 in a 1989 win against the Lions and the most in a loss since 1940.",
+        "original_question": "How many total points were scored in the first half?",
+        "original_answer_data": {
+          "spans": [
+            "29"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 994
+      }
+    },
+    {
+      "question": "PASSAGE: There were 412 households of which 33.7% had children under the age of 18 living with them, 54.6% were married couples living together, 10.4% had a female householder with no husband present, 6.1% had a male householder with no wife present, and 28.9% were non-families. 25.7% of all households were made up of individuals and 12.6% had someone living alone who was 65 years of age or older. The average household size was 2.55 and the average family size was 3.02.The median age in the village was 40.9 years. 26% of residents were under the age of 18; 8.3% were between the ages of 18 and 24; 21.4% were from 25 to 44; 28.7% were from 45 to 64; and 15.6% were 65 years of age or older. The gender makeup of the village was 48.9% male and 51.1% female.\n\nQUESTION: How many percent of the people were not male?",
+      "answer": "51.1",
+      "id": "example_258",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "There were 412 households of which 33.7% had children under the age of 18 living with them, 54.6% were married couples living together, 10.4% had a female householder with no husband present, 6.1% had a male householder with no wife present, and 28.9% were non-families. 25.7% of all households were made up of individuals and 12.6% had someone living alone who was 65 years of age or older. The average household size was 2.55 and the average family size was 3.02.The median age in the village was 40.9 years. 26% of residents were under the age of 18; 8.3% were between the ages of 18 and 24; 21.4% were from 25 to 44; 28.7% were from 45 to 64; and 15.6% were 65 years of age or older. The gender makeup of the village was 48.9% male and 51.1% female.",
+        "original_question": "How many percent of the people were not male?",
+        "original_answer_data": {
+          "spans": [
+            "51.1"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 746
+      }
+    },
+    {
+      "question": "PASSAGE: After the win at home against the Bengals, the Steelers traveled to take on the Packers in a rematch of Super Bowl XLV.  Coming into this game with a record of 2-5 in road games, the Packers scored first when Matt Flynn found Jarrett Boykin on a 5-yard pass for a 7-0 lead.  The Steelers managed to tie it up late in the first quarter when Ben Roethlisberger found Emmanuel Sanders on a 1-yard pass taking the game to 7-7.  In the 2nd quarter, the Packers retook the lead as Eddie Lacy ran for a 14-yard touchdown making the score 14-7.  This was followed up by the Steelers coming within 4 as Suisham kicked a 31-yard field goal as for a 14-10 score at halftime.  After the break, the Steelers took the lead as Roethlisberger rushed for a touchdown himself from 13 yards out making the score 17-14.  The Packers took the lead back as Lacy ran for a 2-yard touchdown making the score 21-17.  The Steelers then moved back into the lead as Roethlisberger found Matt Speath on an 11-yard pass making the score 24-21 and then Cortez Allen picked off Matt Flynn returning the ball 40 yards for a touchdown making the score 31-21.  In the 4th quarter, the Packers tried a comeback attempt as Mason Crosby nailed a 22-yard field goal to come within 7 31-24.  Eventually, they managed to tie the game when John Kuhn ran for a 1-yard touchdown at 31-31.  The Steelers moved back into the lead as Le'Veon Bell ran for a 1-yard touchdown for a 38-31 lead.  Matt Flynn moved the Packers down the field but his last attempt within the final 3 seconds was incomplete sealing the win for the Steelers as they improved to 7-8 while finishing 3-5 in road games.\n\nQUESTION: How many running touchdowns were there?",
+      "answer": "5",
+      "id": "example_259",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After the win at home against the Bengals, the Steelers traveled to take on the Packers in a rematch of Super Bowl XLV.  Coming into this game with a record of 2-5 in road games, the Packers scored first when Matt Flynn found Jarrett Boykin on a 5-yard pass for a 7-0 lead.  The Steelers managed to tie it up late in the first quarter when Ben Roethlisberger found Emmanuel Sanders on a 1-yard pass taking the game to 7-7.  In the 2nd quarter, the Packers retook the lead as Eddie Lacy ran for a 14-yard touchdown making the score 14-7.  This was followed up by the Steelers coming within 4 as Suisham kicked a 31-yard field goal as for a 14-10 score at halftime.  After the break, the Steelers took the lead as Roethlisberger rushed for a touchdown himself from 13 yards out making the score 17-14.  The Packers took the lead back as Lacy ran for a 2-yard touchdown making the score 21-17.  The Steelers then moved back into the lead as Roethlisberger found Matt Speath on an 11-yard pass making the score 24-21 and then Cortez Allen picked off Matt Flynn returning the ball 40 yards for a touchdown making the score 31-21.  In the 4th quarter, the Packers tried a comeback attempt as Mason Crosby nailed a 22-yard field goal to come within 7 31-24.  Eventually, they managed to tie the game when John Kuhn ran for a 1-yard touchdown at 31-31.  The Steelers moved back into the lead as Le'Veon Bell ran for a 1-yard touchdown for a 38-31 lead.  Matt Flynn moved the Packers down the field but his last attempt within the final 3 seconds was incomplete sealing the win for the Steelers as they improved to 7-8 while finishing 3-5 in road games.",
+        "original_question": "How many running touchdowns were there?",
+        "original_answer_data": {
+          "spans": [
+            "5"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 546
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from the road loss to the Chargers, the Rams went home for Week 9, as they fought the Kansas City Chiefs in a \"Show Me State Showdown\". The Chiefs struck first as RB Larry Johnson got a 1-yard TD run for the only score of the period.  In the second quarter, things got worse for the Rams as QB Damon Huard completed a 3-yard TD pass to TE Tony Gonzalez, while kicker Lawrence Tynes nailed a 42-yard field goal.  St. Louis got on the board with RB Steven Jackson getting a 2-yard TD run, yet Huard and Gonzalez hooked up with each other again on a 25-yard TD strike.  Rams kicker Jeff Wilkins made a 41-yard field goal to end the half.  In the third quarter, QB Marc Bulger completed a 2-yard TD pass to WR Kevin Curtis for the only score of the period, yet the only score of the fourth quarter came from Huard completing an 11-yard TD pass to TE Kris Wilson. With the loss, the Rams fell to 4-4.\n\nQUESTION: How many total field goal yards were kicked in the first half?",
+      "answer": "83",
+      "id": "example_260",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from the road loss to the Chargers, the Rams went home for Week 9, as they fought the Kansas City Chiefs in a \"Show Me State Showdown\". The Chiefs struck first as RB Larry Johnson got a 1-yard TD run for the only score of the period.  In the second quarter, things got worse for the Rams as QB Damon Huard completed a 3-yard TD pass to TE Tony Gonzalez, while kicker Lawrence Tynes nailed a 42-yard field goal.  St. Louis got on the board with RB Steven Jackson getting a 2-yard TD run, yet Huard and Gonzalez hooked up with each other again on a 25-yard TD strike.  Rams kicker Jeff Wilkins made a 41-yard field goal to end the half.  In the third quarter, QB Marc Bulger completed a 2-yard TD pass to WR Kevin Curtis for the only score of the period, yet the only score of the fourth quarter came from Huard completing an 11-yard TD pass to TE Kris Wilson. With the loss, the Rams fell to 4-4.",
+        "original_question": "How many total field goal yards were kicked in the first half?",
+        "original_answer_data": {
+          "spans": [
+            "83"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 175
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from a tough last-second loss to the Broncos, the Bengals flew to Lambeau Field for a Week 2 interconference duel with the Green Bay Packers.  Cincinnati delivered the first score in the opening score as quarterback Carson Palmer completed a 5-yard touchdown pass to wide receiver Laveranues Coles.  The Packers would respond as quarterback Aaron Rodgers completed a 3-yard touchdown pass to wide receiver Donald Driver, followed by running back Ryan Grant getting a 4-yard touchdown run.  In the second quarter, the Bengals tied the game as Palmer got a 1-yard touchdown run. Green Bay would reply with cornerback Charles Woodson returning an interception 37 yards for a touchdown.  Cincinnati would end the half as Palmer completed a 5-yard touchdown pass to wide receiver Chris Henry. The Bengals would take the lead in the third quarter as Palmer completed a 13-yard touchdown pass to wide receiver Chad Ochocinco.  In the fourth quarter, Cincinnati pulled away as kicker Shayne Graham nailed a 40-yard field goal.  Afterwards, the Packers delivered their only response as kicker Mason Crosby got a 45-yard field goal. With the win, the Bengals improved to 1-1. This was the first game the franchise had ever won in Green Bay.\n\nQUESTION: How many touchdown passes between 1 and 25 yards were made?",
+      "answer": "4",
+      "id": "example_261",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from a tough last-second loss to the Broncos, the Bengals flew to Lambeau Field for a Week 2 interconference duel with the Green Bay Packers.  Cincinnati delivered the first score in the opening score as quarterback Carson Palmer completed a 5-yard touchdown pass to wide receiver Laveranues Coles.  The Packers would respond as quarterback Aaron Rodgers completed a 3-yard touchdown pass to wide receiver Donald Driver, followed by running back Ryan Grant getting a 4-yard touchdown run.  In the second quarter, the Bengals tied the game as Palmer got a 1-yard touchdown run. Green Bay would reply with cornerback Charles Woodson returning an interception 37 yards for a touchdown.  Cincinnati would end the half as Palmer completed a 5-yard touchdown pass to wide receiver Chris Henry. The Bengals would take the lead in the third quarter as Palmer completed a 13-yard touchdown pass to wide receiver Chad Ochocinco.  In the fourth quarter, Cincinnati pulled away as kicker Shayne Graham nailed a 40-yard field goal.  Afterwards, the Packers delivered their only response as kicker Mason Crosby got a 45-yard field goal. With the win, the Bengals improved to 1-1. This was the first game the franchise had ever won in Green Bay.",
+        "original_question": "How many touchdown passes between 1 and 25 yards were made?",
+        "original_answer_data": {
+          "spans": [
+            "4"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 907
+      }
+    },
+    {
+      "question": "PASSAGE: Trying to snap a two-game losing streak, the Rams flew to The Meadowlands for a Week 10 interconference duel with the New York Jets. In the first quarter, St. Louis trailed early as Jet RB Thomas Jones got a 13-yard TD run, kicker Jay Feely got a 22-yard field goal, and LB Calvin Pace returned a fumble 50 yards for a touchdown. In the second quarter, the Rams' misery continued as Jones got a 2-yard TD run, Feely got a 49-yard and a 46-yard field goal, QB Brett Favre completed a 1-yard TD pass to TE Dustin Keller, and Feely made a 55-yard field goal. In the third quarter, St. Louis would get their only score of the game as kicker Josh Brown nailed a 37-yard field goal. In the fourth quarter, New York flew away as Jones got a 6-yard TD run.\n\nQUESTION: Who caught the second quarter touchdown reception?",
+      "answer": "Dustin Keller",
+      "id": "example_262",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Trying to snap a two-game losing streak, the Rams flew to The Meadowlands for a Week 10 interconference duel with the New York Jets. In the first quarter, St. Louis trailed early as Jet RB Thomas Jones got a 13-yard TD run, kicker Jay Feely got a 22-yard field goal, and LB Calvin Pace returned a fumble 50 yards for a touchdown. In the second quarter, the Rams' misery continued as Jones got a 2-yard TD run, Feely got a 49-yard and a 46-yard field goal, QB Brett Favre completed a 1-yard TD pass to TE Dustin Keller, and Feely made a 55-yard field goal. In the third quarter, St. Louis would get their only score of the game as kicker Josh Brown nailed a 37-yard field goal. In the fourth quarter, New York flew away as Jones got a 6-yard TD run.",
+        "original_question": "Who caught the second quarter touchdown reception?",
+        "original_answer_data": {
+          "spans": [
+            "Dustin Keller"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 623
+      }
+    },
+    {
+      "question": "PASSAGE: Trying to snap a two-game losing streak, the Texans returned home for a Week 5 duel with the winless Miami Dolphins.  In the first quarter, Houston took the early lead with RB Ron Dayne getting a 1-yard TD run.  However, the Dolphin answered with kicker Jay Feely getting a 23-yard field goal, along with RB Ronnie Brown getting a 3-yard TD run.  In the second quarter, the Texans' recent struggles continued as Miami managed to get 40-yard and a 33-yard field goal from Feely.  The Texans would end the half with kicker Kris Brown getting a 54-yard field goal. In the third quarter, Houston began to retaliate with Brown nailing a 43-yard and a 54-yard field goal.  In the fourth quarter, the Dolphins managed to get a 48-yard field goal. Fortunately, the Texans would snap their two-game skid with Brown nailing a 20-yard field goal, along with an astounding 57-yard field goal.\n\nQUESTION: How many 54-yard field goals did Kris Brown kick?",
+      "answer": "2",
+      "id": "example_263",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Trying to snap a two-game losing streak, the Texans returned home for a Week 5 duel with the winless Miami Dolphins.  In the first quarter, Houston took the early lead with RB Ron Dayne getting a 1-yard TD run.  However, the Dolphin answered with kicker Jay Feely getting a 23-yard field goal, along with RB Ronnie Brown getting a 3-yard TD run.  In the second quarter, the Texans' recent struggles continued as Miami managed to get 40-yard and a 33-yard field goal from Feely.  The Texans would end the half with kicker Kris Brown getting a 54-yard field goal. In the third quarter, Houston began to retaliate with Brown nailing a 43-yard and a 54-yard field goal.  In the fourth quarter, the Dolphins managed to get a 48-yard field goal. Fortunately, the Texans would snap their two-game skid with Brown nailing a 20-yard field goal, along with an astounding 57-yard field goal.",
+        "original_question": "How many 54-yard field goals did Kris Brown kick?",
+        "original_answer_data": {
+          "spans": [
+            "2"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 73
+      }
+    },
+    {
+      "question": "PASSAGE: Since 1444 Si Jifa had repeatedly sent tribute to Ming asking for pardon to no avail. In March 1449, a combined army of 150,000 soldiers was amassed, and the fourth and final campaign to extirpate the Mong Mao threat was launched under the supervision of Wang Ji. The army quickly marched on Mong Yang, which harbored Si Jifa, and captured their strongholds. However Si Jifa managed to escape yet again, and the campaign ended inconclusively with the ruling Shan elite allowed to remain in Mong Yang so long as they never returned to Mong Mao. Sources disagree as to how Si Jifa met his end. One source claims he died in combat in 1449, another says he was captured by the king of Ava and held captive in exchange for Ming territory, and one Shan chronicle claims he reigned for another fifty years. While Mong Mao had been defeated and pacified, Si Jifa's son Si Hongfa continued to rule in Mong Yang and his successors would eventually go on to invade Ava in 1527. So in practice Si Lunfa's family survived as rulers in the neighboring state of Mong Yang under the close observation of Ming. The fourth campaign was also marred by lack of discipline, inefficient administration, and mismanagement of resources. On the first day of mobilization, the entire 150,000 strong army started marching all at once, and many were trampled to death. Food supplies were mismanaged and assigned to individual carriers disproportionate to their weight, and no proper plan for their distribution existed. Some soldiers committed suicide due to the conditions prevalent in the army.\n\nQUESTION: What ways were the soldiers killed while not in war?",
+      "answer": "trampled to death, committed suicide",
+      "id": "example_264",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Since 1444 Si Jifa had repeatedly sent tribute to Ming asking for pardon to no avail. In March 1449, a combined army of 150,000 soldiers was amassed, and the fourth and final campaign to extirpate the Mong Mao threat was launched under the supervision of Wang Ji. The army quickly marched on Mong Yang, which harbored Si Jifa, and captured their strongholds. However Si Jifa managed to escape yet again, and the campaign ended inconclusively with the ruling Shan elite allowed to remain in Mong Yang so long as they never returned to Mong Mao. Sources disagree as to how Si Jifa met his end. One source claims he died in combat in 1449, another says he was captured by the king of Ava and held captive in exchange for Ming territory, and one Shan chronicle claims he reigned for another fifty years. While Mong Mao had been defeated and pacified, Si Jifa's son Si Hongfa continued to rule in Mong Yang and his successors would eventually go on to invade Ava in 1527. So in practice Si Lunfa's family survived as rulers in the neighboring state of Mong Yang under the close observation of Ming. The fourth campaign was also marred by lack of discipline, inefficient administration, and mismanagement of resources. On the first day of mobilization, the entire 150,000 strong army started marching all at once, and many were trampled to death. Food supplies were mismanaged and assigned to individual carriers disproportionate to their weight, and no proper plan for their distribution existed. Some soldiers committed suicide due to the conditions prevalent in the army.",
+        "original_question": "What ways were the soldiers killed while not in war?",
+        "original_answer_data": {
+          "spans": [
+            "trampled to death",
+            "committed suicide"
+          ],
+          "types": [
+            "span",
+            "span"
+          ]
+        },
+        "line_number": 663
+      }
+    },
+    {
+      "question": "PASSAGE: The branch of CBS News that produces newscasts and features to radio stations is CBS News Radio. The radio network is the oldest unit of CBS and traced its roots to the company's founding in 1927, and the news division took shape over the decade that followed. The list of CBS News correspondents  includes those reporting on CBS News Radio. CBS News Radio produces the oldest daily news show on radio or television, the CBS World News Roundup, which first aired in 1938 and celebrates its 80th anniversary in 2018. The World News Roundup airs twice every weekday: a morning edition is anchored by Steve Kathan and produced by Paul Farry, while a \"late edition\" is anchored by Dave Barrett and produced by James Hutton. The evening Roundup, previously known as The World Tonight, has aired in its current form since 1956 and has been anchored by Blair Clark, Douglas Edwards, Dallas Townsend and Christopher Glenn . The CBS Radio Network provides newscasts at the top of the hour, regular updates at\u00a0:31 minutes past the hour, the popular Newsfeeds for affiliates  at\u00a0:35 minutes past the hour, and breaking news updates when developments warrant, often at\u00a0:20 and\u00a0:50 minutes past the hour. Skyview Networks handles the distribution.\n\nQUESTION: How many years after the founding of CBS did The World Tonight begin to air?",
+      "answer": "29",
+      "id": "example_265",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The branch of CBS News that produces newscasts and features to radio stations is CBS News Radio. The radio network is the oldest unit of CBS and traced its roots to the company's founding in 1927, and the news division took shape over the decade that followed. The list of CBS News correspondents  includes those reporting on CBS News Radio. CBS News Radio produces the oldest daily news show on radio or television, the CBS World News Roundup, which first aired in 1938 and celebrates its 80th anniversary in 2018. The World News Roundup airs twice every weekday: a morning edition is anchored by Steve Kathan and produced by Paul Farry, while a \"late edition\" is anchored by Dave Barrett and produced by James Hutton. The evening Roundup, previously known as The World Tonight, has aired in its current form since 1956 and has been anchored by Blair Clark, Douglas Edwards, Dallas Townsend and Christopher Glenn . The CBS Radio Network provides newscasts at the top of the hour, regular updates at\u00a0:31 minutes past the hour, the popular Newsfeeds for affiliates  at\u00a0:35 minutes past the hour, and breaking news updates when developments warrant, often at\u00a0:20 and\u00a0:50 minutes past the hour. Skyview Networks handles the distribution.",
+        "original_question": "How many years after the founding of CBS did The World Tonight begin to air?",
+        "original_answer_data": {
+          "spans": [
+            "29"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 699
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their bye week, the Broncos went home for a Week 9 duel with the Miami Dolphins.  In the first quarter, Denver trailed early as Dolphins kicker Dan Carpenter got a 45-yard and a 47-yard field goal, along with CB Will Allen returning an interception 32 yards for a touchdown.  The Broncos would answer with QB Jay Cutler completing a 2-yard TD pass to rookie WR Eddie Royal.  In the second quarter, Miami answered with Carpenter getting a 23-yard field goal. In the third quarter, Denver tried to rally as kicker Matt Prater got a 50-yard field goal.  In the fourth quarter, the Dolphins replied with Carpenter nailing a 41-yard field goal.  The Broncos tried to come back as Cutler completed a 1-yard TD pass to rookie FB Peyton Hillis.  However, Miami pulled away as RB Ronnie Brown got a 2-yard TD run.",
+      "original_question": "Which player scored more field goals, Dan Carpenter or Matt Prater?",
+      "original_answer_data": {
+        "spans": [
+          "Dan Carpenter"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 167
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": " Eight years after their last game in Indianapolis (a 29-13 victory), the Bears returned to play the Colts in week five. The 43rd game between the two franchise, the Bears trailed the series 19-23, but won the last two games, recently a 41-21 win in 2012. \"An efficient offensive attack\", particularly a rushing-based offense like against the Lions, was a key to success against the Colts defense, according to Jeff Joniak; the Colts allowed the second-highest runs of at least four yards with 51.5 percent. He added the offense should punctuate the run with deep passes, as the Colts were the most penalized defense in the NFL with six pass interference and three personal fouls, along with just four turnovers forced resulting in only three total points. Meanwhile, the Bears defense had to attack Colts quarterback Andrew Luck; Indianapolis was allowing a league-high 15 sacks, was ranked 29th in pass protection efficiency, the second-most hurries (35) the highest number of knockdowns (33) allowed, along with 10 combined false start and holding penalties. Joniak added jet lag could play a factor in the game, as the Colts had lost in London the week before and had no bye week. Connor Barth scored the first points of the game when he kicked a 35-yard field goal on the Bears' opening drive. Adam Vinatieri responded with a 54-yard field goal and the Colts took the lead in the second quarter when Luck threw a one-yard touchdown pass to Dwayne Allen. Both teams traded field goals on their next drives before Brian Hoyer threw a 14-yard touchdown pass to Cameron Meredith. With 11 seconds left in the first half, Vinatieri kicked a 26-yard field goal to give Indianapolis the 16-13 lead at halftime. He converted a 41-yard field goal in the third quarter to increase the margin to six points; when Barth tried a 49-yarder on the next series, he missed it wide left, but redeemed himself with a 24-yard kick in the fourth. Hoyer later led the Bears on a 96-yard drive, ending it with a 21-yard touchdown pass to Jordan Howard; the drive was the longest touchdown-scoring series since a 97-yard possession against the Steelers in 2009. Luck responded with a 35-yard touchdown pass to T. Y. Hilton, who beat Jacoby Glenn for the score, followed by Vinatieri's 35-yard field goal after Meredith lost a fumble. Down by six points, Hoyer attempted to rally the Bears on one last drive but missed an open Alshon Jeffery on fourth down, throwing an incomplete pass to Meredith. The Colts ran out the clock to end the game. With the loss, the Bears fell to 1-4, their worst five-week start since they started the 2004 season 1-4. They ended the game with 522 offensive yards, the most since they recorded 542 in a 1989 win against the Lions and the most in a loss since 1940.",
+      "original_question": "How many total points were scored in the first half?",
+      "original_answer_data": {
+        "spans": [
+          "29"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 994
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "There were 412 households of which 33.7% had children under the age of 18 living with them, 54.6% were married couples living together, 10.4% had a female householder with no husband present, 6.1% had a male householder with no wife present, and 28.9% were non-families. 25.7% of all households were made up of individuals and 12.6% had someone living alone who was 65 years of age or older. The average household size was 2.55 and the average family size was 3.02.The median age in the village was 40.9 years. 26% of residents were under the age of 18; 8.3% were between the ages of 18 and 24; 21.4% were from 25 to 44; 28.7% were from 45 to 64; and 15.6% were 65 years of age or older. The gender makeup of the village was 48.9% male and 51.1% female.",
+      "original_question": "How many percent of the people were not male?",
+      "original_answer_data": {
+        "spans": [
+          "51.1"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 746
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After the win at home against the Bengals, the Steelers traveled to take on the Packers in a rematch of Super Bowl XLV.  Coming into this game with a record of 2-5 in road games, the Packers scored first when Matt Flynn found Jarrett Boykin on a 5-yard pass for a 7-0 lead.  The Steelers managed to tie it up late in the first quarter when Ben Roethlisberger found Emmanuel Sanders on a 1-yard pass taking the game to 7-7.  In the 2nd quarter, the Packers retook the lead as Eddie Lacy ran for a 14-yard touchdown making the score 14-7.  This was followed up by the Steelers coming within 4 as Suisham kicked a 31-yard field goal as for a 14-10 score at halftime.  After the break, the Steelers took the lead as Roethlisberger rushed for a touchdown himself from 13 yards out making the score 17-14.  The Packers took the lead back as Lacy ran for a 2-yard touchdown making the score 21-17.  The Steelers then moved back into the lead as Roethlisberger found Matt Speath on an 11-yard pass making the score 24-21 and then Cortez Allen picked off Matt Flynn returning the ball 40 yards for a touchdown making the score 31-21.  In the 4th quarter, the Packers tried a comeback attempt as Mason Crosby nailed a 22-yard field goal to come within 7 31-24.  Eventually, they managed to tie the game when John Kuhn ran for a 1-yard touchdown at 31-31.  The Steelers moved back into the lead as Le'Veon Bell ran for a 1-yard touchdown for a 38-31 lead.  Matt Flynn moved the Packers down the field but his last attempt within the final 3 seconds was incomplete sealing the win for the Steelers as they improved to 7-8 while finishing 3-5 in road games.",
+      "original_question": "How many running touchdowns were there?",
+      "original_answer_data": {
+        "spans": [
+          "5"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 546
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from the road loss to the Chargers, the Rams went home for Week 9, as they fought the Kansas City Chiefs in a \"Show Me State Showdown\". The Chiefs struck first as RB Larry Johnson got a 1-yard TD run for the only score of the period.  In the second quarter, things got worse for the Rams as QB Damon Huard completed a 3-yard TD pass to TE Tony Gonzalez, while kicker Lawrence Tynes nailed a 42-yard field goal.  St. Louis got on the board with RB Steven Jackson getting a 2-yard TD run, yet Huard and Gonzalez hooked up with each other again on a 25-yard TD strike.  Rams kicker Jeff Wilkins made a 41-yard field goal to end the half.  In the third quarter, QB Marc Bulger completed a 2-yard TD pass to WR Kevin Curtis for the only score of the period, yet the only score of the fourth quarter came from Huard completing an 11-yard TD pass to TE Kris Wilson. With the loss, the Rams fell to 4-4.",
+      "original_question": "How many total field goal yards were kicked in the first half?",
+      "original_answer_data": {
+        "spans": [
+          "83"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 175
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from a tough last-second loss to the Broncos, the Bengals flew to Lambeau Field for a Week 2 interconference duel with the Green Bay Packers.  Cincinnati delivered the first score in the opening score as quarterback Carson Palmer completed a 5-yard touchdown pass to wide receiver Laveranues Coles.  The Packers would respond as quarterback Aaron Rodgers completed a 3-yard touchdown pass to wide receiver Donald Driver, followed by running back Ryan Grant getting a 4-yard touchdown run.  In the second quarter, the Bengals tied the game as Palmer got a 1-yard touchdown run. Green Bay would reply with cornerback Charles Woodson returning an interception 37 yards for a touchdown.  Cincinnati would end the half as Palmer completed a 5-yard touchdown pass to wide receiver Chris Henry. The Bengals would take the lead in the third quarter as Palmer completed a 13-yard touchdown pass to wide receiver Chad Ochocinco.  In the fourth quarter, Cincinnati pulled away as kicker Shayne Graham nailed a 40-yard field goal.  Afterwards, the Packers delivered their only response as kicker Mason Crosby got a 45-yard field goal. With the win, the Bengals improved to 1-1. This was the first game the franchise had ever won in Green Bay.",
+      "original_question": "How many touchdown passes between 1 and 25 yards were made?",
+      "original_answer_data": {
+        "spans": [
+          "4"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 907
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Trying to snap a two-game losing streak, the Rams flew to The Meadowlands for a Week 10 interconference duel with the New York Jets. In the first quarter, St. Louis trailed early as Jet RB Thomas Jones got a 13-yard TD run, kicker Jay Feely got a 22-yard field goal, and LB Calvin Pace returned a fumble 50 yards for a touchdown. In the second quarter, the Rams' misery continued as Jones got a 2-yard TD run, Feely got a 49-yard and a 46-yard field goal, QB Brett Favre completed a 1-yard TD pass to TE Dustin Keller, and Feely made a 55-yard field goal. In the third quarter, St. Louis would get their only score of the game as kicker Josh Brown nailed a 37-yard field goal. In the fourth quarter, New York flew away as Jones got a 6-yard TD run.",
+      "original_question": "Who caught the second quarter touchdown reception?",
+      "original_answer_data": {
+        "spans": [
+          "Dustin Keller"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 623
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Trying to snap a two-game losing streak, the Texans returned home for a Week 5 duel with the winless Miami Dolphins.  In the first quarter, Houston took the early lead with RB Ron Dayne getting a 1-yard TD run.  However, the Dolphin answered with kicker Jay Feely getting a 23-yard field goal, along with RB Ronnie Brown getting a 3-yard TD run.  In the second quarter, the Texans' recent struggles continued as Miami managed to get 40-yard and a 33-yard field goal from Feely.  The Texans would end the half with kicker Kris Brown getting a 54-yard field goal. In the third quarter, Houston began to retaliate with Brown nailing a 43-yard and a 54-yard field goal.  In the fourth quarter, the Dolphins managed to get a 48-yard field goal. Fortunately, the Texans would snap their two-game skid with Brown nailing a 20-yard field goal, along with an astounding 57-yard field goal.",
+      "original_question": "How many 54-yard field goals did Kris Brown kick?",
+      "original_answer_data": {
+        "spans": [
+          "2"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 73
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Since 1444 Si Jifa had repeatedly sent tribute to Ming asking for pardon to no avail. In March 1449, a combined army of 150,000 soldiers was amassed, and the fourth and final campaign to extirpate the Mong Mao threat was launched under the supervision of Wang Ji. The army quickly marched on Mong Yang, which harbored Si Jifa, and captured their strongholds. However Si Jifa managed to escape yet again, and the campaign ended inconclusively with the ruling Shan elite allowed to remain in Mong Yang so long as they never returned to Mong Mao. Sources disagree as to how Si Jifa met his end. One source claims he died in combat in 1449, another says he was captured by the king of Ava and held captive in exchange for Ming territory, and one Shan chronicle claims he reigned for another fifty years. While Mong Mao had been defeated and pacified, Si Jifa's son Si Hongfa continued to rule in Mong Yang and his successors would eventually go on to invade Ava in 1527. So in practice Si Lunfa's family survived as rulers in the neighboring state of Mong Yang under the close observation of Ming. The fourth campaign was also marred by lack of discipline, inefficient administration, and mismanagement of resources. On the first day of mobilization, the entire 150,000 strong army started marching all at once, and many were trampled to death. Food supplies were mismanaged and assigned to individual carriers disproportionate to their weight, and no proper plan for their distribution existed. Some soldiers committed suicide due to the conditions prevalent in the army.",
+      "original_question": "What ways were the soldiers killed while not in war?",
+      "original_answer_data": {
+        "spans": [
+          "trampled to death",
+          "committed suicide"
+        ],
+        "types": [
+          "span",
+          "span"
+        ]
+      },
+      "line_number": 663
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The branch of CBS News that produces newscasts and features to radio stations is CBS News Radio. The radio network is the oldest unit of CBS and traced its roots to the company's founding in 1927, and the news division took shape over the decade that followed. The list of CBS News correspondents  includes those reporting on CBS News Radio. CBS News Radio produces the oldest daily news show on radio or television, the CBS World News Roundup, which first aired in 1938 and celebrates its 80th anniversary in 2018. The World News Roundup airs twice every weekday: a morning edition is anchored by Steve Kathan and produced by Paul Farry, while a \"late edition\" is anchored by Dave Barrett and produced by James Hutton. The evening Roundup, previously known as The World Tonight, has aired in its current form since 1956 and has been anchored by Blair Clark, Douglas Edwards, Dallas Townsend and Christopher Glenn . The CBS Radio Network provides newscasts at the top of the hour, regular updates at\u00a0:31 minutes past the hour, the popular Newsfeeds for affiliates  at\u00a0:35 minutes past the hour, and breaking news updates when developments warrant, often at\u00a0:20 and\u00a0:50 minutes past the hour. Skyview Networks handles the distribution.",
+      "original_question": "How many years after the founding of CBS did The World Tonight begin to air?",
+      "original_answer_data": {
+        "spans": [
+          "29"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 699
+    }
+  ],
+  "example_indices": [
+    256,
+    257,
+    258,
+    259,
+    260,
+    261,
+    262,
+    263,
+    264,
+    265
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "Dan Carpenter scored 4 field goals and Matt Prater scored 1. Therefore, Dan Carpenter scored more field goals than Matt Prater is correct.",
+      "output": "ANSWER_START\nDan Carpenter scored 4 field goals and Matt Prater scored 1. Therefore, Dan Carpenter scored more field goals than Matt Prater is correct.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer only contains the name of the player with more field goals, whereas the system answer contains a full sentence indicating Dan Carpenter scored more field goals. Therefore, it is not semantically equivalent."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct.",
+      "output": "ANSWER_START\nThe answer is correct.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 0.0,
+        "explanation": "The system answer states that the answer is correct but does not provide a numerical answer. The golden answer gives the number 29. Thus, the answers do not communicate the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "51.1% is correct. 51.1% of the village was female.",
+      "output": "ANSWER_START\n51.1% is correct. 51.1% of the village was female.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer includes the correct numerical answer (51.1%), even though it also provides additional context."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Eddie Lacy ran for a touchdown twice, John Kuhn ran for a touchdown once, and Le'Veon Bell ran for a touchdown once. So there were 4 running touchdowns is correct.",
+      "output": "ANSWER_START\nEddie Lacy ran for a touchdown twice, John Kuhn ran for a touchdown once, and Le'Veon Bell ran for a touchdown once. So there were 4 running touchdowns is correct.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer incorrectly states that there were 4 running touchdowns, when the golden answer specifies there were 5."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Lawrence Tynes kicked a 42-yard field goal and Jeff Wilkins kicked a 41-yard field goal. 42 + 41 = 83. So there were 83 total field goal yards kicked in the first half.",
+      "output": "ANSWER_START\nLawrence Tynes kicked a 42-yard field goal and Jeff Wilkins kicked a 41-yard field goal. 42 + 41 = 83. So there were 83 total field goal yards kicked in the first half.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer explains the math leading to the golden answer of 83. Therefore, they convey the same information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct.\n\nCarson Palmer to Laveranues Coles: 5 yards\nAaron Rodgers to Donald Driver: 3 yards\nCarson Palmer to Chris Henry: 5 yards\nCarson Palmer to Chad Ochocinco: 13 yards\n\nAll four touchdown passes were between 1 and 25 yards.",
+      "output": "ANSWER_START\nThe answer is correct.\n\nCarson Palmer to Laveranues Coles: 5 yards\nAaron Rodgers to Donald Driver: 3 yards\nCarson Palmer to Chris Henry: 5 yards\nCarson Palmer to Chad Ochocinco: 13 yards\n\nAll four touchdown passes were between 1 and 25 yards.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer is 4, which represents the number of touchdown passes. The system answer provides details about each touchdown pass but does not explicitly state the total number of touchdown passes."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Dustin Keller is correct.",
+      "output": "ANSWER_START\nDustin Keller is correct.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer includes the golden answer as its core content, with the addition of 'is correct' which doesn't change the meaning."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Kris Brown kicked a 54-yard field goal in the second quarter and another in the third quarter.\nThe correct answer is 2.",
+      "output": "ANSWER_START\nKris Brown kicked a 54-yard field goal in the second quarter and another in the third quarter.\nThe correct answer is 2.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer implies the correct answer is 2 by stating that Kris Brown kicked two field goals. The golden answer is explicitly 2. They are equivalent."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Many soldiers were trampled to death and some soldiers committed suicide is correct.",
+      "output": "ANSWER_START\nMany soldiers were trampled to death and some soldiers committed suicide is correct.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer clearly states the same events as the golden answer: soldiers being trampled to death and some committing suicide. The \"Many soldiers were\" and \"some soldiers\" parts provide context but don't alter the core information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The company was founded in 1927 and The World Tonight began to air in 1956. 1956 - 1927 = 29. So The World Tonight began to air 29 years after the founding of CBS.",
+      "output": "ANSWER_START\nThe company was founded in 1927 and The World Tonight began to air in 1956. 1956 - 1927 = 29. So The World Tonight began to air 29 years after the founding of CBS.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_32.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer explains the calculation process and arrives at the correct answer of 29, which is the golden answer."
+      },
+      "match": true
+    }
+  ],
+  "performance": {
+    "accuracy": 0.6,
+    "correct_count": 6,
+    "total_count": 10,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "Dan Carpenter scored 4 field goals and Matt Prater scored 1. Therefore, Dan Carpenter scored more field goals than Matt Prater is correct.",
+        "golden_answer": "Dan Carpenter",
+        "output": "ANSWER_START\nDan Carpenter scored 4 field goals and Matt Prater scored 1. Therefore, Dan Carpenter scored more field goals than Matt Prater is correct.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer only contains the name of the player with more field goals, whereas the system answer contains a full sentence indicating Dan Carpenter scored more field goals. Therefore, it is not semantically equivalent."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "The answer is correct.",
+        "golden_answer": "29",
+        "output": "ANSWER_START\nThe answer is correct.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 0.0,
+          "explanation": "The system answer states that the answer is correct but does not provide a numerical answer. The golden answer gives the number 29. Thus, the answers do not communicate the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "51.1% is correct. 51.1% of the village was female.",
+        "golden_answer": "51.1",
+        "output": "ANSWER_START\n51.1% is correct. 51.1% of the village was female.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the correct numerical answer (51.1%), even though it also provides additional context."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "Eddie Lacy ran for a touchdown twice, John Kuhn ran for a touchdown once, and Le'Veon Bell ran for a touchdown once. So there were 4 running touchdowns is correct.",
+        "golden_answer": "5",
+        "output": "ANSWER_START\nEddie Lacy ran for a touchdown twice, John Kuhn ran for a touchdown once, and Le'Veon Bell ran for a touchdown once. So there were 4 running touchdowns is correct.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer incorrectly states that there were 4 running touchdowns, when the golden answer specifies there were 5."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "Lawrence Tynes kicked a 42-yard field goal and Jeff Wilkins kicked a 41-yard field goal. 42 + 41 = 83. So there were 83 total field goal yards kicked in the first half.",
+        "golden_answer": "83",
+        "output": "ANSWER_START\nLawrence Tynes kicked a 42-yard field goal and Jeff Wilkins kicked a 41-yard field goal. 42 + 41 = 83. So there were 83 total field goal yards kicked in the first half.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer explains the math leading to the golden answer of 83. Therefore, they convey the same information."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "The answer is correct.\n\nCarson Palmer to Laveranues Coles: 5 yards\nAaron Rodgers to Donald Driver: 3 yards\nCarson Palmer to Chris Henry: 5 yards\nCarson Palmer to Chad Ochocinco: 13 yards\n\nAll four touchdown passes were between 1 and 25 yards.",
+        "golden_answer": "4",
+        "output": "ANSWER_START\nThe answer is correct.\n\nCarson Palmer to Laveranues Coles: 5 yards\nAaron Rodgers to Donald Driver: 3 yards\nCarson Palmer to Chris Henry: 5 yards\nCarson Palmer to Chad Ochocinco: 13 yards\n\nAll four touchdown passes were between 1 and 25 yards.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer is 4, which represents the number of touchdown passes. The system answer provides details about each touchdown pass but does not explicitly state the total number of touchdown passes."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "Dustin Keller is correct.",
+        "golden_answer": "Dustin Keller",
+        "output": "ANSWER_START\nDustin Keller is correct.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the golden answer as its core content, with the addition of 'is correct' which doesn't change the meaning."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "Kris Brown kicked a 54-yard field goal in the second quarter and another in the third quarter.\nThe correct answer is 2.",
+        "golden_answer": "2",
+        "output": "ANSWER_START\nKris Brown kicked a 54-yard field goal in the second quarter and another in the third quarter.\nThe correct answer is 2.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer implies the correct answer is 2 by stating that Kris Brown kicked two field goals. The golden answer is explicitly 2. They are equivalent."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "Many soldiers were trampled to death and some soldiers committed suicide is correct.",
+        "golden_answer": "trampled to death, committed suicide",
+        "output": "ANSWER_START\nMany soldiers were trampled to death and some soldiers committed suicide is correct.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer clearly states the same events as the golden answer: soldiers being trampled to death and some committing suicide. The \"Many soldiers were\" and \"some soldiers\" parts provide context but don't alter the core information."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "The company was founded in 1927 and The World Tonight began to air in 1956. 1956 - 1927 = 29. So The World Tonight began to air 29 years after the founding of CBS.",
+        "golden_answer": "29",
+        "output": "ANSWER_START\nThe company was founded in 1927 and The World Tonight began to air in 1956. 1956 - 1927 = 29. So The World Tonight began to air 29 years after the founding of CBS.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer explains the calculation process and arrives at the correct answer of 29, which is the golden answer."
+        }
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error cases. The issues appear to be related to logic and reasoning errors, rather than technical malfunctions.\n\n## STRENGTHS\n\n*   **Information Extraction:** The system appears to be generally capable of extracting relevant information from the passage, such as identifying player names, yardage, and types of scores (touchdowns, field goals). This is evidenced by its ability to identify specific scoring plays in the successful examples and even in some error cases.\n*   **Basic Arithmetic:** The system demonstrates the capability to perform basic arithmetic calculations when needed, such as adding field goal yardages.\n\n## WEAKNESSES\n\n*   **Counting and Aggregation:** The system struggles with accurately counting and aggregating information, particularly when multiple instances of the same event occur. This is clear in the error case regarding running touchdowns, where it misses one instance.\n*   **Precise Answer Generation:** The system often includes extraneous information or phrasing in its answers, leading to discrepancies with the golden answers. It may also fail to provide a direct numerical answer when expected.\n*   **Lack of Numerical answer generation:** The LLM is not outputting a numerical answer to numerical questions (sample ID 1 and 5)\n\n## CRITICAL BOTTLENECKS\n\n*   **Inaccurate Counting/Aggregation:** The most critical bottleneck is the system's inability to accurately count and aggregate events described in the passage. This leads to incorrect numerical answers.\n*   **Lack of concise answer generation:** The system is not providing concise answers. Rather, it contains superfluous information.\n\n## ERROR PATTERNS\n\n*   **Inaccurate Counting:** This is the most frequent error pattern. The system miscounts the number of touchdowns, field goals, or other events, leading to an incorrect final answer.\n*   **Verbose Output:** The system provides more information than required by the question. This doesn't necessarily make the answer wrong, but leads to errors because the model is supposed to provide *only* the correct answer.\n\n## PRIMARY ISSUE\n\nThe primary issue is **inaccurate counting and aggregation of events within the passage**, compounded by **generating verbose answers instead of the concise, expected output.**\n\n## IMPROVEMENT AREAS\n\n*   **Counting Accuracy:** Implement more robust counting mechanisms to ensure all instances of relevant events are accounted for.\n*   **Answer Conciseness:** Refine the answer generation process to prioritize conciseness and adherence to the expected output format (e.g., providing only the numerical answer when the golden answer is a number).\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement Explicit Counting Logic:** Instead of relying on the language model to implicitly count events, introduce explicit counting logic using code (e.g., using loops and conditional statements to iterate through relevant parts of the extracted information and increment counters).\n2.  **Post-Processing for Answer Formatting:** Implement a post-processing step to ensure the answer is in the expected format. This could involve extracting only the numerical value from the generated text or using regular expressions to remove extraneous phrases.\n3.  **Focus on Conciseness During Prompting:** Modify the prompts to explicitly instruct the language model to provide concise answers and avoid unnecessary explanations.\n4. Add intermediate print statements to determine where the counting is going wrong. This is especially critical for the future.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** solution_verification (fails due to verbose output)\n*   **Sample ID 1:** solution_generation (fails to output a numerical answer)\n*   **Sample ID 3:** information_extraction, solution_generation (fails to extract the correct number of running touchdowns; outputs an incorrect answer).\n*   **Sample ID 5:** solution_generation (fails to provide just the total number of touchdown passes in its answer.)\n",
+      "strengths": [
+        "Information Extraction:** The system appears to be generally capable of extracting relevant information from the passage, such as identifying player names, yardage, and types of scores (touchdowns, field goals). This is evidenced by its ability to identify specific scoring plays in the successful examples and even in some error cases.",
+        "Basic Arithmetic:** The system demonstrates the capability to perform basic arithmetic calculations when needed, such as adding field goal yardages."
+      ],
+      "weaknesses": [
+        "Counting and Aggregation:** The system struggles with accurately counting and aggregating information, particularly when multiple instances of the same event occur. This is clear in the error case regarding running touchdowns, where it misses one instance.",
+        "Precise Answer Generation:** The system often includes extraneous information or phrasing in its answers, leading to discrepancies with the golden answers. It may also fail to provide a direct numerical answer when expected.",
+        "Lack of Numerical answer generation:** The LLM is not outputting a numerical answer to numerical questions (sample ID 1 and 5)"
+      ],
+      "primary_issue": "The primary issue is **inaccurate counting and aggregation of events within the passage**, compounded by **generating verbose answers instead of the concise, expected output.**",
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, execution outputs, and instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**SYSTEM:** AI System for Question Answering\n\n**VERSION:** (Assuming this is version 1.0 as it's the first assessment) v1.0\n\n**DATE:** October 26, 2023\n\n### PERFORMANCE SUMMARY:\n\n*   **Accuracy:** 0.60 (6/10)\n*   **Error Samples:** 4/10\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal some of the issues highlighted in the error analysis:\n\n*   **Sample ID 0 (Incorrect):** The output includes unnecessary phrasing and repeats information from the passage. It confirms the \"Dan Carpenter scored more field goals than Matt Prater\" fact, but the system should just output \"Correct.\" The system is answering a verification question, not doing question answering.\n*   **Sample ID 1 (Incorrect):** The sample output should just contain a numerical answer, but it responds with, \"The answer is correct.\" It is improperly answering a question that requires a numerical answer.\n*   **Sample ID 3 (Correct):** The system answers the questions correctly, which showcases that it is sometimes able to successfully answer questions.\n\nThe execution outputs reinforce the patterns of verbose output, failure to provide purely numerical answers when expected, and inconsistent performance.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a foundational ability to extract and process information from text. However, its performance is significantly hampered by issues in counting, aggregation, and generating concise, appropriately formatted answers. The system shows some reasoning ability but often struggles with tasks that require accurate quantification or a specific output format. The system seems to be confused on how to answer solution verification question.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** Capable of identifying key entities (players, scores, etc.) from the input text.\n*   **Basic Arithmetic:** Can perform simple calculations when required.\n*   **Solution Verification:** Capable of answering \"solution verification\" questions.\n\n### KEY WEAKNESSES\n\n*   **Counting and Aggregation:** Frequently miscounts or incorrectly aggregates numerical information.\n*   **Concise Answer Generation:** Fails to produce concise, direct answers, often including extraneous information.\n*   **Numerical Answer Generation:** The system does not reliably output numerical answers when they are expected.\n*   **Confusion:** The system appears to be confused when it should output a \"correct\" or \"incorrect\" answer. It seems to think it needs to provide context, which is unnecessary.\n\n### IMPROVEMENT FOCUS\n\n**Counting and Aggregation Accuracy**.  Improving the accuracy of counting and aggregation should be the primary focus, as it directly impacts the correctness of numerical answers and is a frequent source of errors.  The secondary focus should be \"Concise Answer Generation\"\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Explicit Counting Logic (High Priority):**\n    *   **Action:**  Develop code modules that parse the extracted information and use loops/conditional statements to *explicitly* count instances of touchdowns, field goals, etc.  Avoid relying on the language model alone for counting.\n    *   **Rationale:**  Provides a more reliable and auditable counting mechanism.\n    *   **Example:**  Instead of prompting the model to \"count the touchdowns,\" extract all sentences mentioning touchdowns, and then iterate through them, incrementing a counter for each.\n\n2.  **Post-Processing for Answer Formatting (High Priority):**\n    *   **Action:** Add a post-processing function that strips the generated answer down to the *exact* expected format.\n        *   For numerical answers, extract only the numerical value using regular expressions.\n        *   For verification questions, ensure the output is strictly \"Correct\" or \"Incorrect\".\n    *   **Rationale:** Ensures adherence to the expected output format and eliminates verbose responses.\n    *   **Example:**  If the expected answer is \"5\", the post-processing function should strip any output to *only* contain \"5\".\n\n3.  **Prompt Engineering for Conciseness (Medium Priority):**\n    *   **Action:** Refine prompts to strongly emphasize conciseness.  Use phrases like \"Answer with the number only,\" or \"Provide only 'Correct' or 'Incorrect' as your answer. No explanation needed.\"\n    *   **Rationale:**  Reinforces the expectation of concise output.\n\n4.  **Add Intermediate Print Statements (High Priority):**\n    *   **Action:** Insert `print` statements to output intermediate values. For example, print the raw extracted text, the result of your explicit counting logic, and your final answer. This will help you debug your AI system.\n    *   **Rationale:** Allows for better understanding for where the failures are occurring.\n\n5.  **Separate Answer Verification Questions (High Priority):**\n    *   **Action:** If possible, create a separate AI system that specializes in \"solution verification\" questions. Otherwise, ensure the prompt explicitly states to answer the question with either \"Correct\" or \"Incorrect\".\n    *   **Rationale:** Allows for better understanding for where the failures are occurring.\n\n### CAPABILITY MAPPING UPDATES (After Implementing Changes)\n\nAfter implementing the above recommendations, re-evaluate the capability mapping:\n\n*   **solution_verification:** Assess if explicit prompts and post-processing improve conciseness.\n*   **solution_generation:** Evaluate whether explicit counting and number extraction improve the accuracy and format of numerical answers.\n*   **information_extraction:** Monitor if these changes indirectly affect information extraction accuracy.\n\n### CAPABILITY TREND\n\nBased on the initial assessment, the system's capabilities are currently **stable** but with significant room for improvement. Implementing the actionable recommendations should lead to an **improving** trend in the next iteration. Continuous monitoring and refinement of prompts, counting logic, and post-processing will be crucial for sustained progress.\n",
+      "strengths": [
+        "Information Extraction:** The system appears to be generally capable of extracting relevant information from the passage, such as identifying player names, yardage, and types of scores (touchdowns, field goals). This is evidenced by its ability to identify specific scoring plays in the successful examples and even in some error cases.",
+        "Basic Arithmetic:** The system demonstrates the capability to perform basic arithmetic calculations when needed, such as adding field goal yardages."
+      ],
+      "weaknesses": [
+        "Counting and Aggregation:** The system struggles with accurately counting and aggregating information, particularly when multiple instances of the same event occur. This is clear in the error case regarding running touchdowns, where it misses one instance.",
+        "Precise Answer Generation:** The system often includes extraneous information or phrasing in its answers, leading to discrepancies with the golden answers. It may also fail to provide a direct numerical answer when expected.",
+        "Lack of Numerical answer generation:** The LLM is not outputting a numerical answer to numerical questions (sample ID 1 and 5)"
+      ],
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error cases. The issues appear to be related to logic and reasoning errors, rather than technical malfunctions.\n\n## STRENGTHS\n\n*   **Information Extraction:** The system appears to be generally capable of extracting relevant information from the passage, such as identifying player names, yardage, and types of scores (touchdowns, field goals). This is evidenced by its ability to identify specific scoring plays in the successful examples and even in some error cases.\n*   **Basic Arithmetic:** The system demonstrates the capability to perform basic arithmetic calculations when needed, such as adding field goal yardages.\n\n## WEAKNESSES\n\n*   **Counting and Aggregation:** The system struggles with accurately counting and aggregating information, particularly when multiple instances of the same event occur. This is clear in the error case regarding running touchdowns, where it misses one instance.\n*   **Precise Answer Generation:** The system often includes extraneous information or phrasing in its answers, leading to discrepancies with the golden answers. It may also fail to provide a direct numerical answer when expected.\n*   **Lack of Numerical answer generation:** The LLM is not outputting a numerical answer to numerical questions (sample ID 1 and 5)\n\n## CRITICAL BOTTLENECKS\n\n*   **Inaccurate Counting/Aggregation:** The most critical bottleneck is the system's inability to accurately count and aggregate events described in the passage. This leads to incorrect numerical answers.\n*   **Lack of concise answer generation:** The system is not providing concise answers. Rather, it contains superfluous information.\n\n## ERROR PATTERNS\n\n*   **Inaccurate Counting:** This is the most frequent error pattern. The system miscounts the number of touchdowns, field goals, or other events, leading to an incorrect final answer.\n*   **Verbose Output:** The system provides more information than required by the question. This doesn't necessarily make the answer wrong, but leads to errors because the model is supposed to provide *only* the correct answer.\n\n## PRIMARY ISSUE\n\nThe primary issue is **inaccurate counting and aggregation of events within the passage**, compounded by **generating verbose answers instead of the concise, expected output.**\n\n## IMPROVEMENT AREAS\n\n*   **Counting Accuracy:** Implement more robust counting mechanisms to ensure all instances of relevant events are accounted for.\n*   **Answer Conciseness:** Refine the answer generation process to prioritize conciseness and adherence to the expected output format (e.g., providing only the numerical answer when the golden answer is a number).\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement Explicit Counting Logic:** Instead of relying on the language model to implicitly count events, introduce explicit counting logic using code (e.g., using loops and conditional statements to iterate through relevant parts of the extracted information and increment counters).\n2.  **Post-Processing for Answer Formatting:** Implement a post-processing step to ensure the answer is in the expected format. This could involve extracting only the numerical value from the generated text or using regular expressions to remove extraneous phrases.\n3.  **Focus on Conciseness During Prompting:** Modify the prompts to explicitly instruct the language model to provide concise answers and avoid unnecessary explanations.\n4. Add intermediate print statements to determine where the counting is going wrong. This is especially critical for the future.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** solution_verification (fails due to verbose output)\n*   **Sample ID 1:** solution_generation (fails to output a numerical answer)\n*   **Sample ID 3:** information_extraction, solution_generation (fails to extract the correct number of running touchdowns; outputs an incorrect answer).\n*   **Sample ID 5:** solution_generation (fails to provide just the total number of touchdown passes in its answer.)\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, execution outputs, and instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**SYSTEM:** AI System for Question Answering\n\n**VERSION:** (Assuming this is version 1.0 as it's the first assessment) v1.0\n\n**DATE:** October 26, 2023\n\n### PERFORMANCE SUMMARY:\n\n*   **Accuracy:** 0.60 (6/10)\n*   **Error Samples:** 4/10\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs reveal some of the issues highlighted in the error analysis:\n\n*   **Sample ID 0 (Incorrect):** The output includes unnecessary phrasing and repeats information from the passage. It confirms the \"Dan Carpenter scored more field goals than Matt Prater\" fact, but the system should just output \"Correct.\" The system is answering a verification question, not doing question answering.\n*   **Sample ID 1 (Incorrect):** The sample output should just contain a numerical answer, but it responds with, \"The answer is correct.\" It is improperly answering a question that requires a numerical answer.\n*   **Sample ID 3 (Correct):** The system answers the questions correctly, which showcases that it is sometimes able to successfully answer questions.\n\nThe execution outputs reinforce the patterns of verbose output, failure to provide purely numerical answers when expected, and inconsistent performance.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a foundational ability to extract and process information from text. However, its performance is significantly hampered by issues in counting, aggregation, and generating concise, appropriately formatted answers. The system shows some reasoning ability but often struggles with tasks that require accurate quantification or a specific output format. The system seems to be confused on how to answer solution verification question.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** Capable of identifying key entities (players, scores, etc.) from the input text.\n*   **Basic Arithmetic:** Can perform simple calculations when required.\n*   **Solution Verification:** Capable of answering \"solution verification\" questions.\n\n### KEY WEAKNESSES\n\n*   **Counting and Aggregation:** Frequently miscounts or incorrectly aggregates numerical information.\n*   **Concise Answer Generation:** Fails to produce concise, direct answers, often including extraneous information.\n*   **Numerical Answer Generation:** The system does not reliably output numerical answers when they are expected.\n*   **Confusion:** The system appears to be confused when it should output a \"correct\" or \"incorrect\" answer. It seems to think it needs to provide context, which is unnecessary.\n\n### IMPROVEMENT FOCUS\n\n**Counting and Aggregation Accuracy**.  Improving the accuracy of counting and aggregation should be the primary focus, as it directly impacts the correctness of numerical answers and is a frequent source of errors.  The secondary focus should be \"Concise Answer Generation\"\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Explicit Counting Logic (High Priority):**\n    *   **Action:**  Develop code modules that parse the extracted information and use loops/conditional statements to *explicitly* count instances of touchdowns, field goals, etc.  Avoid relying on the language model alone for counting.\n    *   **Rationale:**  Provides a more reliable and auditable counting mechanism.\n    *   **Example:**  Instead of prompting the model to \"count the touchdowns,\" extract all sentences mentioning touchdowns, and then iterate through them, incrementing a counter for each.\n\n2.  **Post-Processing for Answer Formatting (High Priority):**\n    *   **Action:** Add a post-processing function that strips the generated answer down to the *exact* expected format.\n        *   For numerical answers, extract only the numerical value using regular expressions.\n        *   For verification questions, ensure the output is strictly \"Correct\" or \"Incorrect\".\n    *   **Rationale:** Ensures adherence to the expected output format and eliminates verbose responses.\n    *   **Example:**  If the expected answer is \"5\", the post-processing function should strip any output to *only* contain \"5\".\n\n3.  **Prompt Engineering for Conciseness (Medium Priority):**\n    *   **Action:** Refine prompts to strongly emphasize conciseness.  Use phrases like \"Answer with the number only,\" or \"Provide only 'Correct' or 'Incorrect' as your answer. No explanation needed.\"\n    *   **Rationale:**  Reinforces the expectation of concise output.\n\n4.  **Add Intermediate Print Statements (High Priority):**\n    *   **Action:** Insert `print` statements to output intermediate values. For example, print the raw extracted text, the result of your explicit counting logic, and your final answer. This will help you debug your AI system.\n    *   **Rationale:** Allows for better understanding for where the failures are occurring.\n\n5.  **Separate Answer Verification Questions (High Priority):**\n    *   **Action:** If possible, create a separate AI system that specializes in \"solution verification\" questions. Otherwise, ensure the prompt explicitly states to answer the question with either \"Correct\" or \"Incorrect\".\n    *   **Rationale:** Allows for better understanding for where the failures are occurring.\n\n### CAPABILITY MAPPING UPDATES (After Implementing Changes)\n\nAfter implementing the above recommendations, re-evaluate the capability mapping:\n\n*   **solution_verification:** Assess if explicit prompts and post-processing improve conciseness.\n*   **solution_generation:** Evaluate whether explicit counting and number extraction improve the accuracy and format of numerical answers.\n*   **information_extraction:** Monitor if these changes indirectly affect information extraction accuracy.\n\n### CAPABILITY TREND\n\nBased on the initial assessment, the system's capabilities are currently **stable** but with significant room for improvement. Implementing the actionable recommendations should lead to an **improving** trend in the next iteration. Continuous monitoring and refinement of prompts, counting logic, and post-processing will be crucial for sustained progress.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 9,
+    "accuracy": 0.9,
+    "results": [
+      {
+        "success": true,
+        "answer": "Marshawn Lynch and Mychal Rivera is correct.",
+        "output": "ANSWER_START\nMarshawn Lynch and Mychal Rivera is correct.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "Mychal Rivera, Marshawn Lynch",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers list the same two names, 'Marshawn Lynch' and 'Mychal Rivera', just in a different order. The order doesn't affect the correctness of the answer, so they are semantically equivalent."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The French captured 3,150 muskets and 1,523 hundredweight of gunpowder. 3,150 is greater than 1,523. So the French captured the greatest amount of muskets.",
+        "output": "ANSWER_START\nThe French captured 3,150 muskets and 1,523 hundredweight of gunpowder. 3,150 is greater than 1,523. So the French captured the greatest amount of muskets.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "muskets",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly identifies that the French captured a greater quantity of muskets (3,150) compared to gunpowder (1,523 hundredweight). Therefore, the system answer implies the golden answer (muskets)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Andy Dalton and A.J. Green is correct.",
+        "output": "ANSWER_START\nAndy Dalton and A.J. Green is correct.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "A.J. Green, Andy Dalton",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers contain the same two names, A.J. Green and Andy Dalton, regardless of the order or inclusion of the word 'and'."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The answer is correct.",
+        "output": "ANSWER_START\nThe answer is correct.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "3",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer indicates the response is correct, implying it matches the golden answer of 3."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2 is correct. Brandon Jacobs had back-to-back touchdown runs.",
+        "output": "ANSWER_START\n2 is correct. Brandon Jacobs had back-to-back touchdown runs.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer identifies '2' as the correct answer, which is the same as the golden answer. The additional information in the system answer provides context but doesn't change the core answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Incorrect. Garrett Hartley kicked a 50-yard field goal and a 45-yard field goal. David Buehler kicked a 21-yard field goal and a 53-yard field goal. 53 > 50 > 45 > 21. The longest field goal was 53 yards.",
+        "output": "ANSWER_START\nIncorrect. Garrett Hartley kicked a 50-yard field goal and a 45-yard field goal. David Buehler kicked a 21-yard field goal and a 53-yard field goal. 53 > 50 > 45 > 21. The longest field goal was 53 yards.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "53",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly identifies the longest field goal as 53 yards, which is the same as the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Matt Leinart is correct. Matt Leinart threw a 56-yard touchdown pass and Matt Hasselbeck threw a 23-yard touchdown pass. 56 > 23.",
+        "output": "ANSWER_START\nMatt Leinart is correct. Matt Leinart threw a 56-yard touchdown pass and Matt Hasselbeck threw a 23-yard touchdown pass. 56 > 23.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "Matt Leinart",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer provides the reasoning for why Matt Leinart is the correct answer. The golden answer is Matt Leinart and the system answer leads to the same conclusion."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "West Africa's coast is correct.",
+        "output": "ANSWER_START\nWest Africa's coast is correct.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "West Africa's coast",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical. The System Answer simply has 'is correct' appended to the end, but this doesn't change the core information being conveyed."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1792 - 1766 = 26. So the answer is 26 years.",
+        "output": "ANSWER_START\n1792 - 1766 = 26. So the answer is 26 years.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "26",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer provides the correct calculation and arrives at the same numerical result as the golden answer, which is 26."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The answer is correct. The passage provides ranges for the number of casualties on each side (Christians and Ottomans), but it doesn't provide exact numbers. Therefore, it's impossible to determine the exact total number of casualties.",
+        "output": "ANSWER_START\nThe answer is correct. The passage provides ranges for the number of casualties on each side (Christians and Ottomans), but it doesn't provide exact numbers. Therefore, it's impossible to determine the exact total number of casualties.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_32.jsonl",
+        "golden_answer": "60000",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer provides a specific numerical answer (60000), while the system answer states that it's impossible to determine the exact total number of casualties. These answers are contradictory and therefore do not convey the same information."
+        },
+        "match": false
+      }
+    ]
+  },
+  "execution_time": 106.475590467453,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

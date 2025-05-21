@@ -1,13 +1,13 @@
 {
   "iteration": 10,
-  "timestamp": "2025-05-17T20:24:54.582123",
+  "timestamp": "2025-05-20T20:46:38.203217",
   "strategy": "Exploration",
-  "explore_rate": 80,
-  "exploit_rate": 20,
-  "batch_size": 5,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    This script uses a \"Holistic Reading & Arithmetic Reasoner\" agent.\n    Instead of strict decomposition, it combines reading comprehension with\n    arithmetic problem-solving into a single, unified step. The hypothesis is that\n    by encouraging the LLM to reason holistically about both text and numbers, it\n    can avoid the errors associated with decomposition or separate stages. This directly\n    addresses previous struggles with arithmetic and misinterpretation of intent.\n    This also uses more than one example in different parts of the code.\n    \"\"\"\n    try:\n        holistic_reasoner = HolisticReadingArithmeticReasoner()\n        answer = holistic_reasoner.answer_question(question)\n        return answer\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\nclass HolisticReadingArithmeticReasoner:\n    \"\"\"\n    A class that embodies the Holistic Reading & Arithmetic Reasoner.\n    \"\"\"\n    def __init__(self):\n        self.system_instruction = \"\"\"You are a Holistic Reading & Arithmetic Reasoner. You analyze the passage and question to understand both text and arithmetic aspects and provide a well-reasoned answer.\"\"\"\n\n    def answer_question(self, question, max_attempts=3):\n        \"\"\"\n        Answers the question using a holistic understanding and reasoning approach.\n        \"\"\"\n        for attempt in range(max_attempts):\n            reasoning_result = self._reason_about_question(question)\n\n            # Verification stage: check if the reasoning is a valid response\n            verification_prompt = f\"\"\"\n            Verify if the reasoning result is a valid and well reasoned answer to the original problem.\n\n            Original Question: {question}\n\n            Reasoning result: {reasoning_result}\n\n            Example 1:\n            Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n            Reasoning result: Chris Johnson's first touchdown was 6 yards and Jason Hanson's first field goal was 53 yards, therefore the answer is 59 yards.\n            Valid\n\n            Example 2:\n            Original Question: Who caught the final touchdown of the game?\n            Reasoning result: Wes Welker caught the final touchdown of the game, therefore the answer is Wes Welker.\n            Valid\n            \"\"\"\n\n            validation_result = call_llm(verification_prompt, self.system_instruction)\n\n            if \"valid\" in validation_result.lower():\n                # Return the answer portion only\n                answer_match = re.search(r'answer is (.*)', reasoning_result)\n                if answer_match:\n                    return answer_match.group(1).strip()\n                else:\n                    return reasoning_result\n            else:\n                print(f\"Result failed to validate on attempt {attempt + 1}\")\n\n        return \"The holistic reasoner did not arrive at a conclusive and valid answer.\"\n\n    def _reason_about_question(self, question):\n        \"\"\"Reason about the question using a holistic understanding of passage.\"\"\"\n        reasoning_prompt = f\"\"\"\n        Reason about the question and passage to formulate a direct and comprehensive answer. Extract any relevant numerical quantities and perform calculations if necessary.\n\n        Question: {question}\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Reasoning: Chris Johnson's first touchdown was 6 yards and Jason Hanson's first field goal was 53 yards, therefore the answer is 59 yards.\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Reasoning: Wes Welker caught the final touchdown of the game, therefore the answer is Wes Welker.\n\n        Reasoning:\n        \"\"\"\n        return call_llm(reasoning_prompt, self.system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a \"Holistic Reading & Arithmetic Reasoner\" agent to answer questions by combining reading comprehension and arithmetic problem-solving in a single step, using the Gemini LLM. The problem is approached holistically, with the agent reasoning about the question and passage to formulate an answer and extracting relevant numerical quantities, and then uses a verification step to determine the validity of the answer. The `HolisticReadingArithmeticReasoner` class contains the `answer_question` and `_reason_about_question` functions to provide the answer and reasoning, and `call_llm` sends prompts to the Gemini LLM. The `main` function initializes the `HolisticReadingArithmeticReasoner` and returns the answer to the question.",
-  "sample_count": 5,
+  "explore_rate": 50,
+  "exploit_rate": 50,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a novel LLM-driven approach that focuses on iterative refinement\n    of the answer based on feedback from multiple verifiers with different expertise.\n    \"\"\"\n    try:\n        # Step 1: Initial answer generation\n        initial_answer = generate_initial_answer(question)\n        if \"Error\" in initial_answer:\n            return \"Error generating initial answer\"\n\n        # Step 2: Iterative refinement with multiple verifiers\n        refined_answer = refine_answer_with_multiple_verifiers(question, initial_answer)\n        if \"Error\" in refined_answer:\n            return \"Error refining answer\"\n\n        return refined_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef generate_initial_answer(question):\n    \"\"\"Generates an initial answer to the question.\"\"\"\n    system_instruction = \"You are an expert question answering system.\"\n    prompt = f\"\"\"\n    Generate an initial answer to the following question. Be as accurate and complete as possible.\n\n    Example:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n\n    Question: {question}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef refine_answer_with_multiple_verifiers(question, initial_answer, max_iterations=3):\n    \"\"\"Refines the answer iteratively using feedback from multiple verifiers.\"\"\"\n    answer = initial_answer\n    for i in range(max_iterations):\n        # Step 1: Get feedback from the factual verifier\n        factual_feedback = get_factual_feedback(question, answer)\n        if \"Error\" in factual_feedback:\n            return \"Error getting factual feedback\"\n\n        # Step 2: Get feedback from the arithmetic verifier (if applicable)\n        arithmetic_feedback = get_arithmetic_feedback(question, answer)\n        if \"Error\" in arithmetic_feedback:\n            return \"Error getting arithmetic feedback\"\n\n        # Step 3: Combine feedback and refine the answer\n        combined_feedback = f\"Factual Feedback: {factual_feedback}\\nArithmetic Feedback: {arithmetic_feedback}\"\n        refined_answer = refine_answer(question, answer, combined_feedback)\n        if \"Error\" in refined_answer:\n            return \"Error refining answer\"\n\n        answer = refined_answer  # Update the answer for the next iteration\n    return answer\n\ndef get_factual_feedback(question, answer):\n    \"\"\"Gets feedback on the factual accuracy of the answer.\"\"\"\n    system_instruction = \"You are an expert at verifying the factual accuracy of answers to questions.\"\n    prompt = f\"\"\"\n    Verify the factual accuracy of the following answer to the question. Provide specific feedback on any errors or omissions. If the answer is factually correct, say \"Factually correct.\".\n\n    Example:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Feedback: Factually correct.\n\n    Question: {question}\n    Answer: {answer}\n    Feedback:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef get_arithmetic_feedback(question, answer):\n    \"\"\"Gets feedback on the arithmetic accuracy of the answer (if applicable).\"\"\"\n    system_instruction = \"You are an expert at verifying the arithmetic accuracy of answers to questions.\"\n    prompt = f\"\"\"\n    Verify the arithmetic accuracy of the following answer to the question. If the question requires a calculation and the answer is arithmetically incorrect, provide the correct calculation. If the question does not require a calculation or the answer is arithmetically correct, say \"No arithmetic required or arithmetically correct.\".\n\n    Example:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Feedback: No arithmetic required or arithmetically correct.\n\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: 50\n    Feedback: Arithmetically incorrect. 6 + 53 = 59. The correct answer is 59.\n\n    Question: {question}\n    Answer: {answer}\n    Feedback:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef refine_answer(question, answer, feedback):\n    \"\"\"Refines the answer based on the provided feedback.\"\"\"\n    system_instruction = \"You are an expert at refining answers to questions based on feedback.\"\n    prompt = f\"\"\"\n    Refine the following answer to the question based on the provided feedback.\n\n    Example:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Feedback: Factually correct.\n    Refined Answer: Jarrett Boykin\n\n    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n    Answer: 50\n    Feedback: Arithmetically incorrect. 6 + 53 = 59. The correct answer is 59.\n    Refined Answer: 59\n\n    Question: {question}\n    Answer: {answer}\n    Feedback: {feedback}\n    Refined Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses an iterative refinement approach driven by multiple LLM-based verifiers to answer a question. The problem is decomposed into initial answer generation, factual verification, arithmetic verification (if needed), and answer refinement. It leverages different agent roles: an initial answer generator, a factual verifier, an arithmetic verifier, and a refiner.\n\nThe functions used are `main` orchestrates the entire process, `generate_initial_answer` generates the first answer, `refine_answer_with_multiple_verifiers` manages the iterative refinement, `get_factual_feedback` and `get_arithmetic_feedback` provide verification feedback, `refine_answer` refines the answer based on feedback, and `call_llm` is the function that calls the LLM with a given prompt and system instruction. The workflow begins with an initial answer that is then iteratively refined using feedback from factual and arithmetic verifiers.",
+  "sample_count": 10,
   "samples": [
     {
       "question": "PASSAGE: In 2000 there were 512,253 households out of which 31.70% had children under the age of 18 living with them, 48.70% were married couples living together, 11.80% had a female householder with no husband present, and 33.70% were non-families. 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older. The average household size was 2.65 and the average family size was 3.17.\n\nQUESTION: which household was most common?",
@@ -103,6 +103,101 @@
         },
         "line_number": 765
       }
+    },
+    {
+      "question": "PASSAGE: In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:\n\nQUESTION: King Tancred of Sicily seized power from who?",
+      "answer": "Queen Joan",
+      "id": "example_86",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:",
+        "original_question": "King Tancred of Sicily seized power from who?",
+        "original_answer_data": {
+          "spans": [
+            "Queen Joan"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 909
+      }
+    },
+    {
+      "question": "PASSAGE: In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123\n\nQUESTION: Who had more casualties, the Colonists or the Abenakis?",
+      "answer": "Abenakis",
+      "id": "example_87",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
+        "original_question": "Who had more casualties, the Colonists or the Abenakis?",
+        "original_answer_data": {
+          "spans": [
+            "Abenakis"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 293
+      }
+    },
+    {
+      "question": "PASSAGE: Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.\n\nQUESTION: Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
+      "answer": "Sydney",
+      "id": "example_88",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
+        "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
+        "original_answer_data": {
+          "spans": [
+            "Sydney"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 538
+      }
+    },
+    {
+      "question": "PASSAGE:  Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.\n\nQUESTION: How many yards was Mike Nugent's longest field goal in the fourth quarter?",
+      "answer": "38-yard",
+      "id": "example_89",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
+        "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
+        "original_answer_data": {
+          "spans": [
+            "38-yard"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 24
+      }
+    },
+    {
+      "question": "PASSAGE: After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.\n\nQUESTION: How many yards total did Artose Pinner run for touchdowns in the first quarter?",
+      "answer": "7",
+      "id": "example_90",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
+        "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
+        "original_answer_data": {
+          "spans": [
+            "7"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 694
+      }
     }
   ],
   "samples_metadata": [
@@ -175,6 +270,76 @@
         ]
       },
       "line_number": 765
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:",
+      "original_question": "King Tancred of Sicily seized power from who?",
+      "original_answer_data": {
+        "spans": [
+          "Queen Joan"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 909
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
+      "original_question": "Who had more casualties, the Colonists or the Abenakis?",
+      "original_answer_data": {
+        "spans": [
+          "Abenakis"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 293
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
+      "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
+      "original_answer_data": {
+        "spans": [
+          "Sydney"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 538
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
+      "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
+      "original_answer_data": {
+        "spans": [
+          "38-yard"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 24
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
+      "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
+      "original_answer_data": {
+        "spans": [
+          "7"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 694
     }
   ],
   "example_indices": [
@@ -182,257 +347,417 @@
     82,
     83,
     84,
-    85
+    85,
+    86,
+    87,
+    88,
+    89,
+    90
   ],
   "results": [
     {
       "success": true,
-      "answer": "The passage says 48.70% were married couples living together, 11.80% had a female householder with no husband present, 33.70% were non-families, 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older.\nTherefore married couples living together were the most common type of household.\n\nFinal Answer: married couples living together",
-      "output": "ANSWER_START\nThe passage says 48.70% were married couples living together, 11.80% had a female householder with no husband present, 33.70% were non-families, 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older.\nTherefore married couples living together were the most common type of household.\n\nFinal Answer: married couples living together\n\nANSWER_END\n",
+      "answer": "married couples living together",
+      "output": "ANSWER_START\nmarried couples living together\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers state that married couples living together were the most common type of household."
+        "explanation": "Both answers state the same information: married couples living together."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "The Price Is Right video game was initially released in March 2008. The new version was previewed at the Target Bullseye Lounge in June 2009.\nFrom March 2008 to March 2009 is 12 months. From March 2009 to June 2009 is 3 months.\nTherefore, the total number of months is 12 + 3 = 15 months.\n\nFinal Answer: 15",
-      "output": "ANSWER_START\nThe Price Is Right video game was initially released in March 2008. The new version was previewed at the Target Bullseye Lounge in June 2009.\nFrom March 2008 to March 2009 is 12 months. From March 2009 to June 2009 is 3 months.\nTherefore, the total number of months is 12 + 3 = 15 months.\n\nFinal Answer: 15\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_10.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers state the answer is 15."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "0.",
-      "output": "ANSWER_START\n0.\nANSWER_END\n",
+      "answer": "Roughly 14 months",
+      "output": "ANSWER_START\nRoughly 14 months\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
         "match": false,
-        "confidence": 1,
-        "explanation": "The system answer is 0 while the golden answer is 1. These are distinct numerical values, so they do not convey the same information."
+        "confidence": 0.7,
+        "explanation": "Although 14 months is close to 15 months, the 'roughly' modifier indicates an approximation, making it not perfectly semantically equivalent to the precise value of 15."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "The passage states there were 654,445 households and 741,043 housing units. Therefore, there were less households than housing units.\n\n households.",
-      "output": "ANSWER_START\nThe passage states there were 654,445 households and 741,043 housing units. Therefore, there were less households than housing units.\n\n households.\n\nANSWER_END\n",
+      "answer": "one month",
+      "output": "ANSWER_START\none month\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer provides the number 1, while the system answer provides 'one month'. Although 'one' is included in 'one month', the answers do not have the same meaning. The golden answer is only referring to a count of one."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Households",
+      "output": "ANSWER_START\nHouseholds\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The golden answer directly answers the question. The system answer gives more context but ultimately correctly identifies households as the answer."
+        "explanation": "The answers are identical, differing only in capitalization, which doesn't affect the meaning."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "The Texans scored 13 points and the Jaguars scored 10 points, therefore the total points scored by the end of the game is 23.\n\nFinal Answer: 23",
-      "output": "ANSWER_START\nThe Texans scored 13 points and the Jaguars scored 10 points, therefore the total points scored by the end of the game is 23.\n\nFinal Answer: 23\n\nANSWER_END\n",
+      "answer": "23",
+      "output": "ANSWER_START\n23\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_10.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer explains the reasoning and arrives at the correct final answer (23), which is the same as the golden answer."
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "King Tancred seized power from William's aunt Constance.",
+      "output": "ANSWER_START\nKing Tancred seized power from William's aunt Constance.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer states that King Tancred seized power from William's aunt Constance, while the golden answer states that Queen Joan was the answer. These are completely different and unrelated pieces of information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "The Abenakis.",
+      "output": "ANSWER_START\nThe Abenakis.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers refer to the same entity: the Abenakis people."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Sydney",
+      "output": "ANSWER_START\nSydney\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same word, 'Sydney'."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "38",
+      "output": "ANSWER_START\n38\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 0.8,
+        "explanation": "The system answer provides the numerical value '38', while the golden answer includes the unit 'yard' (38-yard). While the unit is missing in the system answer, the core numerical value is the same, and the context probably implies units of yards. Therefore the answers are largely equivalent."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "7",
+      "output": "ANSWER_START\n7\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_10.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
       },
       "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.8,
-    "correct_count": 4,
-    "total_count": 5,
+    "accuracy": 0.7,
+    "correct_count": 7,
+    "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "The passage says 48.70% were married couples living together, 11.80% had a female householder with no husband present, 33.70% were non-families, 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older.\nTherefore married couples living together were the most common type of household.\n\nFinal Answer: married couples living together",
+        "system_answer": "married couples living together",
         "golden_answer": "married couples living together",
-        "output": "ANSWER_START\nThe passage says 48.70% were married couples living together, 11.80% had a female householder with no husband present, 33.70% were non-families, 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older.\nTherefore married couples living together were the most common type of household.\n\nFinal Answer: married couples living together\n\nANSWER_END\n",
+        "output": "ANSWER_START\nmarried couples living together\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers state that married couples living together were the most common type of household."
+          "explanation": "Both answers state the same information: married couples living together."
         }
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "The Price Is Right video game was initially released in March 2008. The new version was previewed at the Target Bullseye Lounge in June 2009.\nFrom March 2008 to March 2009 is 12 months. From March 2009 to June 2009 is 3 months.\nTherefore, the total number of months is 12 + 3 = 15 months.\n\nFinal Answer: 15",
+        "system_answer": "Roughly 14 months",
         "golden_answer": "15",
-        "output": "ANSWER_START\nThe Price Is Right video game was initially released in March 2008. The new version was previewed at the Target Bullseye Lounge in June 2009.\nFrom March 2008 to March 2009 is 12 months. From March 2009 to June 2009 is 3 months.\nTherefore, the total number of months is 12 + 3 = 15 months.\n\nFinal Answer: 15\n\nANSWER_END\n",
-        "match": true,
+        "output": "ANSWER_START\nRoughly 14 months\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers state the answer is 15."
-        }
+          "match": false,
+          "confidence": 0.7,
+          "explanation": "Although 14 months is close to 15 months, the 'roughly' modifier indicates an approximation, making it not perfectly semantically equivalent to the precise value of 15."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "0.",
+        "system_answer": "one month",
         "golden_answer": "1",
-        "output": "ANSWER_START\n0.\nANSWER_END\n",
+        "output": "ANSWER_START\none month\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer is 0 while the golden answer is 1. These are distinct numerical values, so they do not convey the same information."
+          "explanation": "The golden answer provides the number 1, while the system answer provides 'one month'. Although 'one' is included in 'one month', the answers do not have the same meaning. The golden answer is only referring to a count of one."
         },
         "capability_failures": []
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "The passage states there were 654,445 households and 741,043 housing units. Therefore, there were less households than housing units.\n\n households.",
+        "system_answer": "Households",
         "golden_answer": "households",
-        "output": "ANSWER_START\nThe passage states there were 654,445 households and 741,043 housing units. Therefore, there were less households than housing units.\n\n households.\n\nANSWER_END\n",
+        "output": "ANSWER_START\nHouseholds\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The golden answer directly answers the question. The system answer gives more context but ultimately correctly identifies households as the answer."
+          "explanation": "The answers are identical, differing only in capitalization, which doesn't affect the meaning."
         }
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "The Texans scored 13 points and the Jaguars scored 10 points, therefore the total points scored by the end of the game is 23.\n\nFinal Answer: 23",
+        "system_answer": "23",
         "golden_answer": "23",
-        "output": "ANSWER_START\nThe Texans scored 13 points and the Jaguars scored 10 points, therefore the total points scored by the end of the game is 23.\n\nFinal Answer: 23\n\nANSWER_END\n",
+        "output": "ANSWER_START\n23\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer explains the reasoning and arrives at the correct final answer (23), which is the same as the golden answer."
+          "explanation": "Both answers are the same numerical value."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "King Tancred seized power from William's aunt Constance.",
+        "golden_answer": "Queen Joan",
+        "output": "ANSWER_START\nKing Tancred seized power from William's aunt Constance.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer states that King Tancred seized power from William's aunt Constance, while the golden answer states that Queen Joan was the answer. These are completely different and unrelated pieces of information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "The Abenakis.",
+        "golden_answer": "Abenakis",
+        "output": "ANSWER_START\nThe Abenakis.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers refer to the same entity: the Abenakis people."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "Sydney",
+        "golden_answer": "Sydney",
+        "output": "ANSWER_START\nSydney\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same word, 'Sydney'."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "38",
+        "golden_answer": "38-yard",
+        "output": "ANSWER_START\n38\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 0.8,
+          "explanation": "The system answer provides the numerical value '38', while the golden answer includes the unit 'yard' (38-yard). While the unit is missing in the system answer, the core numerical value is the same, and the context probably implies units of yards. Therefore the answers are largely equivalent."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "7",
+        "golden_answer": "7",
+        "output": "ANSWER_START\n7\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
         }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nThere are no identified runtime errors in the provided data.\n\n## STRENGTHS\n*   **Information Extraction:** The system demonstrates a general ability to extract relevant information from the provided passages. The success cases showcase that the system can identify key details necessary for answering questions.\n*   **Arithmetic Reasoning:** The system can correctly perform basic arithmetic operations (addition, subtraction) when needed, as evidenced in the successful calculation of months in the second success case.\n\n## WEAKNESSES\n*   **Temporal Reasoning:** The system struggles with precise temporal reasoning, specifically in calculating the time difference between events expressed with dates. This is evident in the error case, where calculating the months between two dates caused issues.\n*   **Lack of Thoroughness:** While the system can extract information, it sometimes fails to use it to completely solve the problem.\n\n## CRITICAL BOTTLENECKS\n*   **Precise Temporal Reasoning:** The inability to accurately calculate time differences (particularly months) based on passage information is the most critical bottleneck. This leads to incorrect numerical answers, especially when the question requires time-related calculations.\n\n## ERROR PATTERNS\n*   **Inaccurate Time Calculation:** The error case demonstrates a tendency to miscalculate time differences between events described in the passage. This can lead to incorrect answers.\n\n## PRIMARY ISSUE\nThe primary issue is the system's failure to accurately calculate the number of months between two specific dates mentioned in the passage, even with the information explicitly provided. This indicates a weakness in the system's temporal reasoning capabilities.\n\n## IMPROVEMENT AREAS\n*   **Temporal Reasoning:** The system needs a significant improvement in its ability to perform temporal reasoning, including precise time calculations.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Implement Date Parsing and Calculation:** Integrate a robust date parsing library to accurately extract date information from the passage. Then, use built-in date difference functions (e.g., from the `datetime` module in Python) to calculate the exact number of months between the dates.\n*   **Enhance Reasoning Chain for Temporal Questions:** When the question involves time-related calculations, force the system to explicitly state the start date, end date, and the steps used to calculate the time difference. This will allow for easier debugging.\n*   **Add Unit Tests Focused on Time-Based Reasoning:** Create a suite of unit tests specifically designed to test the system's temporal reasoning capabilities, including questions that require calculating time differences in days, weeks, months, and years.\n\n## CAPABILITY MAPPING\n*   **Sample ID 2 (Error):**\n    *   information_extraction: Successful in extracting dates (April 26, May 18, June 12).\n    *   constraint_handling: No specific constraints missed.\n    *   solution_generation: Incorrect time difference calculation.\n    *   solution_verification: N/A\n    *   decision_making: Incorrect answer due to faulty calculation.\n",
+      "text_report": "## RUNTIME ERRORS\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) in the provided outputs.\n\n## STRENGTHS\n\n*   **Information Extraction:** The system is generally capable of extracting relevant information from the provided passages. The successful cases show the system correctly identifies and retrieves the necessary facts to answer the questions.\n*   **Numerical Reasoning:** The system can perform simple numerical comparisons and calculations when the information is clearly presented in the passage.\n\n## WEAKNESSES\n\n*   **Precise Temporal Reasoning:** The system struggles with precise temporal calculations and the interpretation of time units (e.g., \"months\"). The 'roughly' modifier adds complexity the system fails to resolve.\n*   **Entity Relationship Understanding:** The system demonstrates difficulty in understanding complex relationships between entities, leading to incorrect answers when the question requires identifying the target of an action or the relationship between individuals.\n*   **Semantic Equivalence:** The system does not accurately interpret equivalence.\n\n## CRITICAL BOTTLENECKS\n\n*   **Temporal Reasoning and Calculation:** The inability to perform accurate temporal reasoning, including precise calculations of time differences and handling of approximate time references, is a major bottleneck.\n*   **Entity Relationship Confusion:** The system's misunderstanding of the passage's core entity relationships is a major issue.\n\n## ERROR PATTERNS\n\n*   **Inaccurate Temporal Calculation:** In sample ID 1, the system calculates 14 months instead of 15, and fails to understand that the question requires a precise result, not an approximate one.\n*   **Incorrect Entity Assignment:** In sample ID 5, the system incorrectly identifies the person from whom King Tancred seized power, demonstrating confusion in the relationship between entities.\n*   **Semantic Misinterpretation:** In sample ID 2, the system includes \"month\" in its answer when the expected golden answer is just the numerical value.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the **inaccurate and imprecise temporal reasoning**, specifically when calculating durations and dealing with nuances in time expressions (e.g., \"roughly\"). This leads to incorrect answers even when the necessary information is present in the passage.\n\n## IMPROVEMENT AREAS\n\n*   **Temporal Reasoning Module:** Develop a more robust temporal reasoning module that can accurately parse dates, calculate time differences, and handle time-related modifiers (e.g., \"roughly,\" \"approximately\").\n*   **Relationship Extraction:** Improve relationship extraction, especially who is doing what to whom.\n\n## IMPROVEMENT SUGGESTIONS\n\n*   **Implement Date Parsing and Calculation:** Integrate a date parsing library to accurately extract date information from the passage and calculate time differences with precision.\n*   **Fine-tune Temporal Reasoning Rules:** Refine the rules for temporal reasoning to account for modifiers like \"roughly\" and to distinguish between different units of time.\n*   **Enhanced Relationship Extraction:** Integrate an advanced NER (Named Entity Recognition) with relationship extraction.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 1:** Temporal reasoning, solution verification\n*   **Sample ID 2:** Semantic equivalence, solution verification\n*   **Sample ID 5:** Information extraction, decision making, relationship extraction\n",
       "strengths": [
-        "Information Extraction:** The system demonstrates a general ability to extract relevant information from the provided passages. The success cases showcase that the system can identify key details necessary for answering questions.",
-        "Arithmetic Reasoning:** The system can correctly perform basic arithmetic operations (addition, subtraction) when needed, as evidenced in the successful calculation of months in the second success case."
+        "Information Extraction:** The system is generally capable of extracting relevant information from the provided passages. The successful cases show the system correctly identifies and retrieves the necessary facts to answer the questions.",
+        "Numerical Reasoning:** The system can perform simple numerical comparisons and calculations when the information is clearly presented in the passage."
       ],
       "weaknesses": [
-        "Temporal Reasoning:** The system struggles with precise temporal reasoning, specifically in calculating the time difference between events expressed with dates. This is evident in the error case, where calculating the months between two dates caused issues.",
-        "Lack of Thoroughness:** While the system can extract information, it sometimes fails to use it to completely solve the problem."
+        "Precise Temporal Reasoning:** The system struggles with precise temporal calculations and the interpretation of time units (e.g., \"months\"). The 'roughly' modifier adds complexity the system fails to resolve.",
+        "Entity Relationship Understanding:** The system demonstrates difficulty in understanding complex relationships between entities, leading to incorrect answers when the question requires identifying the target of an action or the relationship between individuals.",
+        "Semantic Equivalence:** The system does not accurately interpret equivalence."
       ],
-      "primary_issue": "The primary issue is the system's failure to accurately calculate the number of months between two specific dates mentioned in the passage, even with the information explicitly provided. This indicates a weakness in the system's temporal reasoning capabilities.",
+      "primary_issue": "The most critical problem is the **inaccurate and imprecise temporal reasoning**, specifically when calculating durations and dealing with nuances in time expressions (e.g., \"roughly\"). This leads to incorrect answers even when the necessary information is present in the passage.",
       "improvement_suggestions": [
-        "Implement Date Parsing and Calculation:** Integrate a robust date parsing library to accurately extract date information from the passage. Then, use built-in date difference functions (e.g., from the `datetime` module in Python) to calculate the exact number of months between the dates.",
-        "Enhance Reasoning Chain for Temporal Questions:** When the question involves time-related calculations, force the system to explicitly state the start date, end date, and the steps used to calculate the time difference. This will allow for easier debugging.",
-        "Add Unit Tests Focused on Time-Based Reasoning:** Create a suite of unit tests specifically designed to test the system's temporal reasoning capabilities, including questions that require calculating time differences in days, weeks, months, and years."
+        "Implement Date Parsing and Calculation:** Integrate a date parsing library to accurately extract date information from the passage and calculate time differences with precision.",
+        "Fine-tune Temporal Reasoning Rules:** Refine the rules for temporal reasoning to account for modifiers like \"roughly\" and to distinguish between different units of time.",
+        "Enhanced Relationship Extraction:** Integrate an advanced NER (Named Entity Recognition) with relationship extraction."
       ],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and related information.\n\n**PERFORMANCE SUMMARY:**\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n### EXECUTION ANALYSIS\n\nThe execution outputs confirm the error analysis. The first two samples (\"Success Cases\" implied) demonstrate information extraction and arithmetic reasoning capabilities. The third sample reveals the temporal reasoning issue, returning \"0\" instead of the correct number of months. The second sample includes a detailed explanation in its reasoning chain.\n\n*   **Successful Cases:** The system provides clear reasoning for its answers in the successful cases. This is crucial for understanding *why* the system arrives at a correct answer and for debugging purposes. The ability to break down the problem into smaller steps (e.g., calculating months from March 2008 to March 2009, and then March 2009 to June 2009) is a positive sign.\n*   **Error Case:** The error case output is simply \"0.\" This offers no insight into why the system failed. The absence of a reasoning chain in the error case is a significant problem.\n*   **General Observations:** The system's output format, which includes \"ANSWER_START\" and \"ANSWER_END\" tags, is good for parsing. However, the lack of consistency in the reasoning chain presentation is a concern. All answers (correct and incorrect) should have a structured reasoning chain.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates basic capabilities in information extraction, arithmetic reasoning, and generating coherent textual answers. However, it has a significant weakness in temporal reasoning, especially calculating time differences involving dates. The inability to provide a reasoned explanation for incorrect answers hinders debugging and improvement.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** Consistently extracts relevant information from text passages.\n*   **Arithmetic Reasoning:** Correctly performs basic arithmetic when needed.\n*   **Reasoning Chain (In Success Cases):** Provides a clear and understandable explanation of its reasoning process (at least in successful cases).\n\n### KEY WEAKNESSES\n\n*   **Temporal Reasoning (Date Calculations):** Fails to accurately calculate time differences between dates. This is a critical flaw.\n*   **Inconsistent Reasoning Chain:** Does not consistently provide a reasoning chain for *all* answers, particularly when the answer is incorrect.\n*   **Lack of Thoroughness (Error Resolution):** Fails to solve the problem completely even when extracting necessary information.\n\n### IMPROVEMENT FOCUS\n\nThe **primary focus must be on improving Temporal Reasoning**, specifically date calculations. This is the most critical bottleneck hindering the system's performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Date Parsing and Calculation Library:** As suggested in the original report, integrate a robust date parsing library (e.g., `dateutil` or `arrow` in Python) to handle date extraction and calculations. The current system clearly lacks this capability. Ensure this library accounts for leap years and other date-related complexities.\n2.  **Enforce Consistent Reasoning Chains:** *Mandate* that the system always provides a reasoning chain, regardless of whether the answer is correct or incorrect. This reasoning chain should explicitly state the extracted dates, the calculation performed, and the final answer. The reasoning chain should follow a consistent format.\n3.  **Develop Comprehensive Temporal Reasoning Unit Tests:** Create a comprehensive suite of unit tests specifically designed to test temporal reasoning. These tests should cover a wide range of scenarios, including:\n    *   Calculating the number of days, weeks, months, and years between two dates.\n    *   Handling different date formats (e.g., \"April 26, 2024,\" \"26/04/2024,\" \"Apr 26th, 2024\").\n    *   Calculating durations spanning multiple years.\n    *   Handling edge cases (e.g., dates around leap years, dates at the beginning/end of months).\n4.  **Debugging Focused Training:** Explicitly train the model on debugging its temporal reasoning. This can be done by creating synthetic examples where the model gets the temporal calculation wrong, and then is provided with the correct reasoning and the correct answer. This helps the model learn to identify and correct its own errors.\n5. **Example-Based Error Resolution:**  Provide the system with examples of the correct temporal calculation alongside the error cases during fine-tuning.  This allows the system to learn the correct approach directly from its mistakes. For example, in training include: \"Passage: The event started on April 26 and ended on May 18. Question: How many months passed? Previous Answer: 0.  Corrected Answer: Less than one month. April 26 to May 26 is one month. May 18 is less than a month so the answer is less than one month.\"\n\n### CAPABILITY TREND\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, the presence of a clear and consistent error pattern (inaccurate temporal reasoning) suggests the system's capabilities are **stable but limited** in this specific area. Addressing the recommended improvements should lead to an *improving* trend.\n",
+      "text_report": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, and sample execution outputs.\n\n## CAPABILITY REPORT: AI System Assessment\n\n**## EXECUTION ANALYSIS**\n\nThe execution outputs reveal several issues consistent with the error analysis:\n\n*   **Sample 1 (Implied):**  The performance summary indicates an error, which the error analysis suggests is related to temporal reasoning. While the execution output isn't directly available, the error analysis shows it failed to calculate a 15 month duration. This suggests either the question isn't present, or there is an issue extracting the values from the question to perform the calculation.\n*   **Sample 2:** The system answers \"Roughly 14 months\" when the expected answer appears to be a plain numerical value (likely \"14\"). This suggests the model fails to assess the specific output format requested from the question.\n*   **Sample 3 (Implied):** While no error is reported, the inclusion of \"one month\" is suspect. It includes additional tokens that are unwanted and could reduce the confidence score. The presence of \"month\" indicates the system is struggling to differentiate between the need for a numerical answer vs a numerical answer and time unit.\n\n**## CAPABILITY ASSESSMENT**\n\nThe AI system demonstrates a basic ability to extract information and perform simple calculations. However, it exhibits significant weaknesses in precise temporal reasoning, understanding entity relationships, and discerning semantic equivalence in question answering. The system struggles to correctly format outputs. It appears the system performs better when exact information is present and needs to be extracted.\n\n**## KEY STRENGTHS**\n\n*   **Information Extraction:** The system can extract relevant information, although not always perfectly.\n*   **Numerical Reasoning:** The system can perform basic numerical comparisons.\n*   **Simple Question Answering:** The system answers simple questions when context is readily available\n\n**## KEY WEAKNESSES**\n\n*   **Precise Temporal Reasoning:** Inability to accurately calculate time differences, especially with modifiers like \"roughly.\"\n*   **Semantic Equivalence:** Failure to recognize alternative wordings that have the same meaning.\n*   **Output Formatting:** Tendency to add extra words to the answer that are not needed.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on improving is **Temporal Reasoning**. The inaccuracies in temporal reasoning directly impact the correctness of answers and represent a critical bottleneck in the system's overall performance. This includes precise calculation of time differences, interpreting time-related modifiers, and understanding the context of time references.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\nBased on the analysis, here are specific, actionable recommendations for the next iteration:\n\n1.  **Integrate a Date Parsing Library:** Use a robust date parsing library (e.g., dateparser, Chrono) to accurately extract and parse date and time information from the input passage. Ensure the library supports handling approximate time references (e.g., \"roughly,\" \"approximately\"). This resolves the *Inaccurate Temporal Calculation* error pattern.\n2.  **Refine Temporal Reasoning Rules:** Design and implement specific rules for temporal reasoning, particularly for handling modifiers like \"roughly,\" \"approximately,\" and \"about.\" These rules should specify how to adjust calculations based on these modifiers (e.g., defining a range of acceptable values). This directly addresses the *Inaccurate Temporal Calculation* issue.\n3.  **Implement Output Formatting Constraints:** Before returning the final answer, implement a step to check whether the question requires a numerical answer or a numerical answer with additional units or context. Remove any extraneous words based on the question. This resolves the *Semantic Misinterpretation* error pattern.\n4.  **Implement a \"Confidence Score\" System:** Implement a system that assigns a confidence score to each answer. This could be based on factors like the strength of the evidence in the passage, the accuracy of the date parsing, and the consistency of the reasoning. This will help identify cases where the system is likely to be incorrect.\n\n**## CAPABILITY TREND**\n\nBased on the error patterns and the current accuracy score, the system's capabilities are currently **stable**. There's no indication of significant improvement or decline. The targeted improvements outlined above should lead to a measurable increase in accuracy and reliability, shifting the trend to positive.\n",
       "strengths": [
-        "Information Extraction:** The system demonstrates a general ability to extract relevant information from the provided passages. The success cases showcase that the system can identify key details necessary for answering questions.",
-        "Arithmetic Reasoning:** The system can correctly perform basic arithmetic operations (addition, subtraction) when needed, as evidenced in the successful calculation of months in the second success case."
+        "Information Extraction:** The system is generally capable of extracting relevant information from the provided passages. The successful cases show the system correctly identifies and retrieves the necessary facts to answer the questions.",
+        "Numerical Reasoning:** The system can perform simple numerical comparisons and calculations when the information is clearly presented in the passage."
       ],
       "weaknesses": [
-        "Temporal Reasoning:** The system struggles with precise temporal reasoning, specifically in calculating the time difference between events expressed with dates. This is evident in the error case, where calculating the months between two dates caused issues.",
-        "Lack of Thoroughness:** While the system can extract information, it sometimes fails to use it to completely solve the problem."
+        "Precise Temporal Reasoning:** The system struggles with precise temporal calculations and the interpretation of time units (e.g., \"months\"). The 'roughly' modifier adds complexity the system fails to resolve.",
+        "Entity Relationship Understanding:** The system demonstrates difficulty in understanding complex relationships between entities, leading to incorrect answers when the question requires identifying the target of an action or the relationship between individuals.",
+        "Semantic Equivalence:** The system does not accurately interpret equivalence."
       ],
       "improvement_suggestions": [
-        "Implement Date Parsing and Calculation:** Integrate a robust date parsing library to accurately extract date information from the passage. Then, use built-in date difference functions (e.g., from the `datetime` module in Python) to calculate the exact number of months between the dates.",
-        "Enhance Reasoning Chain for Temporal Questions:** When the question involves time-related calculations, force the system to explicitly state the start date, end date, and the steps used to calculate the time difference. This will allow for easier debugging.",
-        "Add Unit Tests Focused on Time-Based Reasoning:** Create a suite of unit tests specifically designed to test the system's temporal reasoning capabilities, including questions that require calculating time differences in days, weeks, months, and years."
+        "Implement Date Parsing and Calculation:** Integrate a date parsing library to accurately extract date information from the passage and calculate time differences with precision.",
+        "Fine-tune Temporal Reasoning Rules:** Refine the rules for temporal reasoning to account for modifiers like \"roughly\" and to distinguish between different units of time.",
+        "Enhanced Relationship Extraction:** Integrate an advanced NER (Named Entity Recognition) with relationship extraction."
       ],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nThere are no identified runtime errors in the provided data.\n\n## STRENGTHS\n*   **Information Extraction:** The system demonstrates a general ability to extract relevant information from the provided passages. The success cases showcase that the system can identify key details necessary for answering questions.\n*   **Arithmetic Reasoning:** The system can correctly perform basic arithmetic operations (addition, subtraction) when needed, as evidenced in the successful calculation of months in the second success case.\n\n## WEAKNESSES\n*   **Temporal Reasoning:** The system struggles with precise temporal reasoning, specifically in calculating the time difference between events expressed with dates. This is evident in the error case, where calculating the months between two dates caused issues.\n*   **Lack of Thoroughness:** While the system can extract information, it sometimes fails to use it to completely solve the problem.\n\n## CRITICAL BOTTLENECKS\n*   **Precise Temporal Reasoning:** The inability to accurately calculate time differences (particularly months) based on passage information is the most critical bottleneck. This leads to incorrect numerical answers, especially when the question requires time-related calculations.\n\n## ERROR PATTERNS\n*   **Inaccurate Time Calculation:** The error case demonstrates a tendency to miscalculate time differences between events described in the passage. This can lead to incorrect answers.\n\n## PRIMARY ISSUE\nThe primary issue is the system's failure to accurately calculate the number of months between two specific dates mentioned in the passage, even with the information explicitly provided. This indicates a weakness in the system's temporal reasoning capabilities.\n\n## IMPROVEMENT AREAS\n*   **Temporal Reasoning:** The system needs a significant improvement in its ability to perform temporal reasoning, including precise time calculations.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Implement Date Parsing and Calculation:** Integrate a robust date parsing library to accurately extract date information from the passage. Then, use built-in date difference functions (e.g., from the `datetime` module in Python) to calculate the exact number of months between the dates.\n*   **Enhance Reasoning Chain for Temporal Questions:** When the question involves time-related calculations, force the system to explicitly state the start date, end date, and the steps used to calculate the time difference. This will allow for easier debugging.\n*   **Add Unit Tests Focused on Time-Based Reasoning:** Create a suite of unit tests specifically designed to test the system's temporal reasoning capabilities, including questions that require calculating time differences in days, weeks, months, and years.\n\n## CAPABILITY MAPPING\n*   **Sample ID 2 (Error):**\n    *   information_extraction: Successful in extracting dates (April 26, May 18, June 12).\n    *   constraint_handling: No specific constraints missed.\n    *   solution_generation: Incorrect time difference calculation.\n    *   solution_verification: N/A\n    *   decision_making: Incorrect answer due to faulty calculation.\n",
-    "capability_report_text": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and related information.\n\n**PERFORMANCE SUMMARY:**\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n### EXECUTION ANALYSIS\n\nThe execution outputs confirm the error analysis. The first two samples (\"Success Cases\" implied) demonstrate information extraction and arithmetic reasoning capabilities. The third sample reveals the temporal reasoning issue, returning \"0\" instead of the correct number of months. The second sample includes a detailed explanation in its reasoning chain.\n\n*   **Successful Cases:** The system provides clear reasoning for its answers in the successful cases. This is crucial for understanding *why* the system arrives at a correct answer and for debugging purposes. The ability to break down the problem into smaller steps (e.g., calculating months from March 2008 to March 2009, and then March 2009 to June 2009) is a positive sign.\n*   **Error Case:** The error case output is simply \"0.\" This offers no insight into why the system failed. The absence of a reasoning chain in the error case is a significant problem.\n*   **General Observations:** The system's output format, which includes \"ANSWER_START\" and \"ANSWER_END\" tags, is good for parsing. However, the lack of consistency in the reasoning chain presentation is a concern. All answers (correct and incorrect) should have a structured reasoning chain.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates basic capabilities in information extraction, arithmetic reasoning, and generating coherent textual answers. However, it has a significant weakness in temporal reasoning, especially calculating time differences involving dates. The inability to provide a reasoned explanation for incorrect answers hinders debugging and improvement.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** Consistently extracts relevant information from text passages.\n*   **Arithmetic Reasoning:** Correctly performs basic arithmetic when needed.\n*   **Reasoning Chain (In Success Cases):** Provides a clear and understandable explanation of its reasoning process (at least in successful cases).\n\n### KEY WEAKNESSES\n\n*   **Temporal Reasoning (Date Calculations):** Fails to accurately calculate time differences between dates. This is a critical flaw.\n*   **Inconsistent Reasoning Chain:** Does not consistently provide a reasoning chain for *all* answers, particularly when the answer is incorrect.\n*   **Lack of Thoroughness (Error Resolution):** Fails to solve the problem completely even when extracting necessary information.\n\n### IMPROVEMENT FOCUS\n\nThe **primary focus must be on improving Temporal Reasoning**, specifically date calculations. This is the most critical bottleneck hindering the system's performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Date Parsing and Calculation Library:** As suggested in the original report, integrate a robust date parsing library (e.g., `dateutil` or `arrow` in Python) to handle date extraction and calculations. The current system clearly lacks this capability. Ensure this library accounts for leap years and other date-related complexities.\n2.  **Enforce Consistent Reasoning Chains:** *Mandate* that the system always provides a reasoning chain, regardless of whether the answer is correct or incorrect. This reasoning chain should explicitly state the extracted dates, the calculation performed, and the final answer. The reasoning chain should follow a consistent format.\n3.  **Develop Comprehensive Temporal Reasoning Unit Tests:** Create a comprehensive suite of unit tests specifically designed to test temporal reasoning. These tests should cover a wide range of scenarios, including:\n    *   Calculating the number of days, weeks, months, and years between two dates.\n    *   Handling different date formats (e.g., \"April 26, 2024,\" \"26/04/2024,\" \"Apr 26th, 2024\").\n    *   Calculating durations spanning multiple years.\n    *   Handling edge cases (e.g., dates around leap years, dates at the beginning/end of months).\n4.  **Debugging Focused Training:** Explicitly train the model on debugging its temporal reasoning. This can be done by creating synthetic examples where the model gets the temporal calculation wrong, and then is provided with the correct reasoning and the correct answer. This helps the model learn to identify and correct its own errors.\n5. **Example-Based Error Resolution:**  Provide the system with examples of the correct temporal calculation alongside the error cases during fine-tuning.  This allows the system to learn the correct approach directly from its mistakes. For example, in training include: \"Passage: The event started on April 26 and ended on May 18. Question: How many months passed? Previous Answer: 0.  Corrected Answer: Less than one month. April 26 to May 26 is one month. May 18 is less than a month so the answer is less than one month.\"\n\n### CAPABILITY TREND\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, the presence of a clear and consistent error pattern (inaccurate temporal reasoning) suggests the system's capabilities are **stable but limited** in this specific area. Addressing the recommended improvements should lead to an *improving* trend.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) in the provided outputs.\n\n## STRENGTHS\n\n*   **Information Extraction:** The system is generally capable of extracting relevant information from the provided passages. The successful cases show the system correctly identifies and retrieves the necessary facts to answer the questions.\n*   **Numerical Reasoning:** The system can perform simple numerical comparisons and calculations when the information is clearly presented in the passage.\n\n## WEAKNESSES\n\n*   **Precise Temporal Reasoning:** The system struggles with precise temporal calculations and the interpretation of time units (e.g., \"months\"). The 'roughly' modifier adds complexity the system fails to resolve.\n*   **Entity Relationship Understanding:** The system demonstrates difficulty in understanding complex relationships between entities, leading to incorrect answers when the question requires identifying the target of an action or the relationship between individuals.\n*   **Semantic Equivalence:** The system does not accurately interpret equivalence.\n\n## CRITICAL BOTTLENECKS\n\n*   **Temporal Reasoning and Calculation:** The inability to perform accurate temporal reasoning, including precise calculations of time differences and handling of approximate time references, is a major bottleneck.\n*   **Entity Relationship Confusion:** The system's misunderstanding of the passage's core entity relationships is a major issue.\n\n## ERROR PATTERNS\n\n*   **Inaccurate Temporal Calculation:** In sample ID 1, the system calculates 14 months instead of 15, and fails to understand that the question requires a precise result, not an approximate one.\n*   **Incorrect Entity Assignment:** In sample ID 5, the system incorrectly identifies the person from whom King Tancred seized power, demonstrating confusion in the relationship between entities.\n*   **Semantic Misinterpretation:** In sample ID 2, the system includes \"month\" in its answer when the expected golden answer is just the numerical value.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the **inaccurate and imprecise temporal reasoning**, specifically when calculating durations and dealing with nuances in time expressions (e.g., \"roughly\"). This leads to incorrect answers even when the necessary information is present in the passage.\n\n## IMPROVEMENT AREAS\n\n*   **Temporal Reasoning Module:** Develop a more robust temporal reasoning module that can accurately parse dates, calculate time differences, and handle time-related modifiers (e.g., \"roughly,\" \"approximately\").\n*   **Relationship Extraction:** Improve relationship extraction, especially who is doing what to whom.\n\n## IMPROVEMENT SUGGESTIONS\n\n*   **Implement Date Parsing and Calculation:** Integrate a date parsing library to accurately extract date information from the passage and calculate time differences with precision.\n*   **Fine-tune Temporal Reasoning Rules:** Refine the rules for temporal reasoning to account for modifiers like \"roughly\" and to distinguish between different units of time.\n*   **Enhanced Relationship Extraction:** Integrate an advanced NER (Named Entity Recognition) with relationship extraction.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 1:** Temporal reasoning, solution verification\n*   **Sample ID 2:** Semantic equivalence, solution verification\n*   **Sample ID 5:** Information extraction, decision making, relationship extraction\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report based on the provided performance summary, error analysis, and sample execution outputs.\n\n## CAPABILITY REPORT: AI System Assessment\n\n**## EXECUTION ANALYSIS**\n\nThe execution outputs reveal several issues consistent with the error analysis:\n\n*   **Sample 1 (Implied):**  The performance summary indicates an error, which the error analysis suggests is related to temporal reasoning. While the execution output isn't directly available, the error analysis shows it failed to calculate a 15 month duration. This suggests either the question isn't present, or there is an issue extracting the values from the question to perform the calculation.\n*   **Sample 2:** The system answers \"Roughly 14 months\" when the expected answer appears to be a plain numerical value (likely \"14\"). This suggests the model fails to assess the specific output format requested from the question.\n*   **Sample 3 (Implied):** While no error is reported, the inclusion of \"one month\" is suspect. It includes additional tokens that are unwanted and could reduce the confidence score. The presence of \"month\" indicates the system is struggling to differentiate between the need for a numerical answer vs a numerical answer and time unit.\n\n**## CAPABILITY ASSESSMENT**\n\nThe AI system demonstrates a basic ability to extract information and perform simple calculations. However, it exhibits significant weaknesses in precise temporal reasoning, understanding entity relationships, and discerning semantic equivalence in question answering. The system struggles to correctly format outputs. It appears the system performs better when exact information is present and needs to be extracted.\n\n**## KEY STRENGTHS**\n\n*   **Information Extraction:** The system can extract relevant information, although not always perfectly.\n*   **Numerical Reasoning:** The system can perform basic numerical comparisons.\n*   **Simple Question Answering:** The system answers simple questions when context is readily available\n\n**## KEY WEAKNESSES**\n\n*   **Precise Temporal Reasoning:** Inability to accurately calculate time differences, especially with modifiers like \"roughly.\"\n*   **Semantic Equivalence:** Failure to recognize alternative wordings that have the same meaning.\n*   **Output Formatting:** Tendency to add extra words to the answer that are not needed.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on improving is **Temporal Reasoning**. The inaccuracies in temporal reasoning directly impact the correctness of answers and represent a critical bottleneck in the system's overall performance. This includes precise calculation of time differences, interpreting time-related modifiers, and understanding the context of time references.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\nBased on the analysis, here are specific, actionable recommendations for the next iteration:\n\n1.  **Integrate a Date Parsing Library:** Use a robust date parsing library (e.g., dateparser, Chrono) to accurately extract and parse date and time information from the input passage. Ensure the library supports handling approximate time references (e.g., \"roughly,\" \"approximately\"). This resolves the *Inaccurate Temporal Calculation* error pattern.\n2.  **Refine Temporal Reasoning Rules:** Design and implement specific rules for temporal reasoning, particularly for handling modifiers like \"roughly,\" \"approximately,\" and \"about.\" These rules should specify how to adjust calculations based on these modifiers (e.g., defining a range of acceptable values). This directly addresses the *Inaccurate Temporal Calculation* issue.\n3.  **Implement Output Formatting Constraints:** Before returning the final answer, implement a step to check whether the question requires a numerical answer or a numerical answer with additional units or context. Remove any extraneous words based on the question. This resolves the *Semantic Misinterpretation* error pattern.\n4.  **Implement a \"Confidence Score\" System:** Implement a system that assigns a confidence score to each answer. This could be based on factors like the strength of the evidence in the passage, the accuracy of the date parsing, and the consistency of the reasoning. This will help identify cases where the system is likely to be incorrect.\n\n**## CAPABILITY TREND**\n\nBased on the error patterns and the current accuracy score, the system's capabilities are currently **stable**. There's no indication of significant improvement or decline. The targeted improvements outlined above should lead to a measurable increase in accuracy and reliability, shifting the trend to positive.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
     "successful_runs": 10,
-    "matches": 6,
-    "accuracy": 0.6,
+    "matches": 8,
+    "accuracy": 0.8,
     "results": [
       {
         "success": true,
-        "answer": "26",
-        "output": "ANSWER_START\n26\nANSWER_END\n",
+        "answer": "13",
+        "output": "ANSWER_START\n13\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "26",
+        "golden_answer": "13",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value, 26."
+          "explanation": "Both answers are the same numerical value: 13."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "The Christians lost 12,000, 23,000 or 30,000 men, while the Ottomans suffered 20,000-30,000 casualties. The minimum casualties would be 12,000 + 20,000 = 32,000. The maximum casualties would be 30,000 + 30,000 = 60,000. Therefore the total casualties were between 32,000 and 60,000.\n\nAnswer:\n32,000-60,000",
-        "output": "ANSWER_START\nThe Christians lost 12,000, 23,000 or 30,000 men, while the Ottomans suffered 20,000-30,000 casualties. The minimum casualties would be 12,000 + 20,000 = 32,000. The maximum casualties would be 30,000 + 30,000 = 60,000. Therefore the total casualties were between 32,000 and 60,000.\n\nAnswer:\n32,000-60,000\n\nANSWER_END\n",
+        "answer": "Marvin Harrison",
+        "output": "ANSWER_START\nMarvin Harrison\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "60000",
+        "golden_answer": "Marvin Harrison",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same person."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Tampa Bay Buccaneers",
+        "output": "ANSWER_START\nTampa Bay Buccaneers\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "Tampa Bay",
+        "evaluation": {
+          "match": true,
+          "confidence": 0.8,
+          "explanation": "The golden answer is \"Tampa Bay\". The system answer is \"Tampa Bay Buccaneers\". While the system answer is more specific, it still contains the information in the golden answer. Therefore, they convey essentially the same information, though the system answer includes additional details. Since the golden answer could be interpreted as short for Tampa Bay Buccaneers, I'll give a high confidence score."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Tony Romo",
+        "output": "ANSWER_START\nTony Romo\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "Tony Romo",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Bulgaria",
+        "output": "ANSWER_START\nBulgaria\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "1",
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer gives a range of casualties between 32,000 and 60,000, while the golden answer gives only 60,000. These are not equivalent."
+          "explanation": "The system answer provides a country name (Bulgaria), while the golden answer expects a numerical value (1). These answers are completely different and do not convey the same information."
         },
         "match": false
       },
       {
         "success": true,
-        "answer": "The question asks to find the percentage of people that weren't 45 to 64. The passage states that 28.00% of the population was from 45 to 64. Therefore, to find the percentage of people that weren't 45 to 64, we subtract 28.00% from 100%.\n100% - 28.00% = 72.00%\n\nAnswer:\n72.00",
-        "output": "ANSWER_START\nThe question asks to find the percentage of people that weren't 45 to 64. The passage states that 28.00% of the population was from 45 to 64. Therefore, to find the percentage of people that weren't 45 to 64, we subtract 28.00% from 100%.\n100% - 28.00% = 72.00%\n\nAnswer:\n72.00\n\nANSWER_END\n",
+        "answer": "Mark Bradley and Bobby Wade.",
+        "output": "ANSWER_START\nMark Bradley and Bobby Wade.\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "72",
+        "golden_answer": "13-yard, 9-yard",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer represents yard measurements, while the system answer represents names of individuals. Therefore, the information conveyed by the two answers is not the same."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "14",
+        "output": "ANSWER_START\n14\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_10.jsonl",
+        "golden_answer": "14",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer arrives at the correct numerical answer of 72.00, which is equivalent to the golden answer of 72."
+          "explanation": "Both answers are the same numerical value, 14."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "Darren Sharper had the longest touchdown play of the game, with a 97-yard interception return.\n\nFinal Answer: Darren Sharper",
-        "output": "Result failed to validate on attempt 1\nANSWER_START\nDarren Sharper had the longest touchdown play of the game, with a 97-yard interception return.\n\nFinal Answer: Darren Sharper\nANSWER_END\n",
+        "answer": "4",
+        "output": "ANSWER_START\n4\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "Darren Sharper",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer contains the golden answer as part of the complete answer. The system answer includes information about Sharper's TD, but the core of the answer matches the golden answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Daunte Culpepper got sacked seven times and fumbled twice, so he got sacked more times.\n\n        Answer:\n        Sacked more times",
-        "output": "ANSWER_START\nDaunte Culpepper got sacked seven times and fumbled twice, so he got sacked more times.\n\n        Answer:\n        Sacked more times\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "sacked more times",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides the reasoning leading to the correct answer \"sacked more times\", which is also the golden answer. The final answer in the system answer matches the golden answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "383.",
-        "output": "ANSWER_START\n383.\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "383",
+        "golden_answer": "4",
         "evaluation": {
           "match": true,
           "confidence": 1,
@@ -442,59 +767,33 @@
       },
       {
         "success": true,
-        "answer": "In the first half, there were no touchdowns. In the second half, there were two touchdowns. Therefore, there were 2 more touchdowns scored in the second half than in the first.\n\nAnswer: 2",
-        "output": "ANSWER_START\nIn the first half, there were no touchdowns. In the second half, there were two touchdowns. Therefore, there were 2 more touchdowns scored in the second half than in the first.\n\nAnswer: 2\n\nANSWER_END\n",
+        "answer": "Northeast",
+        "output": "ANSWER_START\nNortheast\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "3",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer concludes with '2 more touchdowns scored', while the golden answer is '3'. These are different numerical values and thus not semantically equivalent."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "The longest touchdown pass was 75 yards.\nFinal Answer: 75",
-        "output": "ANSWER_START\nThe longest touchdown pass was 75 yards.\nFinal Answer: 75\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "75",
+        "golden_answer": "the Northeast",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers indicate the same numerical value of 75."
+          "explanation": "Both answers refer to the same region, Northeast. The presence of 'the' doesn't change the meaning."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "There were two 1-yard touchdown runs by Reggie Bush and one 1-yard touchdown run by LenDale White.\n\n        Answer: 3",
-        "output": "ANSWER_START\nThere were two 1-yard touchdown runs by Reggie Bush and one 1-yard touchdown run by LenDale White.\n\n        Answer: 3\n\nANSWER_END\n",
+        "answer": "Rian Lindell",
+        "output": "ANSWER_START\nRian Lindell\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "3",
+        "golden_answer": "Rian Lindell",
         "evaluation": {
-          "match": false,
+          "match": true,
           "confidence": 1,
-          "explanation": "The system answer describes the details of the touchdowns, while the golden answer is the total number of touchdowns. Thus, they are not equivalent."
+          "explanation": "Both answers are identical and refer to the same name."
         },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "The passage states that Orthodox Christianity and Islam were the fastest growing religions, with increases of 100% and 70% respectively. It also states that the Church of Ireland, at 2.7% of the population, is the second largest Christian denomination. Therefore, the difference between Muslims and Christians is 70 - 2.7 = 67.3.\n\n        Answer:\n        67.3",
-        "output": "ANSWER_START\nThe passage states that Orthodox Christianity and Islam were the fastest growing religions, with increases of 100% and 70% respectively. It also states that the Church of Ireland, at 2.7% of the population, is the second largest Christian denomination. Therefore, the difference between Muslims and Christians is 70 - 2.7 = 67.3.\n\n        Answer:\n        67.3\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_10.jsonl",
-        "golden_answer": "30",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer incorrectly calculates the difference between the growth rates of Muslims and Christians. The golden answer is 30, meaning that the correct difference calculation should result to 30, not 67.3. The values used to make the calculations are also incorrect (70 - 2.7 = 67.3)."
-        },
-        "match": false
+        "match": true
       }
     ]
   },
-  "execution_time": 63.65221381187439,
+  "execution_time": 139.8279926776886,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

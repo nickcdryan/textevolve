@@ -1,241 +1,163 @@
 import os
 import re
+import math
 
 def main(question):
     """
-    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.
-    This approach builds upon top-performing approaches by strengthening answer synthesis with a numerical reasoning module and improving verification,
-    and uses multiple examples in all LLM prompts.
+    Solve the question using a multi-stage LLM approach with enhanced arithmetic reasoning.
     """
     try:
-        # Step 1: Determine question type
-        question_type_result = determine_question_type(question)
-        if not question_type_result.get("is_valid"):
-            return f"Error in determining question type: {question_type_result.get('validation_feedback')}"
+        # Step 1: Analyze question and identify if calculation is needed
+        question_analysis = analyze_question(question)
+        if "Error" in question_analysis:
+            return "Error analyzing question"
 
-        # Step 2: Process question based on type
-        if question_type_result["question_type"] == "numerical":
-            process_result = process_numerical_question(question)
-        else:
-            process_result = process_general_question(question)
+        # Step 2: Extract relevant passage
+        relevant_passage = extract_relevant_passage(question, question_analysis)
+        if "Error" in relevant_passage:
+            return "Error extracting passage"
 
-        return process_result
+        # Step 3: Generate answer, performing calculation if required
+        answer = generate_answer(question, relevant_passage, question_analysis)
+        if "Error" in answer:
+            return "Error generating answer"
+
+        # Step 4: Verify answer
+        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)
+        if "Error" in verified_answer:
+            return "Error verifying answer"
+        
+        return verified_answer
 
     except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        return f"General Error: {str(e)}"
 
-def determine_question_type(question, max_attempts=3):
-    """Determine if the question requires numerical reasoning or general information."""
-    system_instruction = "You are an expert question type identifier."
+def analyze_question(question):
+    """Analyzes question, identifying type, keywords, and need for calculation."""
+    system_instruction = "Analyze questions, determine type, keywords, and if calculation is needed."
+    prompt = f"""
+    Analyze the question, identifying its type (fact extraction, calculation, comparison), keywords, and whether a calculation is required.
 
-    for attempt in range(max_attempts):
-        type_prompt = f"""
-        Determine if the question requires numerical reasoning (calculations) or general information extraction.
+    Example 1:
+    Question: How many running backs ran for a touchdown?
+    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": false}}
 
-        Example 1:
-        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Type: numerical
+    Example 2:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Analysis: {{"type": "calculation", "keywords": ["Chris Johnson", "touchdown", "Jason Hanson", "field goal"], "calculation_required": true}}
 
-        Example 2:
-        Question: Who caught the final touchdown of the game?
-        Type: general
+    Example 3:
+    Question: Who caught the final touchdown of the game?
+    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_required": false}}
 
-        Question: {question}
-        Type:
-        """
+    Question: {question}
+    Analysis:
+    """
+    return call_llm(prompt, system_instruction)
 
-        type_result = call_llm(type_prompt, system_instruction)
+def extract_relevant_passage(question, question_analysis):
+    """Extracts relevant passage based on question and analysis."""
+    system_instruction = "Extract relevant passages from text."
+    prompt = f"""
+    Extract the relevant passage from the following text based on the question, keywords and question type.
 
-        verification_prompt = f"""
-        Verify if the identified question type is correct.
+    Example 1:
+    Question: How many running backs ran for a touchdown?
+    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": false}}
+    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
 
-        Question: {question}
-        Identified Type: {type_result}
+    Example 2:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Keywords: {{"type": "calculation", "keywords": ["Chris Johnson", "touchdown", "Jason Hanson", "field goal"], "calculation_required": true}}
+    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal.
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal.
 
-        Example:
-        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Identified Type: numerical
-        Validation: Valid
+    Question: {question}
+    Keywords: {question_analysis}
+    Text: {question}
+    Passage:
+    """
+    return call_llm(prompt, system_instruction)
 
-        Is the identified type valid? Respond with 'Valid' or 'Invalid'.
-        """
+def generate_answer(question, relevant_passage, question_analysis):
+    """Generates the answer, performing calculation if needed."""
+    system_instruction = "Generate answers based on provided text, performing calculations if required."
+    prompt = f"""
+    Generate the answer to the question based on the relevant passage and question analysis. If a calculation is required, perform the calculation and provide the result.
 
-        verification_result = call_llm(verification_prompt, system_instruction)
+    Example 1:
+    Question: How many running backs ran for a touchdown?
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
+    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": false}}
+    Answer: 2
 
-        if "valid" in verification_result.lower():
-            return {"is_valid": True, "question_type": type_result.lower()}
-        else:
-            print(f"Question type validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+    Example 2:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal.
+    Analysis: {{"type": "calculation", "keywords": ["Chris Johnson", "touchdown", "Jason Hanson", "field goal"], "calculation_required": true}}
+    Answer: 59
 
-    return {"is_valid": False, "validation_feedback": "Failed to determine question type successfully."}
+    Question: {question}
+    Passage: {relevant_passage}
+    Analysis: {question_analysis}
+    Answer:
+    """
+    return call_llm(prompt, system_instruction)
 
-def process_numerical_question(question):
-    """Process numerical questions by extracting numbers and performing calculations."""
+def verify_answer(question, answer, relevant_passage, question_analysis):
+    """Verifies the generated answer."""
+    system_instruction = "Verify answers to questions and correct if needed."
+    prompt = f"""
+    Verify the answer to the question based on the relevant passage and the question analysis. If the answer is incorrect, provide the correct answer.
+
+    Example 1:
+    Question: How many running backs ran for a touchdown?
+    Answer: 2
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
+    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": false}}
+    Verification: 2
+
+    Example 2:
+    Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
+    Answer: 59
+    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal.
+        Analysis: {{"type": "calculation", "keywords": ["Chris Johnson", "touchdown", "Jason Hanson", "field goal"], "calculation_required": true}}
+    Verification: 59
+
+    Question: {question}
+    Answer: {answer}
+    Passage: {relevant_passage}
+    Analysis: {question_analysis}
+    Verification:
+    """
+    return call_llm(prompt, system_instruction)
+
+def call_llm(prompt, system_instruction=None):
+    """Call the Gemini LLM with a prompt and return the response. """
     try:
-        # Step 1: Extract numerical information
-        extraction_result = extract_numerical_info(question)
-        if not extraction_result.get("is_valid"):
-            return f"Error in numerical information extraction: {extraction_result.get('validation_feedback')}"
+        from google import genai
+        from google.genai import types
 
-        # Step 2: Calculate the answer
-        calculation_result = calculate_answer(question, extraction_result["extracted_info"])
-        if not calculation_result.get("is_valid"):
-            return f"Error in calculation: {calculation_result.get('validation_feedback')}"
+        # Initialize the Gemini client
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-        return calculation_result["answer"]
-
-    except Exception as e:
-        return f"Error in processing numerical question: {str(e)}"
-
-def extract_numerical_info(question, max_attempts=3):
-    """Extract numerical information and units from the question."""
-    system_instruction = "You are an expert at extracting numerical information and their units from text."
-
-    for attempt in range(max_attempts):
-        extraction_prompt = f"""
-        Extract all numerical values and their corresponding units from the question.
-
-        Example 1:
-        Question: How many yards did Chris Johnson's first touchdown (6 yards) and Jason Hanson's first field goal (53 yards) combine for?
-        Extracted Info:
-        - 6 yards (touchdown)
-        - 53 yards (field goal)
-
-        Example 2:
-        Question: The population increased by 12%, from 1000 to what number?
-        Extracted Info:
-        - 12% (increase)
-        - 1000 (initial population)
-
-        Question: {question}
-        Extracted Info:
-        """
-
-        extracted_info = call_llm(extraction_prompt, system_instruction)
-
-        verification_prompt = f"""
-        Verify if the extracted numerical information is complete and accurate.
-
-        Question: {question}
-        Extracted Info: {extracted_info}
-
-        Example:
-        Question: How many yards did Chris Johnson's first touchdown (6 yards) and Jason Hanson's first field goal (53 yards) combine for?
-        Extracted Info: - 6 yards (touchdown) - 53 yards (field goal)
-        Validation: Valid
-
-        Is the extracted information valid? Respond with 'Valid' or 'Invalid'.
-        """
-
-        verification_result = call_llm(verification_prompt, system_instruction)
-
-        if "valid" in verification_result.lower():
-            return {"is_valid": True, "extracted_info": extracted_info}
+        # Call the API with system instruction if provided
+        if system_instruction:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
+            )
         else:
-            print(f"Numerical info extraction failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
 
-    return {"is_valid": False, "validation_feedback": "Failed to extract numerical information successfully."}
-
-def calculate_answer(question, extracted_info, max_attempts=3):
-    """Calculate the answer based on the extracted numerical information."""
-    system_instruction = "You are an expert calculator."
-
-    for attempt in range(max_attempts):
-        calculation_prompt = f"""
-        Given the question and extracted numerical information, calculate the final answer.
-        Identify the operation to perform (addition, subtraction, etc.) and then calculate it.
-
-        Example:
-        Question: How many yards did Chris Johnson's first touchdown (6 yards) and Jason Hanson's first field goal (53 yards) combine for?
-        Extracted Info: - 6 yards (touchdown) - 53 yards (field goal)
-        Calculation: 6 + 53 = 59
-        Answer: 59
-
-        Question: {question}
-        Extracted Info: {extracted_info}
-        Calculation:
-        """
-
-        calculation = call_llm(calculation_prompt, system_instruction)
-        try:
-            # Extract the numbers for the calculation from the LLM's calculation statement
-            numbers = re.findall(r'\d+', calculation)
-            if len(numbers) < 2:
-                print("Not enough numbers were able to be extracted for the calculation")
-                raise ValueError("Could not perform calculation with invalid numbers")
-            num1 = int(numbers[0])
-            num2 = int(numbers[1])
-
-            # Extract the operator from the LLM's calculation statement
-            operator_match = re.search(r'(\+|-|\*|/)', calculation)
-
-            if not operator_match:
-                print("No valid operator was able to be extracted for the calculation")
-                raise ValueError("Invalid operator")
-            operator = operator_match.group(1)
-
-            if operator == "+":
-                answer = num1 + num2
-            elif operator == "-":
-                answer = num1 - num2
-            elif operator == "*":
-                answer = num1 * num2
-            elif operator == "/":
-                answer = num1 / num2
-            else:
-                print("No known operator was selected")
-                raise ValueError("Unknown operator")
-
-            answer = str(answer)
-
-        except Exception as e:
-            print(f"Error performing calculation: {str(e)}")
-            return {"is_valid": False, "validation_feedback": f"Failed to perform calculation: {str(e)}"}
-
-        verification_prompt = f"""
-        Verify if the calculated answer is correct based on the extracted information and question.
-
-        Question: {question}
-        Extracted Info: {extracted_info}
-        Calculated Answer: {answer}
-
-        Example:
-        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-        Extracted Info: - 6 yards (touchdown) - 53 yards (field goal)
-        Calculated Answer: 59
-        Validation: Valid
-
-        Is the calculated answer valid? Respond with 'Valid' or 'Invalid'.
-        """
-
-        verification_result = call_llm(verification_prompt, system_instruction)
-
-        if "valid" in verification_result.lower():
-            return {"is_valid": True, "answer": answer}
-        else:
-            print(f"Calculation validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}")
-
-    return {"is_valid": False, "validation_feedback": "Failed to calculate a valid answer."}
-
-def process_general_question(question):
-    """Process general questions using decomposition, extraction, and synthesis."""
-    try:
-        # Step 1: Decompose the question into sub-questions.
-        decomposition_result = decompose_question(question)
-        if not decomposition_result.get("is_valid"):
-            return f"Error in question decomposition: {decomposition_result.get('validation_feedback')}"
-
-        # Step 2: Extract relevant information based on sub-questions.
-        information_extraction_result = extract_information(question, decomposition_result["sub_questions"])
-        if not information_extraction_result.get("is_valid"):
-            return f"Error in information extraction: {information_extraction_result.get('validation_feedback')}"
-
-        # Step 3: Synthesize the answer from extracted information.
-        answer_synthesis_result = synthesize_answer(question, information_extraction_result["extracted_info"])
-        if not answer_synthesis_result.get("is_valid"):
-            return f"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}"
-
-        return answer_synthesis_result["answer"]
-
+        return response.text
     except Exception as e:
-        return f"An unexpected error occurred: {str(e)}"
+        print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"

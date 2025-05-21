@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 12,
-        "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
-        "question": "PASSAGE: Coming off a home loss to the Bills (along with attending Sean Taylor's funeral in Florida), the Redskins played at home for their Week 13 Thursday night inter-conference game with the Chicago Bears. After a scoreless first quarter, the Redskins scored first when quarterback Todd Collins completed a 21-yard touchdown pass to tight end Todd Yoder for the only score of the second quarter. In the third quarter, Washington's fullback Mike Sellers scored on a 1-yard touchdown run. The Bears would reply with kicker Robbie Gould making a 30-yard field goal, and later quarterback Brian Griese completed a 17-yard touchdown pass to wide receiver Bernard Berrian. In the fourth quarter, the Redskins responded with kicker Shaun Suisham kicking a 23-yard field goal. Later, Chicago made it closer as Gould kicked a 22-yard field goal. Afterwards, the Redskins increased their lead with Collins completing a 16-yard touchdown pass to running back Ladell Betts. The Bears would answer with Gould making a 21-yard field goal, but their onside kick failed, which preserved a Washington win. Starting quarterback Jason Campbell (10/16 for 100 yards) left the game in the second quarter with a dislocated left knee cap.\n\nQUESTION: How many touchdown passes did Todd Collins throw in the second quarter?"
+        "sample_id": "ccfc4838-bf40-46b8-9e11-bccbdb81d173",
+        "question": "PASSAGE: Hoping to rebound from their home loss to the 49ers, the Bills flew to the Rogers Centre for their first game of their Canadian International series, with an AFC East rematch against the Miami Dolphins.  In the first quarter, Buffalo trailed early as Dolphins QB Chad Pennington completed a 20-yard TD pass to TE Anthony Fasano.  The Bills answered with kicker Rian Lindell.  After that, Miami pulled away as kicker Dan Carpenter made three field goals (50, 35, and 27 yards).\n\nQUESTION: How many yards long were Carpenter's field goals?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 12,
-            "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
+            "sample_id": "ccfc4838-bf40-46b8-9e11-bccbdb81d173",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Coming off a home loss to the Bills (along with attending Sean Taylor's funeral in Florida), the Redskins played at home for their Week 13 Thursday night inter-conference game with the Chicago Bears. After a scoreless first quarter, the Redskins scored first when quarterback Todd Collins completed a 21-yard touchdown pass to tight end Todd Yoder for the only score of the second quarter. In the third quarter, Washington's fullback Mike Sellers scored on a 1-yard touchdown run. The Bears would reply with kicker Robbie Gould making a 30-yard field goal, and later quarterback Brian Griese completed a 17-yard touchdown pass to wide receiver Bernard Berrian. In the fourth quarter, the Redskins responded with kicker Shaun Suisham kicking a 23-yard field goal. Later, Chicago made it closer as Gould kicked a 22-yard field goal. Afterwards, the Redskins increased their lead with Collins completing a 16-yard touchdown pass to running back Ladell Betts. The Bears would answer with Gould making a 21-yard field goal, but their onside kick failed, which preserved a Washington win. Starting quarterback Jason Campbell (10/16 for 100 yards) left the game in the second quarter with a dislocated left knee cap.\n\nQUESTION: How many touchdown passes did Todd Collins throw in the second quarter?"
+    question = "PASSAGE: Hoping to rebound from their home loss to the 49ers, the Bills flew to the Rogers Centre for their first game of their Canadian International series, with an AFC East rematch against the Miami Dolphins.  In the first quarter, Buffalo trailed early as Dolphins QB Chad Pennington completed a 20-yard TD pass to TE Anthony Fasano.  The Bills answered with kicker Rian Lindell.  After that, Miami pulled away as kicker Dan Carpenter made three field goals (50, 35, and 27 yards).\n\nQUESTION: How many yards long were Carpenter's field goals?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 12,
-            "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
+            "sample_id": "ccfc4838-bf40-46b8-9e11-bccbdb81d173",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 12,
-            "sample_id": "8330c9b8-19cb-47e1-94c9-e3d9650097e6",
+            "sample_id": "ccfc4838-bf40-46b8-9e11-bccbdb81d173",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

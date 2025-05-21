@@ -1,830 +1,803 @@
 {
   "iteration": 19,
-  "timestamp": "2025-05-17T20:50:39.797990",
+  "timestamp": "2025-05-20T21:08:52.144305",
   "strategy": "Exploitation",
   "explore_rate": 40,
   "exploit_rate": 60,
   "batch_size": 10,
-  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n        Example 2:\n        Question: Who caught the final touchdown of the game, and in what quarter did it happen?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n        2. In what quarter did the final touchdown occur?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert. Focus on extracting ONLY the relevant information needed to answer the question.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions. Be precise and only include necessary information.\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game, and in what quarter did it happen?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n        2. In what quarter did the final touchdown occur?\n        Extracted Information: Moss caught a 46-yard pass. The quarter was in the fourth.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions. Exclude extraneous details or information that may not be necessary. Focus on providing ONLY required information\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game, and in what quarter did it happen?\n        Sub-questions: 1. Who scored the final touchdown of the game? 2. In what quarter did the final touchdown occur?\n        Extracted Information: Moss caught a 46-yard pass. The quarter was in the fourth.\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert. Use the extracted information to provide a concise answer to the main question. Do not include any extra info that's not required for answering the prompt.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer. Use ONLY the extracted information to answer the main question. Do not include more context than is required to answer the question.\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59 yards\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game, and in what quarter did it happen?\n        Extracted Information: Moss caught a 46-yard pass. The quarter was in the fourth.\n        Final Answer: Moss in the fourth quarter.\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59 yards\n        Validation: Valid\n\n        Example 2:\n        Original Question: Who caught the final touchdown of the game, and in what quarter did it happen?\n        Synthesized Answer: Moss in the fourth quarter.\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses an LLM-driven chain-of-thought approach to answer questions by decomposing them into sub-questions, extracting relevant information, and synthesizing an answer. Each stage ('decompose_question', 'extract_information', and 'synthesize_answer') uses a dedicated LLM agent with a specific system instruction for its task, along with examples in the prompt. Each stage validates its results by prompting the LLM to make sure it is \"valid\" or \"invalid\". The overall workflow involves decomposing the initial question, extracting pertinent details based on the decomposed sub-questions, and then formulating a final answer from the extracted information.\n\n*   **main**: Orchestrates the question-answering process.\n*   **decompose_question**: Decomposes the question into sub-questions using the LLM.\n*   **extract_information**: Extracts information from the passage based on the sub-questions, using the LLM.\n*   **synthesize_answer**: Synthesizes the answer from the extracted information, using the LLM.\n*   **call_llm**: Makes calls to the Gemini LLM API.",
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with enhanced error handling and examples.\n    \"\"\"\n    try:\n        # Step 1: Analyze question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return f\"Error analyzing question: {question_analysis}\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return f\"Error extracting passage: {relevant_passage}\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return f\"Error generating answer: {answer}\"\n\n        # Step 4: Verify answer\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return f\"Error verifying answer: {verified_answer}\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Enhanced with examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions.\"\n    prompt = f\"\"\"\n    Analyze the question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1: Question: Who caught the final touchdown of the game? Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n    Example 2: Question: How many running backs ran for a touchdown? Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    Example 3: Question: Which player kicked the only field goal of the game? Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n    Example 4: Question: What was the attendance at the game? Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"attendance\", \"game\"]}}\n    \n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts relevant passage based on keywords. Enhanced with more robust examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1: Question: Who caught the final touchdown of the game? Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}} Text: PASSAGE: ...Rodgers found Jarrett Boykin... final score 31-13. Passage: Rodgers found Jarrett Boykin... final score 31-13.\n    Example 2: Question: How many running backs ran for a touchdown? Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}} Text: PASSAGE: ...Chris Johnson got a 6-yard TD run... LenDale White getting a 6-yard and a 2-yard TD run. Passage: Chris Johnson got a 6-yard TD run... LenDale White getting a 6-yard and a 2-yard TD run.\n    Example 3: Question: Which player kicked the only field goal of the game? Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}} Text: PASSAGE: ...Josh Scobee nailed a 47-yard field goal. Passage: Josh Scobee nailed a 47-yard field goal.\n    Example 4: Question: What was the attendance at the game? Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"attendance\", \"game\"]}} Text: PASSAGE: ...attendance of 75,000... Passage: attendance of 75,000\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer. Enhanced with explicit instructions to prioritize the relevant passage.\"\"\"\n    system_instruction = \"You are an expert at generating answers based on provided text.\"\n    prompt = f\"\"\"\n    Generate a concise answer to the question, using ONLY the provided passage.\n\n    Example 1: Question: Who caught the final touchdown? Passage: ...Boykin...final score... Answer: Jarrett Boykin\n    Example 2: Question: How many running backs ran for a touchdown? Passage: ...Chris Johnson... LenDale White... Answer: 2\n    Example 3: Question: Which player kicked the only field goal? Passage: ...Josh Scobee...field goal. Answer: Josh Scobee\n    Example 4: Question: What was the attendance? Passage: ...attendance of 75,000... Answer: 75,000\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies and enhances the answer based on the passage. Example to help. Returns extracted answer.\"\"\"\n    system_instruction = \"You are an expert at verifying answers and extracting information.\"\n    prompt = f\"\"\"\n    Carefully verify the answer against the passage. Return the EXACT answer from the passage if it is correct. If incorrect, extract the CORRECT answer from the passage.\n\n    Example 1: Question: Who caught the final touchdown? Answer: Boykin Passage: ...Jarrett Boykin... final score... Verification: Jarrett Boykin\n    Example 2: Question: How many running backs ran for a touchdown? Answer: 2 Passage: ...Chris Johnson...LenDale White... Verification: 2\n    Example 3: Question: Which player kicked the only field goal? Answer: Scobee Passage: ...Josh Scobee...field goal. Verification: Josh Scobee\n    Example 4: Question: What was the attendance? Answer: 75,000 Passage: ...attendance of 75,000... Verification: 75,000\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response.  This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a multi-stage LLM approach to answer questions by analyzing the question, extracting a relevant passage, generating an initial answer, and then verifying it. It decomposes the problem into question analysis, passage extraction, answer generation, and answer verification, assigning an \"expert\" role to the LLM in each stage with chain-of-thought prompting. The functions `analyze_question` extracts question type and keywords, `extract_relevant_passage` finds the passage containing the answer, `generate_answer` creates an answer and `verify_answer` confirms the answer using the passage; each of these functions calls `call_llm` to interact with the Gemini LLM. The overall workflow involves sequentially calling these functions, passing the output of one as input to the next, to refine and verify the final answer.",
   "sample_count": 10,
   "samples": [
     {
-      "question": "PASSAGE: The Browns traveled to Baltimore to take on the Ravens on Thursday Night Football. After a scoreless first quarter, the Ravens scored first in the second quarter as Joe Flacco found Torrey Smith on an 18-yard touchdown pass (with a failed PAT) for a 6-0 lead. The team increased their lead as Justin Tucker made a 45-yard field goal to make the score 9-0. Finally, the Browns scored not long before halftime when Trent Richardson ran for a 2-yard touchdown, making the halftime score 9-7. After the break, the Ravens went right back to work as Flacco used a QB sneak 1-yard run for a 16-7 lead. However, The Browns drew within 6 points as Phil Dawson nailed a 51-yard field goal, making the score 16-10. But then, the Ravens pulled away as Cary Williams picked off Weeden and returned the ball 63 yards for a touchdown, making the score 23-10. In the fourth quarter, the Browns tried to come back as Dawson nailed two field goals from 50 and 52 yards out making the score 23-13 and then 23-16, respectively. However, the Ravens took control of the game and the Browns' record dropped to 0-4 on the season, losing their 13th straight game against a division rival and their 9th straight game against the Ravens.\n\nQUESTION: How many field goals did Phil Dawson have from over 49 yards?",
-      "answer": "3",
-      "id": "example_136",
+      "question": "PASSAGE: The Chargers scored took a 10-0 lead, with quarterback Philip Rivers connecting on a 5-yard touchdown pass to tight end Hunter Henry, followed in the second quarter by a 37-yard field goal by placekicker Josh Lambo. Chargers' return specialist Travis Benjamin fumbled a punt return at the Chargers' 11-yard line, however, the Broncos did not gain any yardage, and were forced to settle for a 29-yard field goal by placekicker Brandon McManus. Three third-quarter field goals by Lambo&#8212;from 21, 31 and 32 yards out&#8212;added to the Chargers' lead. The middle score occurred after a fumble by Broncos' wide receiver Jordan Taylor. McManus missed wide-right on a 56-yard field goal at the end of the third quarter. Early in the fourth quarter, the Broncos' defense forced a Chargers' punt that backed up the Broncos to their own 3-yard line. On the next play from scrimmage, Broncos' offensive tackle Russell Okung was penalized for holding in the end zone that resulted in a safety, extending the Chargers' lead to 21-3. On the ensuing free kick, the Chargers committed another special teams turnover, with guard Kenny Wiggins fumbling the kick near midfield. The Broncos capitalized on this turnover, with a 5-yard touchdown pass from quarterback Trevor Siemian to wide receiver Bennie Fowler. The Broncos' defense forced a three-and-out on the Chargers' next possession with six minutes remaining in the game. On the sixth play of the Broncos' next drive, Siemian connected with running back C. J. Anderson on a 20-yard touchdown, however, another costly holding penalty on Okung negated the scoring play. Two plays later, Siemian connected on a pass completion to wide receiver Demaryius Thomas to the Chargers' 13-yard line, however, Chargers' linebacker Jatavis Brown forced a fumble off Thomas, which was recovered by cornerback Craig Mager, ending the drive with 3:35 remaining. The Broncos' defense forced another three-and-out, but used all three of their team timeouts in the process. A 46-yard field goal by McManus with 32 seconds remaining pulled the Broncos to within a 21-13 deficit. The Broncos recovered the onside kick at their own 46-yard line, however, four plays later, a desperation hail mary pass by Siemian fell short of the end zone. Special teams coordinator Joe DeCamillis served as interim head coach, while Gary Kubiak recovered from a migraine condition that he suffered during the previous week. As part of the NFL Color Rush program, the Broncos wore all-orange throwback uniforms. With the loss, the Broncos' NFL-record 15-game road winning streak against division opponents came to an end. This was the Broncos' final game in San Diego, as the Chargers relocated to Los Angeles after the 2016 season.\n\nQUESTION: Where did the Chargers away move from?",
+      "answer": "San Diego",
+      "id": "example_156",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "The Browns traveled to Baltimore to take on the Ravens on Thursday Night Football. After a scoreless first quarter, the Ravens scored first in the second quarter as Joe Flacco found Torrey Smith on an 18-yard touchdown pass (with a failed PAT) for a 6-0 lead. The team increased their lead as Justin Tucker made a 45-yard field goal to make the score 9-0. Finally, the Browns scored not long before halftime when Trent Richardson ran for a 2-yard touchdown, making the halftime score 9-7. After the break, the Ravens went right back to work as Flacco used a QB sneak 1-yard run for a 16-7 lead. However, The Browns drew within 6 points as Phil Dawson nailed a 51-yard field goal, making the score 16-10. But then, the Ravens pulled away as Cary Williams picked off Weeden and returned the ball 63 yards for a touchdown, making the score 23-10. In the fourth quarter, the Browns tried to come back as Dawson nailed two field goals from 50 and 52 yards out making the score 23-13 and then 23-16, respectively. However, the Ravens took control of the game and the Browns' record dropped to 0-4 on the season, losing their 13th straight game against a division rival and their 9th straight game against the Ravens.",
-        "original_question": "How many field goals did Phil Dawson have from over 49 yards?",
+        "original_passage": "The Chargers scored took a 10-0 lead, with quarterback Philip Rivers connecting on a 5-yard touchdown pass to tight end Hunter Henry, followed in the second quarter by a 37-yard field goal by placekicker Josh Lambo. Chargers' return specialist Travis Benjamin fumbled a punt return at the Chargers' 11-yard line, however, the Broncos did not gain any yardage, and were forced to settle for a 29-yard field goal by placekicker Brandon McManus. Three third-quarter field goals by Lambo&#8212;from 21, 31 and 32 yards out&#8212;added to the Chargers' lead. The middle score occurred after a fumble by Broncos' wide receiver Jordan Taylor. McManus missed wide-right on a 56-yard field goal at the end of the third quarter. Early in the fourth quarter, the Broncos' defense forced a Chargers' punt that backed up the Broncos to their own 3-yard line. On the next play from scrimmage, Broncos' offensive tackle Russell Okung was penalized for holding in the end zone that resulted in a safety, extending the Chargers' lead to 21-3. On the ensuing free kick, the Chargers committed another special teams turnover, with guard Kenny Wiggins fumbling the kick near midfield. The Broncos capitalized on this turnover, with a 5-yard touchdown pass from quarterback Trevor Siemian to wide receiver Bennie Fowler. The Broncos' defense forced a three-and-out on the Chargers' next possession with six minutes remaining in the game. On the sixth play of the Broncos' next drive, Siemian connected with running back C. J. Anderson on a 20-yard touchdown, however, another costly holding penalty on Okung negated the scoring play. Two plays later, Siemian connected on a pass completion to wide receiver Demaryius Thomas to the Chargers' 13-yard line, however, Chargers' linebacker Jatavis Brown forced a fumble off Thomas, which was recovered by cornerback Craig Mager, ending the drive with 3:35 remaining. The Broncos' defense forced another three-and-out, but used all three of their team timeouts in the process. A 46-yard field goal by McManus with 32 seconds remaining pulled the Broncos to within a 21-13 deficit. The Broncos recovered the onside kick at their own 46-yard line, however, four plays later, a desperation hail mary pass by Siemian fell short of the end zone. Special teams coordinator Joe DeCamillis served as interim head coach, while Gary Kubiak recovered from a migraine condition that he suffered during the previous week. As part of the NFL Color Rush program, the Broncos wore all-orange throwback uniforms. With the loss, the Broncos' NFL-record 15-game road winning streak against division opponents came to an end. This was the Broncos' final game in San Diego, as the Chargers relocated to Los Angeles after the 2016 season.",
+        "original_question": "Where did the Chargers away move from?",
         "original_answer_data": {
           "spans": [
-            "3"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 145
-      }
-    },
-    {
-      "question": "PASSAGE:  The Indianapolis Colts began their 2011 season at Reliant Stadium against the Houston Texans.  For the first time since the 1998 season, Peyton Manning was not under the helm at quarterback and it was recently acquired Kerry Collins that would take his position.  The game started very well for the Colts, opening up with an interception by Melvin Bullitt that allowed the Colts to take control.  However, a three and out from the offense quickly gave the Texans the ball to drive down and score a field goal and take a 3-0 lead.  Collins and the Colts offense was out of sync for much of the first quarter, fumbling two snaps and giving Houston the great field position inside of the Indianapolis 40-yard line.  After the first quarter, the Texans held a commanding 17-0 lead and were firing on all cylinders.  The second quarter continued Houston's dominance, with all three teams of the Colts failing to stop or to execute against the Texans.  At halftime, the Colts trailed Houston 34-0, the largest deficit in the entire 58-year history of the franchise.  The second half saw little action with both teams taking shorter drives and in some senses, running down the clock.  The Colts scored their first and the only points scored in the second half with a Reggie Wayne touchdown from Collins in the fourth quarter.  The Colts went on to lose to the Texans 34-7, their second straight season starting 0-1.\n\nQUESTION: How many total points were scored in the game?",
-      "answer": "41",
-      "id": "example_137",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": " The Indianapolis Colts began their 2011 season at Reliant Stadium against the Houston Texans.  For the first time since the 1998 season, Peyton Manning was not under the helm at quarterback and it was recently acquired Kerry Collins that would take his position.  The game started very well for the Colts, opening up with an interception by Melvin Bullitt that allowed the Colts to take control.  However, a three and out from the offense quickly gave the Texans the ball to drive down and score a field goal and take a 3-0 lead.  Collins and the Colts offense was out of sync for much of the first quarter, fumbling two snaps and giving Houston the great field position inside of the Indianapolis 40-yard line.  After the first quarter, the Texans held a commanding 17-0 lead and were firing on all cylinders.  The second quarter continued Houston's dominance, with all three teams of the Colts failing to stop or to execute against the Texans.  At halftime, the Colts trailed Houston 34-0, the largest deficit in the entire 58-year history of the franchise.  The second half saw little action with both teams taking shorter drives and in some senses, running down the clock.  The Colts scored their first and the only points scored in the second half with a Reggie Wayne touchdown from Collins in the fourth quarter.  The Colts went on to lose to the Texans 34-7, their second straight season starting 0-1.",
-        "original_question": "How many total points were scored in the game?",
-        "original_answer_data": {
-          "spans": [
-            "41"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 43
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off their bye week, the Packers flew to LP Field for a Week 9 interconference duel with the unbeaten Tennessee Titans.  In the first quarter, Green Bay trailed early as Titans kicker Rob Bironas got a 31-yard field goal.  In the second quarter, the Pack continued to trail as Bironas made a 25-yard field goal.  The Packers responded with kicker Mason Crosby getting a 23-yard field goal, along with QB Aaron Rodgers completing a 5-yard TD pass to WR Donald Driver.  Tennessee ended the half with RB Chris Johnson getting a 3-yard TD run. In the third quarter, the Titans increased their with Bironas getting a 22-yard field goal.  Green Bay would respond with Crosby getting a 25-yard field goal.  In the fourth quarter, the Pack tied the game with Crosby making a 38-yard field goal.  However, in overtime, Tennessee emerged the victor as Bironas nailed the game-winning 41-yard field goal.\n\nQUESTION: What are the top two longest field goals made?",
-      "answer": "41-yard",
-      "id": "example_138",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their bye week, the Packers flew to LP Field for a Week 9 interconference duel with the unbeaten Tennessee Titans.  In the first quarter, Green Bay trailed early as Titans kicker Rob Bironas got a 31-yard field goal.  In the second quarter, the Pack continued to trail as Bironas made a 25-yard field goal.  The Packers responded with kicker Mason Crosby getting a 23-yard field goal, along with QB Aaron Rodgers completing a 5-yard TD pass to WR Donald Driver.  Tennessee ended the half with RB Chris Johnson getting a 3-yard TD run. In the third quarter, the Titans increased their with Bironas getting a 22-yard field goal.  Green Bay would respond with Crosby getting a 25-yard field goal.  In the fourth quarter, the Pack tied the game with Crosby making a 38-yard field goal.  However, in overtime, Tennessee emerged the victor as Bironas nailed the game-winning 41-yard field goal.",
-        "original_question": "What are the top two longest field goals made?",
-        "original_answer_data": {
-          "spans": [
-            "41-yard",
-            "38-yard"
-          ],
-          "types": [
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 504
-      }
-    },
-    {
-      "question": "PASSAGE: Playing in their second game of the season, the Cincinnati Bengals had a lot of things go wrong. Playing Ohio state rivals Cleveland Browns, the defense looked the exact opposite as they did in week one. Browns quarterback Derek Anderson started and threw for 328 yards and five touchdowns. It was only the third time in NFL history that two quarterbacks had thrown at least five touchdown passes in the same game. Jamal Lewis had 215 yards rushing with one touchdown and the Browns had two receivers with over 100 yards, Braylon Edwards and Kellen Winslow. The Bengals offense tried their best to keep the team in the game, however, as Carson Palmer threw for 6 TD's and Chad Johnson caught for 209 yards. The game started out slowly in the first quarter but the second quarter saw a combined 35 points scored. It was close in the end, when the Bengals started a drive with under one minute left. They managed to get the ball to the 50-yard line when Carson Palmer was intercepted by Leigh Bodden on an intended pass for Chad Johnson. This game ended up being the eighth highest scoring game in NFL history, but not the highest scoring game between these two teams. In 2004, the Bengals beat the Browns 58-48 for the second-most combined points. The Redskins (72) and Giants (41) combined for 113 points in 1966 for the most. Q1 - CIN - 10:40 - 13-yard TD pass from Carson Palmer to Rudi Johnson (Shayne Graham kick) (CIN 7-0) Q1 - CLE - 5:02 - Phil Dawson 39-yard FG (CIN 7-3) Q1 - CLE - 0:09 - Phil Dawson 39-yard FG (CIN 7-6) Q2 - CLE - 11:02 - 17-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 13-7) Q2 - CIN - 7:40 - 23-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CIN 14-13) Q2 - CLE - 6:37 - 9-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 20-14) Q2 - CIN - 3:12 - 22-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CIN 21-20) Q2 - CLE - 1:11 - 25-yard TD pass from Derek Anderson to Kellen Winslow (Dawson kick) (CLE 27-21) Q3 - CIN - 12:13 - Shayne Graham 20-yard FG (CLE 27-24) Q3 - CLE - 8:24 - 34-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 34-24) Q3 - CIN - 6:18 - 14-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CLE 34-31) Q3 - CLE - 6:04 - Jamal Lewis 66-yard TD run (Dawson kick) (CLE 41-31) Q3 - CIN - 0:53 - 5-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CLE 41-38) Q4 - CLE - 10:07 - 37-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 48-38) Q4 - CLE - 5:47 - Phil Dawson 18-yard FG (CLE 51-38) Q4 - CIN - 3:45 - 7-yard TD pass from Carson Palmer to Glenn Holt (Graham kick) (CLE 51-45)\n\nQUESTION: How many touchdowns did Carson Palmer throw?",
-      "answer": "6",
-      "id": "example_139",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Playing in their second game of the season, the Cincinnati Bengals had a lot of things go wrong. Playing Ohio state rivals Cleveland Browns, the defense looked the exact opposite as they did in week one. Browns quarterback Derek Anderson started and threw for 328 yards and five touchdowns. It was only the third time in NFL history that two quarterbacks had thrown at least five touchdown passes in the same game. Jamal Lewis had 215 yards rushing with one touchdown and the Browns had two receivers with over 100 yards, Braylon Edwards and Kellen Winslow. The Bengals offense tried their best to keep the team in the game, however, as Carson Palmer threw for 6 TD's and Chad Johnson caught for 209 yards. The game started out slowly in the first quarter but the second quarter saw a combined 35 points scored. It was close in the end, when the Bengals started a drive with under one minute left. They managed to get the ball to the 50-yard line when Carson Palmer was intercepted by Leigh Bodden on an intended pass for Chad Johnson. This game ended up being the eighth highest scoring game in NFL history, but not the highest scoring game between these two teams. In 2004, the Bengals beat the Browns 58-48 for the second-most combined points. The Redskins (72) and Giants (41) combined for 113 points in 1966 for the most. Q1 - CIN - 10:40 - 13-yard TD pass from Carson Palmer to Rudi Johnson (Shayne Graham kick) (CIN 7-0) Q1 - CLE - 5:02 - Phil Dawson 39-yard FG (CIN 7-3) Q1 - CLE - 0:09 - Phil Dawson 39-yard FG (CIN 7-6) Q2 - CLE - 11:02 - 17-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 13-7) Q2 - CIN - 7:40 - 23-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CIN 14-13) Q2 - CLE - 6:37 - 9-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 20-14) Q2 - CIN - 3:12 - 22-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CIN 21-20) Q2 - CLE - 1:11 - 25-yard TD pass from Derek Anderson to Kellen Winslow (Dawson kick) (CLE 27-21) Q3 - CIN - 12:13 - Shayne Graham 20-yard FG (CLE 27-24) Q3 - CLE - 8:24 - 34-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 34-24) Q3 - CIN - 6:18 - 14-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CLE 34-31) Q3 - CLE - 6:04 - Jamal Lewis 66-yard TD run (Dawson kick) (CLE 41-31) Q3 - CIN - 0:53 - 5-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CLE 41-38) Q4 - CLE - 10:07 - 37-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 48-38) Q4 - CLE - 5:47 - Phil Dawson 18-yard FG (CLE 51-38) Q4 - CIN - 3:45 - 7-yard TD pass from Carson Palmer to Glenn Holt (Graham kick) (CLE 51-45)",
-        "original_question": "How many touchdowns did Carson Palmer throw?",
-        "original_answer_data": {
-          "spans": [
-            "6"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 86
-      }
-    },
-    {
-      "question": "PASSAGE: After back-to-back sub-par performances by the Patriots offense, they faced Derek Carr and the lowly Raiders in their 2014 home opener looking to have their first breakout performance of the season. After both teams punted on their opening drive, the Raiders reached the Patriots 31 and struck first blood on a 49-yard field goal by Sebastian Janikowski. After both teams punted again, the Patriots embarked on a 15 play, 84-yard drive, converting four third-downs,  and scoring on Brady's 6-yard touchdown pass to Gronkowski midway through the second quarter to take a 7-3 lead. The Raiders punted on their next drive, and Marquette King punted only 22 yards to midfield. With the great field position, the Patriots drove all the way to the Raiders 2, but their red zone struggles continued, and they settled for a 20-yard field goal by Gostkowski, giving them a 10-3 lead at halftime. Strong defense continued in the second half. The Raiders drove deep into Patriots territory early in the second quarter, but could only score on a 37-yard field goal by Janikowski. Following a Patriots punt, the Raiders drove from their own 14, to the Patriots 37, but a false start penalty on guard Donald Penn made it 3rd-and-15, and then Carr completed a 13-yard pass to James Jones to the Patriots 29, bringing up a 4th-and-2. The Raiders decided to settle with Janikowski's 47 yard field goal, making the score 10-9. Matthew Slater returned the ensuing kickoff 26 yards to the Patriots 41. With the good field position, the Patriots drove to the Raiders 2 again, but were once again held out of the end zone, and increased their lead to 13-9 on another 20-yard field goal by Gostkowski. After the Raiders went three-and-out, the Patriots marched 63 yards culminating with Gostkowski's 36-yard field goal, increasing the lead to 16-9 midway through the fourth quarter. The Raiders, though, couldn't muster up any offense against the Patriots and they went three-and-out again, but the Patriots failed to put the game away and punted. In just three plays the Raiders reached Patriots territory, but two plays later, on 3rd-and-7 at the Patriots 30-yard line, Carr threw an incomplete pass seemingly bringing up a do-or-die 4th down, but Ryan was called for pass interference moving the ball to the Patriots 6-yard line. On the very next play, Darren McFadden scored on a 6-yard touchdown run, but the score was nullified by a holding penalty on Raiders left guard Gabe Jackson. On the next play, Carr's pass attempt was tipped and intercepted by Vince Wilfork with 0:51 seconds left, which sealed the win for the Patriots. Tom Brady had his best game to date, despite being pressured relentlessly by the Oakland defensive line, including being sacked twice, completing 24 of 37 passes for 234 yards, with 1 touchdown and no interceptions. The running game struggled, with Ridley leading the team with only 54 yards on 19 carries. Julian Edelman was the leading receiver for either team, with 10 catches for 84 yards. Rob Gronkowski continued to slowly work himself into the offense catching only 3 passes for 44 yards, but also caught the only touchdown. Derek Carr had a sub-par day, going 21 of 34 for only 174 yards, with no touchdowns and an interception. Both defenses were spectacular holding the opposing offense to under 300 yards of offense (241 for the Raiders, 297 for the Patriots). With the win the Patriots advanced to 2-1 and Brady won his 150th career game, 3rd most by a starting quarterback in NFL history.\n\nQUESTION: How had more completed passes, Tom Brady or Derek Carr?`",
-      "answer": "Tom Brady",
-      "id": "example_140",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "After back-to-back sub-par performances by the Patriots offense, they faced Derek Carr and the lowly Raiders in their 2014 home opener looking to have their first breakout performance of the season. After both teams punted on their opening drive, the Raiders reached the Patriots 31 and struck first blood on a 49-yard field goal by Sebastian Janikowski. After both teams punted again, the Patriots embarked on a 15 play, 84-yard drive, converting four third-downs,  and scoring on Brady's 6-yard touchdown pass to Gronkowski midway through the second quarter to take a 7-3 lead. The Raiders punted on their next drive, and Marquette King punted only 22 yards to midfield. With the great field position, the Patriots drove all the way to the Raiders 2, but their red zone struggles continued, and they settled for a 20-yard field goal by Gostkowski, giving them a 10-3 lead at halftime. Strong defense continued in the second half. The Raiders drove deep into Patriots territory early in the second quarter, but could only score on a 37-yard field goal by Janikowski. Following a Patriots punt, the Raiders drove from their own 14, to the Patriots 37, but a false start penalty on guard Donald Penn made it 3rd-and-15, and then Carr completed a 13-yard pass to James Jones to the Patriots 29, bringing up a 4th-and-2. The Raiders decided to settle with Janikowski's 47 yard field goal, making the score 10-9. Matthew Slater returned the ensuing kickoff 26 yards to the Patriots 41. With the good field position, the Patriots drove to the Raiders 2 again, but were once again held out of the end zone, and increased their lead to 13-9 on another 20-yard field goal by Gostkowski. After the Raiders went three-and-out, the Patriots marched 63 yards culminating with Gostkowski's 36-yard field goal, increasing the lead to 16-9 midway through the fourth quarter. The Raiders, though, couldn't muster up any offense against the Patriots and they went three-and-out again, but the Patriots failed to put the game away and punted. In just three plays the Raiders reached Patriots territory, but two plays later, on 3rd-and-7 at the Patriots 30-yard line, Carr threw an incomplete pass seemingly bringing up a do-or-die 4th down, but Ryan was called for pass interference moving the ball to the Patriots 6-yard line. On the very next play, Darren McFadden scored on a 6-yard touchdown run, but the score was nullified by a holding penalty on Raiders left guard Gabe Jackson. On the next play, Carr's pass attempt was tipped and intercepted by Vince Wilfork with 0:51 seconds left, which sealed the win for the Patriots. Tom Brady had his best game to date, despite being pressured relentlessly by the Oakland defensive line, including being sacked twice, completing 24 of 37 passes for 234 yards, with 1 touchdown and no interceptions. The running game struggled, with Ridley leading the team with only 54 yards on 19 carries. Julian Edelman was the leading receiver for either team, with 10 catches for 84 yards. Rob Gronkowski continued to slowly work himself into the offense catching only 3 passes for 44 yards, but also caught the only touchdown. Derek Carr had a sub-par day, going 21 of 34 for only 174 yards, with no touchdowns and an interception. Both defenses were spectacular holding the opposing offense to under 300 yards of offense (241 for the Raiders, 297 for the Patriots). With the win the Patriots advanced to 2-1 and Brady won his 150th career game, 3rd most by a starting quarterback in NFL history.",
-        "original_question": "How had more completed passes, Tom Brady or Derek Carr?`",
-        "original_answer_data": {
-          "spans": [
-            "Tom Brady",
-            "completing 24 of 37 passes",
-            "Derek Carr",
-            "21 of 34"
-          ],
-          "types": [
-            "span",
-            "span",
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 376
-      }
-    },
-    {
-      "question": "PASSAGE: Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.\n\nQUESTION: What problems did the engines have?",
-      "answer": "water and corrosion",
-      "id": "example_141",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.",
-        "original_question": "What problems did the engines have?",
-        "original_answer_data": {
-          "spans": [
-            "water and corrosion",
-            "paraffin clogging",
-            "reduced lubrication",
-            "head bolt failures"
-          ],
-          "types": [
-            "span",
-            "span",
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 530
-      }
-    },
-    {
-      "question": "PASSAGE: In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.\n\nQUESTION: Which countries on the 2014 Summer tour were scheduled for more than one date?",
-      "answer": "France",
-      "id": "example_142",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
-        "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
-        "original_answer_data": {
-          "spans": [
-            "France",
-            "Germany"
-          ],
-          "types": [
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 984
-      }
-    },
-    {
-      "question": "PASSAGE: Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.\n\nQUESTION: Which player threw the first TD pass of the game?",
-      "answer": "Kyle Orton",
-      "id": "example_143",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
-        "original_question": "Which player threw the first TD pass of the game?",
-        "original_answer_data": {
-          "spans": [
-            "Kyle Orton"
+            "San Diego"
           ],
           "types": [
             "span"
           ]
         },
-        "line_number": 851
+        "line_number": 21
       }
     },
     {
-      "question": "PASSAGE: The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.\n\nQUESTION: How many total people died in the fight on February 10, 1756?",
-      "answer": "1515",
-      "id": "example_144",
+      "question": "PASSAGE: For the period 2011-15, the estimated median annual income for a household in the town was $48,059, and the median income for a family was $96,005. Male full-time workers had a median income of $64,750 versus $39,278 for females. The per capita income for the town was $18,905. About 8.7% of families and 34.7% of the population were below the poverty line, including 18.2% of those under age 18 and 4.5% of those age 65 or over.\n\nQUESTION: Were the median incomes lower for male full-time workers or females?",
+      "answer": "females",
+      "id": "example_157",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
-        "original_question": "How many total people died in the fight on February 10, 1756?",
+        "original_passage": "For the period 2011-15, the estimated median annual income for a household in the town was $48,059, and the median income for a family was $96,005. Male full-time workers had a median income of $64,750 versus $39,278 for females. The per capita income for the town was $18,905. About 8.7% of families and 34.7% of the population were below the poverty line, including 18.2% of those under age 18 and 4.5% of those age 65 or over.",
+        "original_question": "Were the median incomes lower for male full-time workers or females?",
         "original_answer_data": {
           "spans": [
-            "1515"
+            "females"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 346
+      }
+    },
+    {
+      "question": "PASSAGE: In week 4, the Lions hosted their NFC North Division rivals the Minnesota Vikings. The Vikings took an early lead when Percy Harvin returned the opening kickoff 105 yards for a touchdown. The Lions responded with a 40-yard field goal by Jason Hanson. Minnesota's Blair Walsh then kicked a field goal from 49 yards out. Both teams kicked a field goal in the second quarter, first Minnesota's Blair Walsh from 27 yards out, then Detroit's Jason Hanson from 31 yards. The only scoring drive of the third quarter was when the Vikings' Marcus Sherels returned a punt 77 yards for a touchdown. The Lions scored the only points of the final quarter when quarterback Matthew Stafford completed a 1-yard run for a touchdown.  With the loss, the Lions went into their bye week at 1-3.\n\nQUESTION: Which player scored the first points?",
+      "answer": "Percy Harvin",
+      "id": "example_158",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In week 4, the Lions hosted their NFC North Division rivals the Minnesota Vikings. The Vikings took an early lead when Percy Harvin returned the opening kickoff 105 yards for a touchdown. The Lions responded with a 40-yard field goal by Jason Hanson. Minnesota's Blair Walsh then kicked a field goal from 49 yards out. Both teams kicked a field goal in the second quarter, first Minnesota's Blair Walsh from 27 yards out, then Detroit's Jason Hanson from 31 yards. The only scoring drive of the third quarter was when the Vikings' Marcus Sherels returned a punt 77 yards for a touchdown. The Lions scored the only points of the final quarter when quarterback Matthew Stafford completed a 1-yard run for a touchdown.  With the loss, the Lions went into their bye week at 1-3.",
+        "original_question": "Which player scored the first points?",
+        "original_answer_data": {
+          "spans": [
+            "Percy Harvin"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 827
+      }
+    },
+    {
+      "question": "PASSAGE: In week 2, the Lions visited the New York Giants to play on Monday Night Football. The Lions took an early lead in the first quarter with a 27-yard touchdown pass from Matthew Stafford to Marvin Jones. The Giants tied the game in the second quarter with an 18-yard touchdown pass from Eli Manning to Evan Engram, but the Lions took the lead back (which they kept for the rest of the game) with a seven-yard touchdown pass from Stafford to Eric Ebron, and a 56-yard yard field goal by Matt Prater to make the score 17-7 in favor of Detroit at half-time. Each team only scored once in the second half: first the Giants with a 25-yard field goal by Aldrick Rosas in the third quarter, then the Lions with an 88-yard punt return by Jamal Agnew in the fourth quarter, making the final score 24-10 for the Lions' second consecutive win. The Lions started the season 2-0 for the first time since 2011, and won both games by double-digits for the first time since 1980. Stafford threw his 193rd touchdown, passing Bob Griese for the 48th spot on the all-time list.\n\nQUESTION: Who caught the Giants first TD?",
+      "answer": "Evan Engram",
+      "id": "example_159",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In week 2, the Lions visited the New York Giants to play on Monday Night Football. The Lions took an early lead in the first quarter with a 27-yard touchdown pass from Matthew Stafford to Marvin Jones. The Giants tied the game in the second quarter with an 18-yard touchdown pass from Eli Manning to Evan Engram, but the Lions took the lead back (which they kept for the rest of the game) with a seven-yard touchdown pass from Stafford to Eric Ebron, and a 56-yard yard field goal by Matt Prater to make the score 17-7 in favor of Detroit at half-time. Each team only scored once in the second half: first the Giants with a 25-yard field goal by Aldrick Rosas in the third quarter, then the Lions with an 88-yard punt return by Jamal Agnew in the fourth quarter, making the final score 24-10 for the Lions' second consecutive win. The Lions started the season 2-0 for the first time since 2011, and won both games by double-digits for the first time since 1980. Stafford threw his 193rd touchdown, passing Bob Griese for the 48th spot on the all-time list.",
+        "original_question": "Who caught the Giants first TD?",
+        "original_answer_data": {
+          "spans": [
+            "Evan Engram"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 230
+      }
+    },
+    {
+      "question": "PASSAGE: As of the census of 2000, there were 6,299 people, 2,519 households, and 1,592 families residing in the city. The population density was 914.5 persons per square mile (353.0/km\u00b2). There were 2,702 housing units at an average density of 392.3 per square mile (151.4/km\u00b2). The racial makeup of the city was 75.33% White (U.S. Census), 22.38% African American (U.S. Census) or Race (United States Census), 0.24% Native American (U.S. Census), 0.57% Asian (U.S. Census), 0.08% Pacific Islander (U.S. Census), 0.24% from Race (United States Census), and 1.16% from two or more races. Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 0.89% of the population.\n\nQUESTION: How many more housing units are there than households?",
+      "answer": "183",
+      "id": "example_160",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "As of the census of 2000, there were 6,299 people, 2,519 households, and 1,592 families residing in the city. The population density was 914.5 persons per square mile (353.0/km\u00b2). There were 2,702 housing units at an average density of 392.3 per square mile (151.4/km\u00b2). The racial makeup of the city was 75.33% White (U.S. Census), 22.38% African American (U.S. Census) or Race (United States Census), 0.24% Native American (U.S. Census), 0.57% Asian (U.S. Census), 0.08% Pacific Islander (U.S. Census), 0.24% from Race (United States Census), and 1.16% from two or more races. Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 0.89% of the population.",
+        "original_question": "How many more housing units are there than households?",
+        "original_answer_data": {
+          "spans": [
+            "183"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 345
+        "line_number": 253
       }
     },
     {
-      "question": "PASSAGE: After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.\n\nQUESTION: How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
-      "answer": "14",
-      "id": "example_145",
+      "question": "PASSAGE: The Cincinnati Bengals began their season at Gillette Stadium for an AFC duel with the New England Patriots. In the first quarter, the Bengals trailed early when Patriots quarterback Tom Brady got a 9-yard TD pass to wide receiver Wes Welker, followed by kicker Stephen Gostkowski hitting a 32-yard field goal. In the second quarter, the Bengals struggled further when Brady made a 4-yard TD pass to Wes Welker, followed by linebacker Gary Guyton returning an interception 59 yards for a touchdown. Then, the Bengals made their first score of the half when kicker Mike Nugent nailed a 54-yard field goal. In the third quarter, the Patriots increased their lead when wide receiver Brandon Tate returned the second half's opening kickoff 97 yards for a touchdown. After that, the Bengals replied with quarterback Carson Palmer making a 1-yard TD pass to tight end Jermaine Gresham, followed by Palmer's 28-yard touchdown pass to wide receiver Chad Ochocinco. In the fourth quarter, the Patriots scored again with Brady making a 1-yard TD pass to tight end Rob Gronkowski. The Bengals replied with running back Cedric Benson making a 1-yard TD run, but Cincinnati couldn't get any closer to New England's lead.\n\nQUESTION: How many rushing touchdowns were scored in the game?",
+      "answer": "1",
+      "id": "example_161",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
-        "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
+        "original_passage": "The Cincinnati Bengals began their season at Gillette Stadium for an AFC duel with the New England Patriots. In the first quarter, the Bengals trailed early when Patriots quarterback Tom Brady got a 9-yard TD pass to wide receiver Wes Welker, followed by kicker Stephen Gostkowski hitting a 32-yard field goal. In the second quarter, the Bengals struggled further when Brady made a 4-yard TD pass to Wes Welker, followed by linebacker Gary Guyton returning an interception 59 yards for a touchdown. Then, the Bengals made their first score of the half when kicker Mike Nugent nailed a 54-yard field goal. In the third quarter, the Patriots increased their lead when wide receiver Brandon Tate returned the second half's opening kickoff 97 yards for a touchdown. After that, the Bengals replied with quarterback Carson Palmer making a 1-yard TD pass to tight end Jermaine Gresham, followed by Palmer's 28-yard touchdown pass to wide receiver Chad Ochocinco. In the fourth quarter, the Patriots scored again with Brady making a 1-yard TD pass to tight end Rob Gronkowski. The Bengals replied with running back Cedric Benson making a 1-yard TD run, but Cincinnati couldn't get any closer to New England's lead.",
+        "original_question": "How many rushing touchdowns were scored in the game?",
         "original_answer_data": {
           "spans": [
-            "14"
+            "1"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 403
+        "line_number": 123
+      }
+    },
+    {
+      "question": "PASSAGE:  The Chiefs opened the regular season at home against the Cincinnati Bengals on September 10.  The game was broadcast on CBS at noon Kansas City time. The Chiefs' offense began at a slow pace, while their defense initially held the Bengals to a field goal within the first few minutes.  The Bengals began to rip through the Chiefs' defense with the help of Rudi Johnson, who would later go on to rush for 96&#160;yards and a touchdown. In the third quarter, quarterback Trent Green received a concussion when he slid past the first-down marker and was hit byRobert Geathers' shoulder.  Green laid motionless for eleven minutes until he was taken off the field by a stretcher.  The mood of the game changed instantly when the Chiefs lost their leader, and many fans began to leave Arrowhead Stadium due to heavy rain and the dwindling score. Back-up quarterback Damon Huard came into the game and completed 12 of 20 passes for 140&#160;yards and a touchdown, and was sacked four times.  Tight end Tony Gonzalez caught his first touchdown pass of the season and helped bring the score to 20-10.  The Bengals left with their first win of the 2006 season as the Chiefs began their season 0-1.\n\nQUESTION: How many total points were scored?",
+      "answer": "30",
+      "id": "example_162",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": " The Chiefs opened the regular season at home against the Cincinnati Bengals on September 10.  The game was broadcast on CBS at noon Kansas City time. The Chiefs' offense began at a slow pace, while their defense initially held the Bengals to a field goal within the first few minutes.  The Bengals began to rip through the Chiefs' defense with the help of Rudi Johnson, who would later go on to rush for 96&#160;yards and a touchdown. In the third quarter, quarterback Trent Green received a concussion when he slid past the first-down marker and was hit byRobert Geathers' shoulder.  Green laid motionless for eleven minutes until he was taken off the field by a stretcher.  The mood of the game changed instantly when the Chiefs lost their leader, and many fans began to leave Arrowhead Stadium due to heavy rain and the dwindling score. Back-up quarterback Damon Huard came into the game and completed 12 of 20 passes for 140&#160;yards and a touchdown, and was sacked four times.  Tight end Tony Gonzalez caught his first touchdown pass of the season and helped bring the score to 20-10.  The Bengals left with their first win of the 2006 season as the Chiefs began their season 0-1.",
+        "original_question": "How many total points were scored?",
+        "original_answer_data": {
+          "spans": [
+            "30"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 462
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their devastating Sunday Night loss to the Cardinals, the Vikings went home and met the Cincinnati Bengals in a Week 14 duel. After a scoreless first quarter, Minnesota took first blood as kicker Ryan Longwell nailed a 41-yard field goal. They increased their lead later in the quarter with quarterback Brett Favre finding wide receiver Sidney Rice on a 9-yard TD pass. Cincinnati responded with quarterback Carson Palmer finding wide receiver Chad Ochocinco on a 15-yard TD pass, however the Vikings quickly scored two field goals by kicker Ryan Longwell (from 23 and 44 yards out) to put the Vikings up 16-7 at halftime. In the third quarter, the Vikings scored the period's only points as running back Adrian Peterson got a 1-yard TD run. In the fourth quarter, Cincinnati tried to rally with kicker Shayne Graham nailing a 22-yard field goal, but the Vikings put the game away with running back Adrian Peterson's 3-yard TD run. With the win, the Vikings not only improved to 11-2 on the season, they also secured a playoff berth for the second consecutive season and improved upon the record from the previous season (10-6). Their \"magic number\" decreased to one, meaning that either a Green Bay loss at Pittsburgh or a Vikings win against Carolina on Sunday night would make Minnesota repeat division champions for the first time since 1978, when they won six consecutive NFC Central titles. Also, if the Eagles lost against San Francisco, the Vikings would also clinch a first-round bye in the NFC playoffs.\n\nQUESTION: What is the Viking's record after winning this game?",
+      "answer": "11-2",
+      "id": "example_163",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their devastating Sunday Night loss to the Cardinals, the Vikings went home and met the Cincinnati Bengals in a Week 14 duel. After a scoreless first quarter, Minnesota took first blood as kicker Ryan Longwell nailed a 41-yard field goal. They increased their lead later in the quarter with quarterback Brett Favre finding wide receiver Sidney Rice on a 9-yard TD pass. Cincinnati responded with quarterback Carson Palmer finding wide receiver Chad Ochocinco on a 15-yard TD pass, however the Vikings quickly scored two field goals by kicker Ryan Longwell (from 23 and 44 yards out) to put the Vikings up 16-7 at halftime. In the third quarter, the Vikings scored the period's only points as running back Adrian Peterson got a 1-yard TD run. In the fourth quarter, Cincinnati tried to rally with kicker Shayne Graham nailing a 22-yard field goal, but the Vikings put the game away with running back Adrian Peterson's 3-yard TD run. With the win, the Vikings not only improved to 11-2 on the season, they also secured a playoff berth for the second consecutive season and improved upon the record from the previous season (10-6). Their \"magic number\" decreased to one, meaning that either a Green Bay loss at Pittsburgh or a Vikings win against Carolina on Sunday night would make Minnesota repeat division champions for the first time since 1978, when they won six consecutive NFC Central titles. Also, if the Eagles lost against San Francisco, the Vikings would also clinch a first-round bye in the NFC playoffs.",
+        "original_question": "What is the Viking's record after winning this game?",
+        "original_answer_data": {
+          "spans": [
+            "11-2"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 529
+      }
+    },
+    {
+      "question": "PASSAGE: Trying to snap a three-game losing streak, the Seahawks flew to Bill Walsh Field at Candlestick Park for a Week 8 NFC West rematch with the San Francisco 49ers.  In the first quarter, the Seahawks took flight as kicker Olindo Mare got a 43-yard and a 42-yard field goal.  In the second quarter, Seattle increased its lead with RB T. J. Duckett getting a 1-yard TD run.  The 49ers responded with kicker Joe Nedney getting a 42-yard field goal.  The Seahawks closed out the half as CB Josh Wilson returned an interception 75 yards for a touchdown. In the third quarter, San Francisco responded with Nedney making a 40-yard field goal, yet Seattle responded with QB Seneca Wallace completing a 43-yard TD pass to FB Leonard Weaver.  In the fourth quarter, the 49ers tried to rally as QB Shaun Hill completed a 2-yard TD pass to WR Jason Hill, yet the 'Hawks pulled away as Wallace hooked up with Weaver on a 62-yard TD pass.\n\nQUESTION: How many total yards of field goals were made in the game?",
+      "answer": "167",
+      "id": "example_164",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Trying to snap a three-game losing streak, the Seahawks flew to Bill Walsh Field at Candlestick Park for a Week 8 NFC West rematch with the San Francisco 49ers.  In the first quarter, the Seahawks took flight as kicker Olindo Mare got a 43-yard and a 42-yard field goal.  In the second quarter, Seattle increased its lead with RB T. J. Duckett getting a 1-yard TD run.  The 49ers responded with kicker Joe Nedney getting a 42-yard field goal.  The Seahawks closed out the half as CB Josh Wilson returned an interception 75 yards for a touchdown. In the third quarter, San Francisco responded with Nedney making a 40-yard field goal, yet Seattle responded with QB Seneca Wallace completing a 43-yard TD pass to FB Leonard Weaver.  In the fourth quarter, the 49ers tried to rally as QB Shaun Hill completed a 2-yard TD pass to WR Jason Hill, yet the 'Hawks pulled away as Wallace hooked up with Weaver on a 62-yard TD pass.",
+        "original_question": "How many total yards of field goals were made in the game?",
+        "original_answer_data": {
+          "spans": [
+            "167"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 448
+      }
+    },
+    {
+      "question": "PASSAGE: Meanwhile, in 1274, the former Dali Kingdom was officially reorganized as the Province of Yunnan, with Sayyid Ajjal Shams al-Din Omar as governor. In May 1275, the governor sent a report to the emperor stating that the embassy had not returned; that the Burmese evidently had no intention of submitting; and that war was the only way forward. But the emperor rejected an outright invasion. Just coming off a disastrous Japanese campaign, the emperor was unwilling to commit the central government troops to what he considered a low priority affair. He was now focused on delivering the final blow against the Song; the emperor ordered the Yunnan provincial army to secure the borderlands in order to block the escape path of the Song refugees. He also sanctioned a limited border war if Pagan contested the takeover. As planned, the Yunnan army proceeded to consolidate the borderlands in 1275-76. Elsewhere, the main Mongol armies had captured most of the Song territory by 1276. By 1277, at least one Burmese vassal state named \"Gold Teeth\"  had submitted to the Mongols. Like in 1272, the Burmese government responded by sending an army to reclaim the rebellious state; but unlike in 1272, the Mongols had posted a sizable garrison there. Though it was ultimately under Mongol command, many of the officers and most of the soldiers of the garrison were Turkic-speaking peoples or people from the further west: Turks from Samarkand, Bukhara, Merv and Nishapur, but also captive soldiers from the Persian Khwarazmid empire, the Kipchaks, and even Bulgars from the lower Volga.\n\nQUESTION: Which state has named \"Gold Teeth\" had submitted to the Mongols?",
+      "answer": "1277",
+      "id": "example_165",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Meanwhile, in 1274, the former Dali Kingdom was officially reorganized as the Province of Yunnan, with Sayyid Ajjal Shams al-Din Omar as governor. In May 1275, the governor sent a report to the emperor stating that the embassy had not returned; that the Burmese evidently had no intention of submitting; and that war was the only way forward. But the emperor rejected an outright invasion. Just coming off a disastrous Japanese campaign, the emperor was unwilling to commit the central government troops to what he considered a low priority affair. He was now focused on delivering the final blow against the Song; the emperor ordered the Yunnan provincial army to secure the borderlands in order to block the escape path of the Song refugees. He also sanctioned a limited border war if Pagan contested the takeover. As planned, the Yunnan army proceeded to consolidate the borderlands in 1275-76. Elsewhere, the main Mongol armies had captured most of the Song territory by 1276. By 1277, at least one Burmese vassal state named \"Gold Teeth\"  had submitted to the Mongols. Like in 1272, the Burmese government responded by sending an army to reclaim the rebellious state; but unlike in 1272, the Mongols had posted a sizable garrison there. Though it was ultimately under Mongol command, many of the officers and most of the soldiers of the garrison were Turkic-speaking peoples or people from the further west: Turks from Samarkand, Bukhara, Merv and Nishapur, but also captive soldiers from the Persian Khwarazmid empire, the Kipchaks, and even Bulgars from the lower Volga.",
+        "original_question": "Which state has named \"Gold Teeth\" had submitted to the Mongols?",
+        "original_answer_data": {
+          "spans": [
+            "1277"
+          ],
+          "types": [
+            "date"
+          ]
+        },
+        "line_number": 831
       }
     }
   ],
   "samples_metadata": [
     {
       "source": "jsonl_dataset",
-      "original_passage": "The Browns traveled to Baltimore to take on the Ravens on Thursday Night Football. After a scoreless first quarter, the Ravens scored first in the second quarter as Joe Flacco found Torrey Smith on an 18-yard touchdown pass (with a failed PAT) for a 6-0 lead. The team increased their lead as Justin Tucker made a 45-yard field goal to make the score 9-0. Finally, the Browns scored not long before halftime when Trent Richardson ran for a 2-yard touchdown, making the halftime score 9-7. After the break, the Ravens went right back to work as Flacco used a QB sneak 1-yard run for a 16-7 lead. However, The Browns drew within 6 points as Phil Dawson nailed a 51-yard field goal, making the score 16-10. But then, the Ravens pulled away as Cary Williams picked off Weeden and returned the ball 63 yards for a touchdown, making the score 23-10. In the fourth quarter, the Browns tried to come back as Dawson nailed two field goals from 50 and 52 yards out making the score 23-13 and then 23-16, respectively. However, the Ravens took control of the game and the Browns' record dropped to 0-4 on the season, losing their 13th straight game against a division rival and their 9th straight game against the Ravens.",
-      "original_question": "How many field goals did Phil Dawson have from over 49 yards?",
+      "original_passage": "The Chargers scored took a 10-0 lead, with quarterback Philip Rivers connecting on a 5-yard touchdown pass to tight end Hunter Henry, followed in the second quarter by a 37-yard field goal by placekicker Josh Lambo. Chargers' return specialist Travis Benjamin fumbled a punt return at the Chargers' 11-yard line, however, the Broncos did not gain any yardage, and were forced to settle for a 29-yard field goal by placekicker Brandon McManus. Three third-quarter field goals by Lambo&#8212;from 21, 31 and 32 yards out&#8212;added to the Chargers' lead. The middle score occurred after a fumble by Broncos' wide receiver Jordan Taylor. McManus missed wide-right on a 56-yard field goal at the end of the third quarter. Early in the fourth quarter, the Broncos' defense forced a Chargers' punt that backed up the Broncos to their own 3-yard line. On the next play from scrimmage, Broncos' offensive tackle Russell Okung was penalized for holding in the end zone that resulted in a safety, extending the Chargers' lead to 21-3. On the ensuing free kick, the Chargers committed another special teams turnover, with guard Kenny Wiggins fumbling the kick near midfield. The Broncos capitalized on this turnover, with a 5-yard touchdown pass from quarterback Trevor Siemian to wide receiver Bennie Fowler. The Broncos' defense forced a three-and-out on the Chargers' next possession with six minutes remaining in the game. On the sixth play of the Broncos' next drive, Siemian connected with running back C. J. Anderson on a 20-yard touchdown, however, another costly holding penalty on Okung negated the scoring play. Two plays later, Siemian connected on a pass completion to wide receiver Demaryius Thomas to the Chargers' 13-yard line, however, Chargers' linebacker Jatavis Brown forced a fumble off Thomas, which was recovered by cornerback Craig Mager, ending the drive with 3:35 remaining. The Broncos' defense forced another three-and-out, but used all three of their team timeouts in the process. A 46-yard field goal by McManus with 32 seconds remaining pulled the Broncos to within a 21-13 deficit. The Broncos recovered the onside kick at their own 46-yard line, however, four plays later, a desperation hail mary pass by Siemian fell short of the end zone. Special teams coordinator Joe DeCamillis served as interim head coach, while Gary Kubiak recovered from a migraine condition that he suffered during the previous week. As part of the NFL Color Rush program, the Broncos wore all-orange throwback uniforms. With the loss, the Broncos' NFL-record 15-game road winning streak against division opponents came to an end. This was the Broncos' final game in San Diego, as the Chargers relocated to Los Angeles after the 2016 season.",
+      "original_question": "Where did the Chargers away move from?",
       "original_answer_data": {
         "spans": [
-          "3"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 145
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": " The Indianapolis Colts began their 2011 season at Reliant Stadium against the Houston Texans.  For the first time since the 1998 season, Peyton Manning was not under the helm at quarterback and it was recently acquired Kerry Collins that would take his position.  The game started very well for the Colts, opening up with an interception by Melvin Bullitt that allowed the Colts to take control.  However, a three and out from the offense quickly gave the Texans the ball to drive down and score a field goal and take a 3-0 lead.  Collins and the Colts offense was out of sync for much of the first quarter, fumbling two snaps and giving Houston the great field position inside of the Indianapolis 40-yard line.  After the first quarter, the Texans held a commanding 17-0 lead and were firing on all cylinders.  The second quarter continued Houston's dominance, with all three teams of the Colts failing to stop or to execute against the Texans.  At halftime, the Colts trailed Houston 34-0, the largest deficit in the entire 58-year history of the franchise.  The second half saw little action with both teams taking shorter drives and in some senses, running down the clock.  The Colts scored their first and the only points scored in the second half with a Reggie Wayne touchdown from Collins in the fourth quarter.  The Colts went on to lose to the Texans 34-7, their second straight season starting 0-1.",
-      "original_question": "How many total points were scored in the game?",
-      "original_answer_data": {
-        "spans": [
-          "41"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 43
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their bye week, the Packers flew to LP Field for a Week 9 interconference duel with the unbeaten Tennessee Titans.  In the first quarter, Green Bay trailed early as Titans kicker Rob Bironas got a 31-yard field goal.  In the second quarter, the Pack continued to trail as Bironas made a 25-yard field goal.  The Packers responded with kicker Mason Crosby getting a 23-yard field goal, along with QB Aaron Rodgers completing a 5-yard TD pass to WR Donald Driver.  Tennessee ended the half with RB Chris Johnson getting a 3-yard TD run. In the third quarter, the Titans increased their with Bironas getting a 22-yard field goal.  Green Bay would respond with Crosby getting a 25-yard field goal.  In the fourth quarter, the Pack tied the game with Crosby making a 38-yard field goal.  However, in overtime, Tennessee emerged the victor as Bironas nailed the game-winning 41-yard field goal.",
-      "original_question": "What are the top two longest field goals made?",
-      "original_answer_data": {
-        "spans": [
-          "41-yard",
-          "38-yard"
-        ],
-        "types": [
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 504
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Playing in their second game of the season, the Cincinnati Bengals had a lot of things go wrong. Playing Ohio state rivals Cleveland Browns, the defense looked the exact opposite as they did in week one. Browns quarterback Derek Anderson started and threw for 328 yards and five touchdowns. It was only the third time in NFL history that two quarterbacks had thrown at least five touchdown passes in the same game. Jamal Lewis had 215 yards rushing with one touchdown and the Browns had two receivers with over 100 yards, Braylon Edwards and Kellen Winslow. The Bengals offense tried their best to keep the team in the game, however, as Carson Palmer threw for 6 TD's and Chad Johnson caught for 209 yards. The game started out slowly in the first quarter but the second quarter saw a combined 35 points scored. It was close in the end, when the Bengals started a drive with under one minute left. They managed to get the ball to the 50-yard line when Carson Palmer was intercepted by Leigh Bodden on an intended pass for Chad Johnson. This game ended up being the eighth highest scoring game in NFL history, but not the highest scoring game between these two teams. In 2004, the Bengals beat the Browns 58-48 for the second-most combined points. The Redskins (72) and Giants (41) combined for 113 points in 1966 for the most. Q1 - CIN - 10:40 - 13-yard TD pass from Carson Palmer to Rudi Johnson (Shayne Graham kick) (CIN 7-0) Q1 - CLE - 5:02 - Phil Dawson 39-yard FG (CIN 7-3) Q1 - CLE - 0:09 - Phil Dawson 39-yard FG (CIN 7-6) Q2 - CLE - 11:02 - 17-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 13-7) Q2 - CIN - 7:40 - 23-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CIN 14-13) Q2 - CLE - 6:37 - 9-yard TD pass from Derek Anderson to Joe Jurevicius (Dawson kick) (CLE 20-14) Q2 - CIN - 3:12 - 22-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CIN 21-20) Q2 - CLE - 1:11 - 25-yard TD pass from Derek Anderson to Kellen Winslow (Dawson kick) (CLE 27-21) Q3 - CIN - 12:13 - Shayne Graham 20-yard FG (CLE 27-24) Q3 - CLE - 8:24 - 34-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 34-24) Q3 - CIN - 6:18 - 14-yard TD pass from Carson Palmer to Chad Johnson (Graham kick) (CLE 34-31) Q3 - CLE - 6:04 - Jamal Lewis 66-yard TD run (Dawson kick) (CLE 41-31) Q3 - CIN - 0:53 - 5-yard TD pass from Carson Palmer to T. J. Houshmandzadeh (Graham kick) (CLE 41-38) Q4 - CLE - 10:07 - 37-yard TD pass from Derek Anderson to Braylon Edwards (Dawson kick) (CLE 48-38) Q4 - CLE - 5:47 - Phil Dawson 18-yard FG (CLE 51-38) Q4 - CIN - 3:45 - 7-yard TD pass from Carson Palmer to Glenn Holt (Graham kick) (CLE 51-45)",
-      "original_question": "How many touchdowns did Carson Palmer throw?",
-      "original_answer_data": {
-        "spans": [
-          "6"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 86
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "After back-to-back sub-par performances by the Patriots offense, they faced Derek Carr and the lowly Raiders in their 2014 home opener looking to have their first breakout performance of the season. After both teams punted on their opening drive, the Raiders reached the Patriots 31 and struck first blood on a 49-yard field goal by Sebastian Janikowski. After both teams punted again, the Patriots embarked on a 15 play, 84-yard drive, converting four third-downs,  and scoring on Brady's 6-yard touchdown pass to Gronkowski midway through the second quarter to take a 7-3 lead. The Raiders punted on their next drive, and Marquette King punted only 22 yards to midfield. With the great field position, the Patriots drove all the way to the Raiders 2, but their red zone struggles continued, and they settled for a 20-yard field goal by Gostkowski, giving them a 10-3 lead at halftime. Strong defense continued in the second half. The Raiders drove deep into Patriots territory early in the second quarter, but could only score on a 37-yard field goal by Janikowski. Following a Patriots punt, the Raiders drove from their own 14, to the Patriots 37, but a false start penalty on guard Donald Penn made it 3rd-and-15, and then Carr completed a 13-yard pass to James Jones to the Patriots 29, bringing up a 4th-and-2. The Raiders decided to settle with Janikowski's 47 yard field goal, making the score 10-9. Matthew Slater returned the ensuing kickoff 26 yards to the Patriots 41. With the good field position, the Patriots drove to the Raiders 2 again, but were once again held out of the end zone, and increased their lead to 13-9 on another 20-yard field goal by Gostkowski. After the Raiders went three-and-out, the Patriots marched 63 yards culminating with Gostkowski's 36-yard field goal, increasing the lead to 16-9 midway through the fourth quarter. The Raiders, though, couldn't muster up any offense against the Patriots and they went three-and-out again, but the Patriots failed to put the game away and punted. In just three plays the Raiders reached Patriots territory, but two plays later, on 3rd-and-7 at the Patriots 30-yard line, Carr threw an incomplete pass seemingly bringing up a do-or-die 4th down, but Ryan was called for pass interference moving the ball to the Patriots 6-yard line. On the very next play, Darren McFadden scored on a 6-yard touchdown run, but the score was nullified by a holding penalty on Raiders left guard Gabe Jackson. On the next play, Carr's pass attempt was tipped and intercepted by Vince Wilfork with 0:51 seconds left, which sealed the win for the Patriots. Tom Brady had his best game to date, despite being pressured relentlessly by the Oakland defensive line, including being sacked twice, completing 24 of 37 passes for 234 yards, with 1 touchdown and no interceptions. The running game struggled, with Ridley leading the team with only 54 yards on 19 carries. Julian Edelman was the leading receiver for either team, with 10 catches for 84 yards. Rob Gronkowski continued to slowly work himself into the offense catching only 3 passes for 44 yards, but also caught the only touchdown. Derek Carr had a sub-par day, going 21 of 34 for only 174 yards, with no touchdowns and an interception. Both defenses were spectacular holding the opposing offense to under 300 yards of offense (241 for the Raiders, 297 for the Patriots). With the win the Patriots advanced to 2-1 and Brady won his 150th career game, 3rd most by a starting quarterback in NFL history.",
-      "original_question": "How had more completed passes, Tom Brady or Derek Carr?`",
-      "original_answer_data": {
-        "spans": [
-          "Tom Brady",
-          "completing 24 of 37 passes",
-          "Derek Carr",
-          "21 of 34"
-        ],
-        "types": [
-          "span",
-          "span",
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 376
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Oldsmobile also introduced a 5.7L (350 cu-in, V8) Oldsmobile Diesel engine option on its Custom Cruiser, Delta 88 and 98 models in 1978 and a smaller 4.3L (260 cu-in, V8) displacement diesel on the 1979 Cutlass Salon and Cutlass Supreme/Cutlass Calais models. These were largely based on their gasoline engines but with heavier duty cast blocks, re-designed heads, fast glow plugs, and on the 5.7L, oversized cranks, main bearings, and wrist pins. There were several problems with these engines, including water and corrosion in the injectors (no water separator in the fuel line), paraffin clogging of fuel lines and filters in cold weather, reduced lubrication in the heads due to undersized oil galleys, head bolt failures, and the use of aluminum rockers and stanchions in the 4.3L V8 engines. While the 5.7L was also offered on various Buick, Cadillac, Chevrolet, GMC, and Pontiac models, it was eventually discontinued by all divisions in 1985.  4.3L V6 diesels were also offered between 1982 and 1985.",
-      "original_question": "What problems did the engines have?",
-      "original_answer_data": {
-        "spans": [
-          "water and corrosion",
-          "paraffin clogging",
-          "reduced lubrication",
-          "head bolt failures"
-        ],
-        "types": [
-          "span",
-          "span",
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 530
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
-      "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
-      "original_answer_data": {
-        "spans": [
-          "France",
-          "Germany"
-        ],
-        "types": [
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 984
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
-      "original_question": "Which player threw the first TD pass of the game?",
-      "original_answer_data": {
-        "spans": [
-          "Kyle Orton"
+          "San Diego"
         ],
         "types": [
           "span"
         ]
       },
-      "line_number": 851
+      "line_number": 21
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
-      "original_question": "How many total people died in the fight on February 10, 1756?",
+      "original_passage": "For the period 2011-15, the estimated median annual income for a household in the town was $48,059, and the median income for a family was $96,005. Male full-time workers had a median income of $64,750 versus $39,278 for females. The per capita income for the town was $18,905. About 8.7% of families and 34.7% of the population were below the poverty line, including 18.2% of those under age 18 and 4.5% of those age 65 or over.",
+      "original_question": "Were the median incomes lower for male full-time workers or females?",
       "original_answer_data": {
         "spans": [
-          "1515"
+          "females"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 346
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In week 4, the Lions hosted their NFC North Division rivals the Minnesota Vikings. The Vikings took an early lead when Percy Harvin returned the opening kickoff 105 yards for a touchdown. The Lions responded with a 40-yard field goal by Jason Hanson. Minnesota's Blair Walsh then kicked a field goal from 49 yards out. Both teams kicked a field goal in the second quarter, first Minnesota's Blair Walsh from 27 yards out, then Detroit's Jason Hanson from 31 yards. The only scoring drive of the third quarter was when the Vikings' Marcus Sherels returned a punt 77 yards for a touchdown. The Lions scored the only points of the final quarter when quarterback Matthew Stafford completed a 1-yard run for a touchdown.  With the loss, the Lions went into their bye week at 1-3.",
+      "original_question": "Which player scored the first points?",
+      "original_answer_data": {
+        "spans": [
+          "Percy Harvin"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 827
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In week 2, the Lions visited the New York Giants to play on Monday Night Football. The Lions took an early lead in the first quarter with a 27-yard touchdown pass from Matthew Stafford to Marvin Jones. The Giants tied the game in the second quarter with an 18-yard touchdown pass from Eli Manning to Evan Engram, but the Lions took the lead back (which they kept for the rest of the game) with a seven-yard touchdown pass from Stafford to Eric Ebron, and a 56-yard yard field goal by Matt Prater to make the score 17-7 in favor of Detroit at half-time. Each team only scored once in the second half: first the Giants with a 25-yard field goal by Aldrick Rosas in the third quarter, then the Lions with an 88-yard punt return by Jamal Agnew in the fourth quarter, making the final score 24-10 for the Lions' second consecutive win. The Lions started the season 2-0 for the first time since 2011, and won both games by double-digits for the first time since 1980. Stafford threw his 193rd touchdown, passing Bob Griese for the 48th spot on the all-time list.",
+      "original_question": "Who caught the Giants first TD?",
+      "original_answer_data": {
+        "spans": [
+          "Evan Engram"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 230
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "As of the census of 2000, there were 6,299 people, 2,519 households, and 1,592 families residing in the city. The population density was 914.5 persons per square mile (353.0/km\u00b2). There were 2,702 housing units at an average density of 392.3 per square mile (151.4/km\u00b2). The racial makeup of the city was 75.33% White (U.S. Census), 22.38% African American (U.S. Census) or Race (United States Census), 0.24% Native American (U.S. Census), 0.57% Asian (U.S. Census), 0.08% Pacific Islander (U.S. Census), 0.24% from Race (United States Census), and 1.16% from two or more races. Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 0.89% of the population.",
+      "original_question": "How many more housing units are there than households?",
+      "original_answer_data": {
+        "spans": [
+          "183"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 345
+      "line_number": 253
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
-      "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
+      "original_passage": "The Cincinnati Bengals began their season at Gillette Stadium for an AFC duel with the New England Patriots. In the first quarter, the Bengals trailed early when Patriots quarterback Tom Brady got a 9-yard TD pass to wide receiver Wes Welker, followed by kicker Stephen Gostkowski hitting a 32-yard field goal. In the second quarter, the Bengals struggled further when Brady made a 4-yard TD pass to Wes Welker, followed by linebacker Gary Guyton returning an interception 59 yards for a touchdown. Then, the Bengals made their first score of the half when kicker Mike Nugent nailed a 54-yard field goal. In the third quarter, the Patriots increased their lead when wide receiver Brandon Tate returned the second half's opening kickoff 97 yards for a touchdown. After that, the Bengals replied with quarterback Carson Palmer making a 1-yard TD pass to tight end Jermaine Gresham, followed by Palmer's 28-yard touchdown pass to wide receiver Chad Ochocinco. In the fourth quarter, the Patriots scored again with Brady making a 1-yard TD pass to tight end Rob Gronkowski. The Bengals replied with running back Cedric Benson making a 1-yard TD run, but Cincinnati couldn't get any closer to New England's lead.",
+      "original_question": "How many rushing touchdowns were scored in the game?",
       "original_answer_data": {
         "spans": [
-          "14"
+          "1"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 403
+      "line_number": 123
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": " The Chiefs opened the regular season at home against the Cincinnati Bengals on September 10.  The game was broadcast on CBS at noon Kansas City time. The Chiefs' offense began at a slow pace, while their defense initially held the Bengals to a field goal within the first few minutes.  The Bengals began to rip through the Chiefs' defense with the help of Rudi Johnson, who would later go on to rush for 96&#160;yards and a touchdown. In the third quarter, quarterback Trent Green received a concussion when he slid past the first-down marker and was hit byRobert Geathers' shoulder.  Green laid motionless for eleven minutes until he was taken off the field by a stretcher.  The mood of the game changed instantly when the Chiefs lost their leader, and many fans began to leave Arrowhead Stadium due to heavy rain and the dwindling score. Back-up quarterback Damon Huard came into the game and completed 12 of 20 passes for 140&#160;yards and a touchdown, and was sacked four times.  Tight end Tony Gonzalez caught his first touchdown pass of the season and helped bring the score to 20-10.  The Bengals left with their first win of the 2006 season as the Chiefs began their season 0-1.",
+      "original_question": "How many total points were scored?",
+      "original_answer_data": {
+        "spans": [
+          "30"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 462
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their devastating Sunday Night loss to the Cardinals, the Vikings went home and met the Cincinnati Bengals in a Week 14 duel. After a scoreless first quarter, Minnesota took first blood as kicker Ryan Longwell nailed a 41-yard field goal. They increased their lead later in the quarter with quarterback Brett Favre finding wide receiver Sidney Rice on a 9-yard TD pass. Cincinnati responded with quarterback Carson Palmer finding wide receiver Chad Ochocinco on a 15-yard TD pass, however the Vikings quickly scored two field goals by kicker Ryan Longwell (from 23 and 44 yards out) to put the Vikings up 16-7 at halftime. In the third quarter, the Vikings scored the period's only points as running back Adrian Peterson got a 1-yard TD run. In the fourth quarter, Cincinnati tried to rally with kicker Shayne Graham nailing a 22-yard field goal, but the Vikings put the game away with running back Adrian Peterson's 3-yard TD run. With the win, the Vikings not only improved to 11-2 on the season, they also secured a playoff berth for the second consecutive season and improved upon the record from the previous season (10-6). Their \"magic number\" decreased to one, meaning that either a Green Bay loss at Pittsburgh or a Vikings win against Carolina on Sunday night would make Minnesota repeat division champions for the first time since 1978, when they won six consecutive NFC Central titles. Also, if the Eagles lost against San Francisco, the Vikings would also clinch a first-round bye in the NFC playoffs.",
+      "original_question": "What is the Viking's record after winning this game?",
+      "original_answer_data": {
+        "spans": [
+          "11-2"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 529
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Trying to snap a three-game losing streak, the Seahawks flew to Bill Walsh Field at Candlestick Park for a Week 8 NFC West rematch with the San Francisco 49ers.  In the first quarter, the Seahawks took flight as kicker Olindo Mare got a 43-yard and a 42-yard field goal.  In the second quarter, Seattle increased its lead with RB T. J. Duckett getting a 1-yard TD run.  The 49ers responded with kicker Joe Nedney getting a 42-yard field goal.  The Seahawks closed out the half as CB Josh Wilson returned an interception 75 yards for a touchdown. In the third quarter, San Francisco responded with Nedney making a 40-yard field goal, yet Seattle responded with QB Seneca Wallace completing a 43-yard TD pass to FB Leonard Weaver.  In the fourth quarter, the 49ers tried to rally as QB Shaun Hill completed a 2-yard TD pass to WR Jason Hill, yet the 'Hawks pulled away as Wallace hooked up with Weaver on a 62-yard TD pass.",
+      "original_question": "How many total yards of field goals were made in the game?",
+      "original_answer_data": {
+        "spans": [
+          "167"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 448
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Meanwhile, in 1274, the former Dali Kingdom was officially reorganized as the Province of Yunnan, with Sayyid Ajjal Shams al-Din Omar as governor. In May 1275, the governor sent a report to the emperor stating that the embassy had not returned; that the Burmese evidently had no intention of submitting; and that war was the only way forward. But the emperor rejected an outright invasion. Just coming off a disastrous Japanese campaign, the emperor was unwilling to commit the central government troops to what he considered a low priority affair. He was now focused on delivering the final blow against the Song; the emperor ordered the Yunnan provincial army to secure the borderlands in order to block the escape path of the Song refugees. He also sanctioned a limited border war if Pagan contested the takeover. As planned, the Yunnan army proceeded to consolidate the borderlands in 1275-76. Elsewhere, the main Mongol armies had captured most of the Song territory by 1276. By 1277, at least one Burmese vassal state named \"Gold Teeth\"  had submitted to the Mongols. Like in 1272, the Burmese government responded by sending an army to reclaim the rebellious state; but unlike in 1272, the Mongols had posted a sizable garrison there. Though it was ultimately under Mongol command, many of the officers and most of the soldiers of the garrison were Turkic-speaking peoples or people from the further west: Turks from Samarkand, Bukhara, Merv and Nishapur, but also captive soldiers from the Persian Khwarazmid empire, the Kipchaks, and even Bulgars from the lower Volga.",
+      "original_question": "Which state has named \"Gold Teeth\" had submitted to the Mongols?",
+      "original_answer_data": {
+        "spans": [
+          "1277"
+        ],
+        "types": [
+          "date"
+        ]
+      },
+      "line_number": 831
     }
   ],
   "example_indices": [
-    136,
-    137,
-    138,
-    139,
-    140,
-    141,
-    142,
-    143,
-    144,
-    145
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165
   ],
   "results": [
     {
       "success": true,
-      "answer": "Three",
-      "output": "ANSWER_START\nThree\n\nANSWER_END\n",
+      "answer": "San Diego",
+      "output": "ANSWER_START\nSan Diego\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_19.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer 'Three' and the golden answer '3' both represent the same numerical value."
+        "explanation": "Both answers are identical and convey the same information."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "41 points",
-      "output": "ANSWER_START\n41 points\n\nANSWER_END\n",
+      "answer": "Females",
+      "output": "ANSWER_START\nFemales\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_19.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers state \"41\" as the answer."
+        "explanation": "The answers are the same, differing only in capitalization."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "41-yard field goal and 38-yard field goal",
-      "output": "ANSWER_START\n41-yard field goal and 38-yard field goal\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_19.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 0.7,
-        "explanation": "The system answer includes '41-yard field goal' which contains the '41-yard' information from the golden answer. Although the system answer provides additional information, it still contains the core answer of the golden answer."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "6 touchdowns",
-      "output": "ANSWER_START\n6 touchdowns\n\nANSWER_END\n",
+      "answer": "Percy Harvin",
+      "output": "ANSWER_START\nPercy Harvin\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_19.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers indicate a quantity of 6. '6 touchdowns' and '6' are semantically equivalent in this context."
+        "explanation": "Both answers are exactly the same: Percy Harvin."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "Tom Brady had more completed passes.",
-      "output": "ANSWER_START\nTom Brady had more completed passes.\n\nANSWER_END\n",
+      "answer": "Evan Engram",
+      "output": "ANSWER_START\nEvan Engram\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_19.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer implies that Tom Brady is being compared to another person, and the relevant detail is that he had more completed passes. Thus, 'Tom Brady' alone is sufficient and equivalent."
+        "explanation": "Both answers are identical."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "Water and corrosion in the injectors; paraffin clogging of fuel lines and filters in cold weather; reduced lubrication in the heads; head bolt failures; the use of aluminum rockers and stanchions in the 4.3L V8 engines.",
-      "output": "ANSWER_START\nWater and corrosion in the injectors; paraffin clogging of fuel lines and filters in cold weather; reduced lubrication in the heads; head bolt failures; the use of aluminum rockers and stanchions in the 4.3L V8 engines.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_19.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer contains the golden answer, even though it provides additional information. The core information of 'water and corrosion' is present in both."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "France and Germany.",
-      "output": "ANSWER_START\nFrance and Germany.\n\nANSWER_END\n",
+      "answer": "There were 2,702 housing units and 2,519 households.",
+      "output": "ANSWER_START\nThere were 2,702 housing units and 2,519 households.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_19.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer includes Germany in addition to France, while the golden answer only includes France. Therefore, the answers do not convey the same information."
+        "explanation": "The system answer states there were 2,702 housing units and 2,519 households, while the golden answer is 183. These answers do not convey the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "N/A",
-      "output": "ANSWER_START\nN/A\n\nANSWER_END\n",
+      "answer": "1",
+      "output": "ANSWER_START\n1\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_19.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer is 'N/A' which in this context likely signifies that the system was unable to find an answer. Because the question is seeking a factual answer (i.e. the name of a person), and the system couldn't provide the correct answer 'Kyle Orton', this is not equivalent to the Golden answer. Therefore, the answers are not semantically equivalent."
+        "explanation": "Both answers are the same single-digit number (1), indicating a direct match in meaning."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "1,515 people.",
-      "output": "ANSWER_START\n1,515 people.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_19.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer '1,515 people' is semantically equivalent to the golden answer '1515'. The comma in the system answer is a formatting difference and 'people' is an unnecessary addition."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "6 yards",
-      "output": "ANSWER_START\n6 yards\n\nANSWER_END\n",
+      "answer": "20-10",
+      "output": "ANSWER_START\n20-10\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_19.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer states 6 yards, while the golden answer is 14. These values are not equivalent."
+        "explanation": "The system answer is '20-10' which equals 10. The golden answer is 30. These are not equal."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "11-2",
+      "output": "ANSWER_START\n11-2\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_19.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "167",
+      "output": "ANSWER_START\n167\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_19.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Burmese vassal state",
+      "output": "ANSWER_START\nBurmese vassal state\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_19.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer is a year (1277), while the system answer is a description of a state (Burmese vassal state). These are not semantically equivalent."
       },
       "match": false
     }
   ],
   "performance": {
-    "accuracy": 0.8,
-    "correct_count": 8,
+    "accuracy": 0.7,
+    "correct_count": 7,
     "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Three",
-        "golden_answer": "3",
-        "output": "ANSWER_START\nThree\n\nANSWER_END\n",
+        "system_answer": "San Diego",
+        "golden_answer": "San Diego",
+        "output": "ANSWER_START\nSan Diego\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer 'Three' and the golden answer '3' both represent the same numerical value."
+          "explanation": "Both answers are identical and convey the same information."
         }
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "41 points",
-        "golden_answer": "41",
-        "output": "ANSWER_START\n41 points\n\nANSWER_END\n",
+        "system_answer": "Females",
+        "golden_answer": "females",
+        "output": "ANSWER_START\nFemales\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers state \"41\" as the answer."
+          "explanation": "The answers are the same, differing only in capitalization."
         }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "41-yard field goal and 38-yard field goal",
-        "golden_answer": "41-yard",
-        "output": "ANSWER_START\n41-yard field goal and 38-yard field goal\n\nANSWER_END\n",
+        "system_answer": "Percy Harvin",
+        "golden_answer": "Percy Harvin",
+        "output": "ANSWER_START\nPercy Harvin\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
-          "confidence": 0.7,
-          "explanation": "The system answer includes '41-yard field goal' which contains the '41-yard' information from the golden answer. Although the system answer provides additional information, it still contains the core answer of the golden answer."
+          "confidence": 1,
+          "explanation": "Both answers are exactly the same: Percy Harvin."
         }
       },
       {
         "sample_id": 3,
         "success": true,
-        "system_answer": "6 touchdowns",
-        "golden_answer": "6",
-        "output": "ANSWER_START\n6 touchdowns\n\nANSWER_END\n",
+        "system_answer": "Evan Engram",
+        "golden_answer": "Evan Engram",
+        "output": "ANSWER_START\nEvan Engram\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers indicate a quantity of 6. '6 touchdowns' and '6' are semantically equivalent in this context."
+          "explanation": "Both answers are identical."
         }
       },
       {
         "sample_id": 4,
         "success": true,
-        "system_answer": "Tom Brady had more completed passes.",
-        "golden_answer": "Tom Brady",
-        "output": "ANSWER_START\nTom Brady had more completed passes.\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "There were 2,702 housing units and 2,519 households.",
+        "golden_answer": "183",
+        "output": "ANSWER_START\nThere were 2,702 housing units and 2,519 households.\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer implies that Tom Brady is being compared to another person, and the relevant detail is that he had more completed passes. Thus, 'Tom Brady' alone is sufficient and equivalent."
-        }
+          "explanation": "The system answer states there were 2,702 housing units and 2,519 households, while the golden answer is 183. These answers do not convey the same information."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 5,
         "success": true,
-        "system_answer": "Water and corrosion in the injectors; paraffin clogging of fuel lines and filters in cold weather; reduced lubrication in the heads; head bolt failures; the use of aluminum rockers and stanchions in the 4.3L V8 engines.",
-        "golden_answer": "water and corrosion",
-        "output": "ANSWER_START\nWater and corrosion in the injectors; paraffin clogging of fuel lines and filters in cold weather; reduced lubrication in the heads; head bolt failures; the use of aluminum rockers and stanchions in the 4.3L V8 engines.\n\nANSWER_END\n",
+        "system_answer": "1",
+        "golden_answer": "1",
+        "output": "ANSWER_START\n1\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer contains the golden answer, even though it provides additional information. The core information of 'water and corrosion' is present in both."
+          "explanation": "Both answers are the same single-digit number (1), indicating a direct match in meaning."
         }
       },
       {
         "sample_id": 6,
         "success": true,
-        "system_answer": "France and Germany.",
-        "golden_answer": "France",
-        "output": "ANSWER_START\nFrance and Germany.\n\nANSWER_END\n",
+        "system_answer": "20-10",
+        "golden_answer": "30",
+        "output": "ANSWER_START\n20-10\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer includes Germany in addition to France, while the golden answer only includes France. Therefore, the answers do not convey the same information."
+          "explanation": "The system answer is '20-10' which equals 10. The golden answer is 30. These are not equal."
         },
         "capability_failures": []
       },
       {
         "sample_id": 7,
         "success": true,
-        "system_answer": "N/A",
-        "golden_answer": "Kyle Orton",
-        "output": "ANSWER_START\nN/A\n\nANSWER_END\n",
+        "system_answer": "11-2",
+        "golden_answer": "11-2",
+        "output": "ANSWER_START\n11-2\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer is 'N/A' which in this context likely signifies that the system was unable to find an answer. Because the question is seeking a factual answer (i.e. the name of a person), and the system couldn't provide the correct answer 'Kyle Orton', this is not equivalent to the Golden answer. Therefore, the answers are not semantically equivalent."
+          "explanation": "Both answers are identical and convey the same information."
         }
       },
       {
         "sample_id": 8,
         "success": true,
-        "system_answer": "1,515 people.",
-        "golden_answer": "1515",
-        "output": "ANSWER_START\n1,515 people.\n\nANSWER_END\n",
+        "system_answer": "167",
+        "golden_answer": "167",
+        "output": "ANSWER_START\n167\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer '1,515 people' is semantically equivalent to the golden answer '1515'. The comma in the system answer is a formatting difference and 'people' is an unnecessary addition."
+          "explanation": "Both answers are the same numerical value."
         }
       },
       {
         "sample_id": 9,
         "success": true,
-        "system_answer": "6 yards",
-        "golden_answer": "14",
-        "output": "ANSWER_START\n6 yards\n\nANSWER_END\n",
+        "system_answer": "Burmese vassal state",
+        "golden_answer": "1277",
+        "output": "ANSWER_START\nBurmese vassal state\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer states 6 yards, while the golden answer is 14. These values are not equivalent."
+          "explanation": "The golden answer is a year (1277), while the system answer is a description of a state (Burmese vassal state). These are not semantically equivalent."
         },
         "capability_failures": []
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nNone.\n\n## STRENGTHS\n*   The system correctly answers a variety of questions requiring information extraction and numerical reasoning.\n*   The system appears to be able to handle questions requiring simple arithmetic.\n*   The system sometimes gives complete answers even when partial answers would be sufficient.\n\n## WEAKNESSES\n*   The system sometimes includes extraneous or incorrect information in the answer.\n*   The system exhibits inconsistency in numerical reasoning, sometimes failing on relatively simple calculations.\n\n## CRITICAL BOTTLENECKS\n*   Inability to accurately perform arithmetic calculations.\n*   Lack of precision in extracting only the required information and excluding irrelevant details.\n\n## ERROR PATTERNS\n*   **Numerical Calculation Errors:** The system makes mistakes in arithmetic, such as subtracting the lengths of field goals (sample_id 9).\n*   **Over-Inclusion of Information:** The system sometimes includes information beyond what the question specifically asks for, leading to technically incorrect answers (sample_id 6).\n\n## PRIMARY ISSUE\nThe primary issue is inaccurate numerical reasoning and a tendency to include more information than requested, leading to incorrect or imprecise answers. Specifically, the system demonstrates failures in performing simple subtractions and filtering information to provide concise responses.\n\n## IMPROVEMENT AREAS\n*   **Numerical Reasoning:** The system needs significant improvement in its ability to perform basic arithmetic accurately.\n*   **Information Extraction Precision:** The system should be more precise in extracting only the information needed to answer the question and avoiding extraneous details.\n*   **Constraint Handling:** The system needs to learn to identify and apply constraints given in the question, such as asking for *only* the countries with *more than one* date.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Implement and test a reliable arithmetic calculation module:** Use well-tested numerical libraries. Add more test cases that cover edge cases.\n*   **Refine the information extraction process:** Modify information extraction to prioritize conciseness and eliminate irrelevant information. Train the model with examples that explicitly penalize overly verbose responses. Add a post-processing step to filter irrelevant information.\n*   **Clarify question intent:** Add clarifying steps in the prompt to ensure that the system understands exactly what the question asks for.\n\n## CAPABILITY MAPPING\n*   **Sample ID 6:** constraint_handling, solution_verification\n*   **Sample ID 9:** information_extraction, solution_verification\n",
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors were explicitly found in the 'output' fields of the provided error cases.\n\n## STRENGTHS\n*   The system appears to be capable of extracting specific pieces of information directly stated in the passage (as seen in the success cases).\n*   The system can identify entities or named objects within the provided text (success cases).\n*   The system demonstrates the ability to accurately copy snippets of the given passage, specifically when the question requires finding explicit statements.\n\n## WEAKNESSES\n*   **Arithmetic Reasoning:** The system struggles with questions that require even simple arithmetic calculations based on the passage (e.g., subtraction in sample\\_id 4, addition in sample\\_id 6).\n*   **Inference and Reasoning:** The system fails to make inferences or perform reasoning beyond direct extraction of information. This is evident in cases where the answer requires processing information rather than just finding it (sample\\_id 9 requires recognizing \"1277\" as the time the state submitted to the Mongols).\n*   **Understanding the Question Type:** The system sometimes fails to recognize the type of information requested in the question (sample\\_id 9 where the system returns the name of a state instead of the year requested in the question).\n\n## CRITICAL BOTTLENECKS\n*   **Lack of Arithmetic and Reasoning Capabilities:** The inability to perform even basic arithmetic and logical deductions from the extracted information is a major bottleneck.\n*   **Question Understanding and Intent Recognition:** The system struggles to understand the nuanced information being requested, often extracting relevant facts but failing to process them to produce the final answer.\n\n## ERROR PATTERNS\n*   **Inability to Perform Calculations:** Multiple error cases involve questions requiring mathematical calculations (subtraction, addition), which the system fails to perform.\n*   **Misinterpretation of Question's Intent:** Some errors occur because the system extracts a piece of information that is relevant but does not answer the question being asked. This shows an inability to determine what type of information to give.\n\n## PRIMARY ISSUE\nThe primary issue is the system's limited reasoning capability. It can extract information but cannot reliably process or manipulate it to answer questions that require calculations or inferences.\n\n## IMPROVEMENT AREAS\n*   **Arithmetic Reasoning:** Implement capabilities to perform basic arithmetic operations (addition, subtraction, multiplication, division) on extracted numerical values.\n*   **Question Understanding:** Enhance the system's ability to understand the question's intent and identify the type of information being requested. This may involve techniques such as question classification or query parsing.\n*   **Inference Reasoning:** Introduce a basic inference mechanism that can draw simple conclusions based on the extracted information.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Implement a Calculator Module:** Integrate a dedicated module to handle arithmetic calculations. This module should be able to identify numerical values in the extracted information and perform the required operations.\n*   **Develop Question Classification:** Train a question classification model to categorize questions based on the type of answer expected (e.g., numerical, entity, date, description).\n*   **Introduce Simple Rule-Based Inference:** Implement a set of simple rules to infer new facts from the extracted information. For example, if the question asks for a difference, the system should identify the relevant numerical values and subtract them.\n*   **Add Print Statements:** Add print statements during execution to show what the system is doing at different steps, and add the current values of the relevant variables that will allow debugging later.\n\n## CAPABILITY MAPPING\n*   **Sample 4:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making failed due to inability to perform arithmetic (subtraction).\n*   **Sample 6:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making failed due to inability to perform arithmetic (addition).\n*   **Sample 9:** solution\\_generation, solution\\_verification, decision\\_making failed due to misinterpreting the question type.\n",
       "strengths": [
-        "The system correctly answers a variety of questions requiring information extraction and numerical reasoning.",
-        "The system appears to be able to handle questions requiring simple arithmetic.",
-        "The system sometimes gives complete answers even when partial answers would be sufficient."
+        "The system appears to be capable of extracting specific pieces of information directly stated in the passage (as seen in the success cases).",
+        "The system can identify entities or named objects within the provided text (success cases).",
+        "The system demonstrates the ability to accurately copy snippets of the given passage, specifically when the question requires finding explicit statements."
       ],
       "weaknesses": [
-        "The system sometimes includes extraneous or incorrect information in the answer.",
-        "The system exhibits inconsistency in numerical reasoning, sometimes failing on relatively simple calculations."
+        "Arithmetic Reasoning:** The system struggles with questions that require even simple arithmetic calculations based on the passage (e.g., subtraction in sample\\_id 4, addition in sample\\_id 6).",
+        "Inference and Reasoning:** The system fails to make inferences or perform reasoning beyond direct extraction of information. This is evident in cases where the answer requires processing information rather than just finding it (sample\\_id 9 requires recognizing \"1277\" as the time the state submitted to the Mongols).",
+        "Understanding the Question Type:** The system sometimes fails to recognize the type of information requested in the question (sample\\_id 9 where the system returns the name of a state instead of the year requested in the question)."
       ],
-      "primary_issue": "The primary issue is inaccurate numerical reasoning and a tendency to include more information than requested, leading to incorrect or imprecise answers. Specifically, the system demonstrates failures in performing simple subtractions and filtering information to provide concise responses.",
+      "primary_issue": "The primary issue is the system's limited reasoning capability. It can extract information but cannot reliably process or manipulate it to answer questions that require calculations or inferences.",
       "improvement_suggestions": [
-        "Implement and test a reliable arithmetic calculation module:** Use well-tested numerical libraries. Add more test cases that cover edge cases.",
-        "Refine the information extraction process:** Modify information extraction to prioritize conciseness and eliminate irrelevant information. Train the model with examples that explicitly penalize overly verbose responses. Add a post-processing step to filter irrelevant information.",
-        "Clarify question intent:** Add clarifying steps in the prompt to ensure that the system understands exactly what the question asks for."
+        "Implement a Calculator Module:** Integrate a dedicated module to handle arithmetic calculations. This module should be able to identify numerical values in the extracted information and perform the required operations.",
+        "Develop Question Classification:** Train a question classification model to categorize questions based on the type of answer expected (e.g., numerical, entity, date, description).",
+        "Introduce Simple Rule-Based Inference:** Implement a set of simple rules to infer new facts from the extracted information. For example, if the question asks for a difference, the system should identify the relevant numerical values and subtract them.",
+        "Add Print Statements:** Add print statements during execution to show what the system is doing at different steps, and add the current values of the relevant variables that will allow debugging later."
       ],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## AI System Capability Report\n\nHere's a thorough capability assessment of your AI system based on the provided performance summary, error analysis, and sample execution outputs.\n\n**## EXECUTION ANALYSIS**\n\nThe raw execution outputs reveal several key issues that align with the error analysis report:\n\n*   **Inconsistency in Answering:** Some outputs (\"Three\", \"41 points\") are terse and correct, while others (\"41-yard field goal and 38-yard field goal\") exhibit the weakness of including extraneous information. This indicates inconsistent application of information extraction and response formatting rules.\n*   **Numerical Reasoning Errors:** The execution output regarding field goal lengths strongly suggests an issue with the numerical reasoning component. The expected answer should have involved a calculation, which was not performed or was performed incorrectly.\n*   **Formatting Issues:** The `ANSWER_START` and `ANSWER_END` markers highlight the boundaries of the response but don't directly contribute to the system's errors. However, the raw output format could be improved for easier human readability and automated post-processing.\n\n**## CAPABILITY ASSESSMENT**\n\nThe system demonstrates potential in information extraction and simple reasoning. It can sometimes provide correct answers, particularly when calculations are not required. However, significant weaknesses exist in numerical reasoning, precision in information extraction, and consistent application of constraints. The system struggles to perform even basic arithmetic and tends to over-include information, leading to incorrect or imprecise answers. Overall, the system's current capabilities are unreliable for tasks requiring accurate calculations or nuanced information filtering.\n\n**## KEY STRENGTHS**\n\n*   **Basic Information Extraction:** The system can extract relevant information from a given context, which is a fundamental strength to build upon.\n*   **Potential for Concise Answers:** The system sometimes delivers concise and accurate answers, showing it's *capable* of precision, even if it's not consistent.\n\n**## KEY WEAKNESSES**\n\n*   **Inaccurate Numerical Reasoning:** This is a critical flaw that undermines the system's reliability for any task involving calculations.\n*   **Lack of Precision in Information Extraction:** The tendency to include extraneous information leads to incorrect or misleading answers.\n*   **Inconsistent Performance:** The variability in answer quality indicates a lack of robustness in the underlying algorithms.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on improving is **Accurate Numerical Reasoning**. Addressing this will have the most significant impact on overall system performance and reliability.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\n1.  **Isolate and Reinforce the Numerical Reasoning Module:**\n    *   **Implement a dedicated arithmetic calculation module:** Don't rely on the core language model for calculations. Use a reliable, well-tested numerical library (e.g., NumPy for Python).\n    *   **Create a focused training dataset for arithmetic tasks:** Design a dataset specifically for numerical reasoning, including various arithmetic operations and edge cases (e.g., zero, negative numbers, decimals). Focus initially on simple subtractions as seen in the sample ID 9 error.\n    *   **Test and validate the numerical reasoning module independently:** Implement unit tests to ensure that the arithmetic module functions correctly in isolation.\n\n2.  **Refine Information Extraction with Conciseness:**\n    *   **Introduce a \"relevance filter\" post-processing step:** After the initial information extraction, implement a module to filter out information that is not directly relevant to answering the question. This filter should be trained to identify and remove extraneous details.\n    *   **Train with negative examples that penalize verbosity:** Add examples to the training dataset where incorrect answers are explicitly penalized for including unnecessary information.\n\n3.  **Prompt Engineering for Clarity (Short-Term Fix):**\n    *   **Incorporate \"Think step by step\"**: Start to clarify questions in the prompt with the phrase, \"Think step by step.\" and prompt the system to explain its answer.\n\n**## CAPABILITY TREND**\n\nBased on the accuracy of 0.80 (8/10) and the error analysis, the capabilities are currently **Stable but Unsatisfactory**. Without focused intervention, the system will likely continue to exhibit the same weaknesses. The proposed improvements are designed to shift the trend towards improvement in the next iteration.\n",
+      "text_report": "## AI System Capability Report\n\nThis report provides a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and other information.\n\n### EXECUTION ANALYSIS\n\nThe raw execution outputs show the system can extract textual spans from the input passage and enclose them within \"ANSWER_START\" and \"ANSWER_END\" tags. This demonstrates a basic capability for information extraction and output formatting. However, the success of this extraction depends heavily on the question type and the complexity of the required reasoning. The provided outputs correspond to the success cases and therefore don't highlight the errors outlined in the error analysis report. To get a full picture, it is necessary to also look at the failed cases.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates the following capabilities:\n\n*   **Information Extraction:** The system can successfully extract specific pieces of information explicitly mentioned in the provided text.\n*   **Entity Recognition:** The system can identify entities or named objects within the text.\n*   **Output Formatting:** The system can format the extracted information by wrapping it in predefined tags.\n\nHowever, the system is severely limited by the following:\n\n*   **Lack of Arithmetic Reasoning:** The system cannot perform basic arithmetic calculations.\n*   **Limited Inference Abilities:** The system struggles with questions that require any form of inference or logical deduction beyond direct extraction.\n*   **Question Understanding Deficiencies:** The system sometimes fails to understand the precise intent of the question.\n\n### KEY STRENGTHS\n\n*   **Direct Information Extraction:** Accurate at extracting explicitly stated information.\n*   **Entity Recognition:** Ability to identify and extract named entities from text.\n\n### KEY WEAKNESSES\n\n*   **Arithmetic Reasoning:** Completely unable to perform calculations.\n*   **Inference and Reasoning:** Limited to direct extraction, no inference abilities.\n*   **Question Understanding:** Frequent misinterpretations of the question's intent.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Arithmetic Reasoning**. While question understanding and inference are crucial in the long run, the system's complete inability to perform even basic arithmetic creates a fundamental bottleneck. Addressing this immediately will unlock a significant portion of question types and improve overall usefulness.\n\n### ACTIONABLE RECOMMENDATIONS\n\nImplement the following changes in the next iteration:\n\n1.  **Integrate a Calculator Module:**\n    *   **Functionality:** This module should accept two numerical values and an operator (+, -, \\*, /) as input and return the calculated result.\n    *   **Integration:** Modify the system to identify numerical values within extracted text and use the question to determine the appropriate operator. Pass these to the Calculator Module.\n    *   **Error Handling:** Include error handling for cases where the extracted text does not contain valid numerical values or when an invalid operation is requested. Return a default value or error message in such cases.  For example, if division by zero occurs, return \"undefined\" or a similar placeholder.\n\n2.  **Implement a Simple Rule for Subtraction:**\n    *   **Rule:** If the question contains words like \"difference,\" \"less than,\" or \"how many more,\" assume a subtraction operation is needed.\n    *   **Implementation:** After extracting relevant numerical values, apply this rule to trigger the Calculator Module with the appropriate operands and the subtraction operator.\n\n3.  **Logging and Debugging:** Add more detailed print statements that show the extracted numerical values, identified operator, module output, and final answer. This will help track the system\u2019s reasoning steps and identify failure points during development.\n\n### CAPABILITY TREND\n\nCurrently, the capabilities appear **stable with limitations**. The system excels at direct extraction but lacks more complex reasoning abilities. The suggested improvements aim to initiate an **improving trend**, specifically in arithmetic reasoning, which will have a cascading effect on other related areas.\n",
       "strengths": [
-        "The system correctly answers a variety of questions requiring information extraction and numerical reasoning.",
-        "The system appears to be able to handle questions requiring simple arithmetic.",
-        "The system sometimes gives complete answers even when partial answers would be sufficient."
+        "The system appears to be capable of extracting specific pieces of information directly stated in the passage (as seen in the success cases).",
+        "The system can identify entities or named objects within the provided text (success cases).",
+        "The system demonstrates the ability to accurately copy snippets of the given passage, specifically when the question requires finding explicit statements."
       ],
       "weaknesses": [
-        "The system sometimes includes extraneous or incorrect information in the answer.",
-        "The system exhibits inconsistency in numerical reasoning, sometimes failing on relatively simple calculations."
+        "Arithmetic Reasoning:** The system struggles with questions that require even simple arithmetic calculations based on the passage (e.g., subtraction in sample\\_id 4, addition in sample\\_id 6).",
+        "Inference and Reasoning:** The system fails to make inferences or perform reasoning beyond direct extraction of information. This is evident in cases where the answer requires processing information rather than just finding it (sample\\_id 9 requires recognizing \"1277\" as the time the state submitted to the Mongols).",
+        "Understanding the Question Type:** The system sometimes fails to recognize the type of information requested in the question (sample\\_id 9 where the system returns the name of a state instead of the year requested in the question)."
       ],
       "improvement_suggestions": [
-        "Implement and test a reliable arithmetic calculation module:** Use well-tested numerical libraries. Add more test cases that cover edge cases.",
-        "Refine the information extraction process:** Modify information extraction to prioritize conciseness and eliminate irrelevant information. Train the model with examples that explicitly penalize overly verbose responses. Add a post-processing step to filter irrelevant information.",
-        "Clarify question intent:** Add clarifying steps in the prompt to ensure that the system understands exactly what the question asks for."
+        "Implement a Calculator Module:** Integrate a dedicated module to handle arithmetic calculations. This module should be able to identify numerical values in the extracted information and perform the required operations.",
+        "Develop Question Classification:** Train a question classification model to categorize questions based on the type of answer expected (e.g., numerical, entity, date, description).",
+        "Introduce Simple Rule-Based Inference:** Implement a set of simple rules to infer new facts from the extracted information. For example, if the question asks for a difference, the system should identify the relevant numerical values and subtract them.",
+        "Add Print Statements:** Add print statements during execution to show what the system is doing at different steps, and add the current values of the relevant variables that will allow debugging later."
       ],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nNone.\n\n## STRENGTHS\n*   The system correctly answers a variety of questions requiring information extraction and numerical reasoning.\n*   The system appears to be able to handle questions requiring simple arithmetic.\n*   The system sometimes gives complete answers even when partial answers would be sufficient.\n\n## WEAKNESSES\n*   The system sometimes includes extraneous or incorrect information in the answer.\n*   The system exhibits inconsistency in numerical reasoning, sometimes failing on relatively simple calculations.\n\n## CRITICAL BOTTLENECKS\n*   Inability to accurately perform arithmetic calculations.\n*   Lack of precision in extracting only the required information and excluding irrelevant details.\n\n## ERROR PATTERNS\n*   **Numerical Calculation Errors:** The system makes mistakes in arithmetic, such as subtracting the lengths of field goals (sample_id 9).\n*   **Over-Inclusion of Information:** The system sometimes includes information beyond what the question specifically asks for, leading to technically incorrect answers (sample_id 6).\n\n## PRIMARY ISSUE\nThe primary issue is inaccurate numerical reasoning and a tendency to include more information than requested, leading to incorrect or imprecise answers. Specifically, the system demonstrates failures in performing simple subtractions and filtering information to provide concise responses.\n\n## IMPROVEMENT AREAS\n*   **Numerical Reasoning:** The system needs significant improvement in its ability to perform basic arithmetic accurately.\n*   **Information Extraction Precision:** The system should be more precise in extracting only the information needed to answer the question and avoiding extraneous details.\n*   **Constraint Handling:** The system needs to learn to identify and apply constraints given in the question, such as asking for *only* the countries with *more than one* date.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Implement and test a reliable arithmetic calculation module:** Use well-tested numerical libraries. Add more test cases that cover edge cases.\n*   **Refine the information extraction process:** Modify information extraction to prioritize conciseness and eliminate irrelevant information. Train the model with examples that explicitly penalize overly verbose responses. Add a post-processing step to filter irrelevant information.\n*   **Clarify question intent:** Add clarifying steps in the prompt to ensure that the system understands exactly what the question asks for.\n\n## CAPABILITY MAPPING\n*   **Sample ID 6:** constraint_handling, solution_verification\n*   **Sample ID 9:** information_extraction, solution_verification\n",
-    "capability_report_text": "## AI System Capability Report\n\nHere's a thorough capability assessment of your AI system based on the provided performance summary, error analysis, and sample execution outputs.\n\n**## EXECUTION ANALYSIS**\n\nThe raw execution outputs reveal several key issues that align with the error analysis report:\n\n*   **Inconsistency in Answering:** Some outputs (\"Three\", \"41 points\") are terse and correct, while others (\"41-yard field goal and 38-yard field goal\") exhibit the weakness of including extraneous information. This indicates inconsistent application of information extraction and response formatting rules.\n*   **Numerical Reasoning Errors:** The execution output regarding field goal lengths strongly suggests an issue with the numerical reasoning component. The expected answer should have involved a calculation, which was not performed or was performed incorrectly.\n*   **Formatting Issues:** The `ANSWER_START` and `ANSWER_END` markers highlight the boundaries of the response but don't directly contribute to the system's errors. However, the raw output format could be improved for easier human readability and automated post-processing.\n\n**## CAPABILITY ASSESSMENT**\n\nThe system demonstrates potential in information extraction and simple reasoning. It can sometimes provide correct answers, particularly when calculations are not required. However, significant weaknesses exist in numerical reasoning, precision in information extraction, and consistent application of constraints. The system struggles to perform even basic arithmetic and tends to over-include information, leading to incorrect or imprecise answers. Overall, the system's current capabilities are unreliable for tasks requiring accurate calculations or nuanced information filtering.\n\n**## KEY STRENGTHS**\n\n*   **Basic Information Extraction:** The system can extract relevant information from a given context, which is a fundamental strength to build upon.\n*   **Potential for Concise Answers:** The system sometimes delivers concise and accurate answers, showing it's *capable* of precision, even if it's not consistent.\n\n**## KEY WEAKNESSES**\n\n*   **Inaccurate Numerical Reasoning:** This is a critical flaw that undermines the system's reliability for any task involving calculations.\n*   **Lack of Precision in Information Extraction:** The tendency to include extraneous information leads to incorrect or misleading answers.\n*   **Inconsistent Performance:** The variability in answer quality indicates a lack of robustness in the underlying algorithms.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on improving is **Accurate Numerical Reasoning**. Addressing this will have the most significant impact on overall system performance and reliability.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\n1.  **Isolate and Reinforce the Numerical Reasoning Module:**\n    *   **Implement a dedicated arithmetic calculation module:** Don't rely on the core language model for calculations. Use a reliable, well-tested numerical library (e.g., NumPy for Python).\n    *   **Create a focused training dataset for arithmetic tasks:** Design a dataset specifically for numerical reasoning, including various arithmetic operations and edge cases (e.g., zero, negative numbers, decimals). Focus initially on simple subtractions as seen in the sample ID 9 error.\n    *   **Test and validate the numerical reasoning module independently:** Implement unit tests to ensure that the arithmetic module functions correctly in isolation.\n\n2.  **Refine Information Extraction with Conciseness:**\n    *   **Introduce a \"relevance filter\" post-processing step:** After the initial information extraction, implement a module to filter out information that is not directly relevant to answering the question. This filter should be trained to identify and remove extraneous details.\n    *   **Train with negative examples that penalize verbosity:** Add examples to the training dataset where incorrect answers are explicitly penalized for including unnecessary information.\n\n3.  **Prompt Engineering for Clarity (Short-Term Fix):**\n    *   **Incorporate \"Think step by step\"**: Start to clarify questions in the prompt with the phrase, \"Think step by step.\" and prompt the system to explain its answer.\n\n**## CAPABILITY TREND**\n\nBased on the accuracy of 0.80 (8/10) and the error analysis, the capabilities are currently **Stable but Unsatisfactory**. Without focused intervention, the system will likely continue to exhibit the same weaknesses. The proposed improvements are designed to shift the trend towards improvement in the next iteration.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors were explicitly found in the 'output' fields of the provided error cases.\n\n## STRENGTHS\n*   The system appears to be capable of extracting specific pieces of information directly stated in the passage (as seen in the success cases).\n*   The system can identify entities or named objects within the provided text (success cases).\n*   The system demonstrates the ability to accurately copy snippets of the given passage, specifically when the question requires finding explicit statements.\n\n## WEAKNESSES\n*   **Arithmetic Reasoning:** The system struggles with questions that require even simple arithmetic calculations based on the passage (e.g., subtraction in sample\\_id 4, addition in sample\\_id 6).\n*   **Inference and Reasoning:** The system fails to make inferences or perform reasoning beyond direct extraction of information. This is evident in cases where the answer requires processing information rather than just finding it (sample\\_id 9 requires recognizing \"1277\" as the time the state submitted to the Mongols).\n*   **Understanding the Question Type:** The system sometimes fails to recognize the type of information requested in the question (sample\\_id 9 where the system returns the name of a state instead of the year requested in the question).\n\n## CRITICAL BOTTLENECKS\n*   **Lack of Arithmetic and Reasoning Capabilities:** The inability to perform even basic arithmetic and logical deductions from the extracted information is a major bottleneck.\n*   **Question Understanding and Intent Recognition:** The system struggles to understand the nuanced information being requested, often extracting relevant facts but failing to process them to produce the final answer.\n\n## ERROR PATTERNS\n*   **Inability to Perform Calculations:** Multiple error cases involve questions requiring mathematical calculations (subtraction, addition), which the system fails to perform.\n*   **Misinterpretation of Question's Intent:** Some errors occur because the system extracts a piece of information that is relevant but does not answer the question being asked. This shows an inability to determine what type of information to give.\n\n## PRIMARY ISSUE\nThe primary issue is the system's limited reasoning capability. It can extract information but cannot reliably process or manipulate it to answer questions that require calculations or inferences.\n\n## IMPROVEMENT AREAS\n*   **Arithmetic Reasoning:** Implement capabilities to perform basic arithmetic operations (addition, subtraction, multiplication, division) on extracted numerical values.\n*   **Question Understanding:** Enhance the system's ability to understand the question's intent and identify the type of information being requested. This may involve techniques such as question classification or query parsing.\n*   **Inference Reasoning:** Introduce a basic inference mechanism that can draw simple conclusions based on the extracted information.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Implement a Calculator Module:** Integrate a dedicated module to handle arithmetic calculations. This module should be able to identify numerical values in the extracted information and perform the required operations.\n*   **Develop Question Classification:** Train a question classification model to categorize questions based on the type of answer expected (e.g., numerical, entity, date, description).\n*   **Introduce Simple Rule-Based Inference:** Implement a set of simple rules to infer new facts from the extracted information. For example, if the question asks for a difference, the system should identify the relevant numerical values and subtract them.\n*   **Add Print Statements:** Add print statements during execution to show what the system is doing at different steps, and add the current values of the relevant variables that will allow debugging later.\n\n## CAPABILITY MAPPING\n*   **Sample 4:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making failed due to inability to perform arithmetic (subtraction).\n*   **Sample 6:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making failed due to inability to perform arithmetic (addition).\n*   **Sample 9:** solution\\_generation, solution\\_verification, decision\\_making failed due to misinterpreting the question type.\n",
+    "capability_report_text": "## AI System Capability Report\n\nThis report provides a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and other information.\n\n### EXECUTION ANALYSIS\n\nThe raw execution outputs show the system can extract textual spans from the input passage and enclose them within \"ANSWER_START\" and \"ANSWER_END\" tags. This demonstrates a basic capability for information extraction and output formatting. However, the success of this extraction depends heavily on the question type and the complexity of the required reasoning. The provided outputs correspond to the success cases and therefore don't highlight the errors outlined in the error analysis report. To get a full picture, it is necessary to also look at the failed cases.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates the following capabilities:\n\n*   **Information Extraction:** The system can successfully extract specific pieces of information explicitly mentioned in the provided text.\n*   **Entity Recognition:** The system can identify entities or named objects within the text.\n*   **Output Formatting:** The system can format the extracted information by wrapping it in predefined tags.\n\nHowever, the system is severely limited by the following:\n\n*   **Lack of Arithmetic Reasoning:** The system cannot perform basic arithmetic calculations.\n*   **Limited Inference Abilities:** The system struggles with questions that require any form of inference or logical deduction beyond direct extraction.\n*   **Question Understanding Deficiencies:** The system sometimes fails to understand the precise intent of the question.\n\n### KEY STRENGTHS\n\n*   **Direct Information Extraction:** Accurate at extracting explicitly stated information.\n*   **Entity Recognition:** Ability to identify and extract named entities from text.\n\n### KEY WEAKNESSES\n\n*   **Arithmetic Reasoning:** Completely unable to perform calculations.\n*   **Inference and Reasoning:** Limited to direct extraction, no inference abilities.\n*   **Question Understanding:** Frequent misinterpretations of the question's intent.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Arithmetic Reasoning**. While question understanding and inference are crucial in the long run, the system's complete inability to perform even basic arithmetic creates a fundamental bottleneck. Addressing this immediately will unlock a significant portion of question types and improve overall usefulness.\n\n### ACTIONABLE RECOMMENDATIONS\n\nImplement the following changes in the next iteration:\n\n1.  **Integrate a Calculator Module:**\n    *   **Functionality:** This module should accept two numerical values and an operator (+, -, \\*, /) as input and return the calculated result.\n    *   **Integration:** Modify the system to identify numerical values within extracted text and use the question to determine the appropriate operator. Pass these to the Calculator Module.\n    *   **Error Handling:** Include error handling for cases where the extracted text does not contain valid numerical values or when an invalid operation is requested. Return a default value or error message in such cases.  For example, if division by zero occurs, return \"undefined\" or a similar placeholder.\n\n2.  **Implement a Simple Rule for Subtraction:**\n    *   **Rule:** If the question contains words like \"difference,\" \"less than,\" or \"how many more,\" assume a subtraction operation is needed.\n    *   **Implementation:** After extracting relevant numerical values, apply this rule to trigger the Calculator Module with the appropriate operands and the subtraction operator.\n\n3.  **Logging and Debugging:** Add more detailed print statements that show the extracted numerical values, identified operator, module output, and final answer. This will help track the system\u2019s reasoning steps and identify failure points during development.\n\n### CAPABILITY TREND\n\nCurrently, the capabilities appear **stable with limitations**. The system excels at direct extraction but lacks more complex reasoning abilities. The suggested improvements aim to initiate an **improving trend**, specifically in arithmetic reasoning, which will have a cascading effect on other related areas.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
     "successful_runs": 10,
-    "matches": 9,
-    "accuracy": 0.9,
+    "matches": 5,
+    "accuracy": 0.5,
     "results": [
       {
         "success": true,
-        "answer": "Jermaine Gresham",
-        "output": "ANSWER_START\nJermaine Gresham\n\nANSWER_END\n",
+        "answer": "Philip Rivers",
+        "output": "ANSWER_START\nPhilip Rivers\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "Jermaine Gresham",
+        "golden_answer": "Philip Rivers",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and refer to the same name: Jermaine Gresham."
+          "explanation": "Both answers are identical and convey the same information."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "8 years",
-        "output": "ANSWER_START\n8 years\n\nANSWER_END\n",
+        "answer": "I cannot answer this question with the provided text.",
+        "output": "ANSWER_START\nI cannot answer this question with the provided text.\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "8",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers represent the same numerical value (8). The system answer includes the unit \"years\" while the golden answer does not, but the core information remains the same."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "4 yards",
-        "output": "ANSWER_START\n4 yards\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "4",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers refer to the numerical value of 4. The system answer includes \"yards\" as a unit which doesn't change the numerical equivalence."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "105 yards",
-        "output": "ANSWER_START\n105 yards\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "105",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer includes '105' which is semantically equivalent to the golden answer '105'. The 'yards' unit is not critical to the numerical value's meaning."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Two.",
-        "output": "ANSWER_START\nTwo.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "2",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers represent the number two. 'Two' is the word form, while '2' is the numerical form, but they are equivalent."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "18 to 24",
-        "output": "ANSWER_START\n18 to 24\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "18 to 24",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information: '18 to 24'."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "14 points",
-        "output": "ANSWER_START\n14 points\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "14",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers convey the same numerical value, 14. The system answer includes \"points\" which is not critical information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "King Narai was arrested.",
-        "output": "ANSWER_START\nKing Narai was arrested.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "Phaulkon was executed",
+        "golden_answer": "66.2",
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The answers refer to different people (King Narai vs. Phaulkon) and different actions (arrested vs. executed). Therefore, they do not convey the same information."
+          "explanation": "The system answer states it cannot answer the question, while the golden answer provides a numerical value (66.2). These are not semantically equivalent."
         },
         "match": false
       },
       {
         "success": true,
-        "answer": "4-5 months",
-        "output": "ANSWER_START\n4-5 months\n\nANSWER_END\n",
+        "answer": "from 18 December 1971 until 7 January 1972",
+        "output": "ANSWER_START\nfrom 18 December 1971 until 7 January 1972\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "4",
+        "golden_answer": "20",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer gives a date range, while the golden answer is a numerical value (20). These are not semantically equivalent."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "Byron Leftwich's 7-yard TD pass to RB Maurice Jones-Drew",
+        "output": "ANSWER_START\nByron Leftwich's 7-yard TD pass to RB Maurice Jones-Drew\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_19.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer provides a numerical value (2), while the system answer provides a description of a play in football. These do not convey the same information. Byron Leftwich's 7-yard TD pass to RB Maurice Jones-Drew describes an event, whereas the golden answer provides the number 2."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "Josh Brown and Shaun Alexander",
+        "output": "ANSWER_START\nJosh Brown and Shaun Alexander\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_19.jsonl",
+        "golden_answer": "lead with kicker Josh Brown",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer mentions two names, while the golden answer specifically asks to lead with 'kicker Josh Brown'. The system answer fails to prioritize or identify Josh Brown as the primary answer, and also includes an additional incorrect name."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "G\u00fcshi Khan overthrew the prince of Tsang",
+        "output": "ANSWER_START\nG\u00fcshi Khan overthrew the prince of Tsang\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_19.jsonl",
+        "golden_answer": "G\u00fcshi Khan overthrew the prince of Tsang",
         "evaluation": {
           "match": true,
-          "confidence": 0.7,
-          "explanation": "The system answer provides a range that includes the golden answer. While not exact, it's semantically close enough to be considered a match."
+          "confidence": 1,
+          "explanation": "Both answers state that G\u00fcshi Khan overthrew the prince of Tsang."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "QB Joe Flacco",
-        "output": "ANSWER_START\nQB Joe Flacco\n\nANSWER_END\n",
+        "answer": "DeShone Kizer",
+        "output": "ANSWER_START\nDeShone Kizer\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_19.jsonl",
-        "golden_answer": "Joe Flacco",
+        "golden_answer": "DeShone Kizer",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers refer to the same person, Joe Flacco. 'QB' simply specifies his position, which is implied even without it."
+          "explanation": "Both answers are identical and refer to the same name, DeShone Kizer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2-yard",
+        "output": "ANSWER_START\n2-yard\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_19.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer is '2', while the system answer is '2-yard'. Although they both contain the number 2, the system answer includes the unit 'yard', which changes the meaning and makes it not semantically equivalent to the golden answer."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "Robert Royal",
+        "output": "ANSWER_START\nRobert Royal\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_19.jsonl",
+        "golden_answer": "Robert Royal",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1",
+        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_19.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same single numerical value."
         },
         "match": true
       }
     ]
   },
-  "execution_time": 112.71161818504333,
+  "execution_time": 90.3286485671997,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

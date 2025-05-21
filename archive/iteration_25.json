@@ -1,0 +1,803 @@
+{
+  "iteration": 25,
+  "timestamp": "2025-05-20T21:28:24.560564",
+  "strategy": "Exploitation",
+  "explore_rate": 15,
+  "exploit_rate": 85,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with enhanced reasoning and verification.\n    \"\"\"\n    try:\n        # Step 1: Analyze question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer with explicit reasoning\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples with reasoning.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n    Include a brief explanation of your reasoning.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"reason\": \"This question asks for a specific person based on an event.\"}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"reason\": \"This question asks for a numerical count of specific events.\"}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\", \"only\"], \"reason\": \"This question asks for the name of a player based on a specific event.\"}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples with reasoning.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n    Explain why this passage is most relevant.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Reason: This passage directly answers the question about who caught the final touchdown.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Reason: This passage lists the running backs who scored touchdowns.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Reason: This passage identifies the player who kicked the field goal.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    Reason:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples with reasoning.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text. Reason step by step.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type.\n    Explain your reasoning for arriving at this answer.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n    Reason: The passage states that Jarrett Boykin caught the pass for the final score.\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    Reason: Chris Johnson and LenDale White are running backs who ran for touchdowns.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n    Reason: The passage mentions Josh Scobee kicking a field goal.\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    Reason:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies the generated answer. Includes multiple examples with reasoning.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions. Explain step by step if the answer is correct and why, or if it is wrong and what the right answer is.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage.  Explain your reasoning, and return the answer if it is correct.  Return the correct answer if it is incorrect, with explanation.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin is correct because the passage explicitly states Boykin caught the final touchdown.\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2 is correct because Chris Johnson and LenDale White are running backs mentioned as scoring touchdowns.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee is correct because the passage mentions Scobee as kicking a field goal.\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a multi-stage chain-of-thought approach with verification to answer questions by decomposing the problem into question analysis, relevant passage extraction, answer generation, and answer verification. Each stage employs an LLM with a specific role (e.g., question analyzer, passage extractor, answer generator, and answer verifier) and few-shot examples in the prompt to guide the LLM. `main()` orchestrates the workflow, calling `analyze_question()` to determine the question type and keywords, `extract_relevant_passage()` to find relevant information, `generate_answer()` to form an initial answer, and `verify_answer()` to confirm the answer's correctness. All LLM interactions are handled by the `call_llm()` function.",
+  "sample_count": 10,
+  "samples": [
+    {
+      "question": "PASSAGE: Coming off their Sunday night divisional road win over the Eagles, the Cowboys flew to Giants Stadium for an NFC East rematch with the New York Giants. In the first quarter, Dallas shot first as QB Tony Romo completed a 15-yard TD pass to TE Tony Curtis.  Afterwards, the Giants responded with QB Eli Manning completing an 8-yard TD pass to TE Jeremy Shockey. In the second quarter, the Cowboys retook the lead as rookie kicker Nick Folk got a 44-yard field goal, yet New York answered with RB Reuben Droughns getting a 1-yard TD run.  Dallas reclaimed the lead with Romo completing a 20-yard TD pass to WR Patrick Crayton.  However, due to a taunting penalty on LB Kevin Burnett, the Giants were given great field position to get some points prior to halftime.  The Cowboys held New York to a 40-yard Lawrence Tynes field goal. In the third quarter, Dallas regained the lead with Romo completing a 25-yard TD pass to WR Terrell Owens for the only score of the period.  In the fourth quarter, the Giants only got a 26-yard field goal from Tynes.  Afterwards, the Cowboys completed the season-sweep with Romo and Owens hooking up again on a 50-yard TD pass. This would mark the first time since their Super Bowl year of 1995 that the Cowboys began a season at 8-1, and only the third time in franchise history that Dallas began at 8-1; the other times were during the 1977 season, and the 1983 season.  The Cowboys won the Super Bowl in 1977 and 1995, but lost the wildcard game to the Los Angeles Rams in 1983. For their season-sweep over New York, Dallas had scored a total of 76 points in the two meetings. DT Tank Johnson, in his first game with the Cowboys (along with the first game off of his suspension), recorded 3 tackles and a sack.\n\nQUESTION: How many points did the Giants get in the third quarter?",
+      "answer": "3",
+      "id": "example_201",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their Sunday night divisional road win over the Eagles, the Cowboys flew to Giants Stadium for an NFC East rematch with the New York Giants. In the first quarter, Dallas shot first as QB Tony Romo completed a 15-yard TD pass to TE Tony Curtis.  Afterwards, the Giants responded with QB Eli Manning completing an 8-yard TD pass to TE Jeremy Shockey. In the second quarter, the Cowboys retook the lead as rookie kicker Nick Folk got a 44-yard field goal, yet New York answered with RB Reuben Droughns getting a 1-yard TD run.  Dallas reclaimed the lead with Romo completing a 20-yard TD pass to WR Patrick Crayton.  However, due to a taunting penalty on LB Kevin Burnett, the Giants were given great field position to get some points prior to halftime.  The Cowboys held New York to a 40-yard Lawrence Tynes field goal. In the third quarter, Dallas regained the lead with Romo completing a 25-yard TD pass to WR Terrell Owens for the only score of the period.  In the fourth quarter, the Giants only got a 26-yard field goal from Tynes.  Afterwards, the Cowboys completed the season-sweep with Romo and Owens hooking up again on a 50-yard TD pass. This would mark the first time since their Super Bowl year of 1995 that the Cowboys began a season at 8-1, and only the third time in franchise history that Dallas began at 8-1; the other times were during the 1977 season, and the 1983 season.  The Cowboys won the Super Bowl in 1977 and 1995, but lost the wildcard game to the Los Angeles Rams in 1983. For their season-sweep over New York, Dallas had scored a total of 76 points in the two meetings. DT Tank Johnson, in his first game with the Cowboys (along with the first game off of his suspension), recorded 3 tackles and a sack.",
+        "original_question": "How many points did the Giants get in the third quarter?",
+        "original_answer_data": {
+          "spans": [
+            "3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 173
+      }
+    },
+    {
+      "question": "PASSAGE: After the political changes, in 1991, Bulgaria had a US$11.25 billion state debt, which represented 180% of the GDP. The state debt peaked in 1994, when it reached US$14.4 billion. During 1998-2008 Bulgaria maintained policy of Government budget balance, which reduced the state debt to 5.07 billion euro. Combined with the economic growth in that period, the state debt dropped to a record low of 13.7% of GDP, one of the lowest in the European Union. In 2008 Bulgaria also maintained 4.286 billion euro fiscal reserve, meaning that net state debt at this moment was only 0.784 billion euro. After the Financial crisis of 2007\u201308 Bulgaria turned to policy of Deficit spending and at the end of 2013 the state debt rose up to 7.219 billion euro, representing 18.1% of the GDP. In 2015, the debt rate increased further to 26.7% of the GDP, still remaining the third lowest in EU after Estonia and Luxembourg. Part of the increase was driven by the collapse of Corporate Commercial Bank in 2014, the fourth largest bank in the country, and the subsequent paying out of Deposit insurance.\n\nQUESTION: How many percent lower was the state debt as a percentage of GDP from 1991 to 2008?",
+      "answer": "166.3",
+      "id": "example_202",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After the political changes, in 1991, Bulgaria had a US$11.25 billion state debt, which represented 180% of the GDP. The state debt peaked in 1994, when it reached US$14.4 billion. During 1998-2008 Bulgaria maintained policy of Government budget balance, which reduced the state debt to 5.07 billion euro. Combined with the economic growth in that period, the state debt dropped to a record low of 13.7% of GDP, one of the lowest in the European Union. In 2008 Bulgaria also maintained 4.286 billion euro fiscal reserve, meaning that net state debt at this moment was only 0.784 billion euro. After the Financial crisis of 2007\u201308 Bulgaria turned to policy of Deficit spending and at the end of 2013 the state debt rose up to 7.219 billion euro, representing 18.1% of the GDP. In 2015, the debt rate increased further to 26.7% of the GDP, still remaining the third lowest in EU after Estonia and Luxembourg. Part of the increase was driven by the collapse of Corporate Commercial Bank in 2014, the fourth largest bank in the country, and the subsequent paying out of Deposit insurance.",
+        "original_question": "How many percent lower was the state debt as a percentage of GDP from 1991 to 2008?",
+        "original_answer_data": {
+          "spans": [
+            "166.3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 147
+      }
+    },
+    {
+      "question": "PASSAGE: In 2010, there were 340,523 family households, out of which 33.5% had children under the age of 18 living with them, 60.0% were Marriage living together, 11.7% had a female householder with no husband present, and 24.1% were non-families. 20.1% of all households were made up of individuals and 15.1% had someone living alone who was 65 years of age or older.  The average household size was 2.94 and the average family size was 3.38. The population was 23.3% under the age of 18, and 18.7% who were 62 years of age or older.  The median age was 41.1 years. For every 100 females, there were 93.7 males.  For every 100 females age 18 and over, there were 90.4 males.\n\nQUESTION: How many percent do not have children under the age of 18 living with them?",
+      "answer": "66.5",
+      "id": "example_203",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In 2010, there were 340,523 family households, out of which 33.5% had children under the age of 18 living with them, 60.0% were Marriage living together, 11.7% had a female householder with no husband present, and 24.1% were non-families. 20.1% of all households were made up of individuals and 15.1% had someone living alone who was 65 years of age or older.  The average household size was 2.94 and the average family size was 3.38. The population was 23.3% under the age of 18, and 18.7% who were 62 years of age or older.  The median age was 41.1 years. For every 100 females, there were 93.7 males.  For every 100 females age 18 and over, there were 90.4 males.",
+        "original_question": "How many percent do not have children under the age of 18 living with them?",
+        "original_answer_data": {
+          "spans": [
+            "66.5"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 419
+      }
+    },
+    {
+      "question": "PASSAGE: By 1921, the Bolsheviks were winning the Russian Civil War and foreign troops were beginning to withdraw, yet Bolshevik leaders continued to keep tight control of the economy through the policy of War Communism. After years of economic crises caused by World War I and the Russian Civil War, the Bolshevik economy started to collapse. Industrial output had fallen dramatically. It is estimated that the total output of mines and factories in 1921 was 20 percent of the pre-World War I level, with many crucial items suffering an even more drastic decline. Production of cotton, for example, had fallen to 5 percent and iron to 2 percent of the pre-war level, and this coincided with droughts in 1920 and 1921 and the Russian famine of 1921. Discontent grew among the Russian populace, particularly the peasantry, who felt disadvantaged by Communist grain requisitioning . They resisted by refusing to till their land. In February 1921, more than 100 peasant uprisings took place. The workers in Petrograd were also involved in a series of strikes, caused by the reduction of bread rations by one third over a ten-day period.\n\nQUESTION: How many years after the droughts were there more than 100 peasant uprisings?",
+      "answer": "1",
+      "id": "example_204",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "By 1921, the Bolsheviks were winning the Russian Civil War and foreign troops were beginning to withdraw, yet Bolshevik leaders continued to keep tight control of the economy through the policy of War Communism. After years of economic crises caused by World War I and the Russian Civil War, the Bolshevik economy started to collapse. Industrial output had fallen dramatically. It is estimated that the total output of mines and factories in 1921 was 20 percent of the pre-World War I level, with many crucial items suffering an even more drastic decline. Production of cotton, for example, had fallen to 5 percent and iron to 2 percent of the pre-war level, and this coincided with droughts in 1920 and 1921 and the Russian famine of 1921. Discontent grew among the Russian populace, particularly the peasantry, who felt disadvantaged by Communist grain requisitioning . They resisted by refusing to till their land. In February 1921, more than 100 peasant uprisings took place. The workers in Petrograd were also involved in a series of strikes, caused by the reduction of bread rations by one third over a ten-day period.",
+        "original_question": "How many years after the droughts were there more than 100 peasant uprisings?",
+        "original_answer_data": {
+          "spans": [
+            "1"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 961
+      }
+    },
+    {
+      "question": "PASSAGE: In the county, the population was spread out with 23.50% under the age of 18, 8.70% from 18 to 24, 29.70% from 25 to 44, 24.70% from 45 to 64, and 13.30% who were 65 years of age or older. The median age was 38 years. For every 100 females, there were 99.10 males. For every 100 females age 18 and over, there were 96.60 males.\n\nQUESTION: How many in percent weren't 25 to 44?",
+      "answer": "70.3",
+      "id": "example_205",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In the county, the population was spread out with 23.50% under the age of 18, 8.70% from 18 to 24, 29.70% from 25 to 44, 24.70% from 45 to 64, and 13.30% who were 65 years of age or older. The median age was 38 years. For every 100 females, there were 99.10 males. For every 100 females age 18 and over, there were 96.60 males.",
+        "original_question": "How many in percent weren't 25 to 44?",
+        "original_answer_data": {
+          "spans": [
+            "70.3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 148
+      }
+    },
+    {
+      "question": "PASSAGE: Fidel Castro and his brother Ra\u00fal spent a year and a half in Mexico , after being amnestied from prison. Fidel briefly visited the United States during his tenure in exile to raise support for the Cuban revolution. Since the revolution and its subsequent imposition of a communist government, and among waves of mass emigration in the hundreds of thousands, some prominent exiled figures have included Carlos Franqui who relocated to Italy; Huber Matos, who was imprisoned by Castro's government for twenty years after resigning his governmental position in 1959 before relocating to Miami; Guillermo Cabrera Infante, a prominent Cuban writer, who fled to the United Kingdom; and many more. Reinaldo Cruz was one of the five first Cuban rafters. Including \u00c1ngel Padr\u00f3n, Mario Ben\u00edtez, Marcelino Gonz\u00e1lez, Nelson L\u00f3pez Est\u00e9vez. These were the first true Cuban rafters to flee the communist country on a home-made raft consisting of 8 truck inner tubes and bamboo poles tied together. They left Cuba on July 31, 1964 to then be rescued by a fishing boat named the KAL on August 6, 1964. They were surrounded by sharks said Ken Lowry of the KAL. When Ken spotted the men floating just 25 miles  East of West Palm Beach he notified the US Coast Guard. He was directed by the USCG to board them and bring them directly to Pier 66 in Fort Lauderdale. Once on board Ken asked \"where are you going\" one of the men Reinaldo Cruz said \"Miami\".\n\nQUESTION: What happened first: rescued by a fishing boat or resigning his governmental position?",
+      "answer": "resigning his governmental position",
+      "id": "example_206",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Fidel Castro and his brother Ra\u00fal spent a year and a half in Mexico , after being amnestied from prison. Fidel briefly visited the United States during his tenure in exile to raise support for the Cuban revolution. Since the revolution and its subsequent imposition of a communist government, and among waves of mass emigration in the hundreds of thousands, some prominent exiled figures have included Carlos Franqui who relocated to Italy; Huber Matos, who was imprisoned by Castro's government for twenty years after resigning his governmental position in 1959 before relocating to Miami; Guillermo Cabrera Infante, a prominent Cuban writer, who fled to the United Kingdom; and many more. Reinaldo Cruz was one of the five first Cuban rafters. Including \u00c1ngel Padr\u00f3n, Mario Ben\u00edtez, Marcelino Gonz\u00e1lez, Nelson L\u00f3pez Est\u00e9vez. These were the first true Cuban rafters to flee the communist country on a home-made raft consisting of 8 truck inner tubes and bamboo poles tied together. They left Cuba on July 31, 1964 to then be rescued by a fishing boat named the KAL on August 6, 1964. They were surrounded by sharks said Ken Lowry of the KAL. When Ken spotted the men floating just 25 miles  East of West Palm Beach he notified the US Coast Guard. He was directed by the USCG to board them and bring them directly to Pier 66 in Fort Lauderdale. Once on board Ken asked \"where are you going\" one of the men Reinaldo Cruz said \"Miami\".",
+        "original_question": "What happened first: rescued by a fishing boat or resigning his governmental position?",
+        "original_answer_data": {
+          "spans": [
+            "resigning his governmental position"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 975
+      }
+    },
+    {
+      "question": "PASSAGE: After a tough home loss, the Steelers traveled down south again to take on the Jaguars.  The Jags scored first as Josh Scobee kicked a 43-yard field goal for a 3-0 lead for the only score of the first quarter.  The Steelers answered to tie the game when Shaun Suisham kicked a 24-yard field goal for a 3-3 game.  They eventually took the lead when Ben Roetlisberger found Michael Palmer on a 1-yard TD pass to take a 10-3 lead.  The Jags pulled within 4 before halftime when Scobee nailed a 35-yard field goal to make it a 10-6 game.  In the 3rd quarter, the Jags came within a point as Scobee kicked a 36-yard field goal to make it a 10-9 game for the only score of the quarter.  In the 4th quarter however, Brice McCain picked off Jags QB Blake Bortles and returned the interception for a 22-yard TD increasing their lead to the eventual final score of 17-9.\n\nQUESTION: What team scored the first touchdown of the game?",
+      "answer": "Steelers",
+      "id": "example_207",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After a tough home loss, the Steelers traveled down south again to take on the Jaguars.  The Jags scored first as Josh Scobee kicked a 43-yard field goal for a 3-0 lead for the only score of the first quarter.  The Steelers answered to tie the game when Shaun Suisham kicked a 24-yard field goal for a 3-3 game.  They eventually took the lead when Ben Roetlisberger found Michael Palmer on a 1-yard TD pass to take a 10-3 lead.  The Jags pulled within 4 before halftime when Scobee nailed a 35-yard field goal to make it a 10-6 game.  In the 3rd quarter, the Jags came within a point as Scobee kicked a 36-yard field goal to make it a 10-9 game for the only score of the quarter.  In the 4th quarter however, Brice McCain picked off Jags QB Blake Bortles and returned the interception for a 22-yard TD increasing their lead to the eventual final score of 17-9.",
+        "original_question": "What team scored the first touchdown of the game?",
+        "original_answer_data": {
+          "spans": [
+            "Steelers"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 79
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their Monday Night loss in Atlanta, the Broncos returned home for an AFC duel with the Houston Texans. The Broncos jumped out to a 5-0 lead in the first quarter, with defensive end Elvis Dumervil sacking Texans' quarterback Matt Schaub in the end zone for a safety, followed by a 32-yard field goal placekicker Matt Prater. However, the Texans would reel off 21 unanswered points, with Schaub throwing three touchdown passes&#8212;a 60-yarder to wide receiver Andre Johnson, followed in the second quarter by a 3-yarder to running back Arian Foster and a 52-yarder to wide receiver Kevin Walter. The Broncos narrowed the Texans' lead to 21-11 at halftime, with a pair of field goals by Prater&#8212;from 23 and 53 yards. The Texans increased their lead in the third quarter, with a 41-yard field goal by placekicker Shayne Graham, followed by a 14-yard touchdown pass from Schaub to tight end Owen Daniels. Trailing 31-11 with 10:20 remaining in the fourth quarter, the Broncos tried to rally, with quarterback Peyton Manning throwing a pair of touchdown passes&#8212;a 38-yarder to wide receiver Brandon Stokley and a 6-yarder to tight end Joel Dreessen to narrow Houston's lead to 31-25 with three minutes remaining. After forcing a Texans' punt, the Broncos got the football back with 20 seconds remaining, but the Texans' defense stood their ground. Former wide receiver Rod Smith, who played with the Broncos from 1994-2007, was inducted into the Broncos Ring of Fame during halftime. Smith is the Broncos' franchise leader in receptions, receiving yards and touchdowns.\n\nQUESTION: How many field goals between 30 and 50 yards were made?",
+      "answer": "2",
+      "id": "example_208",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their Monday Night loss in Atlanta, the Broncos returned home for an AFC duel with the Houston Texans. The Broncos jumped out to a 5-0 lead in the first quarter, with defensive end Elvis Dumervil sacking Texans' quarterback Matt Schaub in the end zone for a safety, followed by a 32-yard field goal placekicker Matt Prater. However, the Texans would reel off 21 unanswered points, with Schaub throwing three touchdown passes&#8212;a 60-yarder to wide receiver Andre Johnson, followed in the second quarter by a 3-yarder to running back Arian Foster and a 52-yarder to wide receiver Kevin Walter. The Broncos narrowed the Texans' lead to 21-11 at halftime, with a pair of field goals by Prater&#8212;from 23 and 53 yards. The Texans increased their lead in the third quarter, with a 41-yard field goal by placekicker Shayne Graham, followed by a 14-yard touchdown pass from Schaub to tight end Owen Daniels. Trailing 31-11 with 10:20 remaining in the fourth quarter, the Broncos tried to rally, with quarterback Peyton Manning throwing a pair of touchdown passes&#8212;a 38-yarder to wide receiver Brandon Stokley and a 6-yarder to tight end Joel Dreessen to narrow Houston's lead to 31-25 with three minutes remaining. After forcing a Texans' punt, the Broncos got the football back with 20 seconds remaining, but the Texans' defense stood their ground. Former wide receiver Rod Smith, who played with the Broncos from 1994-2007, was inducted into the Broncos Ring of Fame during halftime. Smith is the Broncos' franchise leader in receptions, receiving yards and touchdowns.",
+        "original_question": "How many field goals between 30 and 50 yards were made?",
+        "original_answer_data": {
+          "spans": [
+            "2"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 775
+      }
+    },
+    {
+      "question": "PASSAGE: By the end of 1594, certain League members still worked against Henry across the country, but all relied on Spain's support. In January 1595, the king declared war on Spain to show Catholics that Spain was using religion as a cover for an attack on the French state\u2014and to show Protestants that his conversion had not made him a puppet of Spain. Also, he hoped to take the war to Spain and make territorial gain. The conflict mostly consisted of military action aimed at League members, such as the Battle of Fontaine-Fran\u00e7aise, though the Spanish launched a concerted offensive in 1595, taking Doullens, Cambrai and Le Catelet and in the spring of 1596 capturing Calais by April. Following the Spanish capture of Amiens in March 1597 the French crown laid siege until its surrender in September. With that victory Henry's concerns then turned to the situation in Brittany where he promulgated the Edict of Nantes and sent Belli\u00e8vre and Brulart de Sillery to negotiate a peace with Spain. The war was drawn to an official close after the Edict of Nantes, with the Peace of Vervins in May 1598.\n\nQUESTION: Which treaty was first?",
+      "answer": "the Edict of Nantes",
+      "id": "example_209",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "By the end of 1594, certain League members still worked against Henry across the country, but all relied on Spain's support. In January 1595, the king declared war on Spain to show Catholics that Spain was using religion as a cover for an attack on the French state\u2014and to show Protestants that his conversion had not made him a puppet of Spain. Also, he hoped to take the war to Spain and make territorial gain. The conflict mostly consisted of military action aimed at League members, such as the Battle of Fontaine-Fran\u00e7aise, though the Spanish launched a concerted offensive in 1595, taking Doullens, Cambrai and Le Catelet and in the spring of 1596 capturing Calais by April. Following the Spanish capture of Amiens in March 1597 the French crown laid siege until its surrender in September. With that victory Henry's concerns then turned to the situation in Brittany where he promulgated the Edict of Nantes and sent Belli\u00e8vre and Brulart de Sillery to negotiate a peace with Spain. The war was drawn to an official close after the Edict of Nantes, with the Peace of Vervins in May 1598.",
+        "original_question": "Which treaty was first?",
+        "original_answer_data": {
+          "spans": [
+            "the Edict of Nantes"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 302
+      }
+    },
+    {
+      "question": "PASSAGE: In the United States presidential election in New Jersey, 2012, Democrat Barack Obama received 6,236 votes (51.0% vs. 66.0% countywide), ahead of Republican Mitt Romney with 5,772 votes (47.2% vs. 32.3%) and other candidates with 141 votes (1.2% vs. 0.8%), among the 12,223 ballots cast by the townships 16,332 registered voters, for a turnout of 74.8% (vs. 68.8% in Union County). In the United States presidential election in New Jersey, 2008, Democrat Barack Obama received 6,513 votes (49.6% vs. 63.1% countywide), ahead of Republican John McCain with 6,371 votes (48.6% vs. 35.2%) and other candidates with 164 votes (1.3% vs. 0.9%), among the 13,120 ballots cast by the townships 16,145 registered voters, for a turnout of 81.3% (vs. 74.7% in Union County). In the United States presidential election in New Jersey, 2004, Republican George W. Bush received 6,455 votes (50.4% vs. 40.3% countywide), ahead of Democrat John Kerry with 6,160 votes (48.1% vs. 58.3%) and other candidates with 111 votes (0.9% vs. 0.7%), among the 12,795 ballots cast by the townships 15,822 registered voters, for a turnout of 80.9% (vs. 72.3% in the whole county).\n\nQUESTION: How many more percentage votes did Barack Obama receive from New Jersey than Mitt Romney?",
+      "answer": "4",
+      "id": "example_210",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In the United States presidential election in New Jersey, 2012, Democrat Barack Obama received 6,236 votes (51.0% vs. 66.0% countywide), ahead of Republican Mitt Romney with 5,772 votes (47.2% vs. 32.3%) and other candidates with 141 votes (1.2% vs. 0.8%), among the 12,223 ballots cast by the townships 16,332 registered voters, for a turnout of 74.8% (vs. 68.8% in Union County). In the United States presidential election in New Jersey, 2008, Democrat Barack Obama received 6,513 votes (49.6% vs. 63.1% countywide), ahead of Republican John McCain with 6,371 votes (48.6% vs. 35.2%) and other candidates with 164 votes (1.3% vs. 0.9%), among the 13,120 ballots cast by the townships 16,145 registered voters, for a turnout of 81.3% (vs. 74.7% in Union County). In the United States presidential election in New Jersey, 2004, Republican George W. Bush received 6,455 votes (50.4% vs. 40.3% countywide), ahead of Democrat John Kerry with 6,160 votes (48.1% vs. 58.3%) and other candidates with 111 votes (0.9% vs. 0.7%), among the 12,795 ballots cast by the townships 15,822 registered voters, for a turnout of 80.9% (vs. 72.3% in the whole county).",
+        "original_question": "How many more percentage votes did Barack Obama receive from New Jersey than Mitt Romney?",
+        "original_answer_data": {
+          "spans": [
+            "4"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 995
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their Sunday night divisional road win over the Eagles, the Cowboys flew to Giants Stadium for an NFC East rematch with the New York Giants. In the first quarter, Dallas shot first as QB Tony Romo completed a 15-yard TD pass to TE Tony Curtis.  Afterwards, the Giants responded with QB Eli Manning completing an 8-yard TD pass to TE Jeremy Shockey. In the second quarter, the Cowboys retook the lead as rookie kicker Nick Folk got a 44-yard field goal, yet New York answered with RB Reuben Droughns getting a 1-yard TD run.  Dallas reclaimed the lead with Romo completing a 20-yard TD pass to WR Patrick Crayton.  However, due to a taunting penalty on LB Kevin Burnett, the Giants were given great field position to get some points prior to halftime.  The Cowboys held New York to a 40-yard Lawrence Tynes field goal. In the third quarter, Dallas regained the lead with Romo completing a 25-yard TD pass to WR Terrell Owens for the only score of the period.  In the fourth quarter, the Giants only got a 26-yard field goal from Tynes.  Afterwards, the Cowboys completed the season-sweep with Romo and Owens hooking up again on a 50-yard TD pass. This would mark the first time since their Super Bowl year of 1995 that the Cowboys began a season at 8-1, and only the third time in franchise history that Dallas began at 8-1; the other times were during the 1977 season, and the 1983 season.  The Cowboys won the Super Bowl in 1977 and 1995, but lost the wildcard game to the Los Angeles Rams in 1983. For their season-sweep over New York, Dallas had scored a total of 76 points in the two meetings. DT Tank Johnson, in his first game with the Cowboys (along with the first game off of his suspension), recorded 3 tackles and a sack.",
+      "original_question": "How many points did the Giants get in the third quarter?",
+      "original_answer_data": {
+        "spans": [
+          "3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 173
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After the political changes, in 1991, Bulgaria had a US$11.25 billion state debt, which represented 180% of the GDP. The state debt peaked in 1994, when it reached US$14.4 billion. During 1998-2008 Bulgaria maintained policy of Government budget balance, which reduced the state debt to 5.07 billion euro. Combined with the economic growth in that period, the state debt dropped to a record low of 13.7% of GDP, one of the lowest in the European Union. In 2008 Bulgaria also maintained 4.286 billion euro fiscal reserve, meaning that net state debt at this moment was only 0.784 billion euro. After the Financial crisis of 2007\u201308 Bulgaria turned to policy of Deficit spending and at the end of 2013 the state debt rose up to 7.219 billion euro, representing 18.1% of the GDP. In 2015, the debt rate increased further to 26.7% of the GDP, still remaining the third lowest in EU after Estonia and Luxembourg. Part of the increase was driven by the collapse of Corporate Commercial Bank in 2014, the fourth largest bank in the country, and the subsequent paying out of Deposit insurance.",
+      "original_question": "How many percent lower was the state debt as a percentage of GDP from 1991 to 2008?",
+      "original_answer_data": {
+        "spans": [
+          "166.3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 147
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In 2010, there were 340,523 family households, out of which 33.5% had children under the age of 18 living with them, 60.0% were Marriage living together, 11.7% had a female householder with no husband present, and 24.1% were non-families. 20.1% of all households were made up of individuals and 15.1% had someone living alone who was 65 years of age or older.  The average household size was 2.94 and the average family size was 3.38. The population was 23.3% under the age of 18, and 18.7% who were 62 years of age or older.  The median age was 41.1 years. For every 100 females, there were 93.7 males.  For every 100 females age 18 and over, there were 90.4 males.",
+      "original_question": "How many percent do not have children under the age of 18 living with them?",
+      "original_answer_data": {
+        "spans": [
+          "66.5"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 419
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "By 1921, the Bolsheviks were winning the Russian Civil War and foreign troops were beginning to withdraw, yet Bolshevik leaders continued to keep tight control of the economy through the policy of War Communism. After years of economic crises caused by World War I and the Russian Civil War, the Bolshevik economy started to collapse. Industrial output had fallen dramatically. It is estimated that the total output of mines and factories in 1921 was 20 percent of the pre-World War I level, with many crucial items suffering an even more drastic decline. Production of cotton, for example, had fallen to 5 percent and iron to 2 percent of the pre-war level, and this coincided with droughts in 1920 and 1921 and the Russian famine of 1921. Discontent grew among the Russian populace, particularly the peasantry, who felt disadvantaged by Communist grain requisitioning . They resisted by refusing to till their land. In February 1921, more than 100 peasant uprisings took place. The workers in Petrograd were also involved in a series of strikes, caused by the reduction of bread rations by one third over a ten-day period.",
+      "original_question": "How many years after the droughts were there more than 100 peasant uprisings?",
+      "original_answer_data": {
+        "spans": [
+          "1"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 961
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In the county, the population was spread out with 23.50% under the age of 18, 8.70% from 18 to 24, 29.70% from 25 to 44, 24.70% from 45 to 64, and 13.30% who were 65 years of age or older. The median age was 38 years. For every 100 females, there were 99.10 males. For every 100 females age 18 and over, there were 96.60 males.",
+      "original_question": "How many in percent weren't 25 to 44?",
+      "original_answer_data": {
+        "spans": [
+          "70.3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 148
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Fidel Castro and his brother Ra\u00fal spent a year and a half in Mexico , after being amnestied from prison. Fidel briefly visited the United States during his tenure in exile to raise support for the Cuban revolution. Since the revolution and its subsequent imposition of a communist government, and among waves of mass emigration in the hundreds of thousands, some prominent exiled figures have included Carlos Franqui who relocated to Italy; Huber Matos, who was imprisoned by Castro's government for twenty years after resigning his governmental position in 1959 before relocating to Miami; Guillermo Cabrera Infante, a prominent Cuban writer, who fled to the United Kingdom; and many more. Reinaldo Cruz was one of the five first Cuban rafters. Including \u00c1ngel Padr\u00f3n, Mario Ben\u00edtez, Marcelino Gonz\u00e1lez, Nelson L\u00f3pez Est\u00e9vez. These were the first true Cuban rafters to flee the communist country on a home-made raft consisting of 8 truck inner tubes and bamboo poles tied together. They left Cuba on July 31, 1964 to then be rescued by a fishing boat named the KAL on August 6, 1964. They were surrounded by sharks said Ken Lowry of the KAL. When Ken spotted the men floating just 25 miles  East of West Palm Beach he notified the US Coast Guard. He was directed by the USCG to board them and bring them directly to Pier 66 in Fort Lauderdale. Once on board Ken asked \"where are you going\" one of the men Reinaldo Cruz said \"Miami\".",
+      "original_question": "What happened first: rescued by a fishing boat or resigning his governmental position?",
+      "original_answer_data": {
+        "spans": [
+          "resigning his governmental position"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 975
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After a tough home loss, the Steelers traveled down south again to take on the Jaguars.  The Jags scored first as Josh Scobee kicked a 43-yard field goal for a 3-0 lead for the only score of the first quarter.  The Steelers answered to tie the game when Shaun Suisham kicked a 24-yard field goal for a 3-3 game.  They eventually took the lead when Ben Roetlisberger found Michael Palmer on a 1-yard TD pass to take a 10-3 lead.  The Jags pulled within 4 before halftime when Scobee nailed a 35-yard field goal to make it a 10-6 game.  In the 3rd quarter, the Jags came within a point as Scobee kicked a 36-yard field goal to make it a 10-9 game for the only score of the quarter.  In the 4th quarter however, Brice McCain picked off Jags QB Blake Bortles and returned the interception for a 22-yard TD increasing their lead to the eventual final score of 17-9.",
+      "original_question": "What team scored the first touchdown of the game?",
+      "original_answer_data": {
+        "spans": [
+          "Steelers"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 79
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their Monday Night loss in Atlanta, the Broncos returned home for an AFC duel with the Houston Texans. The Broncos jumped out to a 5-0 lead in the first quarter, with defensive end Elvis Dumervil sacking Texans' quarterback Matt Schaub in the end zone for a safety, followed by a 32-yard field goal placekicker Matt Prater. However, the Texans would reel off 21 unanswered points, with Schaub throwing three touchdown passes&#8212;a 60-yarder to wide receiver Andre Johnson, followed in the second quarter by a 3-yarder to running back Arian Foster and a 52-yarder to wide receiver Kevin Walter. The Broncos narrowed the Texans' lead to 21-11 at halftime, with a pair of field goals by Prater&#8212;from 23 and 53 yards. The Texans increased their lead in the third quarter, with a 41-yard field goal by placekicker Shayne Graham, followed by a 14-yard touchdown pass from Schaub to tight end Owen Daniels. Trailing 31-11 with 10:20 remaining in the fourth quarter, the Broncos tried to rally, with quarterback Peyton Manning throwing a pair of touchdown passes&#8212;a 38-yarder to wide receiver Brandon Stokley and a 6-yarder to tight end Joel Dreessen to narrow Houston's lead to 31-25 with three minutes remaining. After forcing a Texans' punt, the Broncos got the football back with 20 seconds remaining, but the Texans' defense stood their ground. Former wide receiver Rod Smith, who played with the Broncos from 1994-2007, was inducted into the Broncos Ring of Fame during halftime. Smith is the Broncos' franchise leader in receptions, receiving yards and touchdowns.",
+      "original_question": "How many field goals between 30 and 50 yards were made?",
+      "original_answer_data": {
+        "spans": [
+          "2"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 775
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "By the end of 1594, certain League members still worked against Henry across the country, but all relied on Spain's support. In January 1595, the king declared war on Spain to show Catholics that Spain was using religion as a cover for an attack on the French state\u2014and to show Protestants that his conversion had not made him a puppet of Spain. Also, he hoped to take the war to Spain and make territorial gain. The conflict mostly consisted of military action aimed at League members, such as the Battle of Fontaine-Fran\u00e7aise, though the Spanish launched a concerted offensive in 1595, taking Doullens, Cambrai and Le Catelet and in the spring of 1596 capturing Calais by April. Following the Spanish capture of Amiens in March 1597 the French crown laid siege until its surrender in September. With that victory Henry's concerns then turned to the situation in Brittany where he promulgated the Edict of Nantes and sent Belli\u00e8vre and Brulart de Sillery to negotiate a peace with Spain. The war was drawn to an official close after the Edict of Nantes, with the Peace of Vervins in May 1598.",
+      "original_question": "Which treaty was first?",
+      "original_answer_data": {
+        "spans": [
+          "the Edict of Nantes"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 302
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In the United States presidential election in New Jersey, 2012, Democrat Barack Obama received 6,236 votes (51.0% vs. 66.0% countywide), ahead of Republican Mitt Romney with 5,772 votes (47.2% vs. 32.3%) and other candidates with 141 votes (1.2% vs. 0.8%), among the 12,223 ballots cast by the townships 16,332 registered voters, for a turnout of 74.8% (vs. 68.8% in Union County). In the United States presidential election in New Jersey, 2008, Democrat Barack Obama received 6,513 votes (49.6% vs. 63.1% countywide), ahead of Republican John McCain with 6,371 votes (48.6% vs. 35.2%) and other candidates with 164 votes (1.3% vs. 0.9%), among the 13,120 ballots cast by the townships 16,145 registered voters, for a turnout of 81.3% (vs. 74.7% in Union County). In the United States presidential election in New Jersey, 2004, Republican George W. Bush received 6,455 votes (50.4% vs. 40.3% countywide), ahead of Democrat John Kerry with 6,160 votes (48.1% vs. 58.3%) and other candidates with 111 votes (0.9% vs. 0.7%), among the 12,795 ballots cast by the townships 15,822 registered voters, for a turnout of 80.9% (vs. 72.3% in the whole county).",
+      "original_question": "How many more percentage votes did Barack Obama receive from New Jersey than Mitt Romney?",
+      "original_answer_data": {
+        "spans": [
+          "4"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 995
+    }
+  ],
+  "example_indices": [
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    207,
+    208,
+    209,
+    210
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "The answer is correct. The passage explicitly states that the only score of the third quarter was a touchdown by the Cowboys, meaning the Giants scored 0 points.",
+      "output": "ANSWER_START\nThe answer is correct. The passage explicitly states that the only score of the third quarter was a touchdown by the Cowboys, meaning the Giants scored 0 points.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer is 3, but the system answer implies that the Giants scored 0 points in the third quarter, not 3. Therefore, these answers do not communicate the same information."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct. The passage states the debt was 180% of GDP in 1991 and 13.7% in 2008. The difference is 180 - 13.7 = 166.3%.",
+      "output": "ANSWER_START\nThe answer is correct. The passage states the debt was 180% of GDP in 1991 and 13.7% in 2008. The difference is 180 - 13.7 = 166.3%.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer correctly calculates the difference and arrives at the answer 166.3%, which is equivalent to the golden answer 166.3. The system answer includes the reasoning, which is acceptable."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct.\n\nThe passage states that 33.5% of family households had children under the age of 18 living with them.  The question asks for the percentage of family households that do NOT have children under 18.  Therefore, to find the answer, you subtract the percentage that DO have children under 18 from 100%: 100% - 33.5% = 66.5%.",
+      "output": "ANSWER_START\nThe answer is correct.\n\nThe passage states that 33.5% of family households had children under the age of 18 living with them.  The question asks for the percentage of family households that do NOT have children under 18.  Therefore, to find the answer, you subtract the percentage that DO have children under 18 from 100%: 100% - 33.5% = 66.5%.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer explains the logic and arrives at the correct numerical answer, which matches the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct. The passage states the droughts occurred in 1920 and 1921. It also says that more than 100 peasant uprisings took place in February 1921. Therefore, the uprisings occurred in the same year as one of the droughts, making the time difference zero years.",
+      "output": "ANSWER_START\nThe answer is correct. The passage states the droughts occurred in 1920 and 1921. It also says that more than 100 peasant uprisings took place in February 1921. Therefore, the uprisings occurred in the same year as one of the droughts, making the time difference zero years.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer explains the reasoning and arrives at the correct answer, which is implicitly stated as zero years since the uprisings occurred in the same year as one of the droughts. While not explicitly stating \"1\", the logic arrives at the answer being very close to 1 and can be considered same."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct. The passage provides the percentage of people in each age group, and the question asks for the percentage of people who are *not* in the 25-44 age group. The provided solution correctly sums the percentages of all other age groups: 23.50% + 8.70% + 24.70% + 13.30% = 70.20%. The stated answer of 70.30% is off by a tenth of a percent, but that is likely a rounding error.\n\nFinal Answer: 70.20%",
+      "output": "ANSWER_START\nThe answer is correct. The passage provides the percentage of people in each age group, and the question asks for the percentage of people who are *not* in the 25-44 age group. The provided solution correctly sums the percentages of all other age groups: 23.50% + 8.70% + 24.70% + 13.30% = 70.20%. The stated answer of 70.30% is off by a tenth of a percent, but that is likely a rounding error.\n\nFinal Answer: 70.20%\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 0.95,
+        "explanation": "Both answers represent the same numerical value, with a negligible difference likely due to rounding."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct.\n\nThe passage states that Huber Matos resigned his governmental position in 1959. The passage also states that the rafters were rescued by a fishing boat on August 6, 1964. Since 1959 comes before 1964, resigning his governmental position happened first.",
+      "output": "ANSWER_START\nThe answer is correct.\n\nThe passage states that Huber Matos resigned his governmental position in 1959. The passage also states that the rafters were rescued by a fishing boat on August 6, 1964. Since 1959 comes before 1964, resigning his governmental position happened first.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer correctly identifies that resigning his governmental position happened first by reasoning that 1959 comes before 1964, and that resigning happened in 1959 and the rafters were rescued in 1964. Therefore, it communicates the same information as the golden answer: resigning his governmental position."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct. The Steelers scored the first touchdown of the game. The passage states that Ben Roethlisberger found Michael Palmer for a touchdown, giving the Steelers a 10-3 lead. This touchdown was the first of the game, as the Jaguars' initial points were from field goals.",
+      "output": "ANSWER_START\nThe answer is correct. The Steelers scored the first touchdown of the game. The passage states that Ben Roethlisberger found Michael Palmer for a touchdown, giving the Steelers a 10-3 lead. This touchdown was the first of the game, as the Jaguars' initial points were from field goals.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer correctly identifies that the Steelers scored the first touchdown. While it includes additional context, the core information about the Steelers scoring the first touchdown is present and accurate, making it semantically equivalent to the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct. The passage mentions a 32-yard field goal by Matt Prater and a 41-yard field goal by Shayne Graham, both of which fall between 30 and 50 yards. No other field goals within that range are mentioned.",
+      "output": "ANSWER_START\nThe answer is correct. The passage mentions a 32-yard field goal by Matt Prater and a 41-yard field goal by Shayne Graham, both of which fall between 30 and 50 yards. No other field goals within that range are mentioned.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer identifies two field goals within the specified range (30-50 yards). The golden answer, '2', represents the number of field goals, therefore they are semantically equivalent."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct. The passage states, \"The war was drawn to an official close after the Edict of Nantes, with the Peace of Vervins in May 1598.\" This indicates the Edict of Nantes came before the Peace of Vervins.",
+      "output": "ANSWER_START\nThe answer is correct. The passage states, \"The war was drawn to an official close after the Edict of Nantes, with the Peace of Vervins in May 1598.\" This indicates the Edict of Nantes came before the Peace of Vervins.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer correctly identifies the Edict of Nantes as the event that came before the Peace of Vervins, as indicated in the passage. Although it includes additional context, the core information aligns with the golden answer."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The answer is correct. The passage states that Barack Obama received 51.0% of the vote and Mitt Romney received 47.2% of the vote. The difference is indeed 51.0 - 47.2 = 3.8%.",
+      "output": "ANSWER_START\nThe answer is correct. The passage states that Barack Obama received 51.0% of the vote and Mitt Romney received 47.2% of the vote. The difference is indeed 51.0 - 47.2 = 3.8%.\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_25.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The golden answer is 4, but the system answer calculates the difference in percentages as 3.8%. These are not equivalent."
+      },
+      "match": false
+    }
+  ],
+  "performance": {
+    "accuracy": 0.8,
+    "correct_count": 8,
+    "total_count": 10,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "The answer is correct. The passage explicitly states that the only score of the third quarter was a touchdown by the Cowboys, meaning the Giants scored 0 points.",
+        "golden_answer": "3",
+        "output": "ANSWER_START\nThe answer is correct. The passage explicitly states that the only score of the third quarter was a touchdown by the Cowboys, meaning the Giants scored 0 points.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer is 3, but the system answer implies that the Giants scored 0 points in the third quarter, not 3. Therefore, these answers do not communicate the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "The answer is correct. The passage states the debt was 180% of GDP in 1991 and 13.7% in 2008. The difference is 180 - 13.7 = 166.3%.",
+        "golden_answer": "166.3",
+        "output": "ANSWER_START\nThe answer is correct. The passage states the debt was 180% of GDP in 1991 and 13.7% in 2008. The difference is 180 - 13.7 = 166.3%.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly calculates the difference and arrives at the answer 166.3%, which is equivalent to the golden answer 166.3. The system answer includes the reasoning, which is acceptable."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "The answer is correct.\n\nThe passage states that 33.5% of family households had children under the age of 18 living with them.  The question asks for the percentage of family households that do NOT have children under 18.  Therefore, to find the answer, you subtract the percentage that DO have children under 18 from 100%: 100% - 33.5% = 66.5%.",
+        "golden_answer": "66.5",
+        "output": "ANSWER_START\nThe answer is correct.\n\nThe passage states that 33.5% of family households had children under the age of 18 living with them.  The question asks for the percentage of family households that do NOT have children under 18.  Therefore, to find the answer, you subtract the percentage that DO have children under 18 from 100%: 100% - 33.5% = 66.5%.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer explains the logic and arrives at the correct numerical answer, which matches the golden answer."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "The answer is correct. The passage states the droughts occurred in 1920 and 1921. It also says that more than 100 peasant uprisings took place in February 1921. Therefore, the uprisings occurred in the same year as one of the droughts, making the time difference zero years.",
+        "golden_answer": "1",
+        "output": "ANSWER_START\nThe answer is correct. The passage states the droughts occurred in 1920 and 1921. It also says that more than 100 peasant uprisings took place in February 1921. Therefore, the uprisings occurred in the same year as one of the droughts, making the time difference zero years.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer explains the reasoning and arrives at the correct answer, which is implicitly stated as zero years since the uprisings occurred in the same year as one of the droughts. While not explicitly stating \"1\", the logic arrives at the answer being very close to 1 and can be considered same."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "The answer is correct. The passage provides the percentage of people in each age group, and the question asks for the percentage of people who are *not* in the 25-44 age group. The provided solution correctly sums the percentages of all other age groups: 23.50% + 8.70% + 24.70% + 13.30% = 70.20%. The stated answer of 70.30% is off by a tenth of a percent, but that is likely a rounding error.\n\nFinal Answer: 70.20%",
+        "golden_answer": "70.3",
+        "output": "ANSWER_START\nThe answer is correct. The passage provides the percentage of people in each age group, and the question asks for the percentage of people who are *not* in the 25-44 age group. The provided solution correctly sums the percentages of all other age groups: 23.50% + 8.70% + 24.70% + 13.30% = 70.20%. The stated answer of 70.30% is off by a tenth of a percent, but that is likely a rounding error.\n\nFinal Answer: 70.20%\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 0.95,
+          "explanation": "Both answers represent the same numerical value, with a negligible difference likely due to rounding."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "The answer is correct.\n\nThe passage states that Huber Matos resigned his governmental position in 1959. The passage also states that the rafters were rescued by a fishing boat on August 6, 1964. Since 1959 comes before 1964, resigning his governmental position happened first.",
+        "golden_answer": "resigning his governmental position",
+        "output": "ANSWER_START\nThe answer is correct.\n\nThe passage states that Huber Matos resigned his governmental position in 1959. The passage also states that the rafters were rescued by a fishing boat on August 6, 1964. Since 1959 comes before 1964, resigning his governmental position happened first.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly identifies that resigning his governmental position happened first by reasoning that 1959 comes before 1964, and that resigning happened in 1959 and the rafters were rescued in 1964. Therefore, it communicates the same information as the golden answer: resigning his governmental position."
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "The answer is correct. The Steelers scored the first touchdown of the game. The passage states that Ben Roethlisberger found Michael Palmer for a touchdown, giving the Steelers a 10-3 lead. This touchdown was the first of the game, as the Jaguars' initial points were from field goals.",
+        "golden_answer": "Steelers",
+        "output": "ANSWER_START\nThe answer is correct. The Steelers scored the first touchdown of the game. The passage states that Ben Roethlisberger found Michael Palmer for a touchdown, giving the Steelers a 10-3 lead. This touchdown was the first of the game, as the Jaguars' initial points were from field goals.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly identifies that the Steelers scored the first touchdown. While it includes additional context, the core information about the Steelers scoring the first touchdown is present and accurate, making it semantically equivalent to the golden answer."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "The answer is correct. The passage mentions a 32-yard field goal by Matt Prater and a 41-yard field goal by Shayne Graham, both of which fall between 30 and 50 yards. No other field goals within that range are mentioned.",
+        "golden_answer": "2",
+        "output": "ANSWER_START\nThe answer is correct. The passage mentions a 32-yard field goal by Matt Prater and a 41-yard field goal by Shayne Graham, both of which fall between 30 and 50 yards. No other field goals within that range are mentioned.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer identifies two field goals within the specified range (30-50 yards). The golden answer, '2', represents the number of field goals, therefore they are semantically equivalent."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "The answer is correct. The passage states, \"The war was drawn to an official close after the Edict of Nantes, with the Peace of Vervins in May 1598.\" This indicates the Edict of Nantes came before the Peace of Vervins.",
+        "golden_answer": "the Edict of Nantes",
+        "output": "ANSWER_START\nThe answer is correct. The passage states, \"The war was drawn to an official close after the Edict of Nantes, with the Peace of Vervins in May 1598.\" This indicates the Edict of Nantes came before the Peace of Vervins.\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly identifies the Edict of Nantes as the event that came before the Peace of Vervins, as indicated in the passage. Although it includes additional context, the core information aligns with the golden answer."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "The answer is correct. The passage states that Barack Obama received 51.0% of the vote and Mitt Romney received 47.2% of the vote. The difference is indeed 51.0 - 47.2 = 3.8%.",
+        "golden_answer": "4",
+        "output": "ANSWER_START\nThe answer is correct. The passage states that Barack Obama received 51.0% of the vote and Mitt Romney received 47.2% of the vote. The difference is indeed 51.0 - 47.2 = 3.8%.\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer is 4, but the system answer calculates the difference in percentages as 3.8%. These are not equivalent."
+        },
+        "capability_failures": []
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error cases.\n\n## STRENGTHS\n\n*   **Information Extraction:** The system demonstrates a good ability to extract numerical information from the provided passages, as seen in the success cases. It can identify relevant numbers and percentages.\n*   **Reasoning with Percentages:** The system correctly performs basic arithmetic operations with percentages, as evidenced by the success cases, like calculating the difference between two percentages or finding a percentage of a whole.\n\n## WEAKNESSES\n\n*   **Misinterpretation of Question Semantics:** The system sometimes misinterprets the semantic meaning of the question and the passage. For example, in sample ID 0, it identified the Cowboys' score but failed to deduce the Giants' score from the information.\n*   **Inability to Infer Implicit Information:** The system struggles with implicit information that requires a degree of deduction or inference beyond direct extraction. It fails to identify implied information in cases such as Sample ID 0, where Giants' score was indirectly mentioned in the text.\n\n## CRITICAL BOTTLENECKS\n\n*   **Lack of High-Level Reasoning and Inference:** The inability to perform high-level reasoning and inference to deduce information that is not explicitly stated in the passage. This limitation causes failures when the question requires understanding the context and combining different pieces of information.\n*   **Semantic Misinterpretation:** The system misinterprets implied information in the text.\n\n## ERROR PATTERNS\n\n*   **Incorrect Numerical Reasoning:** The system occasionally performs incorrect arithmetic operations or misinterprets the context of numerical values, as seen in Sample ID 9.\n*   **Failure to Deduce Implicit Information:** The system struggles to answer questions where the answer is not explicitly stated in the text but requires deduction based on the provided information.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's inability to perform high-level reasoning and inference and deduce implied information needed to answer questions accurately, leading to misinterpretations of question and passage semantics and incorrect numerical reasoning.\n\n## IMPROVEMENT AREAS\n\n*   **Improve Semantic Understanding:** Enhance the system's semantic understanding capabilities to better interpret the meaning of questions and passages, focusing on contextual relationships and implied meanings.\n*   **Enhance Deductive Reasoning:** Develop stronger deductive reasoning capabilities to allow the system to infer information not explicitly stated but logically implied by the passage.\n\n## IMPROVEMENT SUGGESTIONS\n\n*   **Fine-tune Language Model:** Fine-tune the underlying language model on a dataset specifically designed to test semantic understanding and deductive reasoning. This dataset should include examples where the answer requires combining information from different parts of the passage or making logical inferences.\n*   **Implement Rule-Based Deduction:** Implement rule-based deduction mechanisms to help the system infer implicit information. For example, rules could be defined to deduce the absence of an event when there is no mention of it in a context where it would be expected.\n*   **Add Intermediate Reasoning Steps:** Add intermediate reasoning steps that explicitly show the system's thought process. This will help in debugging and identifying where the reasoning goes wrong. For example, add a step to explicitly identify all the events/scores/occurrences mentioned in the passage and then relate them to the question.\n*   **Add Assertions and Checks:** When performing numerical reasoning, add assertions and checks to ensure that the intermediate results are within expected ranges and consistent with the information in the passage.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** information_extraction, constraint_handling, solution_generation\n*   **Sample ID 9:** solution_verification\n",
+      "strengths": [
+        "Information Extraction:** The system demonstrates a good ability to extract numerical information from the provided passages, as seen in the success cases. It can identify relevant numbers and percentages.",
+        "Reasoning with Percentages:** The system correctly performs basic arithmetic operations with percentages, as evidenced by the success cases, like calculating the difference between two percentages or finding a percentage of a whole."
+      ],
+      "weaknesses": [
+        "Misinterpretation of Question Semantics:** The system sometimes misinterprets the semantic meaning of the question and the passage. For example, in sample ID 0, it identified the Cowboys' score but failed to deduce the Giants' score from the information.",
+        "Inability to Infer Implicit Information:** The system struggles with implicit information that requires a degree of deduction or inference beyond direct extraction. It fails to identify implied information in cases such as Sample ID 0, where Giants' score was indirectly mentioned in the text."
+      ],
+      "primary_issue": "The primary issue is the system's inability to perform high-level reasoning and inference and deduce implied information needed to answer questions accurately, leading to misinterpretations of question and passage semantics and incorrect numerical reasoning.",
+      "improvement_suggestions": [
+        "Fine-tune Language Model:** Fine-tune the underlying language model on a dataset specifically designed to test semantic understanding and deductive reasoning. This dataset should include examples where the answer requires combining information from different parts of the passage or making logical inferences.",
+        "Implement Rule-Based Deduction:** Implement rule-based deduction mechanisms to help the system infer implicit information. For example, rules could be defined to deduce the absence of an event when there is no mention of it in a context where it would be expected.",
+        "Add Intermediate Reasoning Steps:** Add intermediate reasoning steps that explicitly show the system's thought process. This will help in debugging and identifying where the reasoning goes wrong. For example, add a step to explicitly identify all the events/scores/occurrences mentioned in the passage and then relate them to the question.",
+        "Add Assertions and Checks:** When performing numerical reasoning, add assertions and checks to ensure that the intermediate results are within expected ranges and consistent with the information in the passage."
+      ],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (8/10)\n*   Error samples: 2/10\n\n**ERROR ANALYSIS REPORT:** (As provided)\n\n## EXECUTION ANALYSIS\n\nThe provided sample execution outputs show verbose, conversational answer formats, including \"ANSWER_START\" and \"ANSWER_END\" markers and explanations. While the numerical calculations within these examples are correct, the conversational style and markers are not strictly necessary and may introduce unnecessary complexity in downstream processing. The detailed explanations following \"ANSWER_START\" suggest a degree of transparency in the system's reasoning process, which can be valuable for debugging and improvement. However, the format is inconsistent and could potentially lead to parsing issues if not handled correctly.\nThe output also shows that it may be more advantageous to format the answer as a pure numeric answer, and then show reasoning if necessary.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a moderate level of capability in information extraction and numerical reasoning, particularly with percentages. However, it is limited by its ability to handle implicit information and perform higher-level reasoning. The lack of robust semantic understanding and deductive reasoning presents a significant obstacle to achieving higher accuracy. The system's verbose and inconsistent output format also highlights a need for improved output formatting and consistency. The model's tendency to generate conversational responses should be further optimized to be more straightforward and direct.\n\n## KEY STRENGTHS\n\n*   **Information Extraction:** Ability to extract numerical data from text.\n*   **Basic Arithmetic with Percentages:** Correctly performs percentage-based calculations.\n*   **Explainability:** Verbose outputs give insight into the system's thought process.\n\n## KEY WEAKNESSES\n\n*   **High-Level Reasoning and Inference:** Inability to deduce implicit information.\n*   **Semantic Misinterpretation:** Difficulty understanding context and implied meanings.\n*   **Output Formatting Inconsistency:** Inconsistent and verbose answer format.\n\n## IMPROVEMENT FOCUS\n\n**Enhance Deductive Reasoning:** The ability to infer information not explicitly stated is crucial for solving more complex reasoning tasks. This single focus addresses the root cause of many errors and unlocks significant performance improvements.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Output Formatting Standardization:** Modify the system to produce a standardized output format (e.g., JSON). This includes removing \"ANSWER_START\" and \"ANSWER_END\" markers by default. Instead, generate a numeric answer, and then show reasoning only when requested or if deemed necessary. This will make output parsing and integration much easier.\n2.  **Fine-tuning with Contrastive Examples:** Augment the fine-tuning dataset with contrastive examples where the same numerical values are present but require different operations or interpretations based on subtle semantic cues. This will help the system learn to differentiate between similar-sounding questions.\n3.  **Implement Explicit Deduction Triggers:** Implement deduction triggers based on keywords or sentence structures that indicate the need for inference. For example, phrases like \"difference between,\" \"not X,\" or conditional statements could trigger specific deduction routines.\n4.  **Reinforce Numerical Reasoning with Synthetic Data:** Generate synthetic data specifically designed to test numerical reasoning in various contexts. Include examples with distractions, irrelevant information, and multiple steps to solve. Prioritize the generation of test examples that are similar to the error samples.\n5.  **Reduce Verbosity by Default:** Reduce the verbosity of the output unless a \"debug\" flag is enabled. Focus on providing the answer directly, with reasoning available on demand. The focus should be on the accuracy of the answer, not the comprehensiveness of the explanation.\n\n## CAPABILITY TREND\n\nBased on the analysis, the system capabilities are currently **stable**. While the system demonstrates some strengths, the significant weaknesses in reasoning and inference limit its overall performance. The suggested improvements should lead to an **improving** trend in the next iteration.\n",
+      "strengths": [
+        "Information Extraction:** The system demonstrates a good ability to extract numerical information from the provided passages, as seen in the success cases. It can identify relevant numbers and percentages.",
+        "Reasoning with Percentages:** The system correctly performs basic arithmetic operations with percentages, as evidenced by the success cases, like calculating the difference between two percentages or finding a percentage of a whole."
+      ],
+      "weaknesses": [
+        "Misinterpretation of Question Semantics:** The system sometimes misinterprets the semantic meaning of the question and the passage. For example, in sample ID 0, it identified the Cowboys' score but failed to deduce the Giants' score from the information.",
+        "Inability to Infer Implicit Information:** The system struggles with implicit information that requires a degree of deduction or inference beyond direct extraction. It fails to identify implied information in cases such as Sample ID 0, where Giants' score was indirectly mentioned in the text."
+      ],
+      "improvement_suggestions": [
+        "Fine-tune Language Model:** Fine-tune the underlying language model on a dataset specifically designed to test semantic understanding and deductive reasoning. This dataset should include examples where the answer requires combining information from different parts of the passage or making logical inferences.",
+        "Implement Rule-Based Deduction:** Implement rule-based deduction mechanisms to help the system infer implicit information. For example, rules could be defined to deduce the absence of an event when there is no mention of it in a context where it would be expected.",
+        "Add Intermediate Reasoning Steps:** Add intermediate reasoning steps that explicitly show the system's thought process. This will help in debugging and identifying where the reasoning goes wrong. For example, add a step to explicitly identify all the events/scores/occurrences mentioned in the passage and then relate them to the question.",
+        "Add Assertions and Checks:** When performing numerical reasoning, add assertions and checks to ensure that the intermediate results are within expected ranges and consistent with the information in the passage."
+      ],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error cases.\n\n## STRENGTHS\n\n*   **Information Extraction:** The system demonstrates a good ability to extract numerical information from the provided passages, as seen in the success cases. It can identify relevant numbers and percentages.\n*   **Reasoning with Percentages:** The system correctly performs basic arithmetic operations with percentages, as evidenced by the success cases, like calculating the difference between two percentages or finding a percentage of a whole.\n\n## WEAKNESSES\n\n*   **Misinterpretation of Question Semantics:** The system sometimes misinterprets the semantic meaning of the question and the passage. For example, in sample ID 0, it identified the Cowboys' score but failed to deduce the Giants' score from the information.\n*   **Inability to Infer Implicit Information:** The system struggles with implicit information that requires a degree of deduction or inference beyond direct extraction. It fails to identify implied information in cases such as Sample ID 0, where Giants' score was indirectly mentioned in the text.\n\n## CRITICAL BOTTLENECKS\n\n*   **Lack of High-Level Reasoning and Inference:** The inability to perform high-level reasoning and inference to deduce information that is not explicitly stated in the passage. This limitation causes failures when the question requires understanding the context and combining different pieces of information.\n*   **Semantic Misinterpretation:** The system misinterprets implied information in the text.\n\n## ERROR PATTERNS\n\n*   **Incorrect Numerical Reasoning:** The system occasionally performs incorrect arithmetic operations or misinterprets the context of numerical values, as seen in Sample ID 9.\n*   **Failure to Deduce Implicit Information:** The system struggles to answer questions where the answer is not explicitly stated in the text but requires deduction based on the provided information.\n\n## PRIMARY ISSUE\n\nThe primary issue is the system's inability to perform high-level reasoning and inference and deduce implied information needed to answer questions accurately, leading to misinterpretations of question and passage semantics and incorrect numerical reasoning.\n\n## IMPROVEMENT AREAS\n\n*   **Improve Semantic Understanding:** Enhance the system's semantic understanding capabilities to better interpret the meaning of questions and passages, focusing on contextual relationships and implied meanings.\n*   **Enhance Deductive Reasoning:** Develop stronger deductive reasoning capabilities to allow the system to infer information not explicitly stated but logically implied by the passage.\n\n## IMPROVEMENT SUGGESTIONS\n\n*   **Fine-tune Language Model:** Fine-tune the underlying language model on a dataset specifically designed to test semantic understanding and deductive reasoning. This dataset should include examples where the answer requires combining information from different parts of the passage or making logical inferences.\n*   **Implement Rule-Based Deduction:** Implement rule-based deduction mechanisms to help the system infer implicit information. For example, rules could be defined to deduce the absence of an event when there is no mention of it in a context where it would be expected.\n*   **Add Intermediate Reasoning Steps:** Add intermediate reasoning steps that explicitly show the system's thought process. This will help in debugging and identifying where the reasoning goes wrong. For example, add a step to explicitly identify all the events/scores/occurrences mentioned in the passage and then relate them to the question.\n*   **Add Assertions and Checks:** When performing numerical reasoning, add assertions and checks to ensure that the intermediate results are within expected ranges and consistent with the information in the passage.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** information_extraction, constraint_handling, solution_generation\n*   **Sample ID 9:** solution_verification\n",
+    "capability_report_text": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (8/10)\n*   Error samples: 2/10\n\n**ERROR ANALYSIS REPORT:** (As provided)\n\n## EXECUTION ANALYSIS\n\nThe provided sample execution outputs show verbose, conversational answer formats, including \"ANSWER_START\" and \"ANSWER_END\" markers and explanations. While the numerical calculations within these examples are correct, the conversational style and markers are not strictly necessary and may introduce unnecessary complexity in downstream processing. The detailed explanations following \"ANSWER_START\" suggest a degree of transparency in the system's reasoning process, which can be valuable for debugging and improvement. However, the format is inconsistent and could potentially lead to parsing issues if not handled correctly.\nThe output also shows that it may be more advantageous to format the answer as a pure numeric answer, and then show reasoning if necessary.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a moderate level of capability in information extraction and numerical reasoning, particularly with percentages. However, it is limited by its ability to handle implicit information and perform higher-level reasoning. The lack of robust semantic understanding and deductive reasoning presents a significant obstacle to achieving higher accuracy. The system's verbose and inconsistent output format also highlights a need for improved output formatting and consistency. The model's tendency to generate conversational responses should be further optimized to be more straightforward and direct.\n\n## KEY STRENGTHS\n\n*   **Information Extraction:** Ability to extract numerical data from text.\n*   **Basic Arithmetic with Percentages:** Correctly performs percentage-based calculations.\n*   **Explainability:** Verbose outputs give insight into the system's thought process.\n\n## KEY WEAKNESSES\n\n*   **High-Level Reasoning and Inference:** Inability to deduce implicit information.\n*   **Semantic Misinterpretation:** Difficulty understanding context and implied meanings.\n*   **Output Formatting Inconsistency:** Inconsistent and verbose answer format.\n\n## IMPROVEMENT FOCUS\n\n**Enhance Deductive Reasoning:** The ability to infer information not explicitly stated is crucial for solving more complex reasoning tasks. This single focus addresses the root cause of many errors and unlocks significant performance improvements.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Output Formatting Standardization:** Modify the system to produce a standardized output format (e.g., JSON). This includes removing \"ANSWER_START\" and \"ANSWER_END\" markers by default. Instead, generate a numeric answer, and then show reasoning only when requested or if deemed necessary. This will make output parsing and integration much easier.\n2.  **Fine-tuning with Contrastive Examples:** Augment the fine-tuning dataset with contrastive examples where the same numerical values are present but require different operations or interpretations based on subtle semantic cues. This will help the system learn to differentiate between similar-sounding questions.\n3.  **Implement Explicit Deduction Triggers:** Implement deduction triggers based on keywords or sentence structures that indicate the need for inference. For example, phrases like \"difference between,\" \"not X,\" or conditional statements could trigger specific deduction routines.\n4.  **Reinforce Numerical Reasoning with Synthetic Data:** Generate synthetic data specifically designed to test numerical reasoning in various contexts. Include examples with distractions, irrelevant information, and multiple steps to solve. Prioritize the generation of test examples that are similar to the error samples.\n5.  **Reduce Verbosity by Default:** Reduce the verbosity of the output unless a \"debug\" flag is enabled. Focus on providing the answer directly, with reasoning available on demand. The focus should be on the accuracy of the answer, not the comprehensiveness of the explanation.\n\n## CAPABILITY TREND\n\nBased on the analysis, the system capabilities are currently **stable**. While the system demonstrates some strengths, the significant weaknesses in reasoning and inference limit its overall performance. The suggested improvements should lead to an **improving** trend in the next iteration.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 9,
+    "accuracy": 0.9,
+    "results": [
+      {
+        "success": true,
+        "answer": "The answer is correct. The passage states that Russia's national debt was 50 billion rubles, and that debts to foreign governments constituted more than 11 billion rubles. Therefore, the amount of debt not owed to foreign governments is 50 - 11 = 39 billion rubles.",
+        "output": "ANSWER_START\nThe answer is correct. The passage states that Russia's national debt was 50 billion rubles, and that debts to foreign governments constituted more than 11 billion rubles. Therefore, the amount of debt not owed to foreign governments is 50 - 11 = 39 billion rubles.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "39",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer explains the logic and arrives at the answer 39 billion rubles, which is semantically equivalent to the golden answer of 39."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The answer \"50, 35, and 27\" is correct because the passage explicitly states that Dan Carpenter made three field goals of 50, 35, and 27 yards.",
+        "output": "ANSWER_START\nThe answer \"50, 35, and 27\" is correct because the passage explicitly states that Dan Carpenter made three field goals of 50, 35, and 27 yards.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "50, 35, 27",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer includes the golden answer (50, 35, and 27) within its explanation. The reasoning provided does not detract from the correctness of the answer; it simply explains why the answer is correct."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The answer is correct. The passage details a game between the Texans and the Bills. There is no mention of the Suns, so the question cannot be answered based on the provided text.",
+        "output": "ANSWER_START\nThe answer is correct. The passage details a game between the Texans and the Bills. There is no mention of the Suns, so the question cannot be answered based on the provided text.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "18",
+        "evaluation": {
+          "match": false,
+          "confidence": 0,
+          "explanation": "The golden answer is a number, while the system answer states that the question cannot be answered based on the provided text. These answers do not convey the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "Dwayne Allen is correct because the passage explicitly states that Dwayne Allen scored a touchdown, which was his first reception of the season.",
+        "output": "ANSWER_START\nDwayne Allen is correct because the passage explicitly states that Dwayne Allen scored a touchdown, which was his first reception of the season.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "Dwayne Allen",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer contains the golden answer 'Dwayne Allen'. The rest of the system answer is reasoning."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The answer is correct. The passage states the Bills scored a field goal (3 points) and a touchdown (7 points), while the Browns scored a touchdown (7 points) in the second half. 3 + 7 + 7 = 17.",
+        "output": "ANSWER_START\nThe answer is correct. The passage states the Bills scored a field goal (3 points) and a touchdown (7 points), while the Browns scored a touchdown (7 points) in the second half. 3 + 7 + 7 = 17.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "17",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer explains the reasoning and arrives at the correct final answer of 17, which matches the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The answer is correct. The passage states that Matt Cassel threw a touchdown pass to Leonard Pope, resulting in 1 touchdown. Matt Prater kicked a 25-yard field goal and a 41-yard field goal, and Ryan Succop kicked a 47-yard field goal, resulting in 3 field goals. The difference between the number of field goals and touchdowns is 3 - 1 = 2.",
+        "output": "ANSWER_START\nThe answer is correct. The passage states that Matt Cassel threw a touchdown pass to Leonard Pope, resulting in 1 touchdown. Matt Prater kicked a 25-yard field goal and a 41-yard field goal, and Ryan Succop kicked a 47-yard field goal, resulting in 3 field goals. The difference between the number of field goals and touchdowns is 3 - 1 = 2.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer accurately calculates the difference between the number of field goals and touchdowns, arriving at the correct answer of 2, which is semantically equivalent to the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The answer is correct. The passage states that Dalton threw an 82-yard touchdown to A.J. Green, a 12-yard touchdown to Marvin Jones, and a 32-yard touchdown to Tyler Eifert. Adding those up (82 + 12 + 32) gives you 126.",
+        "output": "ANSWER_START\nThe answer is correct. The passage states that Dalton threw an 82-yard touchdown to A.J. Green, a 12-yard touchdown to Marvin Jones, and a 32-yard touchdown to Tyler Eifert. Adding those up (82 + 12 + 32) gives you 126.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "126",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer clearly states the correct numerical answer (126) and provides the correct reasoning for how it was calculated. Therefore, the answers are semantically equivalent."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The answer \"Asian\" is correct. The passage states that the city's population was 1.7% Asian and 1.2% African American. Since 1.7% is greater than 1.2%, the Asian population is larger.",
+        "output": "ANSWER_START\nThe answer \"Asian\" is correct. The passage states that the city's population was 1.7% Asian and 1.2% African American. Since 1.7% is greater than 1.2%, the Asian population is larger.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "Asian",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer provides the correct answer, 'Asian,' along with a valid explanation. The core information matches the golden answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Zhang enhanced the economy by building roads and opening mines is correct because the passage explicitly states that Zhang started to build roads and opening the mines, to enhance both imperial control and the economy of the region.",
+        "output": "ANSWER_START\nZhang enhanced the economy by building roads and opening mines is correct because the passage explicitly states that Zhang started to build roads and opening the mines, to enhance both imperial control and the economy of the region.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "build roads",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer mentions \"building roads\" as one of the ways Zhang enhanced the economy, which aligns with the golden answer \"build roads.\""
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "The answer is correct.\nVerification: The passage explicitly states, \"talks remained completely blocked throughout 1995 and 1996,\" which corresponds to a period of two years. Therefore, the answer \"2\" is correct.",
+        "output": "ANSWER_START\nThe answer is correct.\nVerification: The passage explicitly states, \"talks remained completely blocked throughout 1995 and 1996,\" which corresponds to a period of two years. Therefore, the answer \"2\" is correct.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_25.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer states that the answer is correct and the golden answer is '2'. Therefore, the system answer conveys the same information as the golden answer."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 119.48240804672241,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

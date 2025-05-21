@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 14,
-        "sample_id": "24f366fc-2b74-4a2c-99e2-3370c6f565ae",
-        "question": "PASSAGE: Coming off their upset road win over the Broncos, the Raiders went home for a Week 13 AFC West rematch with the Kansas City Chiefs. In the first quarter, Oakland struck first as kicker Sebastian Janikowski got a 25-yard field goal. The Chiefs would respond with kicker Connor Barth getting a 38-yard field goal. In the second quarter, Kansas City took the lead as CB Maurice Leggett returned a fumble (who was from a trick play on a field goal attempt) 67 yards for a touchdown. In the third quarter, Oakland responded with RB Justin Fargas getting a 1-yard TD run. In the fourth quarter, the Chiefs replied with RB Larry Johnson getting a 2-yard TD run, along with Barth making a 27-yard field goal. The Raiders tried to come back as Janikowski nailed a 51-yard field goal, but Kansas City's defense was too much to overcome.\n\nQUESTION: Which player scored the last points of the game?"
+        "sample_id": "71a0cca2-3fb4-4b42-a015-3ad78081902f",
+        "question": "PASSAGE: Trying to rebound from their road loss to the Packers, the Redskins went home for a Week 7 match-up against the Arizona Cardinals. In the first quarter, Washington took the early lead with running back Clinton Portis getting a 2-yard touchdown run for the only score of the quarter. In the second quarter, the Redskins increased its lead with linebacker London Fletcher returning an interception 27 yards for a touchdown. The Cardinals would get a touchdown as quarterback Kurt Warner completed a 2-yard touchdown pass to wide receiver Anquan Boldin (with a failed PAT). In the third quarter, Washington increased its lead with Portis getting a 1-yard touchdown run for the only score of the quarter. In the fourth quarter, the Cardinals managed to get within striking distance as quarterback Warner and wide receiver Boldin hooked up on a 10-yard touchdown pass. Afterwards, the Cardinals got within two points with quarterback Tim Rattay completing a 1-yard touchdown pass to tight end Leonard Pope (with a failed 2-point conversion). Later, the Cardinals managed to recover its onside kick and managed to set up a game-winning 55-yard field goal. Fortunately for the Redskins: the Cardinals' kick missed wide left&#8212;securing the victory.\n\nQUESTION: How many field goals were made in the game?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 14,
-            "sample_id": "24f366fc-2b74-4a2c-99e2-3370c6f565ae",
+            "sample_id": "71a0cca2-3fb4-4b42-a015-3ad78081902f",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Coming off their upset road win over the Broncos, the Raiders went home for a Week 13 AFC West rematch with the Kansas City Chiefs. In the first quarter, Oakland struck first as kicker Sebastian Janikowski got a 25-yard field goal. The Chiefs would respond with kicker Connor Barth getting a 38-yard field goal. In the second quarter, Kansas City took the lead as CB Maurice Leggett returned a fumble (who was from a trick play on a field goal attempt) 67 yards for a touchdown. In the third quarter, Oakland responded with RB Justin Fargas getting a 1-yard TD run. In the fourth quarter, the Chiefs replied with RB Larry Johnson getting a 2-yard TD run, along with Barth making a 27-yard field goal. The Raiders tried to come back as Janikowski nailed a 51-yard field goal, but Kansas City's defense was too much to overcome.\n\nQUESTION: Which player scored the last points of the game?"
+    question = "PASSAGE: Trying to rebound from their road loss to the Packers, the Redskins went home for a Week 7 match-up against the Arizona Cardinals. In the first quarter, Washington took the early lead with running back Clinton Portis getting a 2-yard touchdown run for the only score of the quarter. In the second quarter, the Redskins increased its lead with linebacker London Fletcher returning an interception 27 yards for a touchdown. The Cardinals would get a touchdown as quarterback Kurt Warner completed a 2-yard touchdown pass to wide receiver Anquan Boldin (with a failed PAT). In the third quarter, Washington increased its lead with Portis getting a 1-yard touchdown run for the only score of the quarter. In the fourth quarter, the Cardinals managed to get within striking distance as quarterback Warner and wide receiver Boldin hooked up on a 10-yard touchdown pass. Afterwards, the Cardinals got within two points with quarterback Tim Rattay completing a 1-yard touchdown pass to tight end Leonard Pope (with a failed 2-point conversion). Later, the Cardinals managed to recover its onside kick and managed to set up a game-winning 55-yard field goal. Fortunately for the Redskins: the Cardinals' kick missed wide left&#8212;securing the victory.\n\nQUESTION: How many field goals were made in the game?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 14,
-            "sample_id": "24f366fc-2b74-4a2c-99e2-3370c6f565ae",
+            "sample_id": "71a0cca2-3fb4-4b42-a015-3ad78081902f",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 14,
-            "sample_id": "24f366fc-2b74-4a2c-99e2-3370c6f565ae",
+            "sample_id": "71a0cca2-3fb4-4b42-a015-3ad78081902f",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

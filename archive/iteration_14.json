@@ -1,497 +1,776 @@
 {
   "iteration": 14,
-  "timestamp": "2025-05-17T20:34:33.047602",
+  "timestamp": "2025-05-20T20:55:09.817955",
   "strategy": "Exploitation",
-  "explore_rate": 70,
-  "exploit_rate": 30,
-  "batch_size": 5,
-  "script": "import os\nimport re\n\ndef main(question):\n    \"\"\"\n    Solve the question by extracting relevant information from the passage and using chain-of-thought reasoning.\n    This approach builds upon a prior attempt to use question decomposition, strengthens answer synthesis, and includes examples in all LLM prompts.\n    Addresses weaknesses in temporal reasoning and contextual understanding.\n    \"\"\"\n    try:\n        # Step 1: Decompose the question into sub-questions.\n        decomposition_result = decompose_question(question)\n        if not decomposition_result.get(\"is_valid\"):\n            return f\"Error in question decomposition: {decomposition_result.get('validation_feedback')}\"\n        \n        # Step 2: Extract relevant information based on sub-questions.\n        information_extraction_result = extract_information(question, decomposition_result[\"sub_questions\"])\n        if not information_extraction_result.get(\"is_valid\"):\n            return f\"Error in information extraction: {information_extraction_result.get('validation_feedback')}\"\n\n        # Step 3: Synthesize the answer from extracted information.\n        answer_synthesis_result = synthesize_answer(question, information_extraction_result[\"extracted_info\"])\n        if not answer_synthesis_result.get(\"is_valid\"):\n            return f\"Error in answer synthesis: {answer_synthesis_result.get('validation_feedback')}\"\n        \n        return answer_synthesis_result[\"answer\"]\n\n    except Exception as e:\n        return f\"An unexpected error occurred: {str(e)}\"\n\ndef decompose_question(question, max_attempts=3):\n    \"\"\"Decompose the main question into smaller, answerable sub-questions.\"\"\"\n    system_instruction = \"You are an expert question decomposer.\"\n    \n    for attempt in range(max_attempts):\n        decomposition_prompt = f\"\"\"\n        Decompose the given question into smaller, self-contained sub-questions that, when answered, will fully answer the original question.\n\n        Example 1:\n        Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        3. What is the sum of those two values?\n\n        Example 2:\n        Question: Who caught the final touchdown of the game?\n        Sub-questions:\n        1. Who scored the final touchdown of the game?\n\n        Example 3:\n        Question: What percent of Hispaniola did the germans own?\n        Sub-questions:\n        1. What percentage of Hispaniola's commerce was controlled by Germans?\n\n        Question: {question}\n        Sub-questions:\n        \"\"\"\n        \n        decomposition_result = call_llm(decomposition_prompt, system_instruction)\n        \n        # Verify if the decomposition is valid\n        verification_prompt = f\"\"\"\n        Verify if these sub-questions are valid and sufficient to answer the original question.\n\n        Original Question: {question}\n        Sub-questions: {decomposition_result}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal? 3. What is the sum of those two values?\n        Validation: Valid\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Sub-questions: 1. What percentage of Hispaniola's commerce was controlled by Germans?\n        Validation: Valid\n\n        Is the decomposition valid and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"sub_questions\": decomposition_result}\n        else:\n            print(f\"Decomposition validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to decompose the question successfully.\"}\n\ndef extract_information(question, sub_questions, max_attempts=3):\n    \"\"\"Extract relevant information from the passage based on the sub-questions.\"\"\"\n    system_instruction = \"You are an information extraction expert.\"\n    \n    for attempt in range(max_attempts):\n        extraction_prompt = f\"\"\"\n        Given the original question and its sub-questions, extract the relevant information from the passage required to answer the sub-questions.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions:\n        1. How many yards was Chris Johnson's first touchdown?\n        2. How many yards was Jason Hanson's first field goal?\n        Extracted Information:\n        Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Sub-questions:\n        1. What percentage of Hispaniola's commerce was controlled by Germans?\n        Extracted Information:\n        German nationals controlled about 80 percent of the country's international commerce.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information:\n        \"\"\"\n        \n        extracted_info = call_llm(extraction_prompt, system_instruction)\n        \n        # Validate information extraction\n        verification_prompt = f\"\"\"\n        Verify if the extracted information is relevant and sufficient to answer the sub-questions.\n\n        Original Question: {question}\n        Sub-questions: {sub_questions}\n        Extracted Information: {extracted_info}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Sub-questions: 1. How many yards was Chris Johnson's first touchdown? 2. How many yards was Jason Hanson's first field goal?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Validation: Valid\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Sub-questions: 1. What percentage of Hispaniola's commerce was controlled by Germans?\n        Extracted Information: German nationals controlled about 80 percent of the country's international commerce.\n        Validation: Valid\n\n        Is the extraction relevant and sufficient? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n        \n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"extracted_info\": extracted_info}\n        else:\n            print(f\"Information extraction validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to extract relevant information successfully.\"}\n\ndef synthesize_answer(question, extracted_info, max_attempts=3):\n    \"\"\"Synthesize the answer from the extracted information to answer the main question.\"\"\"\n    system_instruction = \"You are an answer synthesis expert.\"\n\n    for attempt in range(max_attempts):\n        synthesis_prompt = f\"\"\"\n        Given the original question and the extracted information, synthesize the final answer.\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Extracted Information: Chris Johnson's first touchdown was 6 yards. Jason Hanson's first field goal was 53 yards.\n        Final Answer: 59\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Extracted Information: German nationals controlled about 80 percent of the country's international commerce.\n        Final Answer: 80\n\n        Original Question: {question}\n        Extracted Information: {extracted_info}\n        Final Answer:\n        \"\"\"\n        \n        answer = call_llm(synthesis_prompt, system_instruction)\n\n        # Answer checker\n        verification_prompt = f\"\"\"\n        Check if the answer is correct and answers the original question fully.\n\n        Original Question: {question}\n        Synthesized Answer: {answer}\n\n        Example 1:\n        Original Question: How many yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?\n        Synthesized Answer: 59\n        Validation: Valid\n\n        Example 2:\n        Original Question: What percent of Hispaniola did the germans own?\n        Synthesized Answer: 80\n        Validation: Valid\n\n        Is the answer correct and complete? Respond with 'Valid' or 'Invalid'.\n        \"\"\"\n        \n        verification_result = call_llm(verification_prompt, system_instruction)\n\n        if \"valid\" in verification_result.lower():\n            return {\"is_valid\": True, \"answer\": answer}\n        else:\n            print(f\"Answer synthesis validation failed (attempt {attempt+1}/{max_attempts}): {verification_result}\")\n            \n    return {\"is_valid\": False, \"validation_feedback\": \"Failed to synthesize a valid answer.\"}\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n        import os  # Import the os module\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script implements a question-answering system using chain-of-thought reasoning, where the problem is decomposed into sub-questions, information extraction, and answer synthesis. It employs three distinct agent roles: a question decomposer, an information extraction expert, and an answer synthesis expert, each responsible for a specific stage of the process. The functions `decompose_question`, `extract_information`, and `synthesize_answer` use the `call_llm` function to interact with the LLM, and each function also validates its results with the LLM before proceeding to the next stage. The overall workflow involves decomposing the initial question, extracting relevant information to answer sub-questions, synthesizing these answers into a final response, and then returning the final answer.",
-  "sample_count": 5,
+  "explore_rate": 30,
+  "exploit_rate": 70,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with enhanced question analysis and verification.\n    \"\"\"\n    try:\n        # Step 1: Analyze question type and keywords with robust verification\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis, question)  # Pass original question\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question analysis\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer with enhanced checks\n        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis) #Pass question analysis\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n\n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"requires_calculation\": false}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"requires_calculation\": true}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"requires_calculation\": false}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question_analysis, question, passage): #Passage and question\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text. You must understand the nuances of the text to find the correct answer\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"requires_calculation\": false}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"requires_calculation\": true}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"requires_calculation\": false}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text. You always output a specific answer.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage, question_analysis): #Pass question analysis\n    \"\"\"Verifies the generated answer. Includes multiple examples and calculation check.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions. You always provide an answer to the question, and you must correct it if wrong.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script uses a multi-stage LLM approach to answer questions by analyzing the question, extracting relevant information, generating an initial answer, and then verifying it. The problem is decomposed into four main steps: question analysis, passage extraction, answer generation, and answer verification. Each step is handled by a specialized LLM agent with an \"expert\" role. The `call_llm` function is used to interact with the Gemini LLM, and other functions are `analyze_question`, `extract_relevant_passage`, `generate_answer`, and `verify_answer`, which are called in sequence within the `main` function to process the question and refine the answer. The overall workflow involves analyzing the question, extracting information, generating an answer and verifying the answer for accuracy.",
+  "sample_count": 10,
   "samples": [
     {
-      "question": "PASSAGE: In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.\n\nQUESTION: Which countries on the 2014 Summer tour were scheduled for more than one date?",
-      "answer": "France",
-      "id": "example_106",
+      "question": "PASSAGE: Still looking for their first win, the Bengals flew to The Meadowlands for a Week 6 duel with the throwback-clad New York Jets.  With QB Carson Palmer out again nursing an injured elbow, QB Ryan Fitzpatrick was again named the starter. In the first quarter, Cincinnati pounced first as strong safety Chinedum Ndukwe returned a fumble 15 yards for a touchdown.  The Jets responded with QB Brett Favre completing a 2-yard TD pass to RB Thomas Jones.  In the second quarter, New York took the lead as kicker Jay Feely got a 38-yard field goal, while Jones got a 7-yard TD run.  The Bengals closed out the half with Fitzpatrick getting a 1-yard TD run. In the third quarter, the Jets began to pull away as Feely got a 43-yard field goal.  In the fourth quarter, New York sealed the win as Jones got a 1-yard TD run (with a failed 2-point conversion). With the loss, Cincinnati fell to 0-6 and it became their first 0-6 start as well as 6-game losing streak since 2002.\n\nQUESTION: Who scored the first touchdown of the game?",
+      "answer": "Chinedum Ndukwe",
+      "id": "example_121",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
-        "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
+        "original_passage": "Still looking for their first win, the Bengals flew to The Meadowlands for a Week 6 duel with the throwback-clad New York Jets.  With QB Carson Palmer out again nursing an injured elbow, QB Ryan Fitzpatrick was again named the starter. In the first quarter, Cincinnati pounced first as strong safety Chinedum Ndukwe returned a fumble 15 yards for a touchdown.  The Jets responded with QB Brett Favre completing a 2-yard TD pass to RB Thomas Jones.  In the second quarter, New York took the lead as kicker Jay Feely got a 38-yard field goal, while Jones got a 7-yard TD run.  The Bengals closed out the half with Fitzpatrick getting a 1-yard TD run. In the third quarter, the Jets began to pull away as Feely got a 43-yard field goal.  In the fourth quarter, New York sealed the win as Jones got a 1-yard TD run (with a failed 2-point conversion). With the loss, Cincinnati fell to 0-6 and it became their first 0-6 start as well as 6-game losing streak since 2002.",
+        "original_question": "Who scored the first touchdown of the game?",
         "original_answer_data": {
           "spans": [
-            "France",
-            "Germany"
-          ],
-          "types": [
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 984
-      }
-    },
-    {
-      "question": "PASSAGE: Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.\n\nQUESTION: Which player threw the first TD pass of the game?",
-      "answer": "Kyle Orton",
-      "id": "example_107",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
-        "original_question": "Which player threw the first TD pass of the game?",
-        "original_answer_data": {
-          "spans": [
-            "Kyle Orton"
+            "Chinedum Ndukwe"
           ],
           "types": [
             "span"
           ]
         },
-        "line_number": 851
+        "line_number": 806
       }
     },
     {
-      "question": "PASSAGE: The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.\n\nQUESTION: How many total people died in the fight on February 10, 1756?",
-      "answer": "1515",
-      "id": "example_108",
+      "question": "PASSAGE: Hoping to rebound from their road loss to the Vikings, the Panthers went home for a Week 4 NFC South duel with the Atlanta Falcons.  In the first quarter, Carolina pounced first with rookie RB Jonathan Stewart getting an 8-yard TD run.  The Falcons responded with kicker Jason Elam getting a 33-yard field goal.  In the second quarter, Atlanta crept closer as Elam kicked a 33-yard field goal.  Carolina would reply with QB Jake Delhomme completing a 56-yard TD pass to WR Steve Smith.  The Falcons closed out the half with Elam getting a 44-yard field goal. In the third quarter, the Panthers answered with kicker John Kasay nailing a 44-yard field goal.  In the fourth quarter, Carolina closed the game out with Delhomme completing a 36-yard TD pass to WR Muhsin Muhammad. During the game, Muhsin Muhammad (8 receptions for 147 yards and a touchdown) became the Panthers All-Time WR Leader in Receptions (600) and TD Receptions (45).\n\nQUESTION: How many yards shorter was Jake Delhomme's second touchdown pass compared to his first?",
+      "answer": "20",
+      "id": "example_122",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
-        "original_question": "How many total people died in the fight on February 10, 1756?",
+        "original_passage": "Hoping to rebound from their road loss to the Vikings, the Panthers went home for a Week 4 NFC South duel with the Atlanta Falcons.  In the first quarter, Carolina pounced first with rookie RB Jonathan Stewart getting an 8-yard TD run.  The Falcons responded with kicker Jason Elam getting a 33-yard field goal.  In the second quarter, Atlanta crept closer as Elam kicked a 33-yard field goal.  Carolina would reply with QB Jake Delhomme completing a 56-yard TD pass to WR Steve Smith.  The Falcons closed out the half with Elam getting a 44-yard field goal. In the third quarter, the Panthers answered with kicker John Kasay nailing a 44-yard field goal.  In the fourth quarter, Carolina closed the game out with Delhomme completing a 36-yard TD pass to WR Muhsin Muhammad. During the game, Muhsin Muhammad (8 receptions for 147 yards and a touchdown) became the Panthers All-Time WR Leader in Receptions (600) and TD Receptions (45).",
+        "original_question": "How many yards shorter was Jake Delhomme's second touchdown pass compared to his first?",
         "original_answer_data": {
           "spans": [
-            "1515"
+            "20"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 345
+        "line_number": 536
       }
     },
     {
-      "question": "PASSAGE: After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.\n\nQUESTION: How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
-      "answer": "14",
-      "id": "example_109",
+      "question": "PASSAGE: In 2000 there were 79,667 households out of which 38.70% had children under the age of 18 living with them, 61.90% were married couples living together, 10.20% had a female householder with no husband present, and 24.20% were non-families. 19.70% of all households were made up of individuals and 6.80% had someone living alone who was 65 years of age or older.  The average household size was 2.72 and the average family size was 3.14.\n\nQUESTION: How many percent are not non-families?",
+      "answer": "24.2",
+      "id": "example_123",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
-        "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
+        "original_passage": "In 2000 there were 79,667 households out of which 38.70% had children under the age of 18 living with them, 61.90% were married couples living together, 10.20% had a female householder with no husband present, and 24.20% were non-families. 19.70% of all households were made up of individuals and 6.80% had someone living alone who was 65 years of age or older.  The average household size was 2.72 and the average family size was 3.14.",
+        "original_question": "How many percent are not non-families?",
         "original_answer_data": {
           "spans": [
-            "14"
+            "24.2"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 403
+        "line_number": 503
       }
     },
     {
-      "question": "PASSAGE: In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.\n\nQUESTION: How many percent of amputees in India did had an onset of disability over the age of 14?",
-      "answer": "89.7",
-      "id": "example_110",
+      "question": "PASSAGE: The 49ers first road game of the year ends in a disaster. The 49ers defense had no answer for Ben Roethlisberger, who went 21 for 27, 369 yards and three touchdown passes as the Steelers won 43-18. The Steelers took a commanding 29-3 halftime lead. Despite only scoring 18 points, the 49ers offense opened up in the second half, with Kaepernick leading the 49ers into the Steelers red zone four times, but only able to score one touchdown (along with a field goal and two turnover on downs). The highlight for the 49ers was Kaepernick hitting wide receiver Torrey Smith for a 75-yard touchdown pass in the fourth quarter.  The Steelers' defense had a field day on Kaepernick by sacking him 5 times and making him lose a fumble.\n\nQUESTION: How many points did Pittsburgh win by?",
+      "answer": "25",
+      "id": "example_124",
       "meta": {
         "source": "jsonl_dataset",
-        "original_passage": "In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.",
-        "original_question": "How many percent of amputees in India did had an onset of disability over the age of 14?",
+        "original_passage": "The 49ers first road game of the year ends in a disaster. The 49ers defense had no answer for Ben Roethlisberger, who went 21 for 27, 369 yards and three touchdown passes as the Steelers won 43-18. The Steelers took a commanding 29-3 halftime lead. Despite only scoring 18 points, the 49ers offense opened up in the second half, with Kaepernick leading the 49ers into the Steelers red zone four times, but only able to score one touchdown (along with a field goal and two turnover on downs). The highlight for the 49ers was Kaepernick hitting wide receiver Torrey Smith for a 75-yard touchdown pass in the fourth quarter.  The Steelers' defense had a field day on Kaepernick by sacking him 5 times and making him lose a fumble.",
+        "original_question": "How many points did Pittsburgh win by?",
         "original_answer_data": {
           "spans": [
-            "89.7"
+            "25"
           ],
           "types": [
             "number"
           ]
         },
-        "line_number": 226
+        "line_number": 737
+      }
+    },
+    {
+      "question": "PASSAGE: As of the census of 2000, there were 210,528 people, 88,413 households, and 62,507 families residing in the county.  The population density was 221 people per square mile (85/km\u00b2).  There were 102,830 housing units at an average density of 108 per square mile (42/km\u00b2).  The racial makeup of the county was 87.46% Race (United States Census), 8.31% Race (United States Census) or Race (United States Census), 0.33% Race (United States Census), 0.79% Race (United States Census), 0.04% Race (United States Census), 1.88% from Race (United States Census), and 1.18% from two or more races.  5.61% of the population were Race (United States Census) or Race (United States Census) of any race.\n\nQUESTION: Which group is larger according to the census: people or families?",
+      "answer": "people",
+      "id": "example_125",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "As of the census of 2000, there were 210,528 people, 88,413 households, and 62,507 families residing in the county.  The population density was 221 people per square mile (85/km\u00b2).  There were 102,830 housing units at an average density of 108 per square mile (42/km\u00b2).  The racial makeup of the county was 87.46% Race (United States Census), 8.31% Race (United States Census) or Race (United States Census), 0.33% Race (United States Census), 0.79% Race (United States Census), 0.04% Race (United States Census), 1.88% from Race (United States Census), and 1.18% from two or more races.  5.61% of the population were Race (United States Census) or Race (United States Census) of any race.",
+        "original_question": "Which group is larger according to the census: people or families?",
+        "original_answer_data": {
+          "spans": [
+            "people"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 559
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their shutout loss to the Buccaneers, the 49ers flew to the University of Phoenix Stadium for a Week 12 NFC West duel with the Arizona Cardinals on Monday night.  San Francisco made the opening strike in the first quarter as quarterback Troy Smith found wide receiver Michael Crabtree on a 38-yard touchdown pass.  The Cardinals answered with kicker Jay Feely getting a 31-yard field goal, yet the 49ers responded with a 1-yard touchdown run from rookie running back Anthony Dixon.  San Francisco added onto their lead in the second quarter with an 8-yard touchdown pass from running back Brian Westbrook.  Arizona would hang on with Feely's 39-yard field goal.  Afterwards, the 49ers pulled away with a 38-yard field goal in the third quarter and a 26-yard field goal in the fourth quarter from kicker Shane Andrus.\n\nQUESTION: How many yards was the longest run for a touchdown?",
+      "answer": "8",
+      "id": "example_126",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their shutout loss to the Buccaneers, the 49ers flew to the University of Phoenix Stadium for a Week 12 NFC West duel with the Arizona Cardinals on Monday night.  San Francisco made the opening strike in the first quarter as quarterback Troy Smith found wide receiver Michael Crabtree on a 38-yard touchdown pass.  The Cardinals answered with kicker Jay Feely getting a 31-yard field goal, yet the 49ers responded with a 1-yard touchdown run from rookie running back Anthony Dixon.  San Francisco added onto their lead in the second quarter with an 8-yard touchdown pass from running back Brian Westbrook.  Arizona would hang on with Feely's 39-yard field goal.  Afterwards, the 49ers pulled away with a 38-yard field goal in the third quarter and a 26-yard field goal in the fourth quarter from kicker Shane Andrus.",
+        "original_question": "How many yards was the longest run for a touchdown?",
+        "original_answer_data": {
+          "spans": [
+            "8"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 544
+      }
+    },
+    {
+      "question": "PASSAGE: In 1602 O'Neill destroyed his capital at Dungannon due to the approach of Mountjoy's forces, and withdrew to hide in the woods. In a symbolic gesture Mountjoy smashed the O'Neills' inauguration stone at Tullaghogue. Famine soon hit Ulster as a result of the English scorched earth strategy. O'Neill's uirithe or sub-lords  began to surrender and Rory O'Donnell, Hugh Roe's brother and successor, surrendered on terms at the end of 1602. However, with a secure base in the large and dense forests of Tir Eoghain, O'Neill held out until 30 March 1603, when he surrendered on good terms to Mountjoy, signing the Treaty of Mellifont. Elizabeth I had died on 24 March. Although the war had effectively ended with the signing of the Treaty of Mellifont, its final battles were fought during the English invasion of West Breifne in April 1603, which remained the sole holdout Irish kingdom following O'Neill's capitulation. The kingdom was ruled by Brian \u00d3g O'Rourke, one of the alliance's chief lieutenants and leader of the Irish forces during the Battle of Curlew Pass. He failed to secure any concessions from the treaty as his half-brother Tadhg O'Rourke had fought with the English during the war and was granted lordship of West Breifne in return. Following a twelve-day siege, a force of 3,000 men led by Tadhg, Henry Folliott and Rory O'Donnell eventually brought the area, and thus all of Ireland, under English control on 25 April 1603.\n\nQUESTION: Who surrendered later, Rory O'Donnell or O'Neill?",
+      "answer": "O'Neill",
+      "id": "example_127",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In 1602 O'Neill destroyed his capital at Dungannon due to the approach of Mountjoy's forces, and withdrew to hide in the woods. In a symbolic gesture Mountjoy smashed the O'Neills' inauguration stone at Tullaghogue. Famine soon hit Ulster as a result of the English scorched earth strategy. O'Neill's uirithe or sub-lords  began to surrender and Rory O'Donnell, Hugh Roe's brother and successor, surrendered on terms at the end of 1602. However, with a secure base in the large and dense forests of Tir Eoghain, O'Neill held out until 30 March 1603, when he surrendered on good terms to Mountjoy, signing the Treaty of Mellifont. Elizabeth I had died on 24 March. Although the war had effectively ended with the signing of the Treaty of Mellifont, its final battles were fought during the English invasion of West Breifne in April 1603, which remained the sole holdout Irish kingdom following O'Neill's capitulation. The kingdom was ruled by Brian \u00d3g O'Rourke, one of the alliance's chief lieutenants and leader of the Irish forces during the Battle of Curlew Pass. He failed to secure any concessions from the treaty as his half-brother Tadhg O'Rourke had fought with the English during the war and was granted lordship of West Breifne in return. Following a twelve-day siege, a force of 3,000 men led by Tadhg, Henry Folliott and Rory O'Donnell eventually brought the area, and thus all of Ireland, under English control on 25 April 1603.",
+        "original_question": "Who surrendered later, Rory O'Donnell or O'Neill?",
+        "original_answer_data": {
+          "spans": [
+            "O'Neill"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 356
+      }
+    },
+    {
+      "question": "PASSAGE: At the 2011 Italian census, there were 179,149  people residing in the city. The population density was 978.9 persons per square kilometre. Minors (children ages 18 and younger) totalled 16.20 percent of the population compared to pensioners who number 22.54 percent. This compares with the Italian average of 18.06 percent (minors) and 19.94 percent (pensioners). The average age of Modena resident is 44 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Modena experienced 2.42% growth, while Italy as a whole grew by 3.56 percent. The current birth rate of Modena is 9.62 births per 1,000 inhabitants compared to the Italian average of 9.45 births.\n\nQUESTION: How many more percentage points did the population of Italy grow between 2002 and 2007 compared to Modena?",
+      "answer": "1.14",
+      "id": "example_128",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "At the 2011 Italian census, there were 179,149  people residing in the city. The population density was 978.9 persons per square kilometre. Minors (children ages 18 and younger) totalled 16.20 percent of the population compared to pensioners who number 22.54 percent. This compares with the Italian average of 18.06 percent (minors) and 19.94 percent (pensioners). The average age of Modena resident is 44 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Modena experienced 2.42% growth, while Italy as a whole grew by 3.56 percent. The current birth rate of Modena is 9.62 births per 1,000 inhabitants compared to the Italian average of 9.45 births.",
+        "original_question": "How many more percentage points did the population of Italy grow between 2002 and 2007 compared to Modena?",
+        "original_answer_data": {
+          "spans": [
+            "1.14"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 206
+      }
+    },
+    {
+      "question": "PASSAGE: The Rams began their 2007 campaign at home against the Carolina Panthers.  In the first quarter, St. Louis trailed early as Panthers QB Jake Delhomme completed a 10-yard TD pass to WR Drew Carter.  The Rams would tie the game with QB Marc Bulger completing a 3-yard TD pass to WR Torry Holt.  In the second quarter, St. Louis would take the lead with kicker Jeff Wilkins getting a 42-yard field goal for the only score of the period.  In the third quarter, Wiklins helped the Rams' lead with a 28-yard field goal.  However, this was all wiped out as Delhomme completed a 68-yard TD pass to WR Steve Smith.  In the fourth quarter, Carolina took over for the remainder of the game as kicker John Kasay nailed a 34-yard field goal, Delhomme and Carter hooked up with each other again on a 9-yard TD pass, and Kasay finished the game with 32-yard field goal. The game was notable when offensive tackle Orlando Pace suffered a season-ending injury. This severely hurt the Rams' offense.\n\nQUESTION: How many yards shorter was Kasay's average yards of field goals than Wilkins' average yards of field goals?",
+      "answer": "2",
+      "id": "example_129",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The Rams began their 2007 campaign at home against the Carolina Panthers.  In the first quarter, St. Louis trailed early as Panthers QB Jake Delhomme completed a 10-yard TD pass to WR Drew Carter.  The Rams would tie the game with QB Marc Bulger completing a 3-yard TD pass to WR Torry Holt.  In the second quarter, St. Louis would take the lead with kicker Jeff Wilkins getting a 42-yard field goal for the only score of the period.  In the third quarter, Wiklins helped the Rams' lead with a 28-yard field goal.  However, this was all wiped out as Delhomme completed a 68-yard TD pass to WR Steve Smith.  In the fourth quarter, Carolina took over for the remainder of the game as kicker John Kasay nailed a 34-yard field goal, Delhomme and Carter hooked up with each other again on a 9-yard TD pass, and Kasay finished the game with 32-yard field goal. The game was notable when offensive tackle Orlando Pace suffered a season-ending injury. This severely hurt the Rams' offense.",
+        "original_question": "How many yards shorter was Kasay's average yards of field goals than Wilkins' average yards of field goals?",
+        "original_answer_data": {
+          "spans": [
+            "2"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 888
+      }
+    },
+    {
+      "question": "PASSAGE: Staying on the road, the Titans traveled to Dolphin Stadium for a Week 3 contest against the Miami Dolphins.  From the get-go, the Titans trailed as kicker Olindo Mare got a 40-yard field goal.  The Titans would take the lead before halftime as QB Kerry Collins completed a 27-yard TD pass to TE Bo Scaife in the second quarter.  However, in the third quarter, the Dolphins retook the lead as QB Daunte Culpepper got a touchdown on a 5-yard QB sneak.  Titans kicker Rob Bironas would tie the game up on a 22-yard field goal.  Unfortunately, in the fourth quarter, the Dolphins would be the team that walked away with win #1 as Mare booted a 39-yard field goal to drop the Titans to 0-3.\n\nQUESTION: How many more field goals did Olindo Mare make over Rob Bironas?",
+      "answer": "1",
+      "id": "example_130",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Staying on the road, the Titans traveled to Dolphin Stadium for a Week 3 contest against the Miami Dolphins.  From the get-go, the Titans trailed as kicker Olindo Mare got a 40-yard field goal.  The Titans would take the lead before halftime as QB Kerry Collins completed a 27-yard TD pass to TE Bo Scaife in the second quarter.  However, in the third quarter, the Dolphins retook the lead as QB Daunte Culpepper got a touchdown on a 5-yard QB sneak.  Titans kicker Rob Bironas would tie the game up on a 22-yard field goal.  Unfortunately, in the fourth quarter, the Dolphins would be the team that walked away with win #1 as Mare booted a 39-yard field goal to drop the Titans to 0-3.",
+        "original_question": "How many more field goals did Olindo Mare make over Rob Bironas?",
+        "original_answer_data": {
+          "spans": [
+            "1"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 611
       }
     }
   ],
   "samples_metadata": [
     {
       "source": "jsonl_dataset",
-      "original_passage": "In mid-November 2013, Mot\u00f6rhead were due to embark on a European tour alongside Saxon (band), followed by a tour in Germany and Scandinavia due to last until mid December 2013 but the dates were postponed and rescheduled for February and March 2014 due to Lemmys health problems. However, in January 2014, Mot\u00f6rhead announced the cancellation of the new February and March dates of their European tour as Lemmy was still to reach full recovery from diabetes related health problems. But the same month, the band was confirmed for Coachella Festival to take place across two weekends in spring 2014 (12\u201314 and 19\u201321 April) in Indio, California, California, the exact dates to be revealed as 13 and 20 April 2014. In February 2014, Mot\u00f6rhead confirmed a Summer tour 2014 with eight European dates (from 24 June to 10 August) in France (2 dates), Switzerland, Italy, Germany (2 dates), Russia and Ukraine. In March 2014, the band announced a Los Angeles date on 11 April 2014 at Club Nokia. Later on, two new dates on 17 and 18 April 2014 respectively in Las Vegas (Pearl) and San Francisco (Warfield) were added. Still in March 2014, Mot\u00f6rhead announced that three heavy metal bands Megadeth, Anthrax and themselves would perform from 22 to 26 September 2014 at the first annual Mot\u00f6rheads Mot\u00f6rboat cruise on board the Carnival Ecstasy (self-proclaimed \"The Loudest Boat in the World\"), due to sail from Miami and visit the ports of Key West, Florida and the Cozumel island just off Mexicos Yucat\u00e1n Peninsula.",
-      "original_question": "Which countries on the 2014 Summer tour were scheduled for more than one date?",
+      "original_passage": "Still looking for their first win, the Bengals flew to The Meadowlands for a Week 6 duel with the throwback-clad New York Jets.  With QB Carson Palmer out again nursing an injured elbow, QB Ryan Fitzpatrick was again named the starter. In the first quarter, Cincinnati pounced first as strong safety Chinedum Ndukwe returned a fumble 15 yards for a touchdown.  The Jets responded with QB Brett Favre completing a 2-yard TD pass to RB Thomas Jones.  In the second quarter, New York took the lead as kicker Jay Feely got a 38-yard field goal, while Jones got a 7-yard TD run.  The Bengals closed out the half with Fitzpatrick getting a 1-yard TD run. In the third quarter, the Jets began to pull away as Feely got a 43-yard field goal.  In the fourth quarter, New York sealed the win as Jones got a 1-yard TD run (with a failed 2-point conversion). With the loss, Cincinnati fell to 0-6 and it became their first 0-6 start as well as 6-game losing streak since 2002.",
+      "original_question": "Who scored the first touchdown of the game?",
       "original_answer_data": {
         "spans": [
-          "France",
-          "Germany"
-        ],
-        "types": [
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 984
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to rebound from their embarrassing divisional road loss to the Packers, the Bears flew to the Edward Jones Dome for a Week 12 duel with the St. Louis Rams.  In the first quarter, Chicago drew first blood as rookie RB Matt Fort&#233; got a 13-yard TD run, while QB Kyle Orton completed a 7-yard TD pass to FB Jason McKie.  In the second quarter, the Bears continued their domination as Fort&#233; got a 47-yard TD run.  The Rams would respond as kicker Josh Brown got a 43-yard field goal.  Chicago would close out the half with kicker Robbie Gould getting a 43-yard field goal.  In the third quarter, the Bears pulled away as Gould nailed a 38-yard field goal.  From there on out, Chicago's defense kept St. Louis in check.",
-      "original_question": "Which player threw the first TD pass of the game?",
-      "original_answer_data": {
-        "spans": [
-          "Kyle Orton"
+          "Chinedum Ndukwe"
         ],
         "types": [
           "span"
         ]
       },
-      "line_number": 851
+      "line_number": 806
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "The Guarani War  of 1756, also called the War of the Seven Reductions, took place between the Guaran\u00ed tribes of seven Jesuit Reductions and joint Spanish-Portuguese forces. It was a result of the 1750 Treaty of Madrid, which set a line of demarcation between Spanish and Portuguese colonial territory in South America. The boundary drawn up between the two nations was the Uruguay River, with Portugal possessing the land east of the river. The seven Jesuit missions east of the Uruguay River, known as the Misiones Orientales, were to be dismantled and relocated on the Spanish western side of the river. The seven missions were called San Miguel, Santos Angeles, San Lorenzo Martir, San Nicolas, San Juan Bautista, San Luis Gonzaga, and San Francisco de Borja. These missions were some of the most populous in South America with 26,362 inhabitants, according to a Jesuit census, and many more in the surrounding areas. In 1754 the Jesuits surrendered control of the missions, but the Guarani led by Sep\u00e9 Tiaraju, refused to comply with the order to relocate. Efforts by the Spanish army in 1754 to forcefully remove the Guarani from the missions failed. On February 10, 1756, a combined force of 3,000 Spanish and Portuguese soldiers fought the Guaran\u00ed at the battle of Caiboat\u00e9. It resulted in the death of 1,511 Guarani, while the Europeans suffered only 4 deaths. In the aftermath of the battle, the joint Spanish-Portuguese army occupied the seven missions. Eventually Spain and Portugal annulled the 1750 treaty in the Treaty of El Pardo , with Spain regaining control over the seven missions and its surrounding territory.",
-      "original_question": "How many total people died in the fight on February 10, 1756?",
+      "original_passage": "Hoping to rebound from their road loss to the Vikings, the Panthers went home for a Week 4 NFC South duel with the Atlanta Falcons.  In the first quarter, Carolina pounced first with rookie RB Jonathan Stewart getting an 8-yard TD run.  The Falcons responded with kicker Jason Elam getting a 33-yard field goal.  In the second quarter, Atlanta crept closer as Elam kicked a 33-yard field goal.  Carolina would reply with QB Jake Delhomme completing a 56-yard TD pass to WR Steve Smith.  The Falcons closed out the half with Elam getting a 44-yard field goal. In the third quarter, the Panthers answered with kicker John Kasay nailing a 44-yard field goal.  In the fourth quarter, Carolina closed the game out with Delhomme completing a 36-yard TD pass to WR Muhsin Muhammad. During the game, Muhsin Muhammad (8 receptions for 147 yards and a touchdown) became the Panthers All-Time WR Leader in Receptions (600) and TD Receptions (45).",
+      "original_question": "How many yards shorter was Jake Delhomme's second touchdown pass compared to his first?",
       "original_answer_data": {
         "spans": [
-          "1515"
+          "20"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 345
+      "line_number": 536
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "After tough losses at home, the Raiders traveled to Cleveland to take on the Browns.  The Browns scored 9 straight points leading into the 2nd quarter when Billy Cundiff kicked 3 field goals from:  52 (in the 1st quarter), 33, and 26 yards out (in the 2nd quarter) for leads of 3-0, 6-0, and 9-0.  The Raiders got on the board when Sebastian Janikowski kicked 2 field goals before halftime from 46 and 38 yards out for a 9-3 and then 9-6 game at halftime.  After a scoreless 3rd quarter, the Browns got back to work in the 4th when Brian Hoyer found Andrew Hawkins on a 4-yard touchdown pass for a 16-6 lead followed by Ben Tate running in the end zone for a 5-yard touchdown for a 23-6 game.  The Raiders wrapped up the scoring of the game later on when Derek Carr found Andre Holmes 10-yard touchdown pass for the final score:  23-13.",
-      "original_question": "How many yards longer was Billy Cundiff's longest field goal than Sebastian Janikowski's longest field goal?",
+      "original_passage": "In 2000 there were 79,667 households out of which 38.70% had children under the age of 18 living with them, 61.90% were married couples living together, 10.20% had a female householder with no husband present, and 24.20% were non-families. 19.70% of all households were made up of individuals and 6.80% had someone living alone who was 65 years of age or older.  The average household size was 2.72 and the average family size was 3.14.",
+      "original_question": "How many percent are not non-families?",
       "original_answer_data": {
         "spans": [
-          "14"
+          "24.2"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 403
+      "line_number": 503
     },
     {
       "source": "jsonl_dataset",
-      "original_passage": "In the USA an estimate was found of 32,500 children (<21 years) that suffer from major paediatric amputation, with 5,525 new cases each year, of which 3,315 congenital. Carr et al. (1998) investigated amputations caused by landmines for Afghanistan, Bosnia and Herzegovina, Cambodia and Mozambique among children (<14 years), showing estimates of respectively 4.7, 0.19, 1.11 and 0.67 per 1000 children. Mohan (1986) indicated in India a total of 424,000 amputees (23,500 annually), of which 10.3% had an onset of disability below the age of 14, amounting to a total of about 43,700 limb deficient children in India alone.",
-      "original_question": "How many percent of amputees in India did had an onset of disability over the age of 14?",
+      "original_passage": "The 49ers first road game of the year ends in a disaster. The 49ers defense had no answer for Ben Roethlisberger, who went 21 for 27, 369 yards and three touchdown passes as the Steelers won 43-18. The Steelers took a commanding 29-3 halftime lead. Despite only scoring 18 points, the 49ers offense opened up in the second half, with Kaepernick leading the 49ers into the Steelers red zone four times, but only able to score one touchdown (along with a field goal and two turnover on downs). The highlight for the 49ers was Kaepernick hitting wide receiver Torrey Smith for a 75-yard touchdown pass in the fourth quarter.  The Steelers' defense had a field day on Kaepernick by sacking him 5 times and making him lose a fumble.",
+      "original_question": "How many points did Pittsburgh win by?",
       "original_answer_data": {
         "spans": [
-          "89.7"
+          "25"
         ],
         "types": [
           "number"
         ]
       },
-      "line_number": 226
+      "line_number": 737
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "As of the census of 2000, there were 210,528 people, 88,413 households, and 62,507 families residing in the county.  The population density was 221 people per square mile (85/km\u00b2).  There were 102,830 housing units at an average density of 108 per square mile (42/km\u00b2).  The racial makeup of the county was 87.46% Race (United States Census), 8.31% Race (United States Census) or Race (United States Census), 0.33% Race (United States Census), 0.79% Race (United States Census), 0.04% Race (United States Census), 1.88% from Race (United States Census), and 1.18% from two or more races.  5.61% of the population were Race (United States Census) or Race (United States Census) of any race.",
+      "original_question": "Which group is larger according to the census: people or families?",
+      "original_answer_data": {
+        "spans": [
+          "people"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 559
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their shutout loss to the Buccaneers, the 49ers flew to the University of Phoenix Stadium for a Week 12 NFC West duel with the Arizona Cardinals on Monday night.  San Francisco made the opening strike in the first quarter as quarterback Troy Smith found wide receiver Michael Crabtree on a 38-yard touchdown pass.  The Cardinals answered with kicker Jay Feely getting a 31-yard field goal, yet the 49ers responded with a 1-yard touchdown run from rookie running back Anthony Dixon.  San Francisco added onto their lead in the second quarter with an 8-yard touchdown pass from running back Brian Westbrook.  Arizona would hang on with Feely's 39-yard field goal.  Afterwards, the 49ers pulled away with a 38-yard field goal in the third quarter and a 26-yard field goal in the fourth quarter from kicker Shane Andrus.",
+      "original_question": "How many yards was the longest run for a touchdown?",
+      "original_answer_data": {
+        "spans": [
+          "8"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 544
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In 1602 O'Neill destroyed his capital at Dungannon due to the approach of Mountjoy's forces, and withdrew to hide in the woods. In a symbolic gesture Mountjoy smashed the O'Neills' inauguration stone at Tullaghogue. Famine soon hit Ulster as a result of the English scorched earth strategy. O'Neill's uirithe or sub-lords  began to surrender and Rory O'Donnell, Hugh Roe's brother and successor, surrendered on terms at the end of 1602. However, with a secure base in the large and dense forests of Tir Eoghain, O'Neill held out until 30 March 1603, when he surrendered on good terms to Mountjoy, signing the Treaty of Mellifont. Elizabeth I had died on 24 March. Although the war had effectively ended with the signing of the Treaty of Mellifont, its final battles were fought during the English invasion of West Breifne in April 1603, which remained the sole holdout Irish kingdom following O'Neill's capitulation. The kingdom was ruled by Brian \u00d3g O'Rourke, one of the alliance's chief lieutenants and leader of the Irish forces during the Battle of Curlew Pass. He failed to secure any concessions from the treaty as his half-brother Tadhg O'Rourke had fought with the English during the war and was granted lordship of West Breifne in return. Following a twelve-day siege, a force of 3,000 men led by Tadhg, Henry Folliott and Rory O'Donnell eventually brought the area, and thus all of Ireland, under English control on 25 April 1603.",
+      "original_question": "Who surrendered later, Rory O'Donnell or O'Neill?",
+      "original_answer_data": {
+        "spans": [
+          "O'Neill"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 356
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "At the 2011 Italian census, there were 179,149  people residing in the city. The population density was 978.9 persons per square kilometre. Minors (children ages 18 and younger) totalled 16.20 percent of the population compared to pensioners who number 22.54 percent. This compares with the Italian average of 18.06 percent (minors) and 19.94 percent (pensioners). The average age of Modena resident is 44 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Modena experienced 2.42% growth, while Italy as a whole grew by 3.56 percent. The current birth rate of Modena is 9.62 births per 1,000 inhabitants compared to the Italian average of 9.45 births.",
+      "original_question": "How many more percentage points did the population of Italy grow between 2002 and 2007 compared to Modena?",
+      "original_answer_data": {
+        "spans": [
+          "1.14"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 206
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The Rams began their 2007 campaign at home against the Carolina Panthers.  In the first quarter, St. Louis trailed early as Panthers QB Jake Delhomme completed a 10-yard TD pass to WR Drew Carter.  The Rams would tie the game with QB Marc Bulger completing a 3-yard TD pass to WR Torry Holt.  In the second quarter, St. Louis would take the lead with kicker Jeff Wilkins getting a 42-yard field goal for the only score of the period.  In the third quarter, Wiklins helped the Rams' lead with a 28-yard field goal.  However, this was all wiped out as Delhomme completed a 68-yard TD pass to WR Steve Smith.  In the fourth quarter, Carolina took over for the remainder of the game as kicker John Kasay nailed a 34-yard field goal, Delhomme and Carter hooked up with each other again on a 9-yard TD pass, and Kasay finished the game with 32-yard field goal. The game was notable when offensive tackle Orlando Pace suffered a season-ending injury. This severely hurt the Rams' offense.",
+      "original_question": "How many yards shorter was Kasay's average yards of field goals than Wilkins' average yards of field goals?",
+      "original_answer_data": {
+        "spans": [
+          "2"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 888
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Staying on the road, the Titans traveled to Dolphin Stadium for a Week 3 contest against the Miami Dolphins.  From the get-go, the Titans trailed as kicker Olindo Mare got a 40-yard field goal.  The Titans would take the lead before halftime as QB Kerry Collins completed a 27-yard TD pass to TE Bo Scaife in the second quarter.  However, in the third quarter, the Dolphins retook the lead as QB Daunte Culpepper got a touchdown on a 5-yard QB sneak.  Titans kicker Rob Bironas would tie the game up on a 22-yard field goal.  Unfortunately, in the fourth quarter, the Dolphins would be the team that walked away with win #1 as Mare booted a 39-yard field goal to drop the Titans to 0-3.",
+      "original_question": "How many more field goals did Olindo Mare make over Rob Bironas?",
+      "original_answer_data": {
+        "spans": [
+          "1"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 611
     }
   ],
   "example_indices": [
-    106,
-    107,
-    108,
-    109,
-    110
+    121,
+    122,
+    123,
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130
   ],
   "results": [
     {
       "success": true,
-      "answer": "France and Germany",
-      "output": "ANSWER_START\nFrance and Germany\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer includes Germany, which is not present in the golden answer. Therefore, the answers do not convey the same information."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Kyle Orton",
-      "output": "ANSWER_START\nKyle Orton\n\nANSWER_END\n",
+      "answer": "Chinedum Ndukwe",
+      "output": "ANSWER_START\nChinedum Ndukwe\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are exactly the same."
+        "explanation": "Both answers are identical, providing the same name: Chinedum Ndukwe."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "1,515",
-      "output": "ANSWER_START\n1,515\n\nANSWER_END\n",
+      "answer": "20",
+      "output": "ANSWER_START\n20\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers represent the same numerical value, with one using a comma as a thousands separator and the other omitting it. They are numerically equivalent."
+        "explanation": "Both answers are identical, indicating the same numerical value."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "6",
-      "output": "ANSWER_START\n6\n\nANSWER_END\n",
+      "answer": "75.80%",
+      "output": "ANSWER_START\n75.80%\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer (6) and the golden answer (14) are distinct numerical values, indicating different information. Therefore, they do not communicate the same meaning."
+        "explanation": "The values are not semantically equivalent. They don't represent the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "89.7",
-      "output": "ANSWER_START\n89.7\n\nANSWER_END\n",
+      "answer": "43-18 = 25\nVerification: 25",
+      "output": "ANSWER_START\n43-18 = 25\nVerification: 25\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are identical numerical values."
+        "explanation": "The system answer provides the correct answer (25) as a result of the calculation 43-18=25, and the golden answer is 25. Therefore, they are semantically equivalent."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "people",
+      "output": "ANSWER_START\npeople\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_14.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are exactly the same word: \"people\"."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "1",
+      "output": "ANSWER_START\n1\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_14.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer '1' does not match the golden answer '8'. They are distinct numerical values."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Verification: O'Neill",
+      "output": "ANSWER_START\nVerification: O'Neill\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_14.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers identify 'O'Neill' as the correct response. The system answer includes 'Verification:' which is extra context but does not change the answer itself."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "1.  14",
+      "output": "ANSWER_START\n1.  14\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_14.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers represent the number 14, although the golden answer includes a decimal point and a zero, implying a more precise representation. However, in this context, they are considered equivalent."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Wilkins' field goals were 42 yards and 28 yards. His average is (42 + 28) / 2 = 70 / 2 = 35 yards.\nKasay's field goals were 34 yards and 32 yards. His average is (34 + 32) / 2 = 66 / 2 = 33 yards.\nThe difference is 35 - 33 = 2 yards.\n\nVerification: 2",
+      "output": "ANSWER_START\nWilkins' field goals were 42 yards and 28 yards. His average is (42 + 28) / 2 = 70 / 2 = 35 yards.\nKasay's field goals were 34 yards and 32 yards. His average is (34 + 32) / 2 = 66 / 2 = 33 yards.\nThe difference is 35 - 33 = 2 yards.\n\nVerification: 2\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_14.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer correctly calculates the average field goal distances for both Wilkins and Kasay, and then finds the difference, arriving at the correct final answer of 2. This matches the golden answer of 2."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Verification: 1",
+      "output": "ANSWER_START\nVerification: 1\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_14.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the number 1. The system answer includes \"Verification:\" which is extra information but doesn't change the meaning of the answer."
       },
       "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.6,
-    "correct_count": 3,
-    "total_count": 5,
+    "accuracy": 0.8,
+    "correct_count": 8,
+    "total_count": 10,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "France and Germany",
-        "golden_answer": "France",
-        "output": "ANSWER_START\nFrance and Germany\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer includes Germany, which is not present in the golden answer. Therefore, the answers do not convey the same information."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 1,
-        "success": true,
-        "system_answer": "Kyle Orton",
-        "golden_answer": "Kyle Orton",
-        "output": "ANSWER_START\nKyle Orton\n\nANSWER_END\n",
+        "system_answer": "Chinedum Ndukwe",
+        "golden_answer": "Chinedum Ndukwe",
+        "output": "ANSWER_START\nChinedum Ndukwe\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are exactly the same."
+          "explanation": "Both answers are identical, providing the same name: Chinedum Ndukwe."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "20",
+        "golden_answer": "20",
+        "output": "ANSWER_START\n20\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical, indicating the same numerical value."
         }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "1,515",
-        "golden_answer": "1515",
-        "output": "ANSWER_START\n1,515\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers represent the same numerical value, with one using a comma as a thousands separator and the other omitting it. They are numerically equivalent."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "6",
-        "golden_answer": "14",
-        "output": "ANSWER_START\n6\n\nANSWER_END\n",
+        "system_answer": "75.80%",
+        "golden_answer": "24.2",
+        "output": "ANSWER_START\n75.80%\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer (6) and the golden answer (14) are distinct numerical values, indicating different information. Therefore, they do not communicate the same meaning."
+          "explanation": "The values are not semantically equivalent. They don't represent the same information."
         },
         "capability_failures": []
       },
       {
-        "sample_id": 4,
+        "sample_id": 3,
         "success": true,
-        "system_answer": "89.7",
-        "golden_answer": "89.7",
-        "output": "ANSWER_START\n89.7\n\nANSWER_END\n",
+        "system_answer": "43-18 = 25\nVerification: 25",
+        "golden_answer": "25",
+        "output": "ANSWER_START\n43-18 = 25\nVerification: 25\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical numerical values."
+          "explanation": "The system answer provides the correct answer (25) as a result of the calculation 43-18=25, and the golden answer is 25. Therefore, they are semantically equivalent."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "people",
+        "golden_answer": "people",
+        "output": "ANSWER_START\npeople\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are exactly the same word: \"people\"."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "1",
+        "golden_answer": "8",
+        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer '1' does not match the golden answer '8'. They are distinct numerical values."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "Verification: O'Neill",
+        "golden_answer": "O'Neill",
+        "output": "ANSWER_START\nVerification: O'Neill\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers identify 'O'Neill' as the correct response. The system answer includes 'Verification:' which is extra context but does not change the answer itself."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "1.  14",
+        "golden_answer": "1.14",
+        "output": "ANSWER_START\n1.  14\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the number 14, although the golden answer includes a decimal point and a zero, implying a more precise representation. However, in this context, they are considered equivalent."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "Wilkins' field goals were 42 yards and 28 yards. His average is (42 + 28) / 2 = 70 / 2 = 35 yards.\nKasay's field goals were 34 yards and 32 yards. His average is (34 + 32) / 2 = 66 / 2 = 33 yards.\nThe difference is 35 - 33 = 2 yards.\n\nVerification: 2",
+        "golden_answer": "2",
+        "output": "ANSWER_START\nWilkins' field goals were 42 yards and 28 yards. His average is (42 + 28) / 2 = 70 / 2 = 35 yards.\nKasay's field goals were 34 yards and 32 yards. His average is (34 + 32) / 2 = 66 / 2 = 33 yards.\nThe difference is 35 - 33 = 2 yards.\n\nVerification: 2\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer correctly calculates the average field goal distances for both Wilkins and Kasay, and then finds the difference, arriving at the correct final answer of 2. This matches the golden answer of 2."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "Verification: 1",
+        "golden_answer": "1",
+        "output": "ANSWER_START\nVerification: 1\n\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the number 1. The system answer includes \"Verification:\" which is extra information but doesn't change the meaning of the answer."
         }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) present in the provided error cases.\n\n## STRENGTHS\n*   The system demonstrates the ability to extract information from the passage and answer questions correctly when the logic is straightforward (Success Cases 1, 2, and 4).\n*   The system can perform basic arithmetic and comparisons when extracting numerical answers (Success Cases 2 and 4).\n\n## WEAKNESSES\n*   The system struggles with questions requiring precise extraction and filtering of information with multiple conditions (Error Case 0). It includes extraneous information, indicating a difficulty in isolating the exact information requested by the question.\n*   The system fails in more complex arithmetic operations requiring comparing values extracted from the passage (Error Case 3). It miscalculates the difference between field goal lengths.\n\n## CRITICAL BOTTLENECKS\n*   **Complex Information Extraction & Filtering:** The system's ability to precisely isolate information based on multiple criteria is a major bottleneck.\n*   **Arithmetic Reasoning:** The system struggles with calculations involving extracted numerical values.\n\n## ERROR PATTERNS\n*   **Incomplete Filtering:** The system tends to include irrelevant information in its answers, suggesting inadequate filtering based on question constraints.\n*   **Arithmetic Errors:** Incorrect calculations on extracted numerical data point to problems in arithmetic reasoning.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to accurately extract and filter information based on multiple conditions and perform accurate arithmetic calculation based on this information. Specifically, when a question requires combining information extraction with even simple arithmetic operations, the system tends to fail.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction and Filtering:** Enhance the system's ability to precisely extract the information requested by the question, excluding extraneous details. This requires improving the understanding of conditional statements in questions.\n*   **Arithmetic Reasoning:** Improve the system's accuracy in performing arithmetic calculations on extracted numerical data.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement more robust filtering mechanisms:** Refine the information extraction module to utilize more precise filtering based on question keywords and constraints. This might involve using dependency parsing to better understand the relationships between words in the question and passage.\n2.  **Develop a dedicated arithmetic reasoning module:** Implement a separate module specifically for handling arithmetic operations. This module should be able to identify the relevant numbers, understand the required operation, and perform the calculation accurately. Add unit tests to specifically evaluate this module.\n3.  **Detailed Logging:** For debugging, include a more granular logging system that captures each step of the reasoning process. This would involve logging information about what keywords are being identified, how it's filtering the information, the extracted numeric data, and the operations it is performing.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making. The system extracted the countries scheduled but failed to filter by \"more than one date\" accurately, and so the final answer was incorrect.\n*   **Sample ID 3:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making. The system successfully extracted the relevant field goal lengths, but it incorrectly calculated the difference.\n",
-      "strengths": [
-        "The system demonstrates the ability to extract information from the passage and answer questions correctly when the logic is straightforward (Success Cases 1, 2, and 4).",
-        "The system can perform basic arithmetic and comparisons when extracting numerical answers (Success Cases 2 and 4)."
-      ],
-      "weaknesses": [
-        "The system struggles with questions requiring precise extraction and filtering of information with multiple conditions (Error Case 0). It includes extraneous information, indicating a difficulty in isolating the exact information requested by the question.",
-        "The system fails in more complex arithmetic operations requiring comparing values extracted from the passage (Error Case 3). It miscalculates the difference between field goal lengths."
-      ],
-      "primary_issue": "The most critical problem is the system's inability to accurately extract and filter information based on multiple conditions and perform accurate arithmetic calculation based on this information. Specifically, when a question requires combining information extraction with even simple arithmetic operations, the system tends to fail.",
+      "text_report": "## RUNTIME ERRORS\n\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) present in the provided 'output' fields of the error cases.\n\n## STRENGTHS\n\n1.  **Correctly identifies and extracts numerical data:** The system successfully extracts numerical data from the passage in several successful cases. This includes identifying specific numbers like percentages, ages, and yards.\n2.  **Simple arithmetic calculations:** The system demonstrates proficiency in simple arithmetic, such as subtraction (sample\\_id 3) and averaging (sample\\_id 8).\n3.  **Identifies and extracts named entities:** The system successfully identifies and extracts named entities, such as person names (sample\\_id 0), locations, and team names.\n\n## WEAKNESSES\n\n1.  **Misinterpreting question intent regarding negation:** The system struggles with questions involving negation, demonstrated by its error in sample\\_id 2. It incorrectly calculates the percentage *of* non-families instead of the percentage of households that *are not* non-families.\n2.  **Difficulty identifying correct number based on context:** The system struggles to choose the correct number based on contextual information in the text, leading to errors when multiple numbers are present with similar descriptions (e.g. distances of touchdown passes). (sample\\_id 5)\n\n## CRITICAL BOTTLENECKS\n\n1.  **Lack of semantic understanding and question interpretation:** The system lacks robust semantic understanding, particularly for negations and complex relational questions. This limits its ability to accurately interpret the user's intent and apply the correct logical operations.\n2.  **Weak contextual reasoning for numerical data:** The system often fails to connect the numerical data with the correct context, resulting in choosing the wrong number from the passage. This is compounded by its limited understanding of the passage's context as a whole.\n\n## ERROR PATTERNS\n\n1. **Incorrect Handling of Negation:** The system struggles with interpreting negations within questions, leading to reversed or misinterpreted answers.\n2. **Confusion between numbers related to similar events:** The system tends to pick the incorrect number when multiple numbers refer to the same event. It often picks the first number it comes across, or fails to correctly relate specific numbers to the entities or actions they describe.\n\n## PRIMARY ISSUE\n\nThe most critical problem is **the system's inability to robustly interpret questions involving negation and to connect the numbers in the passage to the correct context.** This hinders its ability to extract the correct information and apply the correct reasoning to solve the problem.\n\n## IMPROVEMENT AREAS\n\n1.  **Enhanced Question Understanding:** Implement techniques to improve the understanding of question intent, particularly in cases involving negation, complex relational reasoning, and implicit assumptions.\n2.  **Contextual Reasoning:** Improve the system's ability to reason about the relationships between entities, events, and numerical data in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Negation Handling:** Implement specific logic or modules dedicated to processing negation in questions. This could involve using techniques such as dependency parsing to identify negated elements and adjust the reasoning process accordingly.\n2.  **Contextual Linking of Numbers:** Implement a system that keeps track of the entity to which each number in the passage refers to. Implement a method for linking the numbers in the question to the relevant numbers in the passage using contextual information. This could be achieved through techniques such as co-reference resolution and semantic role labeling.\n3.  **Add logging of intermediate reasoning steps:** Add print statements or logging to capture the intermediate reasoning steps of the system. This will allow for more granular debugging and error analysis.\n4.  **Implement a unit testing suite:** Create a set of unit tests that specifically target the identified failure modes, such as negation handling and numerical reasoning.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 2:**\n    *   information\\_extraction: Failed to understand the negation in the question.\n    *   decision\\_making: Made an incorrect decision by calculating the wrong percentage.\n*   **Sample ID 5:**\n    *   information\\_extraction: Failed to identify the correct number based on the context.\n    *   solution\\_generation: Generated an incorrect answer based on faulty information extraction.\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The most critical problem is **the system's inability to robustly interpret questions involving negation and to connect the numbers in the passage to the correct context.** This hinders its ability to extract the correct information and apply the correct reasoning to solve the problem.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here is a comprehensive capability assessment report for your AI system, based on the provided performance summary, error analysis, sample execution outputs, and other considerations:\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs confirm the Error Analysis Report. Specifically:\n\n*   **Sample ID 0 (France and Germany):** The output correctly identifies countries, but it fails to adhere to the \"more than one date\" constraint. This reflects the weakness in complex information extraction and filtering. The fact that countries *were* identified at all shows a partial capability, but the filtering component clearly failed. The output included both countries regardless of whether their schedules matched the criteria. This highlights a breakdown in filtering logic.\n*   **Sample ID 3 (1,515):** This output is an incorrect numerical answer, consistent with the identified weaknesses in arithmetic reasoning. The output reflects the total number of yards thrown (1515) in the provided context rather than the difference between field goal lengths (53 and 51 yards). This suggests the system may not have even attempted to calculate the difference, or perhaps it extracted incorrect values in the first place.\n\n### CAPABILITY ASSESSMENT\n\nThe system exhibits a baseline capability for information extraction and question answering, particularly when questions are straightforward. However, its capabilities degrade significantly when questions involve complex filtering criteria or require arithmetic operations on extracted values. The most pressing problem is the system's inability to accurately combine information extraction with arithmetic reasoning. This significantly limits its applicability to real-world scenarios where questions often require both.\n\n### KEY STRENGTHS\n\n*   **Basic Information Extraction:** The system can extract entities and facts from the given context when the extraction criteria are straightforward.\n*   **Question Understanding:** The system can generally understand the intent of the questions, even if it sometimes fails to answer them correctly.\n\n### KEY WEAKNESSES\n\n*   **Complex Information Filtering:**  The system struggles to accurately filter extracted information based on multiple conditions and constraints, resulting in extraneous or irrelevant information being included in the answer.\n*   **Arithmetic Reasoning with Extracted Data:** The system exhibits significant weaknesses in performing accurate arithmetic operations on values extracted from the text.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Complex Information Filtering**.  While arithmetic reasoning is important, it's predicated on the system first being able to accurately extract the relevant information to perform those calculations on. If the input data is incorrect, the calculation will inevitably be wrong, no matter how precise the calculation itself is.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Multi-Stage Filtering Process:**  Break down the filtering process into multiple, explicit stages. This will allow for more targeted error analysis and debugging. For example:\n    *   *Stage 1: Initial Extraction:* Extract all entities of the required type (e.g., all countries).\n    *   *Stage 2: Condition Evaluation:* Evaluate each extracted entity against each constraint in the question. Use Boolean logic to represent whether each condition is met for each entity.\n    *   *Stage 3: Final Filtering:*  Select only the entities that satisfy *all* the conditions.\n2.  **Integrate Dependency Parsing:** Use dependency parsing to understand the grammatical relationships between words in the question and the passage. This can help the system to better identify the constraints and their scope. Focus especially on understanding how quantifiers (e.g., \"more than one\") apply to different parts of the question.\n3.  **Develop Unit Tests for the Filtering Module:** Create a suite of unit tests specifically designed to test the filtering module in isolation. These tests should cover a range of scenarios with varying complexity and different types of constraints.\n4.  **Data Augmentation for Filtering:** Augment the training data with more examples that specifically target complex filtering scenarios. These examples should be designed to challenge the system's ability to identify and apply constraints. Generate synthetic data if necessary.\n\n### CAPABILITY TREND\n\nBased on the error analysis and execution outputs, the system shows a stable, but inadequate performance level. Without focused improvements, the system will likely continue to struggle with questions requiring combined information extraction, filtering and arithmetic reasoning. Implementing the actionable recommendations should, in the next iteration, show a positive trend in information extraction capabilities, leading to improvements in arithmetic reasoning.\n",
-      "strengths": [
-        "The system demonstrates the ability to extract information from the passage and answer questions correctly when the logic is straightforward (Success Cases 1, 2, and 4).",
-        "The system can perform basic arithmetic and comparisons when extracting numerical answers (Success Cases 2 and 4)."
-      ],
-      "weaknesses": [
-        "The system struggles with questions requiring precise extraction and filtering of information with multiple conditions (Error Case 0). It includes extraneous information, indicating a difficulty in isolating the exact information requested by the question.",
-        "The system fails in more complex arithmetic operations requiring comparing values extracted from the passage (Error Case 3). It miscalculates the difference between field goal lengths."
-      ],
+      "text_report": "Okay, here is a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and specified sections.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs show a consistent format:  \"ANSWER\\_START\\n[Answer]\\n\\nANSWER\\_END\\n\".  This is good for parsing programmatically. However, the content within the ANSWER\\_START and ANSWER\\_END tags reveals the issues already identified.\n\n*   **Sample ID 2 (Incorrect Percentage):**  The output \"75.80%\" suggests the system performed a calculation, but it was based on a misunderstanding of the question's intent regarding negation. This confirms the weakness identified in the error analysis.\n*   **Sample ID 5 (Not shown in outputs):** There are only three execution outputs provided, whereas sample IDs go up to 8. Assuming Sample ID 5 generated an inaccurate answer, this would further support the problem of confusion between numbers related to similar events.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic ability to extract and manipulate numerical data, and identify named entities within a given text. However, its performance is significantly hindered by a lack of deep semantic understanding, particularly regarding negation and contextual reasoning. The system struggles to accurately interpret complex questions and to link numerical data to the correct context, leading to frequent errors. The architecture, while capable of extracting information, lacks the reasoning capabilities needed for more nuanced tasks.\n\n### KEY STRENGTHS\n\n*   **Numerical Data Extraction:** The system can reliably extract numerical values from text.\n*   **Simple Arithmetic:** It performs basic arithmetic operations (addition, subtraction, averaging) reasonably well when the correct numbers are identified.\n*   **Named Entity Recognition:** Identification of names, locations, and organizations.\n\n### KEY WEAKNESSES\n\n*   **Negation Handling:** Fails to correctly interpret and process questions involving negation.\n*   **Contextual Numerical Reasoning:** Struggles to identify the correct numerical value based on contextual clues within the passage.\n*   **Lack of deep semantic understanding:** Overall limited comprehension of the text's underlying meaning and relationships between entities and events.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to improve is **Contextual Numerical Reasoning**. While negation handling is important, the ability to accurately connect numerical data to the correct context is crucial for answering a wider range of questions and achieving more reliable performance overall. Improving this will indirectly improve negation handling as well, as incorrect context can lead to misinterpreted negations.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Contextual Linking Module:**  Develop a module specifically designed to link numbers in the passage to their corresponding entities, actions, or descriptions. This module should:\n    *   **Use dependency parsing:** Analyze sentence structure to identify relationships between numbers and other words.\n    *   **Implement coreference resolution:** Determine which entities are being referred to throughout the passage.\n    *   **Develop a scoring mechanism:** Assign scores to potential links based on contextual relevance, proximity, and semantic similarity.\n\n2.  **Develop Negation Unit Tests:** Create a comprehensive suite of unit tests specifically designed to evaluate the system's ability to handle different types of negation.  These tests should cover:\n    *   Explicit negation (e.g., \"not,\" \"never\")\n    *   Implicit negation (e.g., \"except,\" \"without\")\n    *   Negation within complex sentences\n\n3.  **Enhance Logging for Numerical Reasoning:** Implement more detailed logging within the numerical reasoning module to track:\n    *   All numerical values extracted from the passage.\n    *   The context associated with each numerical value.\n    *   The reasoning process used to select the correct numerical value for a given question.\n    *   The confidence score for the selected value.\n\n4.  **Introduce a Question Decomposition Step:** Before attempting to extract information or perform calculations, decompose the question into simpler sub-questions. For instance, a question involving negation could be broken down into:\n    *   Identify the entity or event being negated.\n    *   Determine the relevant numerical value associated with the non-negated entity or event.\n    *   Perform the necessary calculation (if any).\n\n### CAPABILITY TREND\n\nBased on the error analysis, the system's capabilities are currently **stable with room for improvement**. While it demonstrates some basic skills, it struggles with more complex tasks requiring deeper semantic understanding. To change the trend toward improvement, the actionable recommendations above must be implemented and rigorously tested. Without these changes, the system will likely continue to exhibit the same weaknesses and error patterns.\n",
+      "strengths": [],
+      "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) present in the provided error cases.\n\n## STRENGTHS\n*   The system demonstrates the ability to extract information from the passage and answer questions correctly when the logic is straightforward (Success Cases 1, 2, and 4).\n*   The system can perform basic arithmetic and comparisons when extracting numerical answers (Success Cases 2 and 4).\n\n## WEAKNESSES\n*   The system struggles with questions requiring precise extraction and filtering of information with multiple conditions (Error Case 0). It includes extraneous information, indicating a difficulty in isolating the exact information requested by the question.\n*   The system fails in more complex arithmetic operations requiring comparing values extracted from the passage (Error Case 3). It miscalculates the difference between field goal lengths.\n\n## CRITICAL BOTTLENECKS\n*   **Complex Information Extraction & Filtering:** The system's ability to precisely isolate information based on multiple criteria is a major bottleneck.\n*   **Arithmetic Reasoning:** The system struggles with calculations involving extracted numerical values.\n\n## ERROR PATTERNS\n*   **Incomplete Filtering:** The system tends to include irrelevant information in its answers, suggesting inadequate filtering based on question constraints.\n*   **Arithmetic Errors:** Incorrect calculations on extracted numerical data point to problems in arithmetic reasoning.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to accurately extract and filter information based on multiple conditions and perform accurate arithmetic calculation based on this information. Specifically, when a question requires combining information extraction with even simple arithmetic operations, the system tends to fail.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction and Filtering:** Enhance the system's ability to precisely extract the information requested by the question, excluding extraneous details. This requires improving the understanding of conditional statements in questions.\n*   **Arithmetic Reasoning:** Improve the system's accuracy in performing arithmetic calculations on extracted numerical data.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement more robust filtering mechanisms:** Refine the information extraction module to utilize more precise filtering based on question keywords and constraints. This might involve using dependency parsing to better understand the relationships between words in the question and passage.\n2.  **Develop a dedicated arithmetic reasoning module:** Implement a separate module specifically for handling arithmetic operations. This module should be able to identify the relevant numbers, understand the required operation, and perform the calculation accurately. Add unit tests to specifically evaluate this module.\n3.  **Detailed Logging:** For debugging, include a more granular logging system that captures each step of the reasoning process. This would involve logging information about what keywords are being identified, how it's filtering the information, the extracted numeric data, and the operations it is performing.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making. The system extracted the countries scheduled but failed to filter by \"more than one date\" accurately, and so the final answer was incorrect.\n*   **Sample ID 3:** information\\_extraction, constraint\\_handling, solution\\_generation, solution\\_verification, decision\\_making. The system successfully extracted the relevant field goal lengths, but it incorrectly calculated the difference.\n",
-    "capability_report_text": "Okay, here is a comprehensive capability assessment report for your AI system, based on the provided performance summary, error analysis, sample execution outputs, and other considerations:\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs confirm the Error Analysis Report. Specifically:\n\n*   **Sample ID 0 (France and Germany):** The output correctly identifies countries, but it fails to adhere to the \"more than one date\" constraint. This reflects the weakness in complex information extraction and filtering. The fact that countries *were* identified at all shows a partial capability, but the filtering component clearly failed. The output included both countries regardless of whether their schedules matched the criteria. This highlights a breakdown in filtering logic.\n*   **Sample ID 3 (1,515):** This output is an incorrect numerical answer, consistent with the identified weaknesses in arithmetic reasoning. The output reflects the total number of yards thrown (1515) in the provided context rather than the difference between field goal lengths (53 and 51 yards). This suggests the system may not have even attempted to calculate the difference, or perhaps it extracted incorrect values in the first place.\n\n### CAPABILITY ASSESSMENT\n\nThe system exhibits a baseline capability for information extraction and question answering, particularly when questions are straightforward. However, its capabilities degrade significantly when questions involve complex filtering criteria or require arithmetic operations on extracted values. The most pressing problem is the system's inability to accurately combine information extraction with arithmetic reasoning. This significantly limits its applicability to real-world scenarios where questions often require both.\n\n### KEY STRENGTHS\n\n*   **Basic Information Extraction:** The system can extract entities and facts from the given context when the extraction criteria are straightforward.\n*   **Question Understanding:** The system can generally understand the intent of the questions, even if it sometimes fails to answer them correctly.\n\n### KEY WEAKNESSES\n\n*   **Complex Information Filtering:**  The system struggles to accurately filter extracted information based on multiple conditions and constraints, resulting in extraneous or irrelevant information being included in the answer.\n*   **Arithmetic Reasoning with Extracted Data:** The system exhibits significant weaknesses in performing accurate arithmetic operations on values extracted from the text.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Complex Information Filtering**.  While arithmetic reasoning is important, it's predicated on the system first being able to accurately extract the relevant information to perform those calculations on. If the input data is incorrect, the calculation will inevitably be wrong, no matter how precise the calculation itself is.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Multi-Stage Filtering Process:**  Break down the filtering process into multiple, explicit stages. This will allow for more targeted error analysis and debugging. For example:\n    *   *Stage 1: Initial Extraction:* Extract all entities of the required type (e.g., all countries).\n    *   *Stage 2: Condition Evaluation:* Evaluate each extracted entity against each constraint in the question. Use Boolean logic to represent whether each condition is met for each entity.\n    *   *Stage 3: Final Filtering:*  Select only the entities that satisfy *all* the conditions.\n2.  **Integrate Dependency Parsing:** Use dependency parsing to understand the grammatical relationships between words in the question and the passage. This can help the system to better identify the constraints and their scope. Focus especially on understanding how quantifiers (e.g., \"more than one\") apply to different parts of the question.\n3.  **Develop Unit Tests for the Filtering Module:** Create a suite of unit tests specifically designed to test the filtering module in isolation. These tests should cover a range of scenarios with varying complexity and different types of constraints.\n4.  **Data Augmentation for Filtering:** Augment the training data with more examples that specifically target complex filtering scenarios. These examples should be designed to challenge the system's ability to identify and apply constraints. Generate synthetic data if necessary.\n\n### CAPABILITY TREND\n\nBased on the error analysis and execution outputs, the system shows a stable, but inadequate performance level. Without focused improvements, the system will likely continue to struggle with questions requiring combined information extraction, filtering and arithmetic reasoning. Implementing the actionable recommendations should, in the next iteration, show a positive trend in information extraction capabilities, leading to improvements in arithmetic reasoning.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\n\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) present in the provided 'output' fields of the error cases.\n\n## STRENGTHS\n\n1.  **Correctly identifies and extracts numerical data:** The system successfully extracts numerical data from the passage in several successful cases. This includes identifying specific numbers like percentages, ages, and yards.\n2.  **Simple arithmetic calculations:** The system demonstrates proficiency in simple arithmetic, such as subtraction (sample\\_id 3) and averaging (sample\\_id 8).\n3.  **Identifies and extracts named entities:** The system successfully identifies and extracts named entities, such as person names (sample\\_id 0), locations, and team names.\n\n## WEAKNESSES\n\n1.  **Misinterpreting question intent regarding negation:** The system struggles with questions involving negation, demonstrated by its error in sample\\_id 2. It incorrectly calculates the percentage *of* non-families instead of the percentage of households that *are not* non-families.\n2.  **Difficulty identifying correct number based on context:** The system struggles to choose the correct number based on contextual information in the text, leading to errors when multiple numbers are present with similar descriptions (e.g. distances of touchdown passes). (sample\\_id 5)\n\n## CRITICAL BOTTLENECKS\n\n1.  **Lack of semantic understanding and question interpretation:** The system lacks robust semantic understanding, particularly for negations and complex relational questions. This limits its ability to accurately interpret the user's intent and apply the correct logical operations.\n2.  **Weak contextual reasoning for numerical data:** The system often fails to connect the numerical data with the correct context, resulting in choosing the wrong number from the passage. This is compounded by its limited understanding of the passage's context as a whole.\n\n## ERROR PATTERNS\n\n1. **Incorrect Handling of Negation:** The system struggles with interpreting negations within questions, leading to reversed or misinterpreted answers.\n2. **Confusion between numbers related to similar events:** The system tends to pick the incorrect number when multiple numbers refer to the same event. It often picks the first number it comes across, or fails to correctly relate specific numbers to the entities or actions they describe.\n\n## PRIMARY ISSUE\n\nThe most critical problem is **the system's inability to robustly interpret questions involving negation and to connect the numbers in the passage to the correct context.** This hinders its ability to extract the correct information and apply the correct reasoning to solve the problem.\n\n## IMPROVEMENT AREAS\n\n1.  **Enhanced Question Understanding:** Implement techniques to improve the understanding of question intent, particularly in cases involving negation, complex relational reasoning, and implicit assumptions.\n2.  **Contextual Reasoning:** Improve the system's ability to reason about the relationships between entities, events, and numerical data in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Negation Handling:** Implement specific logic or modules dedicated to processing negation in questions. This could involve using techniques such as dependency parsing to identify negated elements and adjust the reasoning process accordingly.\n2.  **Contextual Linking of Numbers:** Implement a system that keeps track of the entity to which each number in the passage refers to. Implement a method for linking the numbers in the question to the relevant numbers in the passage using contextual information. This could be achieved through techniques such as co-reference resolution and semantic role labeling.\n3.  **Add logging of intermediate reasoning steps:** Add print statements or logging to capture the intermediate reasoning steps of the system. This will allow for more granular debugging and error analysis.\n4.  **Implement a unit testing suite:** Create a set of unit tests that specifically target the identified failure modes, such as negation handling and numerical reasoning.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 2:**\n    *   information\\_extraction: Failed to understand the negation in the question.\n    *   decision\\_making: Made an incorrect decision by calculating the wrong percentage.\n*   **Sample ID 5:**\n    *   information\\_extraction: Failed to identify the correct number based on the context.\n    *   solution\\_generation: Generated an incorrect answer based on faulty information extraction.\n",
+    "capability_report_text": "Okay, here is a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and specified sections.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs show a consistent format:  \"ANSWER\\_START\\n[Answer]\\n\\nANSWER\\_END\\n\".  This is good for parsing programmatically. However, the content within the ANSWER\\_START and ANSWER\\_END tags reveals the issues already identified.\n\n*   **Sample ID 2 (Incorrect Percentage):**  The output \"75.80%\" suggests the system performed a calculation, but it was based on a misunderstanding of the question's intent regarding negation. This confirms the weakness identified in the error analysis.\n*   **Sample ID 5 (Not shown in outputs):** There are only three execution outputs provided, whereas sample IDs go up to 8. Assuming Sample ID 5 generated an inaccurate answer, this would further support the problem of confusion between numbers related to similar events.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic ability to extract and manipulate numerical data, and identify named entities within a given text. However, its performance is significantly hindered by a lack of deep semantic understanding, particularly regarding negation and contextual reasoning. The system struggles to accurately interpret complex questions and to link numerical data to the correct context, leading to frequent errors. The architecture, while capable of extracting information, lacks the reasoning capabilities needed for more nuanced tasks.\n\n### KEY STRENGTHS\n\n*   **Numerical Data Extraction:** The system can reliably extract numerical values from text.\n*   **Simple Arithmetic:** It performs basic arithmetic operations (addition, subtraction, averaging) reasonably well when the correct numbers are identified.\n*   **Named Entity Recognition:** Identification of names, locations, and organizations.\n\n### KEY WEAKNESSES\n\n*   **Negation Handling:** Fails to correctly interpret and process questions involving negation.\n*   **Contextual Numerical Reasoning:** Struggles to identify the correct numerical value based on contextual clues within the passage.\n*   **Lack of deep semantic understanding:** Overall limited comprehension of the text's underlying meaning and relationships between entities and events.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to improve is **Contextual Numerical Reasoning**. While negation handling is important, the ability to accurately connect numerical data to the correct context is crucial for answering a wider range of questions and achieving more reliable performance overall. Improving this will indirectly improve negation handling as well, as incorrect context can lead to misinterpreted negations.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Contextual Linking Module:**  Develop a module specifically designed to link numbers in the passage to their corresponding entities, actions, or descriptions. This module should:\n    *   **Use dependency parsing:** Analyze sentence structure to identify relationships between numbers and other words.\n    *   **Implement coreference resolution:** Determine which entities are being referred to throughout the passage.\n    *   **Develop a scoring mechanism:** Assign scores to potential links based on contextual relevance, proximity, and semantic similarity.\n\n2.  **Develop Negation Unit Tests:** Create a comprehensive suite of unit tests specifically designed to evaluate the system's ability to handle different types of negation.  These tests should cover:\n    *   Explicit negation (e.g., \"not,\" \"never\")\n    *   Implicit negation (e.g., \"except,\" \"without\")\n    *   Negation within complex sentences\n\n3.  **Enhance Logging for Numerical Reasoning:** Implement more detailed logging within the numerical reasoning module to track:\n    *   All numerical values extracted from the passage.\n    *   The context associated with each numerical value.\n    *   The reasoning process used to select the correct numerical value for a given question.\n    *   The confidence score for the selected value.\n\n4.  **Introduce a Question Decomposition Step:** Before attempting to extract information or perform calculations, decompose the question into simpler sub-questions. For instance, a question involving negation could be broken down into:\n    *   Identify the entity or event being negated.\n    *   Determine the relevant numerical value associated with the non-negated entity or event.\n    *   Perform the necessary calculation (if any).\n\n### CAPABILITY TREND\n\nBased on the error analysis, the system's capabilities are currently **stable with room for improvement**. While it demonstrates some basic skills, it struggles with more complex tasks requiring deeper semantic understanding. To change the trend toward improvement, the actionable recommendations above must be implemented and rigorously tested. Without these changes, the system will likely continue to exhibit the same weaknesses and error patterns.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
     "successful_runs": 10,
-    "matches": 9,
-    "accuracy": 0.9,
+    "matches": 6,
+    "accuracy": 0.6,
     "results": [
       {
         "success": true,
-        "answer": "1. 25.60% under the age of 18\n2. 32.20% from 25 to 44\n3. 22.30% from 45 to 64",
-        "output": "ANSWER_START\n1. 25.60% under the age of 18\n2. 32.20% from 25 to 44\n3. 22.30% from 45 to 64\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "under the age of 18",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer includes the golden answer, 'under the age of 18', as the first point, along with additional information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "13",
-        "output": "ANSWER_START\n13\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "13",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value, '13'."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "2",
-        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "answer": "Verification: 3",
+        "output": "ANSWER_START\nVerification: 3\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_14.jsonl",
         "golden_answer": "2",
         "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value (2)."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "4.  8",
-        "output": "ANSWER_START\n4.  8\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "4.8",
-        "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer presents two distinct numbers (4 and 8), whereas the golden answer specifies a single number (4.8). These are not semantically equivalent."
+          "explanation": "The system answer provides the value 3, while the golden answer provides the value 2. These are different numerical values and therefore do not convey the same information."
         },
         "match": false
       },
       {
         "success": true,
-        "answer": "54",
-        "output": "ANSWER_START\n54\n\nANSWER_END\n",
+        "answer": "Verification: Field Goals",
+        "output": "ANSWER_START\nVerification: Field Goals\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "54",
+        "golden_answer": "field goals",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 54."
+          "explanation": "Both answers identify the same category of plays: field goals."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "8",
-        "output": "ANSWER_START\n8\n\nANSWER_END\n",
+        "answer": "Verification: 3",
+        "output": "ANSWER_START\nVerification: 3\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "8",
+        "golden_answer": "3",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 8."
+          "explanation": "Both answers clearly state the number 3, conveying the same information."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "2",
-        "output": "ANSWER_START\n2\n\nANSWER_END\n",
+        "answer": "60",
+        "output": "ANSWER_START\n60\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "2",
+        "golden_answer": "60",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value, 2."
+          "explanation": "Both answers are the same numerical value (60)."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "16",
-        "output": "ANSWER_START\n16\n\nANSWER_END\n",
+        "answer": "Males",
+        "output": "ANSWER_START\nMales\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "16",
+        "golden_answer": "males",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 16."
+          "explanation": "The answers are the same, differing only in capitalization."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "1",
-        "output": "ANSWER_START\n1\n\nANSWER_END\n",
+        "answer": "14",
+        "output": "ANSWER_START\n14\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "12",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer '14' and the golden answer '12' are different numerical values. They do not convey the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "DeAndre Hopkins",
+        "output": "ANSWER_START\nDeAndre Hopkins\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "DeAndre Hopkins",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same entity."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Verification: 0",
+        "output": "ANSWER_START\nVerification: 0\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_14.jsonl",
         "golden_answer": "1",
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The answers are identical."
+          "explanation": "The system answer provides '0', while the golden answer is '1'. These are distinct numerical values and do not convey the same information."
         },
-        "match": true
+        "match": false
       },
       {
         "success": true,
-        "answer": "Sebastian Janikowski",
-        "output": "ANSWER_START\nSebastian Janikowski\n\nANSWER_END\n",
+        "answer": "Kris Brown",
+        "output": "ANSWER_START\nKris Brown\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "Sebastian Janikowski",
+        "golden_answer": "Ryan Moats",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers refer to different people, so they do not convey the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "Verification: 0",
+        "output": "ANSWER_START\nVerification: 0\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_14.jsonl",
+        "golden_answer": "0",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical and refer to the same name."
+          "explanation": "The system answer and the golden answer are both 0. They are equivalent."
         },
         "match": true
       }
     ]
   },
-  "execution_time": 89.56730079650879,
+  "execution_time": 97.56542325019836,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],
