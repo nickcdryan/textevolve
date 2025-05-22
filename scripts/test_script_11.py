@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 11,
-        "sample_id": "example_40",
-        "question": 'On which day, month, and year did the Hubble Telescope enter a partial safe mode following suspected hardware problems in its most advanced instrument, the Wide Field Camera 3 instrument?'
+        "sample_id": "example_46",
+        "question": 'In which year did Atul Gawande earn an M.A. in Philosophy, Politics and Economics (PPE) from Balliol College, Oxford?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 11,
-            "sample_id": "example_40",
+            "sample_id": "example_46",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'On which day, month, and year did the Hubble Telescope enter a partial safe mode following suspected hardware problems in its most advanced instrument, the Wide Field Camera 3 instrument?'
+    question = 'In which year did Atul Gawande earn an M.A. in Philosophy, Politics and Economics (PPE) from Balliol College, Oxford?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 11,
-            "sample_id": "example_40",
+            "sample_id": "example_46",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 11,
-            "sample_id": "example_40",
+            "sample_id": "example_46",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

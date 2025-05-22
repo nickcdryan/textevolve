@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 9,
-        "sample_id": "example_34",
-        "question": 'At what university did Leslie Gabriel Valiant spend the year 1973-74 as a visiting assistant professor?'
+        "sample_id": "example_842",
+        "question": "On what day, month, and year did the Canadian Centre for Inquiry's Think Again! TV document one of Popoff's performances in Toronto?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 9,
-            "sample_id": "example_34",
+            "sample_id": "example_842",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'At what university did Leslie Gabriel Valiant spend the year 1973-74 as a visiting assistant professor?'
+    question = "On what day, month, and year did the Canadian Centre for Inquiry's Think Again! TV document one of Popoff's performances in Toronto?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 9,
-            "sample_id": "example_34",
+            "sample_id": "example_842",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 9,
-            "sample_id": "example_34",
+            "sample_id": "example_842",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

@@ -1,6 +1,7 @@
 import os
+from google import genai
+from google.genai import types
 import re
-import math
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -31,86 +32,116 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def extract_information(question):
-    """Extract key information from the question, including entities and constraints."""
-    system_instruction = "You are an expert information extractor."
+def extract_entities_and_relationships(question):
+    """Extract key entities and relationships from the question using LLM with multiple examples."""
+    system_instruction = "You are an expert information extractor specializing in entities and relationships."
+
     prompt = f"""
-    Extract the key entities and constraints from the following question.
+    Extract the key entities and relationships from the following question. Provide the entities and relationships in plain text.
 
     Example 1:
-    Question: What is the capital of the country where the Great Barrier Reef is located?
-    Entities: Great Barrier Reef
-    Constraints: Location is a country, seeking its capital
+    Question: What is the name of the man who purchased Belmont on St. Saviour's Hill, Jersey, UK, in 1822?
+    Entities: man, Belmont, St. Saviour's Hill, Jersey, UK
+    Relationships: purchased Belmont on St. Saviour's Hill in 1822
 
     Example 2:
     Question: How many corners did Barcelona take in the Champions League semi-final match between Barcelona and Milan on April 27, 2006?
-    Entities: Barcelona, Champions League, Milan, April 27, 2006
-    Constraints: Corners taken by Barcelona, in that specific match
+    Entities: corners, Barcelona, Champions League semi-final, Milan, April 27, 2006
+    Relationships: Barcelona took corners in match against Milan on April 27, 2006
+
+    Example 3:
+    Question: Specify the day, month, and year in which Activision Blizzard announced the upcoming establishment of a new esports division.
+    Entities: day, month, year, Activision Blizzard, esports division
+    Relationships: Activision Blizzard announced esports division
 
     Question: {question}
-    Entities and Constraints:
+    Entities and Relationships:
     """
     return call_llm(prompt, system_instruction)
 
-def generate_search_query(question, extracted_info):
-    """Generate a search query based on the question and extracted information."""
-    system_instruction = "You are a search query generator."
+def generate_search_query(entities_and_relationships, question):
+    """Generate a search query from extracted entities and relationships using LLM with multiple examples."""
+    system_instruction = "You are an expert query generator."
+
     prompt = f"""
-    Generate a search query to answer the question, using the extracted information.
+    Generate a search query from the extracted entities and relationships. The search query should be optimized for finding the answer to the question.
 
     Example 1:
-    Question: What is the capital of Australia?
-    Extracted Info: Australia, capital
-    Search Query: "capital of Australia"
+    Question: What is the name of the man who purchased Belmont on St. Saviour's Hill, Jersey, UK, in 1822?
+    Entities and Relationships: man, Belmont, St. Saviour's Hill, Jersey, UK; purchased Belmont on St. Saviour's Hill in 1822
+    Search Query: "man purchased Belmont St. Saviour's Hill Jersey 1822"
 
     Example 2:
     Question: How many corners did Barcelona take in the Champions League semi-final match between Barcelona and Milan on April 27, 2006?
-    Extracted Info: Barcelona, Champions League, Milan, April 27, 2006, corners
-    Search Query: "Barcelona Milan Champions League April 27 2006 corner kicks"
+    Entities and Relationships: corners, Barcelona, Champions League semi-final, Milan, April 27, 2006; Barcelona took corners in match against Milan on April 27, 2006
+    Search Query: "Barcelona Milan Champions League semi-final corners April 27 2006"
+
+    Example 3:
+    Question: Specify the day, month, and year in which Activision Blizzard announced the upcoming establishment of a new esports division.
+    Entities and Relationships: day, month, year, Activision Blizzard, esports division; Activision Blizzard announced esports division
+    Search Query: "Activision Blizzard esports division announcement date"
 
     Question: {question}
-    Extracted Info: {extracted_info}
+    Entities and Relationships: {entities_and_relationships}
     Search Query:
     """
     return call_llm(prompt, system_instruction)
 
-def extract_answer(question, search_results):
-    """Extract the answer from the search results and provide a confidence score."""
-    system_instruction = "You are an answer extraction expert."
+def retrieve_information(search_query):
+    """Simulate information retrieval from a search engine."""
+    # In a real implementation, this would call an actual search API
+    system_instruction = "You are a search engine that provides concise information."
+    return call_llm(f"Provide information about: {search_query}", system_instruction)
+
+def generate_answer(question, retrieved_information):
+    """Generate the answer from the retrieved information using LLM with multiple examples."""
+    system_instruction = "You are an expert answer generator."
+
     prompt = f"""
-    Extract the answer to the question from the search results and provide a confidence score (1-10).
+    Generate an answer to the question using the retrieved information.
 
     Example 1:
-    Question: What is the capital of Australia?
-    Search Results: Canberra is the capital city of Australia.
-    Answer: Canberra (Confidence: 10)
+    Question: What is the name of the man who purchased Belmont on St. Saviour's Hill, Jersey, UK, in 1822?
+    Retrieved Information: Sir Colin Halkett purchased Belmont on St. Saviour's Hill, Jersey, UK, in 1822.
+    Answer: Sir Colin Halkett
 
     Example 2:
     Question: How many corners did Barcelona take in the Champions League semi-final match between Barcelona and Milan on April 27, 2006?
-    Search Results: Barcelona took 3 corners in the match.
-    Answer: 3 (Confidence: 10)
+    Retrieved Information: Barcelona took 3 corners in the Champions League semi-final match between Barcelona and Milan on April 27, 2006.
+    Answer: 3
+
+    Example 3:
+    Question: Specify the day, month, and year in which Activision Blizzard announced the upcoming establishment of a new esports division.
+    Retrieved Information: Activision Blizzard announced the upcoming establishment of a new esports division on 21 of October of 2015.
+    Answer: 21 of October of 2015
 
     Question: {question}
-    Search Results: {search_results}
+    Retrieved Information: {retrieved_information}
     Answer:
     """
     return call_llm(prompt, system_instruction)
 
 def validate_answer(question, answer):
-    """Validate if the extracted answer is correct and satisfies the question's requirements."""
-    system_instruction = "You are an answer validator."
+    """Validate the generated answer against the question using LLM with multiple examples."""
+    system_instruction = "You are an expert answer validator."
+
     prompt = f"""
-    Validate if the extracted answer is correct and satisfies the question's requirements. Provide a detailed explanation.
+    Validate if the answer correctly answers the question. If there are issues respond with INVALID: [explain issues], else respond with VALID: [brief explanation]
 
     Example 1:
-    Question: What is the capital of Australia?
-    Answer: Canberra (Confidence: 10)
-    Validation: VALID - The answer is correct and satisfies the question's requirements.
+    Question: What is the name of the man who purchased Belmont on St. Saviour's Hill, Jersey, UK, in 1822?
+    Answer: Sir Colin Halkett
+    Validation: VALID: The answer provides the name of the man.
 
     Example 2:
     Question: How many corners did Barcelona take in the Champions League semi-final match between Barcelona and Milan on April 27, 2006?
-    Answer: 3 (Confidence: 10)
-    Validation: VALID - The answer is correct and satisfies the question's requirements.
+    Answer: 3
+    Validation: VALID: The answer provides the number of corners.
+
+    Example 3:
+    Question: Specify the day, month, and year in which Activision Blizzard announced the upcoming establishment of a new esports division.
+    Answer: 21 of October of 2015
+    Validation: VALID: The answer provides the day, month, and year.
 
     Question: {question}
     Answer: {answer}
@@ -119,40 +150,31 @@ def validate_answer(question, answer):
     return call_llm(prompt, system_instruction)
 
 def main(question):
-    """Main function to answer the question."""
+    """
+    Solve a question using LLM by extracting entities and relationships, generating a search query,
+    retrieving information, generating an answer, and validating the answer.
+    """
     try:
-        # Step 1: Extract information
-        extracted_info = extract_information(question)
-        print(f"Extracted Info: {extracted_info}")
+        # Step 1: Extract entities and relationships
+        entities_and_relationships = extract_entities_and_relationships(question)
 
-        # Step 2: Generate search query
-        search_query = generate_search_query(question, extracted_info)
-        print(f"Search Query: {search_query}")
+        # Step 2: Generate a search query
+        search_query = generate_search_query(entities_and_relationships, question)
 
-        # Step 3: Simulate information retrieval
-        search_results = call_llm(search_query, "You are a helpful search engine that provides concise, factual information.")
-        print(f"Search Results: {search_results}")
+        # Step 3: Retrieve information
+        retrieved_information = retrieve_information(search_query)
 
-        # Step 4: Extract answer
-        extracted_answer_raw = extract_answer(question, search_results)
-        print(f"Extracted Answer (raw): {extracted_answer_raw}")
-        
-        #Split out answer and confidence score
-        try:
-            extracted_answer = extracted_answer_raw.split('(Confidence:')[0].strip()
-            confidence = int(extracted_answer_raw.split('(Confidence:')[1].replace(')','').strip())
-        except:
-            extracted_answer = extracted_answer_raw
-            confidence = 5 #low confidence score to force validation to work
+        # Step 4: Generate an answer
+        answer = generate_answer(question, retrieved_information)
 
-        # Step 5: Validate answer
-        validation_result = validate_answer(question, extracted_answer)
-        print(f"Validation Result: {validation_result}")
+        # Step 5: Validate the answer
+        validation_result = validate_answer(question, answer)
 
-        if "VALID" in validation_result:
-            return extracted_answer
+        if "VALID:" in validation_result:
+            return answer
         else:
-            return "Could not be validated."
+            return f"Error: {validation_result}"
+
     except Exception as e:
         print(f"Error: {str(e)}")
         return f"Error: {str(e)}"

@@ -1,6 +1,8 @@
 import os
 import re
-import math
+import math # for react
+from google import genai
+from google.genai import types
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -31,78 +33,101 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def main(question):
-    """Solve factual questions using a new approach: RAG with explicit source identification and verification."""
-
-    # Hypothesis: Providing the LLM with specific context from a simulated knowledge base, and then asking it to explicitly cite the source for its answer, will improve accuracy.
-    # This addresses the previous issues of inaccurate knowledge retrieval and overly strict validation by giving the LLM more focused information and requiring transparency.
-
-    # Step 1: Generate a query to retrieve relevant context from a simulated knowledge base (with examples)
-    context_query_prompt = f"""
-    Generate a concise query to retrieve relevant context from a knowledge base to answer the following question.
-
-    Example 1:
-    Question: Who was the lead programmer of Project Firebreak who helped create CYAN in Horizon Zero Dawn: The Frozen Wilds?
-    Context Query: Project Firebreak lead programmer Horizon Zero Dawn CYAN
-
-    Example 2:
-    Question: In which month and year did Apple add the ability for users to speak "Hey Siri" to enable the assistant without the requirement of physically handling the device?
-    Context Query: Apple Hey Siri release date
-
-    Question: {question}
-    Context Query:
+def retrieve_relevant_context(question, max_attempts=3):
     """
-    context_query = call_llm(context_query_prompt, system_instruction="You are an expert at generating context queries.")
+    Retrieve relevant context for the given question using LLM-based search query generation and a simulated search engine.
+    This directly addresses the hallucination and inaccurate retrieval issues from previous iterations.
+    Includes a validation loop to ensure the retrieved context is relevant.
+    """
+    system_instruction = "You are an expert at generating search queries to retrieve relevant information."
 
-    # Step 2: Simulate retrieval of context from a knowledge base (replace with actual retrieval mechanism if available)
-    simulated_knowledge_base = {
-        "Project Firebreak lead programmer Horizon Zero Dawn CYAN": "Anita Sandoval was the lead programmer of Project Firebreak, which helped create CYAN in Horizon Zero Dawn: The Frozen Wilds.",
-        "Apple Hey Siri release date": "Apple added the 'Hey Siri' feature in September 2014.",
-        "ISCB Accomplishment by a Senior Scientist Award 2019 recipient": "Bonnie Berger was the recipient of the ISCB Accomplishment by a Senior Scientist Award in 2019."
-    }
-    retrieved_context = simulated_knowledge_base.get(context_query, "No relevant context found.")
+    for attempt in range(max_attempts):
+        # Step 1: Generate search query with examples
+        query_prompt = f"""
+        Generate a concise search query to find relevant information for the given question.
 
-    # Step 3: Extract the answer from the context, *explicitly citing the source* (with examples)
-    answer_extraction_prompt = f"""
-    Given the question and the retrieved context, extract the answer and explicitly cite the source from which the answer was derived.
+        Example 1:
+        Question: In which year was Jamini Roy (an Indian painter) awarded the Padma Bhushan by the Government of India?
+        Search Query: "Jamini Roy Padma Bhushan award year"
+
+        Example 2:
+        Question: Which architect was tasked with finishing the chapel in the newly built Papal apartment when its construction remained incomplete after Pope Paul IV moved in, in October 1556?
+        Search Query: "architect finishing Papal apartment Pope Paul IV 1556"
+
+        Example 3:
+        Question: In 1993, Vaughan Jones was elected to which academy?
+        Search Query: "Vaughan Jones elected academy 1993"
+
+        Question: {question}
+        Search Query:
+        """
+        search_query = call_llm(query_prompt, system_instruction)
+
+        # Step 2: Simulate search and retrieve context
+        context = call_llm(f"Provide concise information about: {search_query}", "You are a helpful search engine.")
+
+        # Step 3: Validate context relevance with examples
+        validation_prompt = f"""
+        Validate if the retrieved context is relevant to the question.
+        If relevant, respond with "RELEVANT: [brief explanation]".
+        If not relevant, respond with "IRRELEVANT: [detailed explanation]".
+
+        Example 1:
+        Question: In which year was Jamini Roy awarded the Padma Bhushan?
+        Context: Jamini Roy received the Padma Bhushan in 1954.
+        Validation: RELEVANT: The context directly answers the question about the award year.
+
+        Example 2:
+        Question: Which architect finished the Papal apartment chapel in 1556?
+        Context: Pirro Ligorio completed the chapel in the Papal apartment in October 1556.
+        Validation: RELEVANT: The context identifies the architect and the task.
+
+        Question: {question}
+        Context: {context}
+        Validation:
+        """
+        validation_result = call_llm(validation_prompt, "You are an expert at determining the relevance of a text to a question.")
+
+        if "RELEVANT:" in validation_result:
+            return context
+        else:
+            print(f"Attempt {attempt + 1}: Retrieved context is irrelevant. Retrying...")
+
+    return "No relevant context found." # Fallback after multiple attempts
+
+def generate_answer_with_context(question, context):
+    """
+    Generate the answer using the retrieved context.
+    This leverages the LLM's reasoning capabilities to synthesize an answer based on the context.
+    """
+    system_instruction = "You are an expert at answering questions based on provided context."
+
+    prompt = f"""
+    Answer the question using the provided context. If the context does not contain the answer, state "Answer not found in context."
 
     Example 1:
-    Question: Who was the lead programmer of Project Firebreak who helped create CYAN in Horizon Zero Dawn: The Frozen Wilds?
-    Retrieved Context: Anita Sandoval was the lead programmer of Project Firebreak, which helped create CYAN in Horizon Zero Dawn: The Frozen Wilds.
-    Answer: Anita Sandoval (Source: Anita Sandoval was the lead programmer of Project Firebreak, which helped create CYAN in Horizon Zero Dawn: The Frozen Wilds.)
+    Question: In which year was Jamini Roy awarded the Padma Bhushan?
+    Context: Jamini Roy received the Padma Bhushan in 1954.
+    Answer: 1954
 
     Example 2:
-    Question: In which month and year did Apple add the ability for users to speak "Hey Siri" to enable the assistant without the requirement of physically handling the device?
-    Retrieved Context: Apple added the 'Hey Siri' feature in September 2014.
-    Answer: September 2014 (Source: Apple added the 'Hey Siri' feature in September 2014.)
+    Question: Which architect finished the Papal apartment chapel in 1556?
+    Context: Pirro Ligorio completed the chapel in the Papal apartment in October 1556.
+    Answer: Pirro Ligorio
 
     Question: {question}
-    Retrieved Context: {retrieved_context}
+    Context: {context}
     Answer:
     """
-    answer_extraction_response = call_llm(answer_extraction_prompt, system_instruction="You are an expert at extracting answers from context and citing the source.")
+    return call_llm(prompt, system_instruction)
 
-    # Step 4: Verify that the extracted answer is supported by the cited source.
-    verification_prompt = f"""
-    Verify if the extracted answer is supported by the cited source.
-
-    Example 1:
-    Question: Who was the lead programmer of Project Firebreak who helped create CYAN in Horizon Zero Dawn: The Frozen Wilds?
-    Extracted Answer: Anita Sandoval (Source: Anita Sandoval was the lead programmer of Project Firebreak, which helped create CYAN in Horizon Zero Dawn: The Frozen Wilds.)
-    Verification: The answer is supported by the source. VALID.
-
-    Example 2:
-    Question: In which month and year did Apple add the ability for users to speak "Hey Siri" to enable the assistant without the requirement of physically handling the device?
-    Extracted Answer: September 2014 (Source: Apple added the 'Hey Siri' feature in September 2014.)
-    Verification: The answer is supported by the source. VALID.
-
-    Question: {question}
-    Extracted Answer: {answer_extraction_response}
-    Verification:
+def main(question):
     """
-    verification_result = call_llm(verification_prompt, system_instruction="You are an expert at verifying answers based on provided sources.")
+    Main function: Orchestrates context retrieval and answer generation.
+    """
+    context = retrieve_relevant_context(question)
+    if "No relevant context found" in context:
+        return "Could not find the answer."
 
-    if "VALID" in verification_result:
-        return answer_extraction_response.split('(Source:')[0].strip()
-    else:
-        return "Could not be validated."
+    answer = generate_answer_with_context(question, context)
+    return answer

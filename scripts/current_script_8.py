@@ -1,6 +1,12 @@
 import os
 import re
-import math
+import math # for react
+from google import genai
+from google.genai import types
+
+# This script implements a new approach: LLM-Guided Iterative Context Expansion & Focused Summarization (LLM-ICE-FS)
+# Hypothesis: By iteratively expanding the context around key entities and then focusing summarization on the most relevant parts,
+# we can improve accuracy in question answering by capturing nuanced relationships and reducing hallucination.
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -31,93 +37,112 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def main(question, max_attempts=3):
-    """Solve factual questions using a new approach: Iterative Question Decomposition and Targeted Information Extraction with Confidence Scoring."""
-
-    # Hypothesis: Iteratively decomposing the question into smaller, more manageable parts, then extracting information targeted to each part *with explicit confidence scores* will improve accuracy. By focusing extraction on smaller components, we reduce the complexity of each extraction step.
-
-    # Step 1: Initial question decomposition (with examples)
-    decomposition_prompt = f"""
-    Decompose the question into smaller, independent sub-questions that, when answered, will collectively answer the original question.
+def extract_key_entities(question):
+    """Extract key entities from the question for context expansion."""
+    system_instruction = "You are an expert at identifying key entities in a question."
+    prompt = f"""
+    Identify the key entities (people, places, organizations, events, etc.) in the following question.
 
     Example 1:
-    Question: What is the capital of Australia and what is its population?
-    Sub-questions:
-    1. What is the capital of Australia?
-    2. What is the population of Canberra?
+    Question: What is the full name of the younger daughter of Mehbooba Mufti, a politician from Kashmir?
+    Entities: Mehbooba Mufti, daughter
 
     Example 2:
-    Question: In what year was Jamini Roy awarded the Padma Bhushan, and what was his primary artistic style?
-    Sub-questions:
-    1. In what year was Jamini Roy awarded the Padma Bhushan?
-    2. What was Jamini Roy's primary artistic style?
+    Question: In what patch did the item Mechanical Glove change to only apply its damage buff to melee weapons instead of all weapon types in Terraria?
+    Entities: Mechanical Glove, Terraria
 
     Question: {question}
-    Sub-questions:
+    Entities:
     """
-    sub_questions = call_llm(decomposition_prompt, system_instruction="You are an expert question decomposer.").split("\n")
-    print (f"Sub-questions: {sub_questions}")
+    return call_llm(prompt, system_instruction)
 
-    # Step 2: Iteratively extract targeted information for EACH sub-question AND assign confidence score
-    answers_with_confidence = []
-    for sub_question in sub_questions:
-        extraction_prompt = f"""
-        Extract a concise answer to the following sub-question, AND provide a confidence score (1-10) for the accuracy of your answer.
+def expand_context(question, entities, iteration):
+    """Expand the context around the key entities by retrieving related information."""
+    system_instruction = "You are an expert at gathering information about specific entities."
+    prompt = f"""
+    Gather relevant information about the following entities to answer the question.
 
-        Example:
-        Sub-question: What is the capital of Australia?
-        Answer: Canberra (Confidence: 9)
+    Example 1:
+    Question: What is the full name of the younger daughter of Mehbooba Mufti, a politician from Kashmir?
+    Entities: Mehbooba Mufti, daughter
+    Information: Iltija Mufti is the younger daughter of Mehbooba Mufti.
 
-        Sub-question: {sub_question}
-        Answer:
-        """
-        extracted_answer_raw = call_llm(extraction_prompt, system_instruction="You are an expert at concise answer extraction.").strip()
-
-        try:
-            extracted_answer = extracted_answer_raw.split('(Confidence:')[0].strip()
-            confidence = int(extracted_answer_raw.split('(Confidence:')[1].replace(')','').strip())
-        except:
-            extracted_answer = extracted_answer_raw
-            confidence = 5 #low confidence score to force validation to work
-
-        answers_with_confidence.append({"sub_question": sub_question, "answer": extracted_answer, "confidence": confidence})
-    print (f"Answers with confidence: {answers_with_confidence}")
-
-    # Step 3: Synthesize final answer, taking into account confidence scores (with example)
-    synthesis_prompt = f"""
-    Synthesize the answers to the sub-questions into a single, coherent answer to the original question. Consider the confidence scores of each sub-answer. If any sub-answer has low confidence (<7), indicate uncertainty.
-
-    Example:
-    Question: What is the capital of Australia and what is its population?
-    Sub-questions:
-    1. What is the capital of Australia? Answer: Canberra (Confidence: 9)
-    2. What is the population of Canberra? Answer: 450,000 (Confidence: 6)
-    Final Answer: The capital of Australia is Canberra. The population is approximately 450,000, but this number is uncertain.
+    Example 2:
+    Question: In what patch did the item Mechanical Glove change to only apply its damage buff to melee weapons instead of all weapon types in Terraria?
+    Entities: Mechanical Glove, Terraria
+    Information: The Mechanical Glove's damage buff was changed in patch 1.2.3.
 
     Question: {question}
-    Sub-questions and answers:
-    {answers_with_confidence}
-    Final Answer:
+    Entities: {entities}
+    Information:
     """
-    final_answer = call_llm(synthesis_prompt, system_instruction="You are an expert at synthesizing information.").strip()
+    return call_llm(prompt, system_instruction)
 
-    # Step 4: Validation of final answer (with example)
-    validation_prompt = f"""
-    Validate that the following extracted and synthesized answer correctly answers the original question.
+def summarize_context(question, context):
+    """Summarize the expanded context, focusing on the answer to the question."""
+    system_instruction = "You are an expert at summarizing text to answer a specific question."
+    prompt = f"""
+    Summarize the following information to answer the question, providing only the key facts.
 
-    Example:
-    Question: What is the capital of Australia and what is its population?
-    Answer: The capital of Australia is Canberra. The population is approximately 450,000, but this number is uncertain.
-    Validation: Correct; Canberra is the capital, and the population estimate reflects the lower confidence score. VALID.
+    Example 1:
+    Question: What is the full name of the younger daughter of Mehbooba Mufti, a politician from Kashmir?
+    Information: Iltija Mufti is the younger daughter of Mehbooba Mufti. Other information about Mehbooba Mufti that's not relevant.
+    Summary: Iltija Mufti
+
+    Example 2:
+    Question: In what patch did the item Mechanical Glove change to only apply its damage buff to melee weapons instead of all weapon types in Terraria?
+    Information: The Mechanical Glove's damage buff was changed in patch 1.2.3. Irrelevant information about the game.
+    Summary: 1.2.3
 
     Question: {question}
-    Answer: {final_answer}
-    Validation:
+    Information: {context}
+    Summary:
     """
+    return call_llm(prompt, system_instruction)
 
-    validation_result = call_llm(validation_prompt, system_instruction="You are an expert answer validator.")
+def verify_answer(question, answer):
+    """Verify the answer against the original question to ensure accuracy."""
+    system_instruction = "You are a critical validator who checks if the answer is factually correct and relevant."
+    prompt = f"""
+    Verify if the following answer is accurate and completely answers the question. Respond with VALID or INVALID, followed by a brief explanation.
 
-    if "VALID" in validation_result:
-        return final_answer
+    Example 1:
+    Question: What is the capital of France?
+    Answer: Paris
+    Verification: VALID: Paris is the capital of France.
+
+    Example 2:
+    Question: In what year did World War II begin?
+    Answer: 1940
+    Verification: INVALID: World War II began in 1939.
+
+    Question: {question}
+    Answer: {answer}
+    Verification:
+    """
+    return call_llm(prompt, system_instruction)
+
+def main(question):
+    """Main function to orchestrate the LLM-Guided Iterative Context Expansion & Focused Summarization process."""
+    # Step 1: Extract key entities
+    entities = extract_key_entities(question)
+    print(f"Entities: {entities}")
+
+    # Step 2: Iteratively expand context
+    context = ""
+    for i in range(2):  # Iterate twice for deeper context
+        context = expand_context(question, entities, i)
+        print(f"Context (Iteration {i+1}): {context}")
+
+    # Step 3: Summarize context to answer the question
+    answer = summarize_context(question, context)
+    print(f"Initial Answer: {answer}")
+
+    # Step 4: Verify the answer
+    verification = verify_answer(question, answer)
+    print(f"Verification result: {verification}")
+
+    if "INVALID" not in verification:
+        return answer
     else:
-        return "Could not be validated."
+        return "Could not find the answer."

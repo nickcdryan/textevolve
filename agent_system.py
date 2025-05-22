@@ -36,7 +36,6 @@ class AgentSystem:
         self.explore_rate = 60  # Start with exploration focus
         self.exploit_rate = 20  # Some exploitation
         self.refine_rate = 20   # Some refinement
-        self.force_exploitation_next = False
 
         # Store the dataset loader
         self.dataset_loader = dataset_loader
@@ -311,6 +310,8 @@ class AgentSystem:
                 "new_explore_rate", self.explore_rate)
             self.exploit_rate = sorted_summaries[0].get(
                 "new_exploit_rate", self.exploit_rate)
+            self.refine_rate = sorted_summaries[0].get(
+                "new_refine_rate", self.refine_rate)
 
             # Use the batch size from the last iteration
             self.current_batch_size = sorted_summaries[0].get(
@@ -319,7 +320,7 @@ class AgentSystem:
             print(
                 f"Loaded previous state: iteration {self.current_iteration}, "
                 +
-                f"explore/exploit: {self.explore_rate}/{self.exploit_rate}, " +
+                f"explore/exploit/refine: {self.explore_rate}/{self.exploit_rate}/{self.refine_rate}, " +
                 f"batch size: {self.current_batch_size}")
 
             # CRITICAL FIX: Always include the 5 training examples
@@ -867,38 +868,178 @@ class AgentSystem:
         except Exception as e:
             print(f"Error updating learnings: {e}")
             traceback.print_exc()  # Print full traceback for better debugging
-            
-    def adjust_explore_exploit_with_llm(self) -> Tuple[int, int]:
+
+    
+    def generate_baseline_script(self) -> str:
         """
-        Use LLM reasoning to adjust the explore/exploit balance based on 
-        performance history and current capability insights. Adapts dynamically
-        to any dataset's difficulty level rather than using fixed thresholds.
+        Generate a simple baseline script that just calls the LLM directly.
+        This establishes performance expectations for the dataset.
+
+        Returns:
+            Simple baseline script as a string
+        """
+        baseline_script = '''import os
+from google import genai
+from google.genai import types
+
+def call_llm(prompt, system_instruction=None):
+    """Call the Gemini LLM with a prompt and return the response"""
+    try:
+        # Initialize the Gemini client
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+        # Call the API with system instruction if provided
+        if system_instruction:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
+            )
+        else:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+
+        return response.text
+    except Exception as e:
+        print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
+
+def main(question):
+    """
+    Baseline script: Simple direct LLM call without sophisticated techniques.
+    This establishes the baseline performance capability for this dataset.
+    """
+    system_instruction = "You are a helpful assistant. Answer the question directly and concisely based on the information provided."
+
+    # Simple, direct call to LLM
+    answer = call_llm(question, system_instruction)
+
+    return answer
+    '''
+        return baseline_script
+
+
+    def get_baseline_performance(self) -> float:
+        """
+        Get the baseline performance from iteration 0, or None if not available.
+
+        Returns:
+            Baseline accuracy as a float, or None if baseline not established
+        """
+        iterations = self.get_all_iterations()
+        for iteration in iterations:
+            if iteration and iteration.get("iteration") == 0:
+                return iteration.get("performance", {}).get("accuracy", None)
+        return None
+
+
+    def calculate_performance_context(self, current_accuracy: float) -> Dict:
+        """
+        Calculate performance context relative to baseline for calibrated decision making.
+
+        Args:
+            current_accuracy: Current iteration's accuracy
+
+        Returns:
+            Dictionary with performance context information
+        """
+        baseline_accuracy = self.get_baseline_performance()
+
+        if baseline_accuracy is None:
+            return {
+                "baseline_available": False,
+                "relative_performance": "unknown",
+                "performance_category": "unknown",
+                "improvement_potential": "unknown"
+            }
+
+        # Calculate relative improvement
+        relative_improvement = current_accuracy - baseline_accuracy
+        relative_percentage = (relative_improvement / baseline_accuracy) * 100 if baseline_accuracy > 0 else 0
+
+        # Categorize performance based on relative improvement
+        if relative_improvement >= 0.15:  # 15+ percentage points above baseline
+            performance_category = "excellent"
+            improvement_potential = "high"  # Even excellent performance can be pushed further
+        elif relative_improvement >= 0.05:  # 5-15 percentage points above baseline
+            performance_category = "good"
+            improvement_potential = "moderate"
+        elif relative_improvement >= -0.05:  # Within 5 percentage points of baseline
+            performance_category = "baseline"
+            improvement_potential = "high"  # Lots of room for improvement
+        else:  # More than 5 percentage points below baseline
+            performance_category = "poor"
+            improvement_potential = "high"  # Definitely room for improvement
+
+        # Determine dataset difficulty context
+        if baseline_accuracy >= 0.8:
+            dataset_difficulty = "easy"
+            exploitation_threshold = 0.9  # Need very high performance to justify exploitation
+        elif baseline_accuracy >= 0.5:
+            dataset_difficulty = "moderate"
+            exploitation_threshold = baseline_accuracy + 0.2  # Need 20+ points above baseline
+        elif baseline_accuracy >= 0.2:
+            dataset_difficulty = "hard"
+            exploitation_threshold = baseline_accuracy + 0.1  # Need 10+ points above baseline
+        else:
+            dataset_difficulty = "very_hard"
+            exploitation_threshold = baseline_accuracy + 0.05  # Need 5+ points above baseline
+
+        return {
+            "baseline_available": True,
+            "baseline_accuracy": baseline_accuracy,
+            "current_accuracy": current_accuracy,
+            "relative_improvement": relative_improvement,
+            "relative_percentage": relative_percentage,
+            "performance_category": performance_category,
+            "dataset_difficulty": dataset_difficulty,
+            "exploitation_threshold": exploitation_threshold,
+            "improvement_potential": improvement_potential,
+            "should_exploit": current_accuracy >= exploitation_threshold
+        }
+
+
+    def adjust_strategy_with_llm(self) -> Tuple[int, int, int]:
+        """
+        Use LLM reasoning to adjust the strategy balance with baseline-calibrated performance context.
+
+        Returns:
+            Tuple[int, int, int]: (explore_rate, exploit_rate, refine_rate) - percentages summing to 100
         """
         iterations = self.get_all_iterations()
         summaries = self.get_summaries()
 
-        # If there aren't enough iterations yet, continue with current balance
+        # If there aren't enough iterations yet, use default balance
         if len(iterations) < 2:
-            return self.explore_rate, self.exploit_rate
+            return 60, 20, 20  # Default: heavily favor exploration initially
 
-        # Get the full performance history
+        # Get performance context for the most recent iteration
+        latest_accuracy = 0
+        if summaries:
+            latest_summary = max(summaries, key=lambda x: x.get("iteration", 0))
+            latest_accuracy = latest_summary.get("performance", {}).get("accuracy", 0)
+
+        performance_context = self.calculate_performance_context(latest_accuracy)
+
+        # Get the full performance history with baseline context
         performance_history = []
         for summary in summaries:
+            accuracy = summary.get("performance", {}).get("accuracy", 0)
+            context = self.calculate_performance_context(accuracy)
+
             performance_history.append({
-                "iteration":
-                summary.get("iteration"),
-                "accuracy":
-                summary.get("performance", {}).get("accuracy", 0),
-                "batch_size":
-                summary.get("batch_size", 5),
-                "explore_rate":
-                summary.get("explore_rate"),
-                "exploit_rate":
-                summary.get("exploit_rate"),
-                "strategy":
-                summary.get("strategy"),
-                "primary_issue":
-                summary.get("primary_issue", "None identified")
+                "iteration": summary.get("iteration"),
+                "accuracy": accuracy,
+                "batch_size": summary.get("batch_size", 5),
+                "strategy": summary.get("strategy"),
+                "primary_issue": summary.get("primary_issue", "None identified"),
+                "performance_category": context.get("performance_category", "unknown"),
+                "relative_improvement": context.get("relative_improvement", 0),
+                "relative_percentage": context.get("relative_percentage", 0)
             })
 
         # Try to get information about the best script so far
@@ -910,16 +1051,11 @@ class AgentSystem:
 
         # Prepare additional context for the LLM
         context = {
-            "iterations_completed":
-            len(summaries),
-            "best_accuracy":
-            best_script_info.get("accuracy", 0) if best_script_info else 0,
-            "best_iteration":
-            best_script_info.get("iteration", -1) if best_script_info else -1,
-            "current_balance":
-            f"{self.explore_rate}/{self.exploit_rate}",
-            "total_examples_seen":
-            len(self.seen_examples)
+            "iterations_completed": len(summaries),
+            "best_accuracy": best_script_info.get("accuracy", 0) if best_script_info else 0,
+            "best_iteration": best_script_info.get("iteration", -1) if best_script_info else -1,
+            "current_balance": f"{getattr(self, 'explore_rate', 60)}/{getattr(self, 'exploit_rate', 20)}/{getattr(self, 'refine_rate', 20)}",
+            "total_examples_seen": len(self.seen_examples)
         }
 
         # Check for capability insights if available
@@ -927,72 +1063,86 @@ class AgentSystem:
         if hasattr(self, 'capability_tracker'):
             capability_report = self.capability_tracker.generate_report()
             capability_context = {
-                "capability_scores":
-                capability_report.get("capability_scores", {}),
-                "weakest_capability":
-                capability_report.get("weakest_capabilities",
-                                      [{}])[0].get("name", None),
-                "strongest_capability":
-                capability_report.get("strongest_capabilities",
-                                      [{}])[0].get("name", None),
-                "improvement_focus":
-                capability_report.get("improvement_focus"),
-                "capability_trend":
-                capability_report.get("trend", {})
+                "weakest_capability": capability_report.get("weakest_capabilities", [{}])[0].get("name", None),
+                "strongest_capability": capability_report.get("strongest_capabilities", [{}])[0].get("name", None),
+                "improvement_focus": capability_report.get("improvement_focus"),
+                "capability_trend": capability_report.get("trend", {})
             }
 
         # Role-specific system instruction for strategy optimizer
-        strategy_optimizer_system_instruction = "You are a Strategy Optimizer. Your role is to analyze performance patterns and determine the optimal balance between exploration (trying new approaches) and exploitation (refining successful approaches)."
+        strategy_optimizer_system_instruction = "You are a Strategy Optimizer specializing in adaptive learning systems. Your role is to analyze performance patterns relative to baseline capabilities and determine the optimal balance between three distinct approaches: exploration, exploitation, and refinement."
 
-        # Create prompt for LLM to reason about explore/exploit adjustment
+        # Create prompt for LLM to reason about calibrated strategy adjustment
         prompt = f"""
-        You're optimizing the explore/exploit balance for an iterative learning system.
+        You're optimizing the strategy balance for an iterative learning system with three distinct modes.
+        CRITICAL: All performance assessments must be made relative to the baseline performance, not absolute thresholds.
+
+        PERFORMANCE CALIBRATION CONTEXT:
+        {json.dumps(performance_context, indent=2)}
+
+        KEY INSIGHTS FROM CALIBRATION:
+        - Baseline LLM performance: {performance_context.get('baseline_accuracy', 'Unknown'):.2f}
+        - Dataset difficulty: {performance_context.get('dataset_difficulty', 'Unknown')}
+        - Current performance category: {performance_context.get('performance_category', 'Unknown')}
+        - Relative improvement over baseline: {performance_context.get('relative_improvement', 0):.3f} ({performance_context.get('relative_percentage', 0):+.1f}%)
+        - Should exploit based on threshold: {performance_context.get('should_exploit', False)}
+
+        THREE STRATEGY MODES:
+        1. EXPLORE ({getattr(self, 'explore_rate', 60)}%): Generate completely novel approaches and test new hypotheses
+           - Use when performance is poor relative to baseline or when stuck at local optima
+           - Use when dataset appears easy but current performance suggests untapped potential
+
+        2. EXPLOIT ({getattr(self, 'exploit_rate', 20)}%): Combine elements from multiple successful approaches
+           - Use when multiple approaches show promise above baseline
+           - Use when performance is good but could benefit from combining strengths
+
+        3. REFINE ({getattr(self, 'refine_rate', 20)}%): Target and fix specific weaknesses in the single best script
+           - Use when one approach is clearly superior and specific improvements are identified
+           - Use when performance is strong and incremental gains are the goal
 
         Current system status:
-        - Explore rate: {self.explore_rate}%
-        - Exploit rate: {self.exploit_rate}%
+        - Current balance: {context["current_balance"]}
         - Iterations completed: {context["iterations_completed"]}
         - Best accuracy so far: {context["best_accuracy"]:.2f} (from iteration {context["best_iteration"]})
         - Total examples seen: {context["total_examples_seen"]}
 
-        Performance history (from newest to oldest):
+        Performance history with baseline context (from newest to oldest):
         {json.dumps(performance_history[-5:] if len(performance_history) > 5 else performance_history, indent=2)}
 
         {"Capability insights:" if capability_context else ""}
         {json.dumps(capability_context, indent=2) if capability_context else ""}
 
-        IMPORTANT GUIDELINES:
-        1. ADAPTIVITY: Don't rely on fixed accuracy thresholds. Assess what constitutes "good" performance in the context of this specific dataset and task.
+        CALIBRATED DECISION GUIDELINES:
 
-        2. EXPLOITATION TRIGGERS:
-           - When a script performs significantly better than previous iterations
-           - When a promising approach emerges that could benefit from refinement
-           - When several iterations of the same approach show consistent improvement
-           - When a good solution emerges after several exploration attempts
+        1. FOR EASY DATASETS (baseline ≥ 80%):
+           - Even 85-90% performance may indicate significant untapped potential
+           - Favor exploration unless achieving 95%+ consistently
+           - High standards for what constitutes "good enough" performance
 
-        3. EXPLORATION TRIGGERS:
-           - When performance has plateaued despite exploitation attempts
-           - When there's little difference between approaches tried so far
-           - When the system seems stuck in a local optimum
-           - When there have been several consecutive exploitation iterations with minimal improvement
+        2. FOR MODERATE DATASETS (baseline 50-80%):
+           - Performance 20+ points above baseline justifies some exploitation
+           - Balance exploration with refinement of successful approaches
+           - Look for opportunities to combine successful techniques
 
-        4. BALANCE CONSIDERATIONS:
-           - More aggressive shifts (±20-30%) when clear patterns emerge
-           - Moderate shifts (±10-20%) when trends are present but less definitive
-           - Small adjustments (±5-10%) when optimizing a working approach
-           - The explore/exploit rates must sum to 100
-           - Consider capability insights if available
+        3. FOR HARD DATASETS (baseline 20-50%):
+           - Performance 10+ points above baseline is genuinely good
+           - Focus on exploitation and refinement of working approaches
+           - Exploration should target specific capability gaps
 
-        5. DATASET CALIBRATION:
-           - Do not use absolute accuracy thresholds
-           - Instead, compare relative performance across iterations
-           - Treat the highest achieved accuracy as a temporary ceiling
-           - Consider trends rather than absolute values
+        4. FOR VERY HARD DATASETS (baseline < 20%):
+           - Any consistent improvement over baseline is valuable
+           - Prioritize refinement of anything that works
+           - Exploration should be very targeted based on error analysis
 
-        Determine the optimal explore/exploit balance based on these patterns rather than fixed thresholds.
+        5. ANTI-PATTERNS TO AVOID:
+           - Don't over-explore when you have genuinely good performance for the dataset difficulty
+           - Don't over-exploit when performance suggests the dataset has much higher potential
+           - Don't assume absolute performance levels without baseline context
+
+        Determine the optimal balance considering baseline-relative performance, not absolute thresholds.
 
         Provide a JSON object with:
-        {{"explore_rate": <new_explore_rate_as_integer>, "exploit_rate": <new_exploit_rate_as_integer>, "rationale": "<explanation>"}}
+        {{"explore_rate": <explore_percentage>, "exploit_rate": <exploit_percentage>, "refine_rate": <refine_percentage>, "rationale": "<detailed_explanation_referencing_baseline_context>"}}
         """
 
         # Call LLM to reason about adjustment
@@ -1000,6 +1150,7 @@ class AgentSystem:
             response = self.call_llm(
                 prompt,
                 system_instruction=strategy_optimizer_system_instruction)
+
             # Extract JSON from response
             response = response.strip()
             if response.startswith("```json"):
@@ -1010,89 +1161,72 @@ class AgentSystem:
             result = json.loads(response)
 
             # Extract values and rationale
-            new_explore = int(result.get("explore_rate", self.explore_rate))
-            new_exploit = int(result.get("exploit_rate", self.exploit_rate))
+            new_explore = int(result.get("explore_rate", 60))
+            new_exploit = int(result.get("exploit_rate", 20))
+            new_refine = int(result.get("refine_rate", 20))
             rationale = result.get("rationale", "No rationale provided")
 
             # Ensure values are reasonable
-            new_explore = max(10, min(90, new_explore))
-            new_exploit = max(10, min(90, new_exploit))
+            new_explore = max(20, min(80, new_explore))
+            new_exploit = max(10, min(60, new_exploit))
+            new_refine = max(10, min(60, new_refine))
 
             # Ensure they sum to 100
-            if new_explore + new_exploit != 100:
-                total = new_explore + new_exploit
+            total = new_explore + new_exploit + new_refine
+            if total != 100:
                 new_explore = int(round(new_explore * 100 / total))
-                new_exploit = 100 - new_explore
+                new_exploit = int(round(new_exploit * 100 / total))
+                new_refine = 100 - new_explore - new_exploit
+
+                # Final check to ensure sum is exactly 100
+                if new_explore + new_exploit + new_refine != 100:
+                    new_refine = 100 - new_explore - new_exploit
 
             # Determine if this is a significant change in strategy
-            strategy_shift = abs(new_explore - self.explore_rate)
-            if strategy_shift >= 20:
-                print(
-                    f"Major strategy shift: {self.explore_rate}/{self.exploit_rate} → {new_explore}/{new_exploit}"
-                )
-            elif strategy_shift >= 10:
-                print(
-                    f"Moderate strategy shift: {self.explore_rate}/{self.exploit_rate} → {new_explore}/{new_exploit}"
-                )
-            else:
-                print(
-                    f"Minor strategy adjustment: {self.explore_rate}/{self.exploit_rate} → {new_explore}/{new_exploit}"
-                )
+            current_explore = getattr(self, 'explore_rate', 60)
+            current_exploit = getattr(self, 'exploit_rate', 20)
+            current_refine = getattr(self, 'refine_rate', 20)
 
+            strategy_shift = abs(new_explore - current_explore) + abs(new_exploit - current_exploit) + abs(new_refine - current_refine)
+
+            if strategy_shift >= 30:
+                print(f"Major strategy shift: {current_explore}/{current_exploit}/{current_refine} → {new_explore}/{new_exploit}/{new_refine}")
+            elif strategy_shift >= 15:
+                print(f"Moderate strategy shift: {current_explore}/{current_exploit}/{current_refine} → {new_explore}/{new_exploit}/{new_refine}")
+            else:
+                print(f"Minor strategy adjustment: {current_explore}/{current_exploit}/{current_refine} → {new_explore}/{new_exploit}/{new_refine}")
+
+            print(f"Baseline context: {performance_context.get('performance_category', 'unknown')} performance on {performance_context.get('dataset_difficulty', 'unknown')} dataset")
             print(f"Rationale: {rationale}")
 
-            return new_explore, new_exploit
+            return new_explore, new_exploit, new_refine
 
         except Exception as e:
-            print(f"Error adjusting explore/exploit: {e}")
+            print(f"Error adjusting strategy: {e}")
 
-            # In case of error, use a simple adaptive heuristic based on iteration count and recent performance
-            if len(summaries) >= 3:
-                # Get the last 3 summaries to check for trends
-                recent_summaries = sorted(summaries,
-                                          key=lambda x: x.get("iteration", 0),
-                                          reverse=True)[:3]
-                accuracies = [
-                    s.get("performance", {}).get("accuracy", 0)
-                    for s in recent_summaries
-                ]
+            # Fallback using baseline context if available
+            if performance_context.get("baseline_available"):
+                dataset_difficulty = performance_context.get("dataset_difficulty", "moderate")
+                current_performance = performance_context.get("performance_category", "baseline")
 
-                # Calculate mean and standard deviation to determine what's "good" for this dataset
-                all_accuracies = [
-                    s.get("performance", {}).get("accuracy", 0)
-                    for s in summaries
-                ]
-                mean_accuracy = sum(all_accuracies) / len(
-                    all_accuracies) if all_accuracies else 0
-
-                # If recent performance is improving relative to the mean, favor exploitation
-                if accuracies[0] > mean_accuracy * 1.1:  # 10% better than mean
-                    print(
-                        "Fallback: Recent improvement detected, slightly favoring exploitation."
-                    )
-                    return max(self.explore_rate - 10,
-                               40), min(self.exploit_rate + 10, 60)
-                # If recent performance is declining relative to mean, favor exploration
-                elif accuracies[
-                        0] < mean_accuracy * 0.9:  # 10% worse than mean
-                    print(
-                        "Fallback: Recent decline detected, slightly favoring exploration."
-                    )
-                    return min(self.explore_rate + 10,
-                               60), max(self.exploit_rate - 10, 40)
-
-            # Default fallback: maintain current balance with a slight exploration bias for the first few iterations
-            if len(summaries) < 5:
-                print("Fallback: Early stages, maintaining exploration bias.")
-                return min(self.explore_rate + 5,
-                           70), max(self.exploit_rate - 5, 30)
+                if dataset_difficulty == "easy" and current_performance != "excellent":
+                    print("Fallback: Easy dataset with room for improvement, favoring exploration.")
+                    return 70, 15, 15
+                elif dataset_difficulty == "very_hard" and current_performance in ["good", "excellent"]:
+                    print("Fallback: Very hard dataset with good performance, favoring refinement.")
+                    return 25, 25, 50
+                else:
+                    print("Fallback: Balanced approach based on moderate difficulty assessment.")
+                    return 40, 30, 30
             else:
-                print("Fallback: Maintaining current explore/exploit balance.")
-                return self.explore_rate, self.exploit_rate
-
+                # Original fallback if no baseline available
+                if len(summaries) < 5:
+                    return 60, 20, 20
+                else:
+                    return 40, 30, 30
     # Modify the generate_script_with_llm method in the AgentSystem class to include learnings
 
-    def generate_script_with_llm(self, is_exploration: bool) -> str:
+    def generate_script_with_llm(self, strategy_mode) -> str:
         """
         Use the LLM to generate a script to solve dataset problems.
         Modified to work with dataset loader approach and use standard field names.
@@ -1156,7 +1290,7 @@ class AgentSystem:
 
         # Get top performing scripts for exploitation instead of just the best one
         top_scripts_to_exploit = []
-        if not is_exploration and best_scripts:
+        if not strategy_mode == "explore" and best_scripts:
             # Get the top 2-3 performing scripts (depending on how many are available)
             top_count = min(3, len(best_scripts))
             for i in range(top_count):
@@ -1226,7 +1360,7 @@ class AgentSystem:
 
         # ==== RETRIEVE LAST FIVE SCRIPTS FOR EXPLORATION CONTEXT ====
         last_scripts_context = ""
-        if is_exploration and iterations:
+        if strategy_mode == "explore" and iterations:
             # Get the last 5 iterations, sorted by recency
             sorted_iterations = sorted(iterations, key=lambda x: x.get('iteration', 0) if x and 'iteration' in x else 0, reverse=True)
             last_scripts = []
@@ -1258,10 +1392,10 @@ class AgentSystem:
                     last_scripts_context += f"```python\n{script_info['script']}\n```\n"
 
         # ==== DETERMINE STRATEGY ====
-        approach_type = "exploration" if is_exploration else "exploitation"
+        #approach_type = "exploration" if is_exploration else "exploitation"
         best_script_to_exploit = None
 
-        if not is_exploration and best_scripts:
+        if not strategy_mode == "explore" and best_scripts:
             best_script_to_exploit = best_scripts[0]
             for iteration in iterations:
                 if iteration.get("iteration") == best_script_to_exploit.get(
@@ -1560,10 +1694,10 @@ class AgentSystem:
         """
 
         # Set specific system instruction for script generation
-        script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {approach_type} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning, agentic LLM patterns, and python to solve the problem examples provided."
+        script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {strategy_mode} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning, agentic LLM patterns, and python to solve the problem examples provided."
 
         # Create appropriate prompt based on strategy
-        if is_exploration:
+        if strategy_mode == "explore":
             # Exploration prompt - now including last_scripts_context
             prompt = f"""
             You are developing a Python script to solve problems using LLM reasoning capabilities.
@@ -1657,45 +1791,152 @@ class AgentSystem:
 
             BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
             """
-        else:
-            # Exploitation prompt
-            best_script_code = ""
-            if best_script_to_exploit and 'script' in best_script_to_exploit:
-                best_script_code = f"\nFULL SCRIPT TO REFINE:\n```python\n{best_script_to_exploit.get('script', '')}\n```"
-
-            # FIX: Properly handle the accuracy formatting
-            accuracy_str = ""
-            if best_script_to_exploit:
-                accuracy_value = best_script_to_exploit.get('accuracy', 0)
-                accuracy_str = f"{accuracy_value:.2f}"
-            else:
-                accuracy_str = "N/A"
-
-            # Generate content for multiple top scripts
-            top_scripts_content = ""
+        elif strategy_mode == "exploit":
+            # Exploitation prompt - combine strengths from multiple top scripts
+    
+            # Generate content for multiple top scripts with full analysis
+            top_scripts_analysis = ""
             if top_scripts_to_exploit:
                 for i, script_info in enumerate(top_scripts_to_exploit):
                     accuracy_value = script_info.get('accuracy', 0)
                     accuracy_str = f"{accuracy_value:.2f}"
+    
+                    script_content = script_info.get('script', 'No script available')
+    
+                    top_scripts_analysis += f"\n=== TOP PERFORMING APPROACH #{i+1} ===\n"
+                    top_scripts_analysis += f"Iteration: {script_info.get('iteration', 'Unknown')}\n"
+                    top_scripts_analysis += f"Accuracy: {accuracy_str}\n"
+                    top_scripts_analysis += f"Approach Summary: {script_info.get('approach_summary', 'No summary available')}\n"
+                    top_scripts_analysis += f"\nFULL SCRIPT CODE:\n```python\n{script_content}\n```\n"
+    
+            prompt = f"""
+            You are creating a NEW Python script by SYNTHESIZING the best elements from multiple successful approaches.
+            Your goal is to identify what makes each approach successful and combine these strengths into a superior hybrid solution.
+    
+            Here are example problems from previously seen data:
+            {json.dumps(example_problems, indent=2)}
+    
+            {historical_context}
+    
+            {learning_context}
+    
+            {capability_context}
+    
+            MULTIPLE TOP PERFORMING APPROACHES TO SYNTHESIZE:
+            {top_scripts_analysis}
+    
+            EXPLOITATION SYNTHESIS GUIDANCE:
+            1. ANALYZE EACH TOP SCRIPT to identify:
+               - What specific techniques make each approach successful?
+               - What unique strengths does each approach have?
+               - What weaknesses or limitations does each approach have?
+               - Which components could be combined effectively?
+    
+            2. IDENTIFY SYNTHESIS OPPORTUNITIES:
+               - Which successful techniques from different scripts could work together?
+               - How can you combine the best reasoning patterns from multiple approaches?
+               - What hybrid approach would leverage strengths while avoiding weaknesses?
+               - Can you create a multi-stage pipeline using the best parts of each?
+    
+            3. CREATE A HYBRID APPROACH that:
+               - Takes the most effective reasoning techniques from each top script
+               - Combines different successful verification/validation strategies
+               - Integrates the best error handling approaches
+               - Merges effective prompt engineering techniques from multiple scripts
+               - Creates a more robust solution than any individual approach
+    
+            4. SPECIFIC SYNTHESIS STRATEGIES:
+               - If Script A excels at information extraction and Script B excels at reasoning, combine both
+               - If Script A has great verification and Script B has great generation, merge the pipelines
+               - If multiple scripts use different successful prompting styles, create a multi-perspective approach
+               - If different scripts handle different types of errors well, create comprehensive error handling
+    
+            5. AVOID SIMPLE COPYING:
+               - Don't just take one script and make minor changes
+               - Don't just concatenate approaches without thoughtful integration
+               - Create something that's genuinely better than the sum of its parts
+               - Ensure the hybrid approach addresses weaknesses that individual scripts had
+    
+            CRITICAL REQUIREMENTS FOR SYNTHESIS:
+            1. The script MUST be a true hybrid that combines elements from multiple top approaches
+            2. Include a clear comment explaining which elements came from which approaches
+            3. EVERY LLM PROMPT must include embedded examples showing:
+               - Sample input similar to the dataset
+               - Expected reasoning steps
+               - Desired output format
+            4. The hybrid should be more robust than any individual approach
+            5. Address the weaknesses identified in the capability assessment through synthesis
+    
+            Here's how to call the Gemini API. Use this example without modification:
+            {gemini_api_example}
+    
+            SYNTHESIS IMPLEMENTATION:
+            - Create a main function that orchestrates the combined approach
+            - Integrate the best reasoning patterns from multiple scripts
+            - Combine the most effective verification strategies
+            - Merge successful prompt engineering techniques
+            - Create comprehensive error handling that addresses issues from all approaches
+    
+            Return a COMPLETE, RUNNABLE Python script that represents a true synthesis of the top approaches:
+            1. Has a main function that takes a question string as input and returns the answer string
+            2. Combines reasoning techniques from multiple successful scripts
+            3. Integrates the best verification and error handling from different approaches
+            4. Includes embedded examples in EVERY LLM prompt
+            5. Is COMPLETE - no missing code, no "..." placeholders
+            6. Closes all string literals properly
+            7. Includes comments explaining which techniques came from which top scripts
+    
+            BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
+            CREATE A TRUE HYBRID THAT'S BETTER THAN ANY INDIVIDUAL APPROACH!
+            """
 
-                    script_content = ""
-                    if 'script' in script_info:
-                        script_content = f"\n```python\n{script_info.get('script', '')}\n```"
+        elif strategy_mode == "refine":
+            # Refinement prompt - surgical improvements to the single best script
 
-                    top_scripts_content += f"\nTOP PERFORMING APPROACH #{i+1}:\n"
-                    top_scripts_content += f"Iteration: {script_info.get('iteration', 'Unknown')}\n"
-                    top_scripts_content += f"Accuracy: {accuracy_str}\n"
-                    top_scripts_content += f"Approach Summary: {script_info.get('approach_summary', 'No summary available')}\n"
+            best_script_to_refine = None
+            if best_scripts:
+                best_script_to_refine = best_scripts[0]
+                for iteration in iterations:
+                    if iteration.get("iteration") == best_script_to_refine.get("iteration"):
+                        best_script_to_refine["script"] = iteration.get("script", "")
+                        break
 
-                    # Only include full code for the best script to avoid making prompt too long
-                    if i == 0:  # Only for the top script
-                        top_scripts_content += f"\nFULL SCRIPT TO REFINE:{script_content}\n"
-                    else:  # For other scripts, mention they're available for reference
-                        top_scripts_content += f"\nKey approach aspects (full code available for reference)\n"
+            if not best_script_to_refine or not best_script_to_refine.get("script"):
+                print("Warning: No best script found for refinement, falling back to exploration")
+                return self.generate_script_with_llm("explore")
+
+            # Get specific error analysis for the best script
+            best_script_errors = []
+            best_script_successes = []
+
+            # Find the iteration data for the best script to get detailed error info
+            for iteration in iterations:
+                if iteration and iteration.get("iteration") == best_script_to_refine.get("iteration"):
+                    results = iteration.get("results", [])
+                    samples = iteration.get("samples", [])
+
+                    for i, result in enumerate(results):
+                        sample = samples[i] if i < len(samples) else {}
+                        if result.get("success", False):
+                            if result.get("match", False):
+                                best_script_successes.append({
+                                    "question": sample.get("question", ""),
+                                    "system_answer": result.get("answer", ""),
+                                    "golden_answer": sample.get("answer", ""),
+                                    "explanation": result.get("evaluation", {}).get("explanation", "")
+                                })
+                            else:
+                                best_script_errors.append({
+                                    "question": sample.get("question", ""),
+                                    "system_answer": result.get("answer", ""),
+                                    "golden_answer": sample.get("answer", ""),
+                                    "explanation": result.get("evaluation", {}).get("explanation", "")
+                                })
+                    break
 
             prompt = f"""
-            You are improving a Python script that solves problems from a dataset.
-            Your goal is to REFINE and ENHANCE the best performing approaches by combining their strengths and addressing specific weaknesses identified in error analysis.
+            You are performing SURGICAL REFINEMENT of the single best-performing script.
+            Your goal is to identify specific weaknesses in this script and make targeted improvements while preserving its strengths.
 
             Here are example problems from previously seen data:
             {json.dumps(example_problems, indent=2)}
@@ -1706,86 +1947,92 @@ class AgentSystem:
 
             {capability_context}
 
-            TOP PERFORMING APPROACHES TO BUILD UPON:
-            {top_scripts_content}
-            {best_script_code}
+            BEST SCRIPT TO REFINE:
+            Iteration: {best_script_to_refine.get('iteration', 'Unknown')}
+            Accuracy: {best_script_to_refine.get('accuracy', 0):.2f}
+            Approach Summary: {best_script_to_refine.get('approach_summary', 'No summary available')}
 
-            PREVIOUSLY ATTEMPTED VARIATIONS:
-            {last_scripts_context}
+            CURRENT BEST SCRIPT CODE:
+            ```python
+            {best_script_to_refine.get('script', '')}
+            ```
 
-            EXPLOITATION GUIDANCE:
-            1. Review the error patterns, targeted improvements, and accumulated learnings carefully
-            2. CRITICAL: Break down the problem into distinct reasoning steps before modifying code
-            3. CRITICAL: Analyze the best scripts to identify which components are working well and which are failing. Focus your improvements on the weak points while preserving successful components.
-            4. Maintain the core successful elements of the best approaches
-            5. Consider how you can combine strengths from multiple top-performing approaches
-            6. CRITICAL: Add EMBEDDED EXAMPLES to EVERY LLM prompt that illustrate:
-               - Sample input that resembles the dataset
-               - Step-by-step reasoning through the example
-               - Properly formatted output
-            7. Focus on fixing specific issues identified in previous error analyses. Create an explicit HYPOTHESIS for each targeted improvement, as well as a way to verify if it's successful.
-            8. Enhance chain-of-thought reasoning and verification steps. Verification steps should be added to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
-            9. Apply the key insights from ACCUMULATED LEARNINGS to enhance the approach
-            10. Pay SPECIAL ATTENTION to the weaknesses and improvement suggestions from the capability assessment
+            SPECIFIC SUCCESS CASES (what the script does well):
+            {json.dumps(best_script_successes[:3], indent=2)}
 
-            IMPROVEMENT STRATEGY:
-            Analyze why the top approaches succeeded where others failed. Identify the key differentiators and strengthen them further.
+            SPECIFIC FAILURE CASES (what needs improvement):
+            {json.dumps(best_script_errors[:3], indent=2)}
 
-            SYSTEMATIC ENHANCEMENT APPROACH:
-            1. First, identify which specific function or component is underperforming based on error analysis
-            2. Examine how error cases differ from successful cases
-            3. For each identified weakness, implement a targeted enhancement
-            4. Add additional verification steps around modified components
-            5. Consider how components interact - ensure improvements don't break successful parts
+            REFINEMENT ANALYSIS GUIDANCE:
+            1. IDENTIFY THE CORE STRENGTH:
+               - What specific technique or approach makes this script successful?
+               - Which components are working well and must be preserved?
+               - What is the script's main competitive advantage?
 
-            Consider enhancing the script with one or more of these patterns:
-            - Repeated validation with feedback loops
-            - Multi-perspective analysis with synthesis
-            - Dynamic input-dependent routing
-            - Hybrid approaches combining LLM with deterministic functions
-            - Best-of-n solution generation and selection
-            - ReAct pattern for interactive reasoning and action
-            - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
-            - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for refinement with feedback
+            2. PINPOINT SPECIFIC WEAKNESSES:
+               - Where exactly do the failures occur in the processing pipeline?
+               - What specific patterns cause the script to fail?
+               - Are failures due to information extraction, reasoning, formatting, or verification?
+               - Can you identify the exact function or step where problems arise?
 
-            Here's how to call the Gemini API. Use this example without modification and don't invent configuration options:
+            3. FORM A SPECIFIC HYPOTHESIS:
+               - What is the ONE most critical weakness to address?
+               - What specific change would most likely improve performance?
+               - How can you fix this weakness without breaking the existing strengths?
+               - What verification can you add to test if your fix works?
+
+            4. SURGICAL IMPROVEMENT STRATEGY:
+               - Make the MINIMUM changes necessary to address the identified weakness
+               - Preserve all successful components and logic
+               - Add targeted verification for the specific area being improved
+               - Enhance error handling for the identified failure mode
+               - Add debugging output to verify the fix is working
+
+            SPECIFIC REFINEMENT TECHNIQUES:
+            - If failures are in information extraction: Improve prompts, add verification, better parsing
+            - If failures are in reasoning: Add chain-of-thought, verification loops, multi-step reasoning
+            - If failures are in formatting: Add output validation, format checking, retry logic
+            - If failures are inconsistent: Add confidence scoring, multiple attempts, consensus approaches
+
+            CRITICAL REFINEMENT REQUIREMENTS:
+            1. Preserve the core successful approach - don't change what's working
+            2. Make targeted, minimal changes focused on the specific weakness identified
+            3. Add verification steps specifically for the area being improved
+            4. Include debugging output to verify improvements are working
+            5. EVERY LLM PROMPT must include embedded examples
+            6. Test your hypothesis with additional verification
+
+            Here's how to call the Gemini API. Use this example without modification:
             {gemini_api_example}
 
-            Since this is an EXPLOITATION phase:
-            - Build upon what's working well in the best approaches
-            - Consider creative combinations of successful techniques from different scripts
-            - Make TARGETED improvements to address specific error patterns
-            - For EACH key LLM prompt, include a relevant example with:
-              * Sample input similar to the dataset
-              * Expected reasoning steps
-              * Desired output format
-            - Apply the knowledge from our accumulated learnings
-            - Significantly enhance the script to address weaknesses identified in the capability assessment
-
-            CRITICAL REQUIREMENTS:
-            1. The script MUST properly handle all string literals - be extremely careful with quotes and triple quotes
-            2. The script MUST NOT exceed 150 lines of code to prevent truncation
-            3. Include detailed comments explaining your improvements
-            4. EVERY SINGLE LLM PROMPT must include at least one embedded example showing:
-               - Sample input with reasoning
-               - Desired output format
-            5. Make proper use of error handling
-            6. Implement robust capabilities to address the specific weaknesses identified in the capability assessment
-            7. Do NOT use json.loads() in the LLM calls to process input data. JSON formatting is good to use to structure information as inputs and outputs, but attempting to have functions process JSON data explicitly with strict built-in functionality is error prone due to formatting issues and additional text that appears as documentation, reasoning, or comments. When passing data into another LLM call, you can read it as plain text rather than trying to load it in strict json format, is the better approach.
+            REFINEMENT IMPLEMENTATION:
+            State Your Hypothesis: Clearly comment what specific weakness you're addressing and how
+            Preserve Strengths: Keep all successful components intact
+            Targeted Fix: Implement the minimal change needed to address the weakness
+            Add Verification: Include checks to ensure your fix is working
+            Debug Output: Add print statements to track the improvement
 
             Return a COMPLETE, RUNNABLE Python script that:
-            1. Has a main function that takes a question string as input and returns the answer string
-            2. Makes multiple LLM calls for different reasoning steps
-            3. Has proper error handling for API calls
-            4. Includes embedded examples in EVERY LLM prompt
-            5. Is COMPLETE - no missing code, no "..." placeholders
-            6. Closes all string literals properly
+            1. Preserves the successful core approach of the original script
+            2. Makes targeted improvements to address the specific identified weakness
+            3. Includes a clear comment stating your improvement hypothesis
+            4. Adds verification specifically for the improved component
+            5. Includes embedded examples in EVERY LLM prompt
+            6. Is COMPLETE - no missing code, no "..." placeholders
+            7. Closes all string literals properly
+
+            REFINEMENT HYPOTHESIS: [State your specific hypothesis about what to improve and why in a comment]
 
             BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
+            MAKE SURGICAL IMPROVEMENTS WHILE PRESERVING THE SCRIPT'S CORE STRENGTHS!
             """
+            
 
+
+            
         # Write prompt to scripts/ directory
         prompt_path = self.scripts_dir / f"prompt_{self.current_iteration}.txt"
+        
         with open(prompt_path, 'w', encoding='utf-8') as f:
             f.write(prompt)
         
@@ -3426,94 +3673,113 @@ except Exception as e:
         }
 
     def run_iteration(self) -> Dict:
-        """Run a single iteration of the agent system with capability tracking"""
+        """Run a single iteration of the agent system with baseline-calibrated three-mode strategy"""
 
-        
         print(f"\n=== Starting Iteration {self.current_iteration} ===")
-        print(f"Current explore/exploit balance: {self.explore_rate}/{self.exploit_rate}")
-        print(f"Current batch size: {self.current_batch_size}")
-        print(f"Total seen examples: {len(self.seen_examples)}")
 
         iteration_start_time = time.time()
 
-        # Get capability report if available
-        capability_report = None
-        if hasattr(self, 'capability_tracker'):
-            capability_report = self.capability_tracker.generate_report()
-            if capability_report:
-                print("\n=== Current Capability Status ===")
+        # Handle baseline generation for iteration 0
+        if self.current_iteration == 0:
+            print("Generating baseline script to calibrate performance expectations...")
+            script = self.generate_baseline_script()
+            strategy_mode = "baseline"
+            approach_summary = "Simple baseline script: Direct LLM call without sophisticated techniques"
 
-                # Display strengths and weaknesses...
-                if capability_report.get("strengths"):
-                    print("\n  Strengths:")
-                    for strength in capability_report.get("strengths", [])[:2]:
-                        print(f"    - {strength}")
-                if capability_report.get("weaknesses"):
-                    print("\n  Weaknesses:")
-                    for weakness in capability_report.get("weaknesses", [])[:2]:
-                        print(f"    - {weakness}")
-                if capability_report.get("improvement_suggestions"):
-                    print("\n  Suggested Improvements:")
-                    for suggestion in capability_report.get("improvement_suggestions", [])[:2]:
-                        print(f"    - {suggestion}")
-                print("=" * 40)
+            # Hard code: Use larger batch size for baseline to get more accurate measurement
+            baseline_batch_size = 10
+            original_batch_size = self.current_batch_size
+            self.current_batch_size = baseline_batch_size
+            print(f"Using {baseline_batch_size} examples for baseline (vs normal batch size of {original_batch_size})")
 
-        # Decide whether to explore or exploit
-        if self.force_exploitation_next:
-            is_exploration = False
-            self.force_exploitation_next = False
-            print("Forcing exploitation based on previous good performance")
+            capability_report = None
+
         else:
-            is_exploration = random.random() * 100 <= self.explore_rate
+            # Display current strategy balance and performance context
+            print(f"Current strategy balance: {self.explore_rate}/{self.exploit_rate}/{self.refine_rate}")
 
-        # If we have capability data with clear trends, potentially override the strategy
-        if capability_report and capability_report.get("trend") != "insufficient_data":
-            weakest_capability = capability_report.get("improvement_focus", "")
-            trends = capability_report.get("trend", {})
-            weakest_trend = trends.get(weakest_capability) if isinstance(trends, dict) else None
+            # Get and display performance context
+            summaries = self.get_summaries()
+            if summaries:
+                latest_summary = max(summaries, key=lambda x: x.get("iteration", 0))
+                latest_accuracy = latest_summary.get("performance", {}).get("accuracy", 0)
+                performance_context = self.calculate_performance_context(latest_accuracy)
 
-            # Strategy overrides based on trends...
-            if weakest_trend == "declining":
-                if not is_exploration:
-                    print(f"Strategy override: Forcing exploration to address declining capability: {weakest_capability}")
-                    is_exploration = True
-            if isinstance(trends, dict):
-                improving_count = sum(1 for trend in trends.values() if trend == "improving")
-                if improving_count == len(trends) and is_exploration and improving_count > 0:
-                    print(f"Strategy override: Forcing exploitation to capitalize on improving capabilities")
-                    is_exploration = False
+                if performance_context.get("baseline_available"):
+                    print(f"Performance context: {performance_context.get('performance_category', 'unknown')} performance on {performance_context.get('dataset_difficulty', 'unknown')} dataset")
+                    print(f"Relative to baseline: {performance_context.get('relative_improvement', 0):+.3f} ({performance_context.get('relative_percentage', 0):+.1f}%)")
 
-        strategy = "Exploration" if is_exploration else "Exploitation"
-        print(f"Strategy for this iteration: {strategy}")
+            print(f"Current batch size: {self.current_batch_size}")
+            print(f"Total seen examples: {len(self.seen_examples)}")
 
-        # Generate script using LLM BEFORE getting test samples
-        print("Generating script with LLM...")
+            # Get capability report if available
+            capability_report = None
+            if hasattr(self, 'capability_tracker'):
+                capability_report = self.capability_tracker.generate_report()
+                if capability_report:
+                    print("\n=== Current Capability Status ===")
+                    if capability_report.get("strengths"):
+                        print("\n  Strengths:")
+                        for strength in capability_report.get("strengths", [])[:2]:
+                            print(f"    - {strength}")
+                    if capability_report.get("weaknesses"):
+                        print("\n  Weaknesses:")
+                        for weakness in capability_report.get("weaknesses", [])[:2]:
+                            print(f"    - {weakness}")
+                    if capability_report.get("improvement_suggestions"):
+                        print("\n  Suggested Improvements:")
+                        for suggestion in capability_report.get("improvement_suggestions", [])[:2]:
+                            print(f"    - {suggestion}")
+                    print("=" * 40)
 
-        # Get capability insights
-        capability_guidance = ""
-        if capability_report:
-            capability_guidance = self._generate_capability_guidance(capability_report)
-            print("Generated capability guidance based on performance analysis")
-            if capability_report:
-                capability_guidance = self._generate_capability_guidance(capability_report)
+            # Decide which strategy mode to use based on probabilities
+            strategy_roll = random.random() * 100
 
-        # Generate script before getting any test samples - prevent data leakage
-        script = self.generate_script_with_llm(is_exploration)
+            if strategy_roll < self.explore_rate:
+                strategy_mode = "explore"
+            elif strategy_roll < (self.explore_rate + self.exploit_rate):
+                strategy_mode = "exploit"
+            else:
+                strategy_mode = "refine"
 
+            # Override strategy based on capability trends if available
+            if capability_report and capability_report.get("trend") != "insufficient_data":
+                weakest_capability = capability_report.get("improvement_focus", "")
+                trends = capability_report.get("trend", {})
+                weakest_trend = trends.get(weakest_capability) if isinstance(trends, dict) else None
+
+                # Strategy overrides based on trends
+                if weakest_trend == "declining":
+                    if strategy_mode != "explore":
+                        print(f"Strategy override: Forcing exploration to address declining capability: {weakest_capability}")
+                        strategy_mode = "explore"
+                elif isinstance(trends, dict):
+                    improving_count = sum(1 for trend in trends.values() if trend == "improving")
+                    if improving_count == len(trends) and strategy_mode == "explore" and improving_count > 0:
+                        print(f"Strategy override: Forcing exploitation to capitalize on improving capabilities")
+                        strategy_mode = "exploit"
+
+            print(f"Strategy for this iteration: {strategy_mode}")
+
+            # Generate script using LLM BEFORE getting test samples
+            print("Generating script with LLM...")
+            script = self.generate_script_with_llm(strategy_mode)
+
+            # Generate approach summary
+            try:
+                approach_summary = self.generate_approach_summary(script)
+                if approach_summary.startswith("API_RATE_LIMIT_EXCEEDED"):
+                    approach_summary = "Approach summary not available due to API rate limit"
+            except Exception as e:
+                approach_summary = f"Error generating approach summary: {str(e)}"
+
+            print(f"Approach summary: {approach_summary}")
+
+        # Perform script verification and repair
         print("Performing initial script verification and repair...")
         script = self.attempt_script_repair(script, max_attempts=3)
 
-        # Generate a summary of the approach
-        try:
-            approach_summary = self.generate_approach_summary(script)
-            if approach_summary.startswith("API_RATE_LIMIT_EXCEEDED"):
-                approach_summary = "Approach summary not available due to API rate limit"
-        except Exception as e:
-            approach_summary = f"Error generating approach summary: {str(e)}"
-
-        print(f"Approach summary: {approach_summary}")
-
-        # AFTER script generation, get the test samples that the script hasn't seen
+        # Get test samples that the script hasn't seen
         samples_data = self.get_samples()
         samples = samples_data["samples"]
 
@@ -3528,7 +3794,7 @@ except Exception as e:
         results = []
         for i, sample in enumerate(samples):
             print(f"  Processing sample {i+1}/{len(samples)}...")
-            #print ("***/nSAMPLE/n****", sample)
+
             # Execute the script with the full sample dictionary
             result = self.execute_script(script, sample)
 
@@ -3563,10 +3829,17 @@ except Exception as e:
 
             results.append(result)
 
+        # Restore original batch size after baseline measurement
+        if self.current_iteration == 0:
+            self.current_batch_size = original_batch_size
+            print(f"Restored batch size to {original_batch_size} for future iterations")
+
         # Calculate basic performance metrics
         successful_runs = sum(1 for r in results if r.get("success", False))
         matches = sum(1 for r in results if r.get("match", False))
         accuracy = matches / len(samples) if samples else 0
+
+        print(f"Performance: {accuracy:.2f} accuracy ({matches}/{len(samples)} correct)")
 
         # Basic evaluation summary
         basic_evaluation = {
@@ -3576,8 +3849,6 @@ except Exception as e:
             "evaluations": results
         }
 
-        print(f"Performance: {accuracy:.2f} accuracy " + f"({matches}/{len(samples)} correct)")
-
         # Use LLM for deeper error analysis
         try:
             print("Performing error analysis with LLM...")
@@ -3586,25 +3857,24 @@ except Exception as e:
                 primary_issue = evaluation.get('error_analysis', {}).get('primary_issue', 'None')
                 print(f"Primary issue identified: {primary_issue}")
                 # Display strengths, weaknesses, and improvement suggestions
-                if "error_analysis" in evaluation and evaluation["error_analysis"]:
-                    error_analysis = evaluation["error_analysis"]
-                    if "strengths" in error_analysis and error_analysis["strengths"]:
-                        print("\n=== Strengths Identified ===")
-                        for strength in error_analysis["strengths"]:
-                            print(f"  - {strength}")
-                    if "weaknesses" in error_analysis and error_analysis["weaknesses"]:
-                        print("\n=== Weaknesses Identified ===")
-                        for weakness in error_analysis["weaknesses"]:
-                            print(f"  - {weakness}")
-                    if "bottlenecks" in error_analysis and error_analysis["bottlenecks"]:
-                        print("\n=== Critical Bottlenecks ===")
-                        for bottleneck in error_analysis["bottlenecks"]:
-                            print(f"  - {bottleneck}")
-                    if "improvement_suggestions" in error_analysis and error_analysis["improvement_suggestions"]:
-                        print("\n=== Improvement Suggestions ===")
-                        for suggestion in error_analysis["improvement_suggestions"][:3]:
-                            print(f"  - {suggestion}")
-                    print("=" * 40)
+                error_analysis = evaluation.get("error_analysis", {})
+                if error_analysis.get("strengths"):
+                    print("\n=== Strengths Identified ===")
+                    for strength in error_analysis["strengths"]:
+                        print(f"  - {strength}")
+                if error_analysis.get("weaknesses"):
+                    print("\n=== Weaknesses Identified ===")
+                    for weakness in error_analysis["weaknesses"]:
+                        print(f"  - {weakness}")
+                if error_analysis.get("bottlenecks"):
+                    print("\n=== Critical Bottlenecks ===")
+                    for bottleneck in error_analysis["bottlenecks"]:
+                        print(f"  - {bottleneck}")
+                if error_analysis.get("improvement_suggestions"):
+                    print("\n=== Improvement Suggestions ===")
+                    for suggestion in error_analysis["improvement_suggestions"][:3]:
+                        print(f"  - {suggestion}")
+                print("=" * 40)
             else:
                 print("No specific issues identified")
         except Exception as e:
@@ -3617,10 +3887,9 @@ except Exception as e:
                 "root_causes": [str(e)]
             }
 
-        # Run progressive testing on all seen examples for promising scripts
+        # Run progressive testing on promising scripts (but don't force exploitation)
         progressive_testing_results = None
         if accuracy >= 0.6:
-            self.force_exploitation_next = True
             try:
                 print("Script looks promising! Running progressive testing on all seen examples...")
                 progressive_testing_results = self.run_progressive_testing(script, max_examples=10)
@@ -3634,24 +3903,30 @@ except Exception as e:
                 print(f"Error in progressive testing: {str(e)}")
                 progressive_testing_results = None
 
-        # Adjust explore/exploit balance for next iteration
-        try:
-            print("Adjusting explore/exploit balance...")
-            new_explore, new_exploit = self.adjust_explore_exploit_with_llm()
-            print(f"New explore/exploit balance: {new_explore}/{new_exploit}")
-        except Exception as e:
-            print(f"Error adjusting explore/exploit balance: {str(e)}")
-            new_explore, new_exploit = self.explore_rate, self.exploit_rate
-            print(f"Maintaining current explore/exploit balance: {new_explore}/{new_exploit}")
+        # Adjust strategy balance for next iteration (skip for baseline)
+        new_explore = self.explore_rate
+        new_exploit = self.exploit_rate  
+        new_refine = self.refine_rate
 
-        # Adjust batch size for next iteration
+        if self.current_iteration > 0:
+            try:
+                print("Adjusting strategy balance...")
+                new_explore, new_exploit, new_refine = self.adjust_strategy_with_llm()
+                print(f"New strategy balance: {new_explore}/{new_exploit}/{new_refine}")
+            except Exception as e:
+                print(f"Error adjusting strategy balance: {str(e)}")
+                print("Maintaining current strategy balance")
+
+        # Adjust batch size for next iteration  
+        new_batch_size = self.current_batch_size
+        batch_adjustment_rationale = "No adjustment needed"
+
         try:
             print("Adjusting batch size...")
             new_batch_size, batch_adjustment_rationale = self.adjust_batch_size_with_llm(basic_evaluation)
             print(f"New batch size: {new_batch_size} ({batch_adjustment_rationale})")
         except Exception as e:
             print(f"Error adjusting batch size: {str(e)}")
-            new_batch_size = self.current_batch_size
             batch_adjustment_rationale = f"Error: {str(e)}"
             print(f"Maintaining current batch size: {new_batch_size}")
 
@@ -3686,7 +3961,7 @@ except Exception as e:
                 print(f"Rationale: {best_script_info.get('rationale')}")
 
                 # Display capability assessment for the best script if available
-                if hasattr(self, 'capability_tracker') and capability_report:
+                if capability_report:
                     print("\n  Capability Assessment:")
                     improvement_focus = capability_report.get("improvement_focus", "")
                     if improvement_focus:
@@ -3707,14 +3982,15 @@ except Exception as e:
         iteration_data = {
             "iteration": self.current_iteration,
             "timestamp": datetime.datetime.now().isoformat(),
-            "strategy": strategy,
+            "strategy": strategy_mode,
             "explore_rate": self.explore_rate,
             "exploit_rate": self.exploit_rate,
+            "refine_rate": self.refine_rate,
             "batch_size": self.current_batch_size,
             "script": script,
             "approach_summary": approach_summary,
             "sample_count": len(samples),
-            "samples": samples,  # Add the original samples
+            "samples": samples,
             "samples_metadata": [sample.get("meta", {}) for sample in samples],
             "example_indices": list(range(self.examples_processed - len(samples), self.examples_processed)),
             "results": results,
@@ -3728,9 +4004,10 @@ except Exception as e:
         summary = {
             "iteration": self.current_iteration,
             "timestamp": datetime.datetime.now().isoformat(),
-            "strategy": strategy,
+            "strategy": strategy_mode,
             "explore_rate": self.explore_rate,
             "exploit_rate": self.exploit_rate,
+            "refine_rate": self.refine_rate,
             "batch_size": self.current_batch_size,
             "approach_summary": approach_summary,
             "performance": {
@@ -3742,6 +4019,7 @@ except Exception as e:
             "primary_issue": evaluation.get("error_analysis", {}).get("primary_issue", "None identified"),
             "new_explore_rate": new_explore,
             "new_exploit_rate": new_exploit,
+            "new_refine_rate": new_refine,
             "new_batch_size": new_batch_size,
             "capability_report": capability_report
         }
@@ -3753,26 +4031,13 @@ except Exception as e:
         except Exception as e:
             print(f"Error saving iteration data: {str(e)}")
 
-        # Update explore/exploit rates for next iteration
+        # Update strategy rates for next iteration
         self.explore_rate = new_explore
         self.exploit_rate = new_exploit
+        self.refine_rate = new_refine
 
         # Update batch size for next iteration
         self.current_batch_size = new_batch_size
-
-        # TURN OFF script viz
-        # Generate execution flow visualization
-        # print("\nGenerating execution flow visualization...")
-        # script_path = self.scripts_dir / f"script_iteration_{self.current_iteration}.py"
-        # try:
-        #     import subprocess
-        #     subprocess.run(
-        #         [sys.executable, "script_flow_graph.py", str(script_path)],
-        #         check=False  # Don't raise exception on non-zero exit
-        #     )
-        #     print("Visualization saved!")
-        # except Exception as e:
-        #     print(f"Error generating visualization: {e}")
 
         # Increment iteration counter
         self.current_iteration += 1

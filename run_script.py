@@ -46,7 +46,7 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
     print(f"Dataset: {loader_config.get('dataset_path')}")
     print(f"Loader type: {loader_type}")
     print(f"Shuffle data: {loader_config.get('shuffle', True)}")
-    print(f"Starting with explore/exploit balance: {agent.explore_rate}/{agent.exploit_rate}")
+    print(f"Starting with explore/exploit/refine balance: {agent.explore_rate}/{agent.exploit_rate}/{agent.refine_rate}")
     print(f"Starting batch size: {agent.current_batch_size}")
     print("-" * 80)
 
@@ -91,6 +91,7 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
             batch_size = summary.get("batch_size", 5)
             explore = summary.get("explore_rate", 0)
             exploit = summary.get("exploit_rate", 0)
+            refine = summary.get("refine_rate", 0)
             prog_accuracy = summary.get("progressive_accuracy", None)
 
             # Get progressive testing sample count
@@ -122,7 +123,7 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
                 combined_acc = (total_correct / total_samples) * 100
                 combined_acc_str = f"{combined_acc:.2f}%"
 
-            print(f"{iteration:<8} {strategy:<12} {batch_accuracy:<12.2f}% {prog_acc_str:<16} {combined_acc_str:<12} {batch_size:<10} {prog_samples:<10} {explore}/{exploit:<10} {issue}")
+            print(f"{iteration:<8} {strategy:<12} {batch_accuracy:<12.2f}% {prog_acc_str:<16} {combined_acc_str:<12} {batch_size:<10} {prog_samples:<10} {explore}/{exploit}/{refine:<10} {issue}")
 
     # Get best script info - with error handling
     try:
@@ -159,10 +160,7 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
         print(f"Error getting best script info: {e}")
         print("Could not determine best script due to an error.")
 
-    # Final explore/exploit balance and batch size
-    print(
-        f"\nFinal explore/exploit balance: {agent.explore_rate}/{agent.exploit_rate}"
-    )
+
     print(f"Final batch size: {agent.current_batch_size}")
     print(f"Total examples seen: {len(agent.seen_examples)}")
     print("=" * 80)

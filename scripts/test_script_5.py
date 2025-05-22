@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 5,
-        "sample_id": "example_22",
-        "question": 'What was the name of the second runner-up of Miss USA 1976?'
+        "sample_id": "example_29",
+        "question": 'Which scientist received the William Henry Twenhofel Medal in 1978?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 5,
-            "sample_id": "example_22",
+            "sample_id": "example_29",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'What was the name of the second runner-up of Miss USA 1976?'
+    question = 'Which scientist received the William Henry Twenhofel Medal in 1978?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 5,
-            "sample_id": "example_22",
+            "sample_id": "example_29",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 5,
-            "sample_id": "example_22",
+            "sample_id": "example_29",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

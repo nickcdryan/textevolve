@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 6,
-        "sample_id": "example_25",
-        "question": 'What\'s the first and last name of the linguist who wrote the paper "Pre- and postnominal onymic genitives in (Early) New High German: A multifactorial analysis"?'
+        "sample_id": "example_32",
+        "question": 'Who was the first president of the Supreme Court of Argentina?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 6,
-            "sample_id": "example_25",
+            "sample_id": "example_32",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'What\'s the first and last name of the linguist who wrote the paper "Pre- and postnominal onymic genitives in (Early) New High German: A multifactorial analysis"?'
+    question = 'Who was the first president of the Supreme Court of Argentina?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 6,
-            "sample_id": "example_25",
+            "sample_id": "example_32",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 6,
-            "sample_id": "example_25",
+            "sample_id": "example_32",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

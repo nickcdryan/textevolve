@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 7,
-        "sample_id": "example_28",
-        "question": 'In which month and year did "Flying" magazine publish "Battling the Big Lie: John King\'s Crusade to Change Aviation\'s Culture"?'
+        "sample_id": "example_290",
+        "question": 'In what year was Oliviero Diliberto first elected as an MP for the Communist Refoundation Party?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 7,
-            "sample_id": "example_28",
+            "sample_id": "example_290",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'In which month and year did "Flying" magazine publish "Battling the Big Lie: John King\'s Crusade to Change Aviation\'s Culture"?'
+    question = 'In what year was Oliviero Diliberto first elected as an MP for the Communist Refoundation Party?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 7,
-            "sample_id": "example_28",
+            "sample_id": "example_290",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 7,
-            "sample_id": "example_28",
+            "sample_id": "example_290",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

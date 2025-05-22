@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 0,
-        "sample_id": "example_7",
-        "question": "What is the name of the man who purchased Belmont on St. Saviour's Hill, Jersey, UK, in 1822?"
+        "sample_id": "example_14",
+        "question": 'What is the name of the individual who was awarded the Paul Karrer Gold Medal in 2004?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 0,
-            "sample_id": "example_7",
+            "sample_id": "example_14",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "What is the name of the man who purchased Belmont on St. Saviour's Hill, Jersey, UK, in 1822?"
+    question = 'What is the name of the individual who was awarded the Paul Karrer Gold Medal in 2004?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 0,
-            "sample_id": "example_7",
+            "sample_id": "example_14",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 0,
-            "sample_id": "example_7",
+            "sample_id": "example_14",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

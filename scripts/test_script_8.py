@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 8,
-        "sample_id": "example_31",
-        "question": 'During which years was Otto Schlüter a professor of geography at the University of Halle?'
+        "sample_id": "example_28",
+        "question": 'In which episode and season of South Park does Bill Cosby (BSM-471) first appear? Give me the number and title.'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 8,
-            "sample_id": "example_31",
+            "sample_id": "example_28",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'During which years was Otto Schlüter a professor of geography at the University of Halle?'
+    question = 'In which episode and season of South Park does Bill Cosby (BSM-471) first appear? Give me the number and title.'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 8,
-            "sample_id": "example_31",
+            "sample_id": "example_28",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 8,
-            "sample_id": "example_31",
+            "sample_id": "example_28",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

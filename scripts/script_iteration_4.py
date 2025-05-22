@@ -1,6 +1,8 @@
 import os
 import re
-import math
+import math # for react
+from google import genai
+from google.genai import types
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -31,74 +33,97 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def main(question, max_attempts=3):
-    """Solve factual questions using a fact verification with multi-source integration approach."""
-
-    # Hypothesis: Explicitly searching for validating sources and integrating information from multiple sources before answering will increase accuracy. This addresses the previous issues of inaccurate knowledge retrieval and ineffective information extraction.
-
-    # Step 1: Generate multiple search queries (n=3) to find validating sources.
-    search_query_prompt = f"""
-    Generate three diverse search queries to find independent validating sources for the following question.
-
-    Example 1:
-    Question: What is the name of the individual who was awarded the Paul Karrer Gold Medal in 2004?
-    Queries:
-    1. "Paul Karrer Gold Medal 2004 recipient"
-    2. "Who won Paul Karrer Gold Medal 2004"
-    3. "Awardees of Paul Karrer Gold Medal in 2004"
-
-    Question: {question}
-    Queries:
+def generate_query_and_validate(question, max_attempts=3):
     """
-    search_queries = call_llm(search_query_prompt, system_instruction="You are an expert at generating diverse search queries.").split("\n")
+    Generates a search query from a question and validates its effectiveness by assessing
+    if the top search snippets contain key entities and relationships needed to answer the question.
+    Returns both the generated query and top search snippets.
+    """
+    system_instruction_query_gen = "You are an expert at generating effective search queries that help answer questions."
+    system_instruction_search_validator = "You are an expert at validating whether a set of search snippets are relevant to answering the question"
+    # Hypothesis: By generating and validating the query BEFORE retrieving the information, we can significantly improve the information retrieval and hallucination problems that are causing the pipeline to fail
+    for attempt in range(max_attempts):
+        # Step 1: Generate Search Query with Examples
+        query_prompt = f"""
+        Generate a search query to retrieve information needed to answer the question.
 
-    # Step 2: Simulate retrieval of context from the web for each query and VERIFY that a source exists
-    retrieved_contexts = []
-    for query in search_queries:
-        context = f"Simulated web search results for: {query}. Placeholder for real search functionality."
-        # Verify that results are not empty
-        verification_prompt = f"""Question: {question} Search query: {query}. Retrieved context: {context}. Is the context useful to answering the question? Answer 'yes' or 'no'."""
-        verification_result = call_llm(verification_prompt, "Validating retrieved context")
-        retrieved_contexts.append(context if "yes" in verification_result.lower() else "No relevant context found.")
-    
-    # Step 3: Extract answers from *each* context, and then synthesize them.
-    answer_extraction_prompt = f"""
-    Given the question and retrieved contexts from multiple sources, extract an answer from each. Then, synthesize a final answer, considering the consistency and reliability of the sources.
-    Question: {question}
+        Example 1:
+        Question: What was the first name of Ralph E. Oesper?
+        Search Query: Ralph E. Oesper first name
 
-    Context 1: {retrieved_contexts[0]}
-    Context 2: {retrieved_contexts[1]}
-    Context 3: {retrieved_contexts[2]}
+        Example 2:
+        Question: In which year did Maharaj Kishan Bhan receive the Padma Bhushan for civil services?
+        Search Query: Maharaj Kishan Bhan Padma Bhushan year
+
+        Question: {question}
+        Search Query:
+        """
+        search_query = call_llm(query_prompt, system_instruction_query_gen)
+        # Step 2: Simulate Retrieving Top Search Snippets - IMPORTANT: IN A REAL SYSTEM THIS WOULD BE SEARCH API
+        search_snippets = call_llm(f"Provide top 3 search snippets for: {search_query}", "You are a helpful search engine providing realistic search results.")
+
+        # Step 3: Validate Relevance of Search Snippets with Examples
+        validation_prompt = f"""
+        Determine if the following search snippets are relevant to answering the question. If they are, respond with "RELEVANT: [brief explanation]". If not, respond with "IRRELEVANT: [detailed explanation]".
+
+        Example 1:
+        Question: What was the first name of Ralph E. Oesper?
+        Search Snippets: Ralph Oesper was a professor...; His middle name was E...; There is no information on his first name.
+        Validation: IRRELEVANT: The snippets don't reveal his first name.
+
+        Example 2:
+        Question: In which year did Maharaj Kishan Bhan receive the Padma Bhushan for civil services?
+        Search Snippets: Maharaj Kishan Bhan received the Padma Bhushan in 2013; He was a scientist; He worked in civil services.
+        Validation: RELEVANT: Snippets contain MKB and the year he received the award
+
+        Question: {question}
+        Search Snippets: {search_snippets}
+        Validation:
+        """
+        validation_result = call_llm(validation_prompt, system_instruction_search_validator)
+
+        if "RELEVANT:" in validation_result:
+            return search_query, search_snippets # Return both the search query and relevant context
+        else:
+            print(f"Attempt {attempt + 1}: Search snippets deemed irrelevant. Trying again...")
+
+    return None, None  # Return None if no relevant context is found
+def generate_answer_with_snippets(question, search_snippets):
+    """
+    Generates an answer using the validated search snippets, ensuring that the answer
+    is directly supported by the information in the snippets.
+    """
+    system_instruction = "You are an expert at answering question given relevant search snippets"
+    # Now we leverage the search snippets to answer the question directly
+    answer_prompt = f"""
+    Answer the question using ONLY the information present in the search snippets.
 
     Example 1:
-    Question: What is the capital of Australia?
-    Context 1: Canberra is the capital city of Australia.
-    Context 2: Australia's capital is Canberra.
-    Context 3: Canberra serves as the capital of the Commonwealth of Australia.
-    Answer: Canberra, based on multiple consistent sources.
+    Question: What was the first name of Ralph E. Oesper?
+    Search Snippets: No results found.
+    Answer: Answer not found.
 
+    Example 2:
+    Question: In which year did Maharaj Kishan Bhan receive the Padma Bhushan for civil services?
+    Search Snippets: Maharaj Kishan Bhan was awarded the Padma Bhushan in 2013.; He was a famous scientist.
+    Answer: 2013
+
+    Question: {question}
+    Search Snippets: {search_snippets}
     Answer:
     """
-    final_answer = call_llm(answer_extraction_prompt, system_instruction="You are an expert at extracting and synthesizing answers from multiple sources.")
+    answer = call_llm(answer_prompt, system_instruction)
+    return answer
 
-    # Step 4: Final validation that the synthesized answer answers the question
-    validation_prompt = f"""
-    Validate that the following extracted and synthesized answer correctly answers the question.
-
-    Question: {question}
-    Answer: {final_answer}
-
-    Example:
-    Question: What is the capital of Australia?
-    Answer: Canberra, based on multiple consistent sources.
-    Validation: Correct; Canberra is the capital of Australia.
-
-    Validation:
+def main(question):
     """
+    Main function to orchestrate the validated query generation, information retrieval (simulated),
+    and answer generation process.
+    """
+    search_query, search_snippets = generate_query_and_validate(question)
 
-    validation_result = call_llm(validation_prompt, system_instruction="You are an expert answer validator.")
-
-    if "Correct" in validation_result:
-        return final_answer
+    if search_query and search_snippets:
+        answer = generate_answer_with_snippets(question, search_snippets)
+        return answer
     else:
-        return "Could not be validated."
+        return "Answer not found." # If not able to retrieve reliable context then return not found

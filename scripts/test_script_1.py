@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 1,
-        "sample_id": "example_10",
-        "question": 'Who was the first cardiologist in Kashmir?'
+        "sample_id": "example_17",
+        "question": 'In what year did Etta Cone last visit Europe?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 1,
-            "sample_id": "example_10",
+            "sample_id": "example_17",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'Who was the first cardiologist in Kashmir?'
+    question = 'In what year did Etta Cone last visit Europe?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 1,
-            "sample_id": "example_10",
+            "sample_id": "example_17",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 1,
-            "sample_id": "example_10",
+            "sample_id": "example_17",
             "error": str(e),
             "traceback": traceback.format_exc()
         }
