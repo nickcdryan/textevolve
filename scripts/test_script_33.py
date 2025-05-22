@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 33,
-        "sample_id": "6571bf0a-9c45-4d3f-b6f9-4caa2e8725ea",
-        "question": 'PASSAGE: The number of Soviet prisoners of war during the Continuation War  was about 64,000. Most of them were captured in 1941 . The first Soviet POWs were taken in June 1941 and were transferred to reserve prisons in Karvia, Köyliö, Huittinen and Pelso . Soon Finnish administration realized that the number of POWs was much greater than initially estimated, and established 32 new prison camps in 1941-1944. However, all of them were not used at the same time as POWs were used as a labour force in different projects around the country. The Finns did not pay much attention to the living conditions of the Soviet POWs at the beginning of the war, as the war was expected to be of short duration. The quantity and quality of camp personnel was very low, as the more qualified men were at the front. It was not until the middle of 1942 that the quantity and quality of camp personnel was improved. There was a shortage of labour in Finland and authorities assigned POWs to forest and agricultural work, as well as the construction of fortification lines. Some Soviet officers cooperated with the Finnish authorities and were released from prison by the end of the war. Finnic prisoners who were captured on the fronts or transferred by Germany were separated from other Soviet POWs. At the end of 1942 volunteers could join the Finnish battalion Heimopataljoona 3, which consisted of Finnic peoples such as Karelians, Ingrian Finns, Votes and Veps.\n\nQUESTION: 32 new prison camps were created in only how many years?'
+        "sample_id": "example_106",
+        "question": 'How many siblings did Elizabeth Spencer, Baroness Hunsdon, have?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 33,
-            "sample_id": "6571bf0a-9c45-4d3f-b6f9-4caa2e8725ea",
+            "sample_id": "example_106",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: The number of Soviet prisoners of war during the Continuation War  was about 64,000. Most of them were captured in 1941 . The first Soviet POWs were taken in June 1941 and were transferred to reserve prisons in Karvia, Köyliö, Huittinen and Pelso . Soon Finnish administration realized that the number of POWs was much greater than initially estimated, and established 32 new prison camps in 1941-1944. However, all of them were not used at the same time as POWs were used as a labour force in different projects around the country. The Finns did not pay much attention to the living conditions of the Soviet POWs at the beginning of the war, as the war was expected to be of short duration. The quantity and quality of camp personnel was very low, as the more qualified men were at the front. It was not until the middle of 1942 that the quantity and quality of camp personnel was improved. There was a shortage of labour in Finland and authorities assigned POWs to forest and agricultural work, as well as the construction of fortification lines. Some Soviet officers cooperated with the Finnish authorities and were released from prison by the end of the war. Finnic prisoners who were captured on the fronts or transferred by Germany were separated from other Soviet POWs. At the end of 1942 volunteers could join the Finnish battalion Heimopataljoona 3, which consisted of Finnic peoples such as Karelians, Ingrian Finns, Votes and Veps.\n\nQUESTION: 32 new prison camps were created in only how many years?'
+    question = 'How many siblings did Elizabeth Spencer, Baroness Hunsdon, have?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 33,
-            "sample_id": "6571bf0a-9c45-4d3f-b6f9-4caa2e8725ea",
+            "sample_id": "example_106",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 33,
-            "sample_id": "6571bf0a-9c45-4d3f-b6f9-4caa2e8725ea",
+            "sample_id": "example_106",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

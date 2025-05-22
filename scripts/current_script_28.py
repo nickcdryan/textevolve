@@ -2,149 +2,9 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach with enhanced reasoning and validation.
-    """
-    try:
-        # Step 1: Analyze question to identify type and keywords, including calculation need
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage using keywords, now with unit awareness
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer, explicitly instructing to perform calculations if needed
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer, checking for calculation completeness and unit inclusion
-        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes question, identifying type, keywords, and if calculation is needed. Includes examples."""
-    system_instruction = "You are an expert question analyzer determining type, keywords, and calculation needs."
-    prompt = f"""
-    Analyze the question, identify its type (fact extraction, calculation, comparison), keywords, and if calculation is needed.
-
-    Example 1:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_needed": false}}
-
-    Example 2:
-    Question: How many more yards did Chris Johnson gain than LenDale White?
-    Analysis: {{"type": "comparison", "keywords": ["yards", "Chris Johnson", "LenDale White"], "calculation_needed": true}}
-
-    Example 3:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_needed": false}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts relevant passage based on keywords. Focuses on unit awareness. Includes examples."""
-    system_instruction = "You are an expert at extracting relevant passages, focusing on unit awareness."
-    prompt = f"""
-    Extract the relevant passage based on the question, keywords, and especially units.
-
-    Example 1:
-    Question: How many yards did Chris Johnson gain?
-    Keywords: {{"keywords": ["yards", "Chris Johnson"]}}
-    Text: PASSAGE: Chris Johnson ran for 120 yards.
-    Passage: Chris Johnson ran for 120 yards.
-
-    Example 2:
-    Question: What was the final score?
-    Keywords: {{"keywords": ["final score"]}}
-    Text: PASSAGE: The final score was 27-14.
-    Passage: The final score was 27-14.
-
-     Example 3:
-    Question: How many touchdowns were scored in the first quarter?
-    Keywords: {{"keywords": ["touchdowns", "first quarter"]}}
-    Text: PASSAGE: Two touchdowns were scored in the first quarter.
-    Passage: Two touchdowns were scored in the first quarter.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates answer, with explicit instruction to perform calculation if needed. Includes examples."""
-    system_instruction = "You are an expert at generating answers, performing calculations if needed."
-    prompt = f"""
-    Generate the answer, performing any necessary calculations based on the question type.
-
-    Example 1:
-    Question: What was the final score of the game?
-    Passage: The final score was 27-14.
-    Answer: 27-14
-
-    Example 2:
-    Question: How many yards did Chris Johnson gain?
-    Passage: Chris Johnson ran for 120 yards.
-    Answer: 120 yards
-
-    Example 3:
-    Question: How many more yards did Chris Johnson gain than LenDale White?
-    Passage: Chris Johnson ran for 120 yards. LenDale White ran for 80 yards.
-    Answer: 40 yards
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Analysis: {question_analysis}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage, question_analysis):
-    """Verifies answer, checking calculation completeness and unit inclusion. Includes examples."""
-    system_instruction = "You are an expert at verifying answers, checking calculations and units."
-    prompt = f"""
-    Verify the answer, checking that all necessary calculations were completed and units are included. Return the answer if correct, else return the correct answer.
-
-    Example 1:
-    Question: What was the final score of the game?
-    Answer: 27-14
-    Passage: The final score was 27-14.
-    Verification: 27-14
-
-    Example 2:
-    Question: How many yards did Chris Johnson gain?
-    Answer: 120 yards
-    Passage: Chris Johnson ran for 120 yards.
-    Verification: 120 yards
-
-    Example 3:
-    Question: How many more yards did Chris Johnson gain than LenDale White?
-    Answer: 40 yards
-    Passage: Chris Johnson ran for 120 yards. LenDale White ran for 80 yards.
-    Verification: 40 yards
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Analysis: {question_analysis}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
+# Hypothesis: Implementing a two-stage retrieval and focused summarization approach with self-reflection.
+# The first stage retrieves broad information, then the second stage summarizes with respect to the question.
+# A self-reflection mechanism validates the answer.
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response."""
@@ -156,7 +16,7 @@ def call_llm(prompt, system_instruction=None):
 
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -171,4 +31,71 @@ def call_llm(prompt, system_instruction=None):
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
+
+def initial_info_retrieval(question):
+    """Retrieve initial information related to the question."""
+    system_instruction = "You are an information retrieval expert. Find relevant background information."
+    prompt = f"""
+    Provide background information that could be useful in answering the question.
+
+    Example:
+    Question: What is the capital of Australia?
+    Background Information: Australia is a country in the southern hemisphere. Its largest city is Sydney, but its capital is Canberra.
+
+    Question: {question}
+    Background Information:
+    """
+    return call_llm(prompt, system_instruction)
+
+def focused_summarization(question, background_info):
+    """Summarize the background information, focusing on the question."""
+    system_instruction = "You are a summarization expert, focusing on answering the given question."
+    prompt = f"""
+    Summarize the background information with respect to the specific question.
+
+    Example:
+    Question: What is the capital of Australia?
+    Background Information: Australia is a country in the southern hemisphere. Its largest city is Sydney, but its capital is Canberra.
+    Focused Summary: The capital of Australia is Canberra.
+
+    Question: {question}
+    Background Information: {background_info}
+    Focused Summary:
+    """
+    return call_llm(prompt, system_instruction)
+
+def self_reflection_validation(question, summarized_info):
+    """Validate the summarized information and answer the question."""
+    system_instruction = "You are a validation expert, verifying the accuracy of the information and answering the question."
+    prompt = f"""
+    Validate the summarized information and answer the question concisely. Determine if it answers the question accurately, and provide a concise answer. If validation fails respond with 'Could not be validated.'
+
+    Example:
+    Question: What is the capital of Australia?
+    Summarized Information: The capital of Australia is Canberra.
+    Validation and Answer: Canberra
+
+    Question: {question}
+    Summarized Information: {summarized_info}
+    Validation and Answer:
+    """
+    validation_result = call_llm(prompt, system_instruction)
+    return validation_result
+
+def main(question):
+    """Solve questions using two-stage retrieval and self-reflection."""
+    try:
+        # Initial Information Retrieval
+        background_info = initial_info_retrieval(question)
+
+        # Focused Summarization
+        summarized_info = focused_summarization(question, background_info)
+
+        # Self-Reflection Validation and Answer
+        validation_result = self_reflection_validation(question, summarized_info)
+
+        return validation_result
+
+    except Exception as e:
         return f"Error: {str(e)}"

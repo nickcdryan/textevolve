@@ -2,171 +2,6 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach with enhanced error handling and explicit examples.
-    This approach focuses on breaking down the problem into question type identification,
-    focused passage extraction, and direct answer generation with verification.
-    """
-    try:
-        # Step 1: Identify question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer
-        verified_answer = verify_answer(question, answer, relevant_passage)
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-
-    Example 4: 
-    Question: How many points was the most scored by one team in any game?
-    Analysis: {{"type": "calculation", "keywords": ["points", "most", "scored", "team"]}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the following text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-
-    Example 4:
-    Question: How many points was the most scored by one team in any game?
-    Keywords: {{"type": "calculation", "keywords": ["points", "most", "scored", "team"]}}
-    Text: PASSAGE: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131.
-    Passage: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question type.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-
-    Example 4:
-    Question: How many points was the most scored by one team in any game?
-    Passage: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131.
-    Answer: 113
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage):
-    """Verifies the generated answer. Includes multiple examples."""
-    system_instruction = "You are an expert at verifying answers to questions."
-    prompt = f"""
-    Verify the following answer to the question based on the relevant passage.  Return the answer if it is correct.  Return the correct answer if it is incorrect.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Verification: 2
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Verification: Josh Scobee
-
-    Example 4:
-    Question: How many points was the most scored by one team in any game?
-    Answer: 113
-    Passage: During the 2006 playoffs the two rivals met again. San Antonio won the first game at home 87\u201385. The Mavericks got revenge the next game, winning 113\u201391 and evening the series up at 1\u20131.
-    Verification: 113
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
-
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
@@ -195,3 +30,104 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question, max_attempts=3):
+    """Solve factual questions using a new approach: Knowledge Base Selection and Targeted Fact Verification."""
+
+    # Hypothesis: Prioritizing the selection of the most relevant simulated knowledge base BEFORE query formulation and then employing targeted fact verification against that knowledge base will improve accuracy. This contrasts with previous approaches that focused on query refinement or concept expansion.
+    #This approach seeks to minimize errors caused by using the wrong context from the start.
+
+    # Step 1: Knowledge Base Selection (with examples)
+    kb_selection_prompt = f"""
+    Select the most relevant knowledge base for answering the question. Choose ONE of the following options.
+
+    Options:
+    1. General Knowledge
+    2. Historical Events
+    3. Scientific Data
+    4. Biographical Information
+    5. Geographical Data
+
+    Example 1:
+    Question: What is the capital of Australia?
+    Knowledge Base: Geographical Data
+
+    Example 2:
+    Question: Who was the lead programmer for Project Firebreak?
+    Knowledge Base: Biographical Information
+
+    Question: {question}
+    Knowledge Base:
+    """
+    selected_kb = call_llm(kb_selection_prompt, system_instruction="You are an expert at selecting the most relevant knowledge base.").strip()
+    print(f"Selected Knowledge Base: {selected_kb}")
+
+    # Step 2: Generate Targeted Search Query (with examples, based on selected KB)
+    query_generation_prompt = f"""
+    Generate a search query tailored to the selected knowledge base that will help answer the question.
+
+    Knowledge Base: {selected_kb}
+    Example 1:
+    Question: What is the capital of Australia?
+    Knowledge Base: Geographical Data
+    Query: "capital of Australia geographical data"
+
+    Example 2:
+    Question: Who was the lead programmer for Project Firebreak?
+    Knowledge Base: Biographical Information
+    Query: "lead programmer Project Firebreak biographical information"
+
+    Question: {question}
+    Query:
+    """
+    targeted_query = call_llm(query_generation_prompt, system_instruction="You are an expert at generating targeted search queries.").strip()
+    print(f"Targeted Query: {targeted_query}")
+
+    # Step 3: Simulate Information Retrieval (Simulate retrieval from selected KB)
+    retrieved_info = call_llm(f"Simulated web search results from {selected_kb} for: {targeted_query}. Focus on concise and relevant results.", "You are a search engine.")
+    print(f"Retrieved Information: {retrieved_info}")
+
+    # Step 4: Extract Answer from Retrieved Information (with examples)
+    answer_extraction_prompt = f"""
+    Extract the concise answer to the original question from the retrieved information.
+    Example 1:
+    Question: What is the capital of Australia?
+    Retrieved Info: Canberra is the capital of Australia.
+    Answer: Canberra
+
+    Example 2:
+    Question: Who was the lead programmer for Project Firebreak?
+    Retrieved Info: John Smith was the lead programmer for Project Firebreak.
+    Answer: John Smith
+
+    Question: {question}
+    Retrieved Info: {retrieved_info}
+    Answer:
+    """
+    extracted_answer = call_llm(answer_extraction_prompt, system_instruction="You are an expert at concise answer extraction.").strip()
+    print(f"Extracted Answer: {extracted_answer}")
+
+    # Step 5: Targeted Fact Verification (Validate answer against selected KB)
+    fact_verification_prompt = f"""
+    Verify if the extracted answer is a factually correct and complete answer to the original question, given the knowledge base. Respond with "VALID" or "INVALID".
+    Knowledge Base: {selected_kb}
+    Example 1:
+    Question: What is the capital of Australia?
+    Answer: Canberra
+    Verification: VALID
+
+    Example 2:
+    Question: Who was the lead programmer for Project Firebreak?
+    Answer: John Smith
+    Verification: VALID
+
+    Question: {question}
+    Answer: {extracted_answer}
+    Verification:
+    """
+    verification_result = call_llm(fact_verification_prompt, system_instruction="You are a strict fact verifier.").strip()
+
+    if "VALID" in verification_result:
+        return extracted_answer
+    else:
+        return "Could not be validated."

@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 9,
-        "sample_id": "d72db8a7-56ab-4301-8a44-0445adff35e2",
-        "question": 'PASSAGE: In 1996, Japan ranked fourth in the world in fishing industry by country. Japan captured 4,074,580 metric tons of fish in 2005, down from 4,987,703 tons in 2000, 9,558,615 tons in 1990, 9,864,422 tons in 1980, 8,520,397 tons in 1970, 5,583,796 tons in 1960 and 2,881,855 tons in 1950. In 2003, the total aquaculture production was predicted at 1,301,437 tonnes. In 2010, Japans total fisheries production was 4,762,469 fish. Offshore fisheries accounted for an average of 50% of the nations total fish catches in the late 1980s although they experienced repeated ups and downs during that period.\n\nQUESTION: Did Japan capture more metric tons of fish in 1980 or 1990?'
+        "sample_id": "example_34",
+        "question": 'At what university did Leslie Gabriel Valiant spend the year 1973-74 as a visiting assistant professor?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 9,
-            "sample_id": "d72db8a7-56ab-4301-8a44-0445adff35e2",
+            "sample_id": "example_34",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: In 1996, Japan ranked fourth in the world in fishing industry by country. Japan captured 4,074,580 metric tons of fish in 2005, down from 4,987,703 tons in 2000, 9,558,615 tons in 1990, 9,864,422 tons in 1980, 8,520,397 tons in 1970, 5,583,796 tons in 1960 and 2,881,855 tons in 1950. In 2003, the total aquaculture production was predicted at 1,301,437 tonnes. In 2010, Japans total fisheries production was 4,762,469 fish. Offshore fisheries accounted for an average of 50% of the nations total fish catches in the late 1980s although they experienced repeated ups and downs during that period.\n\nQUESTION: Did Japan capture more metric tons of fish in 1980 or 1990?'
+    question = 'At what university did Leslie Gabriel Valiant spend the year 1973-74 as a visiting assistant professor?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 9,
-            "sample_id": "d72db8a7-56ab-4301-8a44-0445adff35e2",
+            "sample_id": "example_34",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 9,
-            "sample_id": "d72db8a7-56ab-4301-8a44-0445adff35e2",
+            "sample_id": "example_34",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

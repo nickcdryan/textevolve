@@ -1,789 +1,202 @@
 {
   "iteration": 4,
-  "timestamp": "2025-05-19T14:35:37.616925",
-  "strategy": "Exploitation",
-  "explore_rate": 30,
-  "exploit_rate": 70,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach.\n    This approach focuses on breaking down the problem into question type identification, \n    focused passage extraction, and direct answer generation with verification.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n\n    Example 4:\n    Question: How many points did the Steelers score in the first quarter?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"points\", \"Steelers\", \"first quarter\"]}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Example 4:\n    Question: How many points did the Steelers score in the first quarter?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"points\", \"Steelers\", \"first quarter\"]}}\n    Text: PASSAGE: Coming off their win over the Bengals, the Steelers stayed at home for a Week 15 intraconference duel with the New York Jets.  Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.\n    Passage: Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type. If a calculation is needed, perform it.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Example 4:\n    Question: How many points did the Steelers score in the first quarter?\n    Passage: Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.\n    Answer: 0\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies the generated answer. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions. If the answer requires a calculation or includes multiple parts, make sure all are performed and present.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage.  Return the answer if it is correct.  Return the correct answer if it is incorrect.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee\n    \n    Example 4:\n    Question: How many points did the Steelers score in the first quarter?\n    Answer: 0\n    Passage: Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.\n    Verification: 0\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script employs a multi-stage, LLM-driven approach to answer questions by identifying the question type and keywords, extracting a relevant passage from the given text, generating an answer based on the extracted passage, and then verifying the answer for correctness. It decomposes the problem into four distinct stages, each handled by a specific function acting as an agent. The functions involved are `main` which orchestrates the process, `analyze_question` which determines the question type and keywords, `extract_relevant_passage` which retrieves pertinent text, `generate_answer` which formulates the answer, `verify_answer` which checks the answer, and `call_llm` which interfaces with the Gemini LLM. The workflow begins with `main` calling `analyze_question`, followed by `extract_relevant_passage`, `generate_answer`, and finally `verify_answer`, with each function passing its output as input to the next, using `call_llm` to interact with the LLM in each step.",
-  "sample_count": 10,
+  "timestamp": "2025-05-22T05:33:23.455142",
+  "strategy": "Exploration",
+  "explore_rate": 72,
+  "exploit_rate": 28,
+  "batch_size": 3,
+  "script": "import os\nimport re\nimport math\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question, max_attempts=3):\n    \"\"\"Solve factual questions using a fact verification with multi-source integration approach.\"\"\"\n\n    # Hypothesis: Explicitly searching for validating sources and integrating information from multiple sources before answering will increase accuracy. This addresses the previous issues of inaccurate knowledge retrieval and ineffective information extraction.\n\n    # Step 1: Generate multiple search queries (n=3) to find validating sources.\n    search_query_prompt = f\"\"\"\n    Generate three diverse search queries to find independent validating sources for the following question.\n\n    Example 1:\n    Question: What is the name of the individual who was awarded the Paul Karrer Gold Medal in 2004?\n    Queries:\n    1. \"Paul Karrer Gold Medal 2004 recipient\"\n    2. \"Who won Paul Karrer Gold Medal 2004\"\n    3. \"Awardees of Paul Karrer Gold Medal in 2004\"\n\n    Question: {question}\n    Queries:\n    \"\"\"\n    search_queries = call_llm(search_query_prompt, system_instruction=\"You are an expert at generating diverse search queries.\").split(\"\\n\")\n\n    # Step 2: Simulate retrieval of context from the web for each query and VERIFY that a source exists\n    retrieved_contexts = []\n    for query in search_queries:\n        context = f\"Simulated web search results for: {query}. Placeholder for real search functionality.\"\n        # Verify that results are not empty\n        verification_prompt = f\"\"\"Question: {question} Search query: {query}. Retrieved context: {context}. Is the context useful to answering the question? Answer 'yes' or 'no'.\"\"\"\n        verification_result = call_llm(verification_prompt, \"Validating retrieved context\")\n        retrieved_contexts.append(context if \"yes\" in verification_result.lower() else \"No relevant context found.\")\n    \n    # Step 3: Extract answers from *each* context, and then synthesize them.\n    answer_extraction_prompt = f\"\"\"\n    Given the question and retrieved contexts from multiple sources, extract an answer from each. Then, synthesize a final answer, considering the consistency and reliability of the sources.\n    Question: {question}\n\n    Context 1: {retrieved_contexts[0]}\n    Context 2: {retrieved_contexts[1]}\n    Context 3: {retrieved_contexts[2]}\n\n    Example 1:\n    Question: What is the capital of Australia?\n    Context 1: Canberra is the capital city of Australia.\n    Context 2: Australia's capital is Canberra.\n    Context 3: Canberra serves as the capital of the Commonwealth of Australia.\n    Answer: Canberra, based on multiple consistent sources.\n\n    Answer:\n    \"\"\"\n    final_answer = call_llm(answer_extraction_prompt, system_instruction=\"You are an expert at extracting and synthesizing answers from multiple sources.\")\n\n    # Step 4: Final validation that the synthesized answer answers the question\n    validation_prompt = f\"\"\"\n    Validate that the following extracted and synthesized answer correctly answers the question.\n\n    Question: {question}\n    Answer: {final_answer}\n\n    Example:\n    Question: What is the capital of Australia?\n    Answer: Canberra, based on multiple consistent sources.\n    Validation: Correct; Canberra is the capital of Australia.\n\n    Validation:\n    \"\"\"\n\n    validation_result = call_llm(validation_prompt, system_instruction=\"You are an expert answer validator.\")\n\n    if \"Correct\" in validation_result:\n        return final_answer\n    else:\n        return \"Could not be validated.\"",
+  "approach_summary": "The script uses a fact verification approach with multi-source integration, leveraging the Gemini LLM to answer factual questions. It decomposes the problem into generating multiple search queries, simulating context retrieval from these queries while verifying their relevance, extracting answers from each context, synthesizing a final answer, and validating that final answer. The agent roles include an expert at generating diverse search queries, an agent for validating retrieved context, an expert at extracting and synthesizing answers, and an expert answer validator. The functions used are `call_llm` which interacts with the Gemini LLM, and `main` which orchestrates the overall workflow involving prompt generation, LLM calls, and result validation.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE: In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123\n\nQUESTION: Who had more casualties, the Colonists or the Abenakis?",
-      "answer": "Abenakis",
-      "id": "example_26",
+      "question": "In what year did Etta Cone last visit Europe?",
+      "answer": "1938",
+      "id": "example_17",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
-        "original_question": "Who had more casualties, the Colonists or the Abenakis?",
-        "original_answer_data": {
-          "spans": [
-            "Abenakis"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 293
+        "source": "SimpleQA",
+        "line_number": 49,
+        "original_data": {
+          "metadata": "{'topic': 'Art', 'answer_type': 'Date', 'urls': ['https://www.metmuseum.org/research-centers/leonard-a-lauder-research-center/research-resources/modern-art-index-project/cone', 'https://www.metmuseum.org/research-centers/leonard-a-lauder-research-center/research-resources/modern-art-index-project/cone', 'https://jwa.org/encyclopedia/article/cone-etta']}",
+          "problem": "In what year did Etta Cone last visit Europe?",
+          "answer": "1938",
+          "id": "example_49"
+        }
       }
     },
     {
-      "question": "PASSAGE: Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.\n\nQUESTION: Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
-      "answer": "Sydney",
-      "id": "example_27",
+      "question": "In which year was Jamini Roy (an Indian painter) awarded the Padma Bhushan by the Government of India?",
+      "answer": "1954",
+      "id": "example_18",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
-        "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
-        "original_answer_data": {
-          "spans": [
-            "Sydney"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 538
+        "source": "SimpleQA",
+        "line_number": 732,
+        "original_data": {
+          "metadata": "{'topic': 'Art', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Jamini_Roy', 'https://www.nationalgalleries.org/art-and-artists/artists/jamini-roy#:~:text=Jamini%20Roy%20(11%20April%201887,of%20Padma%20Bhushan%20in%201954.', 'https://www.artnet.com/artists/jamini-roy/', 'https://artsandculture.google.com/entity/jamini-roy/m0bbwgy?hl=en']}",
+          "problem": "In which year was Jamini Roy (an Indian painter) awarded the Padma Bhushan by the Government of India?",
+          "answer": "1954",
+          "id": "example_732"
+        }
       }
     },
     {
-      "question": "PASSAGE:  Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.\n\nQUESTION: How many yards was Mike Nugent's longest field goal in the fourth quarter?",
-      "answer": "38-yard",
-      "id": "example_28",
+      "question": "Which architect was tasked with finishing the chapel in the newly built Papal apartment when its construction remained incomplete after Pope Paul IV moved in, in October 1556?",
+      "answer": "Pirro Ligorio",
+      "id": "example_19",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
-        "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
-        "original_answer_data": {
-          "spans": [
-            "38-yard"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 24
-      }
-    },
-    {
-      "question": "PASSAGE: After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.\n\nQUESTION: How many yards total did Artose Pinner run for touchdowns in the first quarter?",
-      "answer": "7",
-      "id": "example_29",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
-        "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
-        "original_answer_data": {
-          "spans": [
-            "7"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 694
-      }
-    },
-    {
-      "question": "PASSAGE: About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, \"Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows.\" In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.\n\nQUESTION: Which year had more youth unemployed, 2007 or 2012?",
-      "answer": "2012",
-      "id": "example_30",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, \"Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows.\" In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.",
-        "original_question": "Which year had more youth unemployed, 2007 or 2012?",
-        "original_answer_data": {
-          "spans": [
-            "2012"
-          ],
-          "types": [
-            "date"
-          ]
-        },
-        "line_number": 210
-      }
-    },
-    {
-      "question": "PASSAGE: According to 2011 census of India, Kumbakonam had a population of 140,156 with a sex-ratio of 1,021 females for every 1,000 males, much above the national average of 929. A total of 12,791 were under the age of six, constituting 6,495 males and 6,296 females.The average literacy of the city was 83.21%, compared to the national average of 72.99%. There were a total of 9,519 workers, comprising 32 cultivators, 83 main agricultural labourers, 1,206 in house hold industries, 7,169 other workers, 1,029 marginal workers, 24 marginal cultivators, 45 marginal agricultural labourers, 212 marginal workers in household industries and 0 other marginal workers.\n\nQUESTION: How many workers weren't marginal cultivators?",
-      "answer": "9495",
-      "id": "example_31",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "According to 2011 census of India, Kumbakonam had a population of 140,156 with a sex-ratio of 1,021 females for every 1,000 males, much above the national average of 929. A total of 12,791 were under the age of six, constituting 6,495 males and 6,296 females.The average literacy of the city was 83.21%, compared to the national average of 72.99%. There were a total of 9,519 workers, comprising 32 cultivators, 83 main agricultural labourers, 1,206 in house hold industries, 7,169 other workers, 1,029 marginal workers, 24 marginal cultivators, 45 marginal agricultural labourers, 212 marginal workers in household industries and 0 other marginal workers.",
-        "original_question": "How many workers weren't marginal cultivators?",
-        "original_answer_data": {
-          "spans": [
-            "9495"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 424
-      }
-    },
-    {
-      "question": "PASSAGE: This Week 12 showdown between the Colts and Eagles was originally scheduled for 1:00 ET, but due to the NFL's \"flexible-scheduling\" system this year, the NFL moved the game to Sunday night at 8:15 ET. This was the Colts' third primetime game this year on NBC, and the Eagles' first. There were 10 scores in this game, 5 each half. The first three scores of the game were by Colts rookie RB Joseph Addai. He had a 15-yard TD run, a 10-yard TD run, and another 15-yard TD run after that. His fourth rushing touchdown of the game came in the second half. The Eagles' first score came with about a minute to go in the half. Quarterback Jeff Garcia threw a 1-yard touchdown pass to L.J. Smith on that drive. On the Colts' next drive, combined with a couple passes and a 13-yard run by Dominic Rhodes, the Colts put K Adam Vinatieri in field goal range to get some more points before the end of the half. At the half, the Colts had a 17-point lead, 24-7. After a Reggie Wayne touchdown catch, the Colts were up big on the Eagles, 31-7. On the ensuing possession for the Eagles, Garcia found Reggie Brown in the end zone for a  3-yard score. But with less than 11 minutes left in the game, the Eagles scored once more and reduced the Colts' lead to 10 points. On the following possession, the Colts ran the ball 13 times with no passes and Joseph Addai had the last 8 carries on that drive including another 4-yard scamper, his fourth touchdown of the game. That touchdown also tied the Colts franchise record for the most rushing touchdowns in a single game. With less than four minutes to go in the game, the Eagles were desperate to score some points, but while Jeff Garcia was deep in his own territory, he dropped back to pass and was hit by both DE Robert Mathis and DE Dwight Freeney. Mathis knocked the ball out of Garcia's hand right before his arm started going forwards and CB Kelvin Hayden picked up the ball and ran it back for a touchdown. The Colts were up by 24 points after that last score. On the next possession, the Eagles put in backup QB A. J. Feeley in place of Garcia, and Feeley ended up getting the football knocked out of his hand by Robert Mathis (his second forced fumble of the game) and the Colts recovered and ended up running out the clock to conclude the game. Joseph Addai tied the NFL record for most touchdowns in a game by a rookie, with 4 touchdowns in this game. During this game, the Colts lost SS Antoine Bethea, TE Dallas Clark and OT Ryan Diem all to injuries in the first half, and they did not return.\n\nQUESTION: How many touchdowns did Joseph Addai score in the first half?",
-      "answer": "3",
-      "id": "example_32",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "This Week 12 showdown between the Colts and Eagles was originally scheduled for 1:00 ET, but due to the NFL's \"flexible-scheduling\" system this year, the NFL moved the game to Sunday night at 8:15 ET. This was the Colts' third primetime game this year on NBC, and the Eagles' first. There were 10 scores in this game, 5 each half. The first three scores of the game were by Colts rookie RB Joseph Addai. He had a 15-yard TD run, a 10-yard TD run, and another 15-yard TD run after that. His fourth rushing touchdown of the game came in the second half. The Eagles' first score came with about a minute to go in the half. Quarterback Jeff Garcia threw a 1-yard touchdown pass to L.J. Smith on that drive. On the Colts' next drive, combined with a couple passes and a 13-yard run by Dominic Rhodes, the Colts put K Adam Vinatieri in field goal range to get some more points before the end of the half. At the half, the Colts had a 17-point lead, 24-7. After a Reggie Wayne touchdown catch, the Colts were up big on the Eagles, 31-7. On the ensuing possession for the Eagles, Garcia found Reggie Brown in the end zone for a  3-yard score. But with less than 11 minutes left in the game, the Eagles scored once more and reduced the Colts' lead to 10 points. On the following possession, the Colts ran the ball 13 times with no passes and Joseph Addai had the last 8 carries on that drive including another 4-yard scamper, his fourth touchdown of the game. That touchdown also tied the Colts franchise record for the most rushing touchdowns in a single game. With less than four minutes to go in the game, the Eagles were desperate to score some points, but while Jeff Garcia was deep in his own territory, he dropped back to pass and was hit by both DE Robert Mathis and DE Dwight Freeney. Mathis knocked the ball out of Garcia's hand right before his arm started going forwards and CB Kelvin Hayden picked up the ball and ran it back for a touchdown. The Colts were up by 24 points after that last score. On the next possession, the Eagles put in backup QB A. J. Feeley in place of Garcia, and Feeley ended up getting the football knocked out of his hand by Robert Mathis (his second forced fumble of the game) and the Colts recovered and ended up running out the clock to conclude the game. Joseph Addai tied the NFL record for most touchdowns in a game by a rookie, with 4 touchdowns in this game. During this game, the Colts lost SS Antoine Bethea, TE Dallas Clark and OT Ryan Diem all to injuries in the first half, and they did not return.",
-        "original_question": "How many touchdowns did Joseph Addai score in the first half?",
-        "original_answer_data": {
-          "spans": [
-            "3"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 528
-      }
-    },
-    {
-      "question": "PASSAGE: Following a shocking loss to the 3-7 Kansas City Chiefs the previous week, the Steelers traveled to M&T Bank Stadium for another divisional game. Ben Roethlisberger, who suffered a concussion in the previous week's overtime loss, was the designated 3rd (emergency) quarterback. Backup Charlie Batch also was hurt in that game, which left 2nd-year QB Dennis Dixon, who previously had one pass in his NFL career, to start. The Steelers received the opening kickoff, but went three-and-out. On the ensuing possession, the Ravens drove down the field with ease, capping off their drive with a touchdown run by Willis McGahee. In the second quarter, Dixon hit WR Santonio Holmes on a play-action pass for a 33-yard TD, tying the game. The Ravens answered on the following drive, with a 52-yard strike from Joe Flacco to Mark Clayton, setting up a 10-yard touchdown pass to Derrick Mason. In the third quarter, on the Ravens opening possession, Mark Clayton made a 9-yard reception but fumbled the ball and it was recovered by Tyrone Carter. The Steelers drove, but were held to a field goal by Jeff Reed. Later in the 4th quarter, Joe Flacco was sacked by Lawrence Timmons and fumbled the ball, recovered by the Steelers near midfield. The drive resulted in a 24-yard run on a QB option by Dixon, giving the Steelers their first lead of the night. On the Ravens next possession Joe Flacco completed a pass to Derrick Mason for 17&#160;yards, and then found Ray Rice for a 44-yard reception, setting the Ravens up inside the Steeler 10&#160;yard line with less than 2&#160;minutes left. Billy Cundiff tied the game with a 24-yard field goal. On the following Steeler possession, Dennis Dixon was nearly intercepted by Lardarius Webb. The Steelers were forced to punt, giving the ball back to the Ravens with about 1:30 left in the game. The Ravens managed to drive to the Steeler 40&#160;yard line, where their drive stalled. With the clock counting inside 10&#160;seconds left and no timeouts, the field goal team managed to get into formation, and get the kick off. The 56&#160;yard attempt by Billy Cundiff was dead center, but about 2&#160;yards short, sending the game into overtime. In overtime, the Steelers won the coin toss and got the ball, but were forced to punt. The Ravens, also forced to punt deep in their own territory, gave the ball to Pittsburgh around the Steeler 40&#160;yard line. On a 3rd and 5, Dennis Dixon threw an interception to LB Paul Kruger, who returned the ball 26&#160;yards to the Steeler 28&#160;yard line. Already in field goal range, the Ravens ran the ball down to the Pittsburgh 11&#160;yard line where Billy Cundiff made a 29-yard field goal to win the game. With their second consecutive overtime loss, the Steelers fell to 6-5.\n\nQUESTION: How many more points did the Ravens score than the Steelers?",
-      "answer": "3",
-      "id": "example_33",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Following a shocking loss to the 3-7 Kansas City Chiefs the previous week, the Steelers traveled to M&T Bank Stadium for another divisional game. Ben Roethlisberger, who suffered a concussion in the previous week's overtime loss, was the designated 3rd (emergency) quarterback. Backup Charlie Batch also was hurt in that game, which left 2nd-year QB Dennis Dixon, who previously had one pass in his NFL career, to start. The Steelers received the opening kickoff, but went three-and-out. On the ensuing possession, the Ravens drove down the field with ease, capping off their drive with a touchdown run by Willis McGahee. In the second quarter, Dixon hit WR Santonio Holmes on a play-action pass for a 33-yard TD, tying the game. The Ravens answered on the following drive, with a 52-yard strike from Joe Flacco to Mark Clayton, setting up a 10-yard touchdown pass to Derrick Mason. In the third quarter, on the Ravens opening possession, Mark Clayton made a 9-yard reception but fumbled the ball and it was recovered by Tyrone Carter. The Steelers drove, but were held to a field goal by Jeff Reed. Later in the 4th quarter, Joe Flacco was sacked by Lawrence Timmons and fumbled the ball, recovered by the Steelers near midfield. The drive resulted in a 24-yard run on a QB option by Dixon, giving the Steelers their first lead of the night. On the Ravens next possession Joe Flacco completed a pass to Derrick Mason for 17&#160;yards, and then found Ray Rice for a 44-yard reception, setting the Ravens up inside the Steeler 10&#160;yard line with less than 2&#160;minutes left. Billy Cundiff tied the game with a 24-yard field goal. On the following Steeler possession, Dennis Dixon was nearly intercepted by Lardarius Webb. The Steelers were forced to punt, giving the ball back to the Ravens with about 1:30 left in the game. The Ravens managed to drive to the Steeler 40&#160;yard line, where their drive stalled. With the clock counting inside 10&#160;seconds left and no timeouts, the field goal team managed to get into formation, and get the kick off. The 56&#160;yard attempt by Billy Cundiff was dead center, but about 2&#160;yards short, sending the game into overtime. In overtime, the Steelers won the coin toss and got the ball, but were forced to punt. The Ravens, also forced to punt deep in their own territory, gave the ball to Pittsburgh around the Steeler 40&#160;yard line. On a 3rd and 5, Dennis Dixon threw an interception to LB Paul Kruger, who returned the ball 26&#160;yards to the Steeler 28&#160;yard line. Already in field goal range, the Ravens ran the ball down to the Pittsburgh 11&#160;yard line where Billy Cundiff made a 29-yard field goal to win the game. With their second consecutive overtime loss, the Steelers fell to 6-5.",
-        "original_question": "How many more points did the Ravens score than the Steelers?",
-        "original_answer_data": {
-          "spans": [
-            "3"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 34
-      }
-    },
-    {
-      "question": "PASSAGE: Following a tough road loss against the Bears, the Steelers flew to Paul Brown Stadium for a Week 3 AFC North duel with the Cincinnati Bengals.  Pittsburgh would strike first in the first quarter with kicker Jeff Reed's 19-yard field goal and quarterback Ben Roethlisberger's 27-yard touchdown pass to running back Willie Parker.  The Steelers would add onto their lead in the second quarter as Reed made a 34-yard field goal.  The Bengals would close out the half with kicker Shayne Graham's 34-yard field goal. Cincinnati would creep closer in the third quarter as cornerback Johnathan Joseph returned an interception 30&#160;yards for a touchdown (with a failed PAT), yet Pittsburgh answered with Roethlisberger's 1-yard touchdown run.  However, in the fourth quarter, the Bengals took the lead with running back Cedric Benson's 23-yard touchdown run (with a failed 2-point conversion) and quarterback Carson Palmer's 4-yard touchdown pass to wide receiver Andre Caldwell (with a successful 2-point conversion pass to running back Brian Leonard).  The Steelers tried to rally, but Roethlisberger's last-second hail mary pass was incomplete, preserving the defeat. With the loss, Pittsburgh fell to 1-2 and 3rd place in the AFC North.  This would also become the team's first 1-2 start since 2006. Wide receiver Hines Ward (4 receptions, 82&#160;yards) would become the 21st player in NFL history to surpass 800 career receptions and 10,000 receiving yards.\n\nQUESTION: Which player had the longest touchdown reception?",
-      "answer": "Willie Parker",
-      "id": "example_34",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Following a tough road loss against the Bears, the Steelers flew to Paul Brown Stadium for a Week 3 AFC North duel with the Cincinnati Bengals.  Pittsburgh would strike first in the first quarter with kicker Jeff Reed's 19-yard field goal and quarterback Ben Roethlisberger's 27-yard touchdown pass to running back Willie Parker.  The Steelers would add onto their lead in the second quarter as Reed made a 34-yard field goal.  The Bengals would close out the half with kicker Shayne Graham's 34-yard field goal. Cincinnati would creep closer in the third quarter as cornerback Johnathan Joseph returned an interception 30&#160;yards for a touchdown (with a failed PAT), yet Pittsburgh answered with Roethlisberger's 1-yard touchdown run.  However, in the fourth quarter, the Bengals took the lead with running back Cedric Benson's 23-yard touchdown run (with a failed 2-point conversion) and quarterback Carson Palmer's 4-yard touchdown pass to wide receiver Andre Caldwell (with a successful 2-point conversion pass to running back Brian Leonard).  The Steelers tried to rally, but Roethlisberger's last-second hail mary pass was incomplete, preserving the defeat. With the loss, Pittsburgh fell to 1-2 and 3rd place in the AFC North.  This would also become the team's first 1-2 start since 2006. Wide receiver Hines Ward (4 receptions, 82&#160;yards) would become the 21st player in NFL history to surpass 800 career receptions and 10,000 receiving yards.",
-        "original_question": "Which player had the longest touchdown reception?",
-        "original_answer_data": {
-          "spans": [
-            "Willie Parker"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 928
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.\n\nQUESTION: How many total points were scored in the game?",
-      "answer": "21",
-      "id": "example_35",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.",
-        "original_question": "How many total points were scored in the game?",
-        "original_answer_data": {
-          "spans": [
-            "21"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 398
+        "source": "SimpleQA",
+        "line_number": 336,
+        "original_data": {
+          "metadata": "{'topic': 'Art', 'answer_type': 'Person', 'urls': ['https://en.wikipedia.org/wiki/Pirro_Ligorio', 'https://en.wikipedia.org/wiki/Pirro_Ligorio', 'https://library.brown.edu/projects/rome/people/0139/']}",
+          "problem": "Which architect was tasked with finishing the chapel in the newly built Papal apartment when its construction remained incomplete after Pope Paul IV moved in, in October 1556?",
+          "answer": "Pirro Ligorio",
+          "id": "example_336"
+        }
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
-      "original_question": "Who had more casualties, the Colonists or the Abenakis?",
-      "original_answer_data": {
-        "spans": [
-          "Abenakis"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 293
+      "source": "SimpleQA",
+      "line_number": 49,
+      "original_data": {
+        "metadata": "{'topic': 'Art', 'answer_type': 'Date', 'urls': ['https://www.metmuseum.org/research-centers/leonard-a-lauder-research-center/research-resources/modern-art-index-project/cone', 'https://www.metmuseum.org/research-centers/leonard-a-lauder-research-center/research-resources/modern-art-index-project/cone', 'https://jwa.org/encyclopedia/article/cone-etta']}",
+        "problem": "In what year did Etta Cone last visit Europe?",
+        "answer": "1938",
+        "id": "example_49"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
-      "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
-      "original_answer_data": {
-        "spans": [
-          "Sydney"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 538
+      "source": "SimpleQA",
+      "line_number": 732,
+      "original_data": {
+        "metadata": "{'topic': 'Art', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Jamini_Roy', 'https://www.nationalgalleries.org/art-and-artists/artists/jamini-roy#:~:text=Jamini%20Roy%20(11%20April%201887,of%20Padma%20Bhushan%20in%201954.', 'https://www.artnet.com/artists/jamini-roy/', 'https://artsandculture.google.com/entity/jamini-roy/m0bbwgy?hl=en']}",
+        "problem": "In which year was Jamini Roy (an Indian painter) awarded the Padma Bhushan by the Government of India?",
+        "answer": "1954",
+        "id": "example_732"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
-      "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
-      "original_answer_data": {
-        "spans": [
-          "38-yard"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 24
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
-      "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
-      "original_answer_data": {
-        "spans": [
-          "7"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 694
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, \"Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows.\" In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.",
-      "original_question": "Which year had more youth unemployed, 2007 or 2012?",
-      "original_answer_data": {
-        "spans": [
-          "2012"
-        ],
-        "types": [
-          "date"
-        ]
-      },
-      "line_number": 210
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "According to 2011 census of India, Kumbakonam had a population of 140,156 with a sex-ratio of 1,021 females for every 1,000 males, much above the national average of 929. A total of 12,791 were under the age of six, constituting 6,495 males and 6,296 females.The average literacy of the city was 83.21%, compared to the national average of 72.99%. There were a total of 9,519 workers, comprising 32 cultivators, 83 main agricultural labourers, 1,206 in house hold industries, 7,169 other workers, 1,029 marginal workers, 24 marginal cultivators, 45 marginal agricultural labourers, 212 marginal workers in household industries and 0 other marginal workers.",
-      "original_question": "How many workers weren't marginal cultivators?",
-      "original_answer_data": {
-        "spans": [
-          "9495"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 424
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "This Week 12 showdown between the Colts and Eagles was originally scheduled for 1:00 ET, but due to the NFL's \"flexible-scheduling\" system this year, the NFL moved the game to Sunday night at 8:15 ET. This was the Colts' third primetime game this year on NBC, and the Eagles' first. There were 10 scores in this game, 5 each half. The first three scores of the game were by Colts rookie RB Joseph Addai. He had a 15-yard TD run, a 10-yard TD run, and another 15-yard TD run after that. His fourth rushing touchdown of the game came in the second half. The Eagles' first score came with about a minute to go in the half. Quarterback Jeff Garcia threw a 1-yard touchdown pass to L.J. Smith on that drive. On the Colts' next drive, combined with a couple passes and a 13-yard run by Dominic Rhodes, the Colts put K Adam Vinatieri in field goal range to get some more points before the end of the half. At the half, the Colts had a 17-point lead, 24-7. After a Reggie Wayne touchdown catch, the Colts were up big on the Eagles, 31-7. On the ensuing possession for the Eagles, Garcia found Reggie Brown in the end zone for a  3-yard score. But with less than 11 minutes left in the game, the Eagles scored once more and reduced the Colts' lead to 10 points. On the following possession, the Colts ran the ball 13 times with no passes and Joseph Addai had the last 8 carries on that drive including another 4-yard scamper, his fourth touchdown of the game. That touchdown also tied the Colts franchise record for the most rushing touchdowns in a single game. With less than four minutes to go in the game, the Eagles were desperate to score some points, but while Jeff Garcia was deep in his own territory, he dropped back to pass and was hit by both DE Robert Mathis and DE Dwight Freeney. Mathis knocked the ball out of Garcia's hand right before his arm started going forwards and CB Kelvin Hayden picked up the ball and ran it back for a touchdown. The Colts were up by 24 points after that last score. On the next possession, the Eagles put in backup QB A. J. Feeley in place of Garcia, and Feeley ended up getting the football knocked out of his hand by Robert Mathis (his second forced fumble of the game) and the Colts recovered and ended up running out the clock to conclude the game. Joseph Addai tied the NFL record for most touchdowns in a game by a rookie, with 4 touchdowns in this game. During this game, the Colts lost SS Antoine Bethea, TE Dallas Clark and OT Ryan Diem all to injuries in the first half, and they did not return.",
-      "original_question": "How many touchdowns did Joseph Addai score in the first half?",
-      "original_answer_data": {
-        "spans": [
-          "3"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 528
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Following a shocking loss to the 3-7 Kansas City Chiefs the previous week, the Steelers traveled to M&T Bank Stadium for another divisional game. Ben Roethlisberger, who suffered a concussion in the previous week's overtime loss, was the designated 3rd (emergency) quarterback. Backup Charlie Batch also was hurt in that game, which left 2nd-year QB Dennis Dixon, who previously had one pass in his NFL career, to start. The Steelers received the opening kickoff, but went three-and-out. On the ensuing possession, the Ravens drove down the field with ease, capping off their drive with a touchdown run by Willis McGahee. In the second quarter, Dixon hit WR Santonio Holmes on a play-action pass for a 33-yard TD, tying the game. The Ravens answered on the following drive, with a 52-yard strike from Joe Flacco to Mark Clayton, setting up a 10-yard touchdown pass to Derrick Mason. In the third quarter, on the Ravens opening possession, Mark Clayton made a 9-yard reception but fumbled the ball and it was recovered by Tyrone Carter. The Steelers drove, but were held to a field goal by Jeff Reed. Later in the 4th quarter, Joe Flacco was sacked by Lawrence Timmons and fumbled the ball, recovered by the Steelers near midfield. The drive resulted in a 24-yard run on a QB option by Dixon, giving the Steelers their first lead of the night. On the Ravens next possession Joe Flacco completed a pass to Derrick Mason for 17&#160;yards, and then found Ray Rice for a 44-yard reception, setting the Ravens up inside the Steeler 10&#160;yard line with less than 2&#160;minutes left. Billy Cundiff tied the game with a 24-yard field goal. On the following Steeler possession, Dennis Dixon was nearly intercepted by Lardarius Webb. The Steelers were forced to punt, giving the ball back to the Ravens with about 1:30 left in the game. The Ravens managed to drive to the Steeler 40&#160;yard line, where their drive stalled. With the clock counting inside 10&#160;seconds left and no timeouts, the field goal team managed to get into formation, and get the kick off. The 56&#160;yard attempt by Billy Cundiff was dead center, but about 2&#160;yards short, sending the game into overtime. In overtime, the Steelers won the coin toss and got the ball, but were forced to punt. The Ravens, also forced to punt deep in their own territory, gave the ball to Pittsburgh around the Steeler 40&#160;yard line. On a 3rd and 5, Dennis Dixon threw an interception to LB Paul Kruger, who returned the ball 26&#160;yards to the Steeler 28&#160;yard line. Already in field goal range, the Ravens ran the ball down to the Pittsburgh 11&#160;yard line where Billy Cundiff made a 29-yard field goal to win the game. With their second consecutive overtime loss, the Steelers fell to 6-5.",
-      "original_question": "How many more points did the Ravens score than the Steelers?",
-      "original_answer_data": {
-        "spans": [
-          "3"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 34
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Following a tough road loss against the Bears, the Steelers flew to Paul Brown Stadium for a Week 3 AFC North duel with the Cincinnati Bengals.  Pittsburgh would strike first in the first quarter with kicker Jeff Reed's 19-yard field goal and quarterback Ben Roethlisberger's 27-yard touchdown pass to running back Willie Parker.  The Steelers would add onto their lead in the second quarter as Reed made a 34-yard field goal.  The Bengals would close out the half with kicker Shayne Graham's 34-yard field goal. Cincinnati would creep closer in the third quarter as cornerback Johnathan Joseph returned an interception 30&#160;yards for a touchdown (with a failed PAT), yet Pittsburgh answered with Roethlisberger's 1-yard touchdown run.  However, in the fourth quarter, the Bengals took the lead with running back Cedric Benson's 23-yard touchdown run (with a failed 2-point conversion) and quarterback Carson Palmer's 4-yard touchdown pass to wide receiver Andre Caldwell (with a successful 2-point conversion pass to running back Brian Leonard).  The Steelers tried to rally, but Roethlisberger's last-second hail mary pass was incomplete, preserving the defeat. With the loss, Pittsburgh fell to 1-2 and 3rd place in the AFC North.  This would also become the team's first 1-2 start since 2006. Wide receiver Hines Ward (4 receptions, 82&#160;yards) would become the 21st player in NFL history to surpass 800 career receptions and 10,000 receiving yards.",
-      "original_question": "Which player had the longest touchdown reception?",
-      "original_answer_data": {
-        "spans": [
-          "Willie Parker"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 928
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.",
-      "original_question": "How many total points were scored in the game?",
-      "original_answer_data": {
-        "spans": [
-          "21"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 398
+      "source": "SimpleQA",
+      "line_number": 336,
+      "original_data": {
+        "metadata": "{'topic': 'Art', 'answer_type': 'Person', 'urls': ['https://en.wikipedia.org/wiki/Pirro_Ligorio', 'https://en.wikipedia.org/wiki/Pirro_Ligorio', 'https://library.brown.edu/projects/rome/people/0139/']}",
+        "problem": "Which architect was tasked with finishing the chapel in the newly built Papal apartment when its construction remained incomplete after Pope Paul IV moved in, in October 1556?",
+        "answer": "Pirro Ligorio",
+        "id": "example_336"
+      }
     }
   ],
   "example_indices": [
-    26,
-    27,
-    28,
-    29,
-    30,
-    31,
-    32,
-    33,
-    34,
-    35
+    17,
+    18,
+    19
   ],
   "results": [
     {
       "success": true,
-      "answer": "Abenakis",
-      "output": "ANSWER_START\nAbenakis\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Sydney",
-      "output": "ANSWER_START\nSydney\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same: Sydney"
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "38",
-      "output": "ANSWER_START\n38\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 0.8,
-        "explanation": "The system answer provides the numerical value '38', while the golden answer specifies '38-yard'. The presence of 'yard' implies that the system answer is missing the unit, but it still provides the correct number. Considering only the numerical part, the answers are equivalent. Confidence is not 1 due to missing unit."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "7",
-      "output": "ANSWER_START\n7\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value (7)."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "2012",
-      "output": "ANSWER_START\n2012\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The question asks for the number of workers that weren't marginal cultivators. The passage states there were a total of 9,519 workers, and 24 marginal cultivators. So the number of workers that weren't marginal cultivators is 9,519 - 24 = 9,495.\nVerification: 9,495",
-      "output": "ANSWER_START\nThe question asks for the number of workers that weren't marginal cultivators. The passage states there were a total of 9,519 workers, and 24 marginal cultivators. So the number of workers that weren't marginal cultivators is 9,519 - 24 = 9,495.\nVerification: 9,495\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer explains the calculation and arrives at the correct numerical answer which matches the golden answer."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "3",
-      "output": "ANSWER_START\n3\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same single number."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "There is not enough information in the passage to determine the final scores of the teams.",
-      "output": "ANSWER_START\nThere is not enough information in the passage to determine the final scores of the teams.\n\nANSWER_END\n",
+      "answer": "The question cannot be answered. There is no context provided that contains the year that Etta Cone last visited Europe.",
+      "output": "ANSWER_START\nThe question cannot be answered. There is no context provided that contains the year that Etta Cone last visited Europe.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_4.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The golden answer '3' is a numerical value while the system answer explicitly states that the final scores cannot be determined from the passage. Thus, they do not convey the same information."
+        "explanation": "The system answer says the question cannot be answered, while the golden answer provides the year 1938. These are contradictory."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Willie Parker",
-      "output": "ANSWER_START\nWillie Parker\n\nANSWER_END\n",
+      "answer": "The question is: In which year was Jamini Roy (an Indian painter) awarded the Padma Bhushan by the Government of India?\n\nSince the provided contexts are placeholders, it's impossible to extract the answer directly from them. To answer the question, real search results would be needed to identify the year Jamini Roy received the Padma Bhushan.\n\nHypothetical Answer (based on likely search results): Assuming the search results consistently state that Jamini Roy received the Padma Bhushan in 1954, the synthesized answer would be: 1954, based on the hypothetical consistent information from multiple sources.",
+      "output": "ANSWER_START\nThe question is: In which year was Jamini Roy (an Indian painter) awarded the Padma Bhushan by the Government of India?\n\nSince the provided contexts are placeholders, it's impossible to extract the answer directly from them. To answer the question, real search results would be needed to identify the year Jamini Roy received the Padma Bhushan.\n\nHypothetical Answer (based on likely search results): Assuming the search results consistently state that Jamini Roy received the Padma Bhushan in 1954, the synthesized answer would be: 1954, based on the hypothetical consistent information from multiple sources.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_4.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are identical and convey the same information."
+        "explanation": "The system answer, after the reasoning, provides the answer 1954, which is the same as the golden answer."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "21",
-      "output": "ANSWER_START\n21\n\nANSWER_END\n",
+      "answer": "Since the provided contexts are either empty or simulated search results, I cannot extract specific answers from them. Without real information from the search results, I cannot determine which architect completed the chapel in the Papal apartment after Pope Paul IV moved in.",
+      "output": "ANSWER_START\nSince the provided contexts are either empty or simulated search results, I cannot extract specific answers from them. Without real information from the search results, I cannot determine which architect completed the chapel in the Papal apartment after Pope Paul IV moved in.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_4.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "Both answers are identical and convey the same information."
+        "explanation": "The system answer states it cannot extract the answer, while the golden answer provides the specific architect, Pirro Ligorio. These answers are contradictory, not semantically equivalent."
       },
-      "match": true
+      "match": false
     }
   ],
   "performance": {
-    "accuracy": 0.9,
-    "correct_count": 9,
-    "total_count": 10,
+    "accuracy": 0.3333333333333333,
+    "correct_count": 1,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Abenakis",
-        "golden_answer": "Abenakis",
-        "output": "ANSWER_START\nAbenakis\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "The question cannot be answered. There is no context provided that contains the year that Etta Cone last visited Europe.",
+        "golden_answer": "1938",
+        "output": "ANSWER_START\nThe question cannot be answered. There is no context provided that contains the year that Etta Cone last visited Europe.\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "Both answers are the same."
-        }
+          "explanation": "The system answer says the question cannot be answered, while the golden answer provides the year 1938. These are contradictory."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "Sydney",
-        "golden_answer": "Sydney",
-        "output": "ANSWER_START\nSydney\n\nANSWER_END\n",
+        "system_answer": "The question is: In which year was Jamini Roy (an Indian painter) awarded the Padma Bhushan by the Government of India?\n\nSince the provided contexts are placeholders, it's impossible to extract the answer directly from them. To answer the question, real search results would be needed to identify the year Jamini Roy received the Padma Bhushan.\n\nHypothetical Answer (based on likely search results): Assuming the search results consistently state that Jamini Roy received the Padma Bhushan in 1954, the synthesized answer would be: 1954, based on the hypothetical consistent information from multiple sources.",
+        "golden_answer": "1954",
+        "output": "ANSWER_START\nThe question is: In which year was Jamini Roy (an Indian painter) awarded the Padma Bhushan by the Government of India?\n\nSince the provided contexts are placeholders, it's impossible to extract the answer directly from them. To answer the question, real search results would be needed to identify the year Jamini Roy received the Padma Bhushan.\n\nHypothetical Answer (based on likely search results): Assuming the search results consistently state that Jamini Roy received the Padma Bhushan in 1954, the synthesized answer would be: 1954, based on the hypothetical consistent information from multiple sources.\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same: Sydney"
+          "explanation": "The system answer, after the reasoning, provides the answer 1954, which is the same as the golden answer."
         }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "38",
-        "golden_answer": "38-yard",
-        "output": "ANSWER_START\n38\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 0.8,
-          "explanation": "The system answer provides the numerical value '38', while the golden answer specifies '38-yard'. The presence of 'yard' implies that the system answer is missing the unit, but it still provides the correct number. Considering only the numerical part, the answers are equivalent. Confidence is not 1 due to missing unit."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "7",
-        "golden_answer": "7",
-        "output": "ANSWER_START\n7\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value (7)."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "2012",
-        "golden_answer": "2012",
-        "output": "ANSWER_START\n2012\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        }
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "The question asks for the number of workers that weren't marginal cultivators. The passage states there were a total of 9,519 workers, and 24 marginal cultivators. So the number of workers that weren't marginal cultivators is 9,519 - 24 = 9,495.\nVerification: 9,495",
-        "golden_answer": "9495",
-        "output": "ANSWER_START\nThe question asks for the number of workers that weren't marginal cultivators. The passage states there were a total of 9,519 workers, and 24 marginal cultivators. So the number of workers that weren't marginal cultivators is 9,519 - 24 = 9,495.\nVerification: 9,495\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer explains the calculation and arrives at the correct numerical answer which matches the golden answer."
-        }
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "3",
-        "golden_answer": "3",
-        "output": "ANSWER_START\n3\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same single number."
-        }
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "There is not enough information in the passage to determine the final scores of the teams.",
-        "golden_answer": "3",
-        "output": "ANSWER_START\nThere is not enough information in the passage to determine the final scores of the teams.\n\nANSWER_END\n",
+        "system_answer": "Since the provided contexts are either empty or simulated search results, I cannot extract specific answers from them. Without real information from the search results, I cannot determine which architect completed the chapel in the Papal apartment after Pope Paul IV moved in.",
+        "golden_answer": "Pirro Ligorio",
+        "output": "ANSWER_START\nSince the provided contexts are either empty or simulated search results, I cannot extract specific answers from them. Without real information from the search results, I cannot determine which architect completed the chapel in the Papal apartment after Pope Paul IV moved in.\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The golden answer '3' is a numerical value while the system answer explicitly states that the final scores cannot be determined from the passage. Thus, they do not convey the same information."
+          "explanation": "The system answer states it cannot extract the answer, while the golden answer provides the specific architect, Pirro Ligorio. These answers are contradictory, not semantically equivalent."
         },
         "capability_failures": []
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "Willie Parker",
-        "golden_answer": "Willie Parker",
-        "output": "ANSWER_START\nWillie Parker\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information."
-        }
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "21",
-        "golden_answer": "21",
-        "output": "ANSWER_START\n21\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information."
-        }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nThere are no identified runtime errors (e.g., JSONDecodeError, TypeError) in the provided error cases and success cases.\n\n## STRENGTHS\n*   **Information Extraction:** The system demonstrates a good ability to extract numerical values and relevant named entities (players, teams, cities, etc.) from the passages. This is evident in the success cases where it correctly identifies and extracts the necessary information to answer the questions (e.g., identifying player names, quantities of yards, etc.).\n*   **Simple Arithmetic Reasoning:** The system can perform simple arithmetic operations, such as subtraction, when the necessary information is explicitly present in the passage. Sample ID 5 in the success cases demonstrates this capability.\n*   **Direct Answer Identification:** In many cases, the system is capable of correctly identifying and extracting the answer when it is directly stated within the passage. This is shown across the success cases, such as identifying who had the longest touchdown reception in Sample ID 8.\n\n## WEAKNESSES\n*   **Complex Arithmetic Reasoning:** The system struggles with questions that require more complex arithmetic reasoning, such as calculating the difference between two scores when those scores are not directly given in the passage. This is highlighted in Error Case 7, where the system fails to determine the final scores and compute the point difference.\n*   **Inability to Track Multiple Events:** The system demonstrates difficulty in tracking multiple scoring events throughout the passage and aggregating them into a final score for each team.\n\n## CRITICAL BOTTLENECKS\n*   **Lack of Score Tracking/Aggregation:** The inability to track and aggregate multiple scoring events (touchdowns, field goals, etc.) from the passage to calculate team scores.\n*   **Limited Arithmetic Deduction:** Inability to perform simple arithmetic reasoning when the information is distributed throughout the text and requires multiple steps to derive the answer.\n\n## ERROR PATTERNS\n*   The primary error pattern is the inability to synthesize information spread across the text to derive a numerical answer, especially when the answer requires arithmetic calculations or score tracking.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to track and calculate the final scores of teams based on individual scoring plays described in the passage. This stems from a limitation in complex arithmetic reasoning and score aggregation.\n\n## IMPROVEMENT AREAS\n*   **Complex Arithmetic Reasoning:** Improve the ability to perform arithmetic calculations that involve combining information from different parts of the passage.\n*   **Score Tracking Capability:** Implement a mechanism for tracking and updating team scores based on the game events described in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Score Tracking Module:** Design a module that can parse the passage for scoring plays (touchdowns, field goals, etc.), assign points to the appropriate team, and maintain a running tally of each team's score. This module should be capable of handling various ways scoring plays are described (e.g., \"a 7-yard TD run,\" \"a 30-yard field goal\").\n2.  **Enhance Arithmetic Reasoning:** Improve the system's ability to perform arithmetic calculations. For example, after extracting all scoring plays, the system should be able to sum the scores to find the total or subtract scores to find the difference. Introduce intermediate variables to hold each team's score and make them accessible for calculations.\n3.  **Break Down Question into Sub-Questions:** Before answering the main question, have the system identify sub-questions to answer. For example, if the question is \"How many more points did the Ravens score than the Steelers?\", the sub-questions are \"What was the Ravens' final score?\" and \"What was the Steelers' final score?\". By breaking the problem down, the system is more likely to solve the problem correctly.\n4. Add more print statements or intermediate outputs to provide a step-by-step analysis of the system's reasoning when it tries to compute the score.\n\n## CAPABILITY MAPPING\n*   **Sample ID 7:**\n    *   information_extraction: Partially successful (extracted some scoring plays but not all or didn't associate them with teams)\n    *   constraint_handling: N/A\n    *   solution_generation: Failed (could not generate final scores)\n    *   solution_verification: N/A\n    *   decision_making: Incorrect (stated not enough information)\n",
-      "strengths": [
-        "Information Extraction:** The system demonstrates a good ability to extract numerical values and relevant named entities (players, teams, cities, etc.) from the passages. This is evident in the success cases where it correctly identifies and extracts the necessary information to answer the questions (e.g., identifying player names, quantities of yards, etc.).",
-        "Simple Arithmetic Reasoning:** The system can perform simple arithmetic operations, such as subtraction, when the necessary information is explicitly present in the passage. Sample ID 5 in the success cases demonstrates this capability.",
-        "Direct Answer Identification:** In many cases, the system is capable of correctly identifying and extracting the answer when it is directly stated within the passage. This is shown across the success cases, such as identifying who had the longest touchdown reception in Sample ID 8."
-      ],
-      "weaknesses": [
-        "Complex Arithmetic Reasoning:** The system struggles with questions that require more complex arithmetic reasoning, such as calculating the difference between two scores when those scores are not directly given in the passage. This is highlighted in Error Case 7, where the system fails to determine the final scores and compute the point difference.",
-        "Inability to Track Multiple Events:** The system demonstrates difficulty in tracking multiple scoring events throughout the passage and aggregating them into a final score for each team."
-      ],
-      "primary_issue": "The most critical problem is the system's inability to track and calculate the final scores of teams based on individual scoring plays described in the passage. This stems from a limitation in complex arithmetic reasoning and score aggregation.",
+      "text_report": "## RUNTIME ERRORS\nThere are no specific runtime errors (like JSONDecodeError or TypeError) in the provided outputs.\n\n## STRENGTHS\n1.  **Question Understanding:** The system is able to parse the question and identify the information required.\n2.  **Awareness of Insufficient Context:** The system correctly identifies when the provided context (or lack thereof) is insufficient to answer the question.\n3.  **Hypothetical Reasoning (in success case):** In one successful case, the system demonstrates the ability to construct a hypothetical answer based on what *would* be expected if the search results were valid. This represents rudimentary reasoning about potential solutions.\n\n## WEAKNESSES\n1.  **Inability to Answer Without Explicit Context:** The system defaults to \"cannot answer\" when no direct context is provided, even if the answer might be obtainable through external knowledge.\n2.  **Failure to Seek External Knowledge:** The system does not attempt to retrieve external knowledge to answer the question when the provided context is insufficient. It acknowledges the lack of information but doesn't take steps to rectify it.\n\n## CRITICAL BOTTLENECKS\n1.  **Reliance on Provided Context Only:** The most critical bottleneck is the system's complete dependence on the provided context and its inability to leverage external knowledge or search to fill in gaps.\n\n## ERROR PATTERNS\n1.  **\"Cannot Answer\" Default:**  A recurring pattern is the system's response of \"cannot answer\" whenever the answer is not explicitly present within the provided context.\n\n## PRIMARY ISSUE\nThe primary issue is the system's passive behavior when faced with insufficient information. It needs to be augmented with the capability to actively seek out the necessary information via external knowledge sources (e.g., internet search). It needs a mechanism to detect if information is lacking, formulate a relevant query, retrieve information, extract the answer, and then respond to the original question.\n\n## IMPROVEMENT AREAS\n1.  **Information Retrieval:** Integrate a mechanism for retrieving external information when the initial context is insufficient.\n2.  **Answer Synthesis from External Sources:** Develop the capability to synthesize answers from multiple external sources to improve accuracy and reliability.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Search Module:** Integrate a search API (e.g., Google Search API) into the system.\n2.  **Develop a Query Formulation Module:** Create a module that can automatically formulate relevant search queries based on the question and the available context.\n3.  **Enhance Answer Extraction:** Improve the answer extraction module to identify and extract answers from the retrieved search results.\n4.  **Develop a Confidence Scoring Mechanism:** Implement a system for scoring the confidence level of the extracted answer, taking into account the source's reliability and the consistency of information across multiple sources. This would allow the system to provide answers with associated confidence levels, or to abstain from answering if the confidence is too low.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information\\_extraction, solution\\_generation\n*   **Sample ID 2:** information\\_extraction, solution\\_generation\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The primary issue is the system's passive behavior when faced with insufficient information. It needs to be augmented with the capability to actively seek out the necessary information via external knowledge sources (e.g., internet search). It needs a mechanism to detect if information is lacking, formulate a relevant query, retrieve information, extract the answer, and then respond to the original question.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, improvement suggestions, capability mapping, and execution outputs you provided:\n\n## CAPABILITY ASSESSMENT REPORT\n\n**## EXECUTION ANALYSIS**\n\nThe sample execution outputs show the system is capable of extracting text spans identified as the answer to a question. The outputs are clean and adhere to the `ANSWER_START` and `ANSWER_END` format. However, without the questions corresponding to these outputs, it's difficult to assess the *correctness* of the answers beyond the information that they are extracting information. The lack of diversity in the output format suggests the system might be relying on simple pattern matching or direct extraction, which aligns with the weaknesses identified in the error analysis. There is no obvious reason to assume issues given the information, however it is impossible to be sure.\n\n**## CAPABILITY ASSESSMENT**\n\nThe system possesses a baseline capability for information extraction and direct answer identification from text. It struggles with tasks that require arithmetic reasoning, information synthesis, and tracking events to arrive at a numerical answer. The system correctly answers 9/10 questions, and demonstrates an ability to extract information such as player names, quantities of yards, and named entities, but struggles when the answer requires more complex mathmatical reasoning. The system could benefit from the incorporation of new modules to track scores and synthesize information throughout the text.\n\n**## KEY STRENGTHS**\n\n*   **Direct Information Extraction:** The system excels at identifying and extracting answers explicitly stated in the passage. This is a foundational capability that can be leveraged.\n*   **Numerical Value Identification:** The system can identify and extract numerical values, a core requirement for tasks involving arithmetic.\n*   **Named Entity Recognition:** The system demonstrates the capability to recognize Named Entities, such as players, teams, and cities.\n\n**## KEY WEAKNESSES**\n\n*   **Complex Arithmetic Reasoning & Calculation:** This is the most significant weakness, as the system struggles to perform calculations when the numbers are not directly presented in the answer.\n*   **Score Tracking & Aggregation:** The inability to track and update team scores dynamically is a critical limitation.\n*   **Information Synthesis:** The system cannot combine information from across the text to derive the answer.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on is **Complex Arithmetic Reasoning and Score Tracking/Aggregation**. Addressing this will unlock the system's ability to answer a broader range of questions and handle more complex scenarios.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\nBased on the error analysis and improvement suggestions, here's a set of specific changes to implement in the next iteration:\n\n1.  **Implement the Score Tracking Module:** Prioritize the development of a module that can parse the passage for scoring plays, associate points with teams, and maintain a running tally. This requires robust parsing and entity recognition.\n2.  **Enhance Arithmetic Reasoning with Intermediate Variables:** Modify the system to use intermediate variables to store team scores.  After extracting scoring plays, use these variables to accumulate the scores. This promotes modularity and clarity in the calculation process.\n3.  **Implement a \"Question Decomposition\" Pre-processing Step:**  Before attempting to answer the main question, have the system identify and answer sub-questions first. For example, for a question about the score difference, the sub-questions would be: \"What was Team A's final score?\" and \"What was Team B's final score?\". Store these intermediate answers.\n4.  **Introduce Detailed Logging and Intermediate Outputs:** Add print statements (or logging) at each stage of the score tracking and calculation process. This will allow for easier debugging and identification of specific points of failure. For example, log each extracted scoring play, the updated team scores, and the final calculated difference.\n5. **Test-Driven Development:** Establish a suite of test cases that explicitly test the scoring tracking and complex reasoning capabilities. These tests should include scenarios with multiple scoring plays, different types of scoring (TDs, field goals), and questions that require calculating score differences.\n\n**Example Implementation Steps for Score Tracking Module:**\n\n*   **Scoring Play Detection:** Use regular expressions or pattern matching to identify phrases indicating scoring plays (e.g., \"a 7-yard TD run,\" \"a 30-yard field goal\").\n*   **Team Association:** Implement logic to associate the scoring play with the correct team.  This might involve looking for team names mentioned near the scoring play.\n*   **Point Assignment:**  Assign the correct number of points based on the type of score (e.g., 6 points for a touchdown, 3 points for a field goal).\n*   **Score Update:** Update the team scores using intermediate variables.\n*   **Use more advanced models to better recognize and infer scores, like transformers.\n\n**## CAPABILITY TREND**\n\nBased on the provided information, the capability trend is currently **stable but limited**. The system performs well on simple tasks but lacks the advanced reasoning capabilities needed for more complex scenarios. The proposed improvements are expected to lead to a significant **improvement** in the system's overall capabilities.\n",
-      "strengths": [
-        "Information Extraction:** The system demonstrates a good ability to extract numerical values and relevant named entities (players, teams, cities, etc.) from the passages. This is evident in the success cases where it correctly identifies and extracts the necessary information to answer the questions (e.g., identifying player names, quantities of yards, etc.).",
-        "Simple Arithmetic Reasoning:** The system can perform simple arithmetic operations, such as subtraction, when the necessary information is explicitly present in the passage. Sample ID 5 in the success cases demonstrates this capability.",
-        "Direct Answer Identification:** In many cases, the system is capable of correctly identifying and extracting the answer when it is directly stated within the passage. This is shown across the success cases, such as identifying who had the longest touchdown reception in Sample ID 8."
-      ],
-      "weaknesses": [
-        "Complex Arithmetic Reasoning:** The system struggles with questions that require more complex arithmetic reasoning, such as calculating the difference between two scores when those scores are not directly given in the passage. This is highlighted in Error Case 7, where the system fails to determine the final scores and compute the point difference.",
-        "Inability to Track Multiple Events:** The system demonstrates difficulty in tracking multiple scoring events throughout the passage and aggregating them into a final score for each team."
-      ],
+      "text_report": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and other contextual information.\n\n### EXECUTION ANALYSIS\n\nThe sample outputs reveal a consistent pattern: the system relies almost exclusively on the provided context. When context is absent or insufficient, it defaults to \"cannot answer\" rather than attempting to retrieve the necessary information. This is evident in all three sample executions.\n\n*   **Sample ID 0:** The system correctly identifies the lack of context but makes no attempt to find the missing information (the year Etta Cone last visited Europe).\n*   **Sample ID 1:** This is the only successful execution.  The system acknowledges the lack of real context but, critically, goes on to *hypothesize* about what a real answer *might* be and how it would determine it. This indicates some reasoning ability, even though it is reliant on a hypothetical.\n*   **Sample ID 2:** Similar to Sample ID 0, the system identifies the missing context (the architect who completed the chapel) and states that it cannot extract an answer.\n\nThere are no apparent runtime errors, suggesting the core information extraction module is functioning correctly when it has sufficient input. The issue is upstream of that module: the system needs a mechanism to *obtain* relevant input in the first place. The mapping suggests \"information\\_extraction\" and \"solution\\_generation\" should be strengths, but their usage is severely limited by the lack of initial information retrieval.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates limited capabilities in its current state. While it can parse questions, identify missing information, and even reason hypothetically, its inability to access external knowledge severely restricts its performance. The system essentially functions as a sophisticated lookup tool, but it fails when the information is not readily available within the provided context. It gets 1/3 accurate, but it is also important to recognize in the successful case it makes a *hypothetical* answer.\n\n### KEY STRENGTHS\n\n*   **Question Understanding:** The system accurately parses questions and identifies the required information.\n*   **Awareness of Contextual Insufficiency:** It correctly recognizes when the provided context is insufficient to answer a question.\n*   **Hypothetical Reasoning (Limited):** Demonstrates rudimentary reasoning and answer construction skills when presented with a hypothetical scenario (Sample ID 1).  *This is the most promising strength*.\n\n### KEY WEAKNESSES\n\n*   **Complete Reliance on Provided Context:**  The system's inability to access external knowledge is its most critical weakness.\n*   **Passive Behavior:** The system defaults to \"cannot answer\" instead of actively seeking the missing information.\n*   **Lack of Information Retrieval Capabilities:** There is no mechanism to retrieve information from external sources.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Retrieval**.  The system *must* be able to access and utilize external knowledge sources to overcome its dependence on provided context.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Search Module (Priority):**\n    *   Integrate a search API (e.g., Google Search API, Bing Search API) into the system. This is the most crucial step.\n    *   Start with a simple implementation that focuses on retrieving relevant search results based on a generated query.\n2.  **Develop a Query Formulation Module (Priority):**\n    *   Design a module that can automatically generate search queries based on the original question and any available context.\n    *   Start with basic keyword extraction from the question and gradually refine the module to incorporate more sophisticated query formulation techniques.\n3.  **Develop a Basic Information Aggregator:**\n    *   Create a simple module that ingests a list of returned search snippets, and extract out the common information.\n4.  **Retrain using the successful case as positive reinforcement:**\n    *   Use the successful case where hypothetical reasoning was correctly applied as a model to train further interactions.\n\n### CAPABILITY TREND\n\nCurrently, the capabilities are **stable but fundamentally limited.** The system performs consistently within its restricted scope (provided context only), but its overall usefulness is low. Improving the Information Retrieval capability will be a dramatic improvement.\n",
+      "strengths": [],
+      "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nThere are no identified runtime errors (e.g., JSONDecodeError, TypeError) in the provided error cases and success cases.\n\n## STRENGTHS\n*   **Information Extraction:** The system demonstrates a good ability to extract numerical values and relevant named entities (players, teams, cities, etc.) from the passages. This is evident in the success cases where it correctly identifies and extracts the necessary information to answer the questions (e.g., identifying player names, quantities of yards, etc.).\n*   **Simple Arithmetic Reasoning:** The system can perform simple arithmetic operations, such as subtraction, when the necessary information is explicitly present in the passage. Sample ID 5 in the success cases demonstrates this capability.\n*   **Direct Answer Identification:** In many cases, the system is capable of correctly identifying and extracting the answer when it is directly stated within the passage. This is shown across the success cases, such as identifying who had the longest touchdown reception in Sample ID 8.\n\n## WEAKNESSES\n*   **Complex Arithmetic Reasoning:** The system struggles with questions that require more complex arithmetic reasoning, such as calculating the difference between two scores when those scores are not directly given in the passage. This is highlighted in Error Case 7, where the system fails to determine the final scores and compute the point difference.\n*   **Inability to Track Multiple Events:** The system demonstrates difficulty in tracking multiple scoring events throughout the passage and aggregating them into a final score for each team.\n\n## CRITICAL BOTTLENECKS\n*   **Lack of Score Tracking/Aggregation:** The inability to track and aggregate multiple scoring events (touchdowns, field goals, etc.) from the passage to calculate team scores.\n*   **Limited Arithmetic Deduction:** Inability to perform simple arithmetic reasoning when the information is distributed throughout the text and requires multiple steps to derive the answer.\n\n## ERROR PATTERNS\n*   The primary error pattern is the inability to synthesize information spread across the text to derive a numerical answer, especially when the answer requires arithmetic calculations or score tracking.\n\n## PRIMARY ISSUE\nThe most critical problem is the system's inability to track and calculate the final scores of teams based on individual scoring plays described in the passage. This stems from a limitation in complex arithmetic reasoning and score aggregation.\n\n## IMPROVEMENT AREAS\n*   **Complex Arithmetic Reasoning:** Improve the ability to perform arithmetic calculations that involve combining information from different parts of the passage.\n*   **Score Tracking Capability:** Implement a mechanism for tracking and updating team scores based on the game events described in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Score Tracking Module:** Design a module that can parse the passage for scoring plays (touchdowns, field goals, etc.), assign points to the appropriate team, and maintain a running tally of each team's score. This module should be capable of handling various ways scoring plays are described (e.g., \"a 7-yard TD run,\" \"a 30-yard field goal\").\n2.  **Enhance Arithmetic Reasoning:** Improve the system's ability to perform arithmetic calculations. For example, after extracting all scoring plays, the system should be able to sum the scores to find the total or subtract scores to find the difference. Introduce intermediate variables to hold each team's score and make them accessible for calculations.\n3.  **Break Down Question into Sub-Questions:** Before answering the main question, have the system identify sub-questions to answer. For example, if the question is \"How many more points did the Ravens score than the Steelers?\", the sub-questions are \"What was the Ravens' final score?\" and \"What was the Steelers' final score?\". By breaking the problem down, the system is more likely to solve the problem correctly.\n4. Add more print statements or intermediate outputs to provide a step-by-step analysis of the system's reasoning when it tries to compute the score.\n\n## CAPABILITY MAPPING\n*   **Sample ID 7:**\n    *   information_extraction: Partially successful (extracted some scoring plays but not all or didn't associate them with teams)\n    *   constraint_handling: N/A\n    *   solution_generation: Failed (could not generate final scores)\n    *   solution_verification: N/A\n    *   decision_making: Incorrect (stated not enough information)\n",
-    "capability_report_text": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, improvement suggestions, capability mapping, and execution outputs you provided:\n\n## CAPABILITY ASSESSMENT REPORT\n\n**## EXECUTION ANALYSIS**\n\nThe sample execution outputs show the system is capable of extracting text spans identified as the answer to a question. The outputs are clean and adhere to the `ANSWER_START` and `ANSWER_END` format. However, without the questions corresponding to these outputs, it's difficult to assess the *correctness* of the answers beyond the information that they are extracting information. The lack of diversity in the output format suggests the system might be relying on simple pattern matching or direct extraction, which aligns with the weaknesses identified in the error analysis. There is no obvious reason to assume issues given the information, however it is impossible to be sure.\n\n**## CAPABILITY ASSESSMENT**\n\nThe system possesses a baseline capability for information extraction and direct answer identification from text. It struggles with tasks that require arithmetic reasoning, information synthesis, and tracking events to arrive at a numerical answer. The system correctly answers 9/10 questions, and demonstrates an ability to extract information such as player names, quantities of yards, and named entities, but struggles when the answer requires more complex mathmatical reasoning. The system could benefit from the incorporation of new modules to track scores and synthesize information throughout the text.\n\n**## KEY STRENGTHS**\n\n*   **Direct Information Extraction:** The system excels at identifying and extracting answers explicitly stated in the passage. This is a foundational capability that can be leveraged.\n*   **Numerical Value Identification:** The system can identify and extract numerical values, a core requirement for tasks involving arithmetic.\n*   **Named Entity Recognition:** The system demonstrates the capability to recognize Named Entities, such as players, teams, and cities.\n\n**## KEY WEAKNESSES**\n\n*   **Complex Arithmetic Reasoning & Calculation:** This is the most significant weakness, as the system struggles to perform calculations when the numbers are not directly presented in the answer.\n*   **Score Tracking & Aggregation:** The inability to track and update team scores dynamically is a critical limitation.\n*   **Information Synthesis:** The system cannot combine information from across the text to derive the answer.\n\n**## IMPROVEMENT FOCUS**\n\nThe single most important capability to focus on is **Complex Arithmetic Reasoning and Score Tracking/Aggregation**. Addressing this will unlock the system's ability to answer a broader range of questions and handle more complex scenarios.\n\n**## ACTIONABLE RECOMMENDATIONS**\n\nBased on the error analysis and improvement suggestions, here's a set of specific changes to implement in the next iteration:\n\n1.  **Implement the Score Tracking Module:** Prioritize the development of a module that can parse the passage for scoring plays, associate points with teams, and maintain a running tally. This requires robust parsing and entity recognition.\n2.  **Enhance Arithmetic Reasoning with Intermediate Variables:** Modify the system to use intermediate variables to store team scores.  After extracting scoring plays, use these variables to accumulate the scores. This promotes modularity and clarity in the calculation process.\n3.  **Implement a \"Question Decomposition\" Pre-processing Step:**  Before attempting to answer the main question, have the system identify and answer sub-questions first. For example, for a question about the score difference, the sub-questions would be: \"What was Team A's final score?\" and \"What was Team B's final score?\". Store these intermediate answers.\n4.  **Introduce Detailed Logging and Intermediate Outputs:** Add print statements (or logging) at each stage of the score tracking and calculation process. This will allow for easier debugging and identification of specific points of failure. For example, log each extracted scoring play, the updated team scores, and the final calculated difference.\n5. **Test-Driven Development:** Establish a suite of test cases that explicitly test the scoring tracking and complex reasoning capabilities. These tests should include scenarios with multiple scoring plays, different types of scoring (TDs, field goals), and questions that require calculating score differences.\n\n**Example Implementation Steps for Score Tracking Module:**\n\n*   **Scoring Play Detection:** Use regular expressions or pattern matching to identify phrases indicating scoring plays (e.g., \"a 7-yard TD run,\" \"a 30-yard field goal\").\n*   **Team Association:** Implement logic to associate the scoring play with the correct team.  This might involve looking for team names mentioned near the scoring play.\n*   **Point Assignment:**  Assign the correct number of points based on the type of score (e.g., 6 points for a touchdown, 3 points for a field goal).\n*   **Score Update:** Update the team scores using intermediate variables.\n*   **Use more advanced models to better recognize and infer scores, like transformers.\n\n**## CAPABILITY TREND**\n\nBased on the provided information, the capability trend is currently **stable but limited**. The system performs well on simple tasks but lacks the advanced reasoning capabilities needed for more complex scenarios. The proposed improvements are expected to lead to a significant **improvement** in the system's overall capabilities.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no specific runtime errors (like JSONDecodeError or TypeError) in the provided outputs.\n\n## STRENGTHS\n1.  **Question Understanding:** The system is able to parse the question and identify the information required.\n2.  **Awareness of Insufficient Context:** The system correctly identifies when the provided context (or lack thereof) is insufficient to answer the question.\n3.  **Hypothetical Reasoning (in success case):** In one successful case, the system demonstrates the ability to construct a hypothetical answer based on what *would* be expected if the search results were valid. This represents rudimentary reasoning about potential solutions.\n\n## WEAKNESSES\n1.  **Inability to Answer Without Explicit Context:** The system defaults to \"cannot answer\" when no direct context is provided, even if the answer might be obtainable through external knowledge.\n2.  **Failure to Seek External Knowledge:** The system does not attempt to retrieve external knowledge to answer the question when the provided context is insufficient. It acknowledges the lack of information but doesn't take steps to rectify it.\n\n## CRITICAL BOTTLENECKS\n1.  **Reliance on Provided Context Only:** The most critical bottleneck is the system's complete dependence on the provided context and its inability to leverage external knowledge or search to fill in gaps.\n\n## ERROR PATTERNS\n1.  **\"Cannot Answer\" Default:**  A recurring pattern is the system's response of \"cannot answer\" whenever the answer is not explicitly present within the provided context.\n\n## PRIMARY ISSUE\nThe primary issue is the system's passive behavior when faced with insufficient information. It needs to be augmented with the capability to actively seek out the necessary information via external knowledge sources (e.g., internet search). It needs a mechanism to detect if information is lacking, formulate a relevant query, retrieve information, extract the answer, and then respond to the original question.\n\n## IMPROVEMENT AREAS\n1.  **Information Retrieval:** Integrate a mechanism for retrieving external information when the initial context is insufficient.\n2.  **Answer Synthesis from External Sources:** Develop the capability to synthesize answers from multiple external sources to improve accuracy and reliability.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Implement a Search Module:** Integrate a search API (e.g., Google Search API) into the system.\n2.  **Develop a Query Formulation Module:** Create a module that can automatically formulate relevant search queries based on the question and the available context.\n3.  **Enhance Answer Extraction:** Improve the answer extraction module to identify and extract answers from the retrieved search results.\n4.  **Develop a Confidence Scoring Mechanism:** Implement a system for scoring the confidence level of the extracted answer, taking into account the source's reliability and the consistency of information across multiple sources. This would allow the system to provide answers with associated confidence levels, or to abstain from answering if the confidence is too low.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information\\_extraction, solution\\_generation\n*   **Sample ID 2:** information\\_extraction, solution\\_generation\n",
+    "capability_report_text": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and other contextual information.\n\n### EXECUTION ANALYSIS\n\nThe sample outputs reveal a consistent pattern: the system relies almost exclusively on the provided context. When context is absent or insufficient, it defaults to \"cannot answer\" rather than attempting to retrieve the necessary information. This is evident in all three sample executions.\n\n*   **Sample ID 0:** The system correctly identifies the lack of context but makes no attempt to find the missing information (the year Etta Cone last visited Europe).\n*   **Sample ID 1:** This is the only successful execution.  The system acknowledges the lack of real context but, critically, goes on to *hypothesize* about what a real answer *might* be and how it would determine it. This indicates some reasoning ability, even though it is reliant on a hypothetical.\n*   **Sample ID 2:** Similar to Sample ID 0, the system identifies the missing context (the architect who completed the chapel) and states that it cannot extract an answer.\n\nThere are no apparent runtime errors, suggesting the core information extraction module is functioning correctly when it has sufficient input. The issue is upstream of that module: the system needs a mechanism to *obtain* relevant input in the first place. The mapping suggests \"information\\_extraction\" and \"solution\\_generation\" should be strengths, but their usage is severely limited by the lack of initial information retrieval.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates limited capabilities in its current state. While it can parse questions, identify missing information, and even reason hypothetically, its inability to access external knowledge severely restricts its performance. The system essentially functions as a sophisticated lookup tool, but it fails when the information is not readily available within the provided context. It gets 1/3 accurate, but it is also important to recognize in the successful case it makes a *hypothetical* answer.\n\n### KEY STRENGTHS\n\n*   **Question Understanding:** The system accurately parses questions and identifies the required information.\n*   **Awareness of Contextual Insufficiency:** It correctly recognizes when the provided context is insufficient to answer a question.\n*   **Hypothetical Reasoning (Limited):** Demonstrates rudimentary reasoning and answer construction skills when presented with a hypothetical scenario (Sample ID 1).  *This is the most promising strength*.\n\n### KEY WEAKNESSES\n\n*   **Complete Reliance on Provided Context:**  The system's inability to access external knowledge is its most critical weakness.\n*   **Passive Behavior:** The system defaults to \"cannot answer\" instead of actively seeking the missing information.\n*   **Lack of Information Retrieval Capabilities:** There is no mechanism to retrieve information from external sources.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Retrieval**.  The system *must* be able to access and utilize external knowledge sources to overcome its dependence on provided context.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Search Module (Priority):**\n    *   Integrate a search API (e.g., Google Search API, Bing Search API) into the system. This is the most crucial step.\n    *   Start with a simple implementation that focuses on retrieving relevant search results based on a generated query.\n2.  **Develop a Query Formulation Module (Priority):**\n    *   Design a module that can automatically generate search queries based on the original question and any available context.\n    *   Start with basic keyword extraction from the question and gradually refine the module to incorporate more sophisticated query formulation techniques.\n3.  **Develop a Basic Information Aggregator:**\n    *   Create a simple module that ingests a list of returned search snippets, and extract out the common information.\n4.  **Retrain using the successful case as positive reinforcement:**\n    *   Use the successful case where hypothetical reasoning was correctly applied as a model to train further interactions.\n\n### CAPABILITY TREND\n\nCurrently, the capabilities are **stable but fundamentally limited.** The system performs consistently within its restricted scope (provided context only), but its overall usefulness is low. Improving the Information Retrieval capability will be a dramatic improvement.\n"
   },
-  "progressive_testing": {
-    "total_examples": 10,
-    "successful_runs": 10,
-    "matches": 8,
-    "accuracy": 0.8,
-    "results": [
-      {
-        "success": true,
-        "answer": "20,472 - 14,554 = 5,918\nVerification: 5,918",
-        "output": "ANSWER_START\n20,472 - 14,554 = 5,918\nVerification: 5,918\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "5918",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides the calculation and the result, which is 5,918. The golden answer is 5918. Both answers convey the same numerical value."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "5",
-        "output": "ANSWER_START\n5\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "6",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer '5' is not semantically equivalent to the golden answer '6'. They are different numerical values."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "42, 31, and 47",
-        "output": "ANSWER_START\n42, 31, and 47\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "42-yard, 31-yard, 47-yard",
-        "evaluation": {
-          "match": true,
-          "confidence": 0.9,
-          "explanation": "The system answer provides the numerical values 42, 31, and 47, while the golden answer provides the same numerical values with \"-yard\" appended to each. The units are implied in the system answer. The numerical values are identical, so the answers convey the same information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "74",
-        "output": "ANSWER_START\n74\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "74",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "February 1917",
-        "output": "ANSWER_START\nFebruary 1917\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "1917 February",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers refer to the same month and year, just with a different order of the month and year. Therefore, they are semantically equivalent."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "19",
-        "output": "ANSWER_START\n19\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "19",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "1",
-        "output": "ANSWER_START\n1\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are exactly the same numerical value: 1."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "18 to 24",
-        "output": "ANSWER_START\n18 to 24\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "18 to 24",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The answers are exactly the same."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Married couples living together",
-        "output": "ANSWER_START\nMarried couples living together\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "married couples living together",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer and the golden answer are identical."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "The Gunfighter (1950), Roman Holiday (1953), Moby Dick (1956), The Big Country (1958), The Bravados (1958), Pork Chop Hill (1959) = 6 films in the 1950s\nThe Guns of Navarone (1961), Cape Fear (1962), How the West Was Won (1962) = 3 films in the 1960s\n\nVerification: Peck was in more notable films in the 1950s.",
-        "output": "ANSWER_START\nThe Gunfighter (1950), Roman Holiday (1953), Moby Dick (1956), The Big Country (1958), The Bravados (1958), Pork Chop Hill (1959) = 6 films in the 1950s\nThe Guns of Navarone (1961), Cape Fear (1962), How the West Was Won (1962) = 3 films in the 1960s\n\nVerification: Peck was in more notable films in the 1950s.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "1950s",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer provides a detailed breakdown of Gregory Peck's films in the 1950s and 1960s to conclude he was in more notable films in the 1950s, while the golden answer simply states '1950s'. The system answer provides the reasoning for its conclusion, the golden answer does not."
-        },
-        "match": false
-      }
-    ]
-  },
-  "execution_time": 110.23108386993408,
+  "progressive_testing": null,
+  "execution_time": 52.37633800506592,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

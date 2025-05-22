@@ -2,156 +2,6 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach with improved question analysis and numerical reasoning.
-    """
-    try:
-        # Step 1: Identify question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer and perform calculations if needed
-        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords, including if a calculation is needed."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.  Also determine if a calculation is REQUIRED.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_required": false}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": true}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"], "calculation_required": false}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the following text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_required": false}}
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": true}}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal"], "calculation_required": false}}
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text. Prioritize extracting the specific answer rather than just saying the answer is correct."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question type. Prioritize extracting the SPECIFIC answer from the passage rather than simply saying 'correct'.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage, question_analysis):
-    """Verifies the generated answer and performs calculations if required. Includes multiple examples."""
-    system_instruction = "You are an expert at verifying answers to questions and performing basic calculations when needed. Output the final calculated result."
-    prompt = f"""
-    Verify the following answer to the question based on the relevant passage. 
-
-    If a calculation is required (as determined in the question analysis), perform the calculation and provide the result.
-    If the answer is correct and no calculation is needed, return the answer.
-    If the answer is incorrect, return the correct answer.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Question Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_required": false}}
-    Verification: Jarrett Boykin
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Question Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_required": true}}
-    Verification: 2
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Question Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"], "calculation_required": false}}
-    Verification: Josh Scobee
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Question Analysis: {question_analysis}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
-
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
@@ -180,3 +30,84 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question, max_attempts=3):
+    """Solve factual questions using a new approach: Question Transformation & Focused Verification."""
+
+    # Hypothesis: Transform the question into multiple simpler questions each focused on a specific aspect. Then, focus the verification process specifically on validating the transformations and intermediate answers. This approach isolates potential failure points and allows for targeted refinement.
+
+    # Step 1: Question Transformation - Transform the original question into multiple simpler questions (with examples)
+    transformation_prompt = f"""
+    Transform the original question into a set of simpler questions that, when answered individually, will collectively answer the original question. Focus each question on a specific aspect of the original.
+
+    Example 1:
+    Original Question: What is the capital of the country where the Great Barrier Reef is located, and what is the population of that capital?
+    Transformed Questions:
+    1.  What country is the Great Barrier Reef located in?
+    2.  What is the capital of [country from question 1]?
+    3.  What is the population of [capital from question 2]?
+
+    Example 2:
+    Original Question: In what year was Jamini Roy awarded the Padma Bhushan, and what was his primary artistic style?
+    Transformed Questions:
+    1. In what year was Jamini Roy awarded the Padma Bhushan?
+    2. What was Jamini Roy's primary artistic style?
+
+    Original Question: {question}
+    Transformed Questions:
+    """
+    transformed_questions = call_llm(transformation_prompt, system_instruction="You are an expert question transformer.").split("\n")
+    print(f"Transformed Questions: {transformed_questions}")
+
+    # Step 2: Answer the transformed questions (with error handling).
+    answers = []
+    for q in transformed_questions:
+        if not q.strip():
+            continue  # Skip empty questions
+        search_query = call_llm(f"Generate a search query for: {q}", "You are a search query generator.")
+        search_results = call_llm(f"Simulated search results for: {search_query}.", "You are a search engine.")
+        answer = call_llm(f"Answer the question '{q}' using the search results: {search_results}", "You are an answer extraction expert.")
+        answers.append(answer)
+    print(f"Answers: {answers}")
+    # Step 3: Synthesize the answers into a final answer (with examples).
+    synthesis_prompt = f"""
+    Synthesize the individual answers into a coherent final answer to the original question.
+    Example 1:
+    Original Question: What is the capital of the country where the Great Barrier Reef is located, and what is the population of that capital?
+    Individual Answers:
+    1. Australia
+    2. Canberra
+    3. 450,000
+    Final Answer: The capital of Australia, where the Great Barrier Reef is located, is Canberra, which has a population of approximately 450,000.
+
+    Original Question: {question}
+    Individual Answers:
+    {answers}
+    Final Answer:
+    """
+    final_answer = call_llm(synthesis_prompt, system_instruction="You are an expert answer synthesizer.")
+
+    # Step 4: Focused Validation
+    validation_prompt = f"""
+    Validate the transformation and the synthesized answer.
+    First, confirm that the TRANSFORMED QUESTIONS, if answered completely and accurately, would address the original question completely. Then, validate the final answer based on the transformed questions and answers.
+    Original Question: {question}
+    Transformed Questions: {transformed_questions}
+    Final Answer: {final_answer}
+
+    Example 1:
+    Original Question: What is the capital of the country where the Great Barrier Reef is located, and what is the population of that capital?
+    Transformed Questions:
+    1.  What country is the Great Barrier Reef located in?
+    2.  What is the capital of [country from question 1]?
+    3.  What is the population of [capital from question 2]?
+    Final Answer: The capital of Australia, where the Great Barrier Reef is located, is Canberra, which has a population of approximately 450,000.
+    Validation: VALID. The transformed questions cover all aspects of the original. The final answer correctly synthesizes the answers to those questions.
+
+    """
+    validation_result = call_llm(validation_prompt, "You are an expert validator.")
+
+    if "VALID" in validation_result:
+        return final_answer
+    else:
+        return "Could not be validated."

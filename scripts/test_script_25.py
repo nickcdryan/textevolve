@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 25,
-        "sample_id": "6f56c1ee-41bb-46f9-9334-3b9207350caa",
-        "question": "PASSAGE: At the Corfu European Council, held on 24-25 June 1994, the EU officially confirmed that Cyprus would be included in the Union's next phase of enlargement. Two weeks later, on 5 July, the European Court of Justice imposed restrictions on the export of goods from Northern Cyprus into the European Union. Soon afterwards, in December, relations between the EU and Turkey were further damaged when Greece blocked the final implementation of a customs union. As a result, talks remained completely blocked throughout 1995 and 1996. In December 1996, the European Court of Human Rights  delivered a landmark ruling that declared that Turkey was an occupying power in Cyprus. The case - Loizidou v. Turkey - centred on Titina Loizidou, a refugee from Kyrenia, who was judged to have been unlawfully denied the control of her property by Turkey. The case also had severe financial implications as the Court later ruled that Turkey should pay Mrs Loizidou US$825,000 in compensation for the loss of use of her property. Ankara rejected the ruling as politically motivated. After twenty years of talks, a settlement seemed as far off as ever. However, the basic parameters of a settlement were by now internationally agreed. Cyprus would be a bi-zonal, bi-communal federation. A solution would also be expected to address the following issues:\n\nQUESTION: How many years were talks between the EU and Turkey blocked?"
+        "sample_id": "example_82",
+        "question": 'Toronto mayors Sir Adam Wilson (Mayor from 1859-1861), John George Bowes (Mayor from 1861-1864), and Francis Henry Medcalf (Mayor from 1864-1867) were elected to office by which body?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 25,
-            "sample_id": "6f56c1ee-41bb-46f9-9334-3b9207350caa",
+            "sample_id": "example_82",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: At the Corfu European Council, held on 24-25 June 1994, the EU officially confirmed that Cyprus would be included in the Union's next phase of enlargement. Two weeks later, on 5 July, the European Court of Justice imposed restrictions on the export of goods from Northern Cyprus into the European Union. Soon afterwards, in December, relations between the EU and Turkey were further damaged when Greece blocked the final implementation of a customs union. As a result, talks remained completely blocked throughout 1995 and 1996. In December 1996, the European Court of Human Rights  delivered a landmark ruling that declared that Turkey was an occupying power in Cyprus. The case - Loizidou v. Turkey - centred on Titina Loizidou, a refugee from Kyrenia, who was judged to have been unlawfully denied the control of her property by Turkey. The case also had severe financial implications as the Court later ruled that Turkey should pay Mrs Loizidou US$825,000 in compensation for the loss of use of her property. Ankara rejected the ruling as politically motivated. After twenty years of talks, a settlement seemed as far off as ever. However, the basic parameters of a settlement were by now internationally agreed. Cyprus would be a bi-zonal, bi-communal federation. A solution would also be expected to address the following issues:\n\nQUESTION: How many years were talks between the EU and Turkey blocked?"
+    question = 'Toronto mayors Sir Adam Wilson (Mayor from 1859-1861), John George Bowes (Mayor from 1861-1864), and Francis Henry Medcalf (Mayor from 1864-1867) were elected to office by which body?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 25,
-            "sample_id": "6f56c1ee-41bb-46f9-9334-3b9207350caa",
+            "sample_id": "example_82",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 25,
-            "sample_id": "6f56c1ee-41bb-46f9-9334-3b9207350caa",
+            "sample_id": "example_82",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

@@ -2,94 +2,23 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach with enhanced reasoning and verification.
-    """
-    try:
-        # Step 1: Analyze question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer
-        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords."""
-    system_instruction = "You are an expert at analyzing questions."
-    prompt = f"""
-    Analyze the question to identify its type (fact extraction, calculation, comparison) and keywords.
-    Example 1: Question: Who caught the final touchdown of the game? Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-    Example 2: Question: How many running backs ran for a touchdown? Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    Example 3: Question: Which player kicked the only field goal? Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-    Question: {question} Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords."""
-    system_instruction = "You are an expert at extracting relevant passages."
-    prompt = f"""
-    Extract the relevant passage from the text based on the question and keywords.
-    Example 1: Question: Who caught the final touchdown? Keywords: {{"keywords": ["final touchdown"]}} Text: PASSAGE: Rodgers found Boykin... final score 31-13. Passage: Rodgers found Boykin...31-13.
-    Example 2: Question: How many running backs ran for a touchdown? Keywords: {{"keywords": ["running backs", "touchdown"]}} Text: PASSAGE: Johnson got a 6-yard TD run...White getting a 6-yard...TD run. Passage: Johnson got a 6-yard TD run...White getting a 6-yard...TD run.
-    Question: {question} Keywords: {question_analysis} Text: {question} Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type."""
-    system_instruction = "You are an expert at generating answers."
-    prompt = f"""
-    Generate the answer to the question based on the passage and question type.
-    Example 1: Question: Who caught the final touchdown? Passage: Rodgers found Boykin... final score. Answer: Jarrett Boykin
-    Example 2: Question: How many running backs ran for a touchdown? Passage: Johnson got a 6-yard TD run...White getting a 6-yard...TD run. Answer: 2
-    Question: {question} Passage: {relevant_passage} Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage, question_analysis):
-    """Verifies the generated answer and ensures completeness. Includes examples."""
-    system_instruction = "You are an expert at verifying answers to questions, return the correct answer."
-    prompt = f"""
-    Verify the answer. If correct, return the answer, if not return the correct answer.
-    Example 1: Question: Who caught the final touchdown? Answer: Boykin Passage: Rodgers found Boykin... final score. Verification: Jarrett Boykin
-    Example 2: Question: How many running backs ran for a touchdown? Answer: 2 Passage: Johnson got a 6-yard TD run...White getting a 6-yard...TD run. Verification: 2
-    Question: {question} Answer: {answer} Passage: {relevant_passage} Verification:
-    """
-    return call_llm(prompt, system_instruction)
+# Hypothesis: Implement a "Knowledge Retrieval with Targeted Validation" approach, focusing on improving answer accuracy by:
+# 1. Generating multiple search queries based on different interpretations of the question.
+# 2. Implementing targeted validation checks for each extracted answer.
+# 3. Utilizing a validation agent that incorporates more comprehensive fact verification.
+# Verification is implemented to deduce if the search queries and validation steps are helpful.
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response."""
     try:
         from google import genai
         from google.genai import types
 
-        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -104,4 +33,101 @@ def call_llm(prompt, system_instruction=None):
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
+
+def generate_search_queries(question):
+    """Generate multiple search queries based on different interpretations of the question."""
+    system_instruction = "You are an expert search query generator, designing diverse and effective queries to find answers."
+    prompt = f"""
+    Generate multiple diverse search queries based on the question.
+
+    Example 1:
+    Question: What is the capital of Australia?
+    Search Queries:
+    1. "capital of Australia"
+    2. "Australia capital city"
+    3. "Australian federal capital"
+
+    Example 2:
+    Question: Who was the guest star who played Carter on S5 E9 of "The Dukes of Hazzard"?
+    Search Queries:
+    1. "The Dukes of Hazzard" S5 E9 guest star Carter
+    2. "Dukes of Hazzard" season 5 episode 9 Carter actor
+    3. "The Dukes of Hazzard" "Carter" guest actor S5 E9
+
+    Question: {question}
+    Search Queries:
+    """
+    search_queries = call_llm(prompt, system_instruction).split("\n")
+    return [q.strip() for q in search_queries if q.strip()]
+
+def retrieve_info(search_query):
+    """Retrieve relevant information using the generated search query."""
+    system_instruction = "You are a search engine simulator providing factual and concise information."
+    prompt = f"""
+    Simulate search results for the query.
+
+    Example:
+    Search Query: "capital of Australia"
+    Search Results: Canberra is the capital of Australia.
+
+    Search Query: {search_query}
+    Search Results:
+    """
+    return call_llm(prompt, system_instruction)
+
+def extract_answer(question, retrieved_info):
+    """Extract the answer from the retrieved information."""
+    system_instruction = "You are an expert at extracting precise answers from text. Focus on accuracy."
+    prompt = f"""
+    Extract the concise answer from the search results.
+
+    Example:
+    Question: What is the capital of Australia?
+    Search Results: Canberra is the capital of Australia.
+    Answer: Canberra
+
+    Question: {question}
+    Search Results: {retrieved_info}
+    Answer:
+    """
+    return call_llm(prompt, system_instruction)
+
+def validate_answer(question, answer):
+    """Validate the extracted answer against the question."""
+    system_instruction = "You are a fact validator, ensuring the answer is correct and complete. Provide a detailed explanation."
+    prompt = f"""
+    Validate if the answer accurately and completely answers the question. Provide a detailed explanation of your validation.
+
+    Example 1:
+    Question: What is the capital of Australia?
+    Answer: Canberra
+    Validation: VALID - Canberra is the capital of Australia according to multiple sources.
+
+    Example 2:
+    Question: What is the population of the capital of Australia?
+    Answer: Sydney
+    Validation: INVALID - Sydney is not the capital of Australia. The capital is Canberra.
+
+    Question: {question}
+    Answer: {answer}
+    Validation:
+    """
+    validation_result = call_llm(prompt, system_instruction)
+    return validation_result
+
+def main(question):
+    """Solve questions by generating search queries, retrieving info, extracting, and validating."""
+    try:
+        search_queries = generate_search_queries(question)
+        for search_query in search_queries:
+            retrieved_info = retrieve_info(search_query)
+            answer = extract_answer(question, retrieved_info)
+            validation_result = validate_answer(question, answer)
+
+            if "VALID" in validation_result:
+                return answer
+        return "Could not be validated."
+
+    except Exception as e:
         return f"Error: {str(e)}"

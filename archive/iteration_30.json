@@ -1,480 +1,203 @@
 {
   "iteration": 30,
-  "timestamp": "2025-05-20T21:39:13.725983",
-  "strategy": "Exploitation",
-  "explore_rate": 10,
-  "exploit_rate": 90,
-  "batch_size": 5,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach.\n    This approach focuses on breaking down the problem into question type identification, \n    focused passage extraction, and direct answer generation with verification.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer\n        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis) # Pass question_analysis to verify_answer\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n\n    Example 4:\n    Question: How many more people were in Crimea in 2001 than in 1989?\n    Analysis: {{\"type\": \"calculation\", \"keywords\": [\"more people\", \"Crimea\", \"2001\", \"1989\"]}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Example 4:\n    Question: How many more people were in Crimea in 2001 than in 1989?\n    Keywords: {{\"type\": \"calculation\", \"keywords\": [\"more people\", \"Crimea\", \"2001\", \"1989\"]}}\n    Text: PASSAGE: However, this was due to the influx of approximately 200,000 Crimean Tatars &ndash; a number equivalent to approximately 10% of Crimeas 1989 population \\u2013 who arrived in Crimea after 1989 and whose population in that region increased by a factor of 6.4 from 38,000 to 243,400 between 1989 and 2001.\n    Passage: However, this was due to the influx of approximately 200,000 Crimean Tatars &ndash; a number equivalent to approximately 10% of Crimeas 1989 population \\u2013 who arrived in Crimea after 1989 and whose population in that region increased by a factor of 6.4 from 38,000 to 243,400 between 1989 and 2001.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text. If the question type is calculation, perform the calculation.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Example 4:\n    Question: How many more people were in Crimea in 2001 than in 1989?\n    Passage: However, this was due to the influx of approximately 200,000 Crimean Tatars &ndash; a number equivalent to approximately 10% of Crimeas 1989 population \\u2013 who arrived in Crimea after 1989 and whose population in that region increased by a factor of 6.4 from 38,000 to 243,400 between 1989 and 2001.\n    Answer: 205400\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Question Analysis: {question_analysis}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage, question_analysis):\n    \"\"\"Verifies the generated answer. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions. If the question type is calculation, verify the calculation is correct based on the passage and return the correct answer if it is wrong. If correct return the original answer.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage.  Return the answer if it is correct.  Return the correct answer if it is incorrect.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee\n    \n    Example 4:\n    Question: How many more people were in Crimea in 2001 than in 1989?\n    Answer: 205400\n    Passage: However, this was due to the influx of approximately 200,000 Crimean Tatars &ndash; a number equivalent to approximately 10% of Crimeas 1989 population \\u2013 who arrived in Crimea after 1989 and whose population in that region increased by a factor of 6.4 from 38,000 to 243,400 between 1989 and 2001.\n    Question Analysis: {{\"type\": \"calculation\", \"keywords\": [\"more people\", \"Crimea\", \"2001\", \"1989\"]}}\n    Verification: 205400\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Question Analysis: {question_analysis}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a multi-stage LLM approach, leveraging techniques like question analysis and answer verification, to address a question. It decomposes the problem into identifying the question type and keywords, extracting relevant information, generating an initial answer, and then verifying the answer's correctness. The agent roles are implicitly defined within each function's prompt engineering (e.g., \"expert at analyzing questions\").\n\nThe functions used are `main`, `analyze_question`, `extract_relevant_passage`, `generate_answer`, `verify_answer`, and `call_llm`. The `main` function orchestrates the process, calling `analyze_question` to understand the question, `extract_relevant_passage` to find relevant context, `generate_answer` to create an initial answer, and `verify_answer` to validate it. The `call_llm` function is used by all other functions to interface with the Gemini model by Google.\n\nThe overall workflow starts with a question, proceeds through analysis, passage extraction, answer generation, verification, and returns the final verified answer, using the LLM at each stage.",
-  "sample_count": 5,
+  "timestamp": "2025-05-22T06:15:21.710344",
+  "strategy": "Exploration",
+  "explore_rate": 65,
+  "exploit_rate": 35,
+  "batch_size": 3,
+  "script": "import os\nimport re\nimport math\n\n# Hypothesis: Implementing a \"Chain of Knowledge\" approach with Iterative Fact Verification and Adaptive Source Selection\n# This script introduces a \"Chain of Knowledge\" approach, where information is iteratively refined through a chain of LLM calls,\n# focusing on Adaptive Source Selection. Source is selected based on previous reliability.\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. \"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef select_source(question, previous_sources=None):\n    \"\"\"Select the best source based on the question and past reliability.\"\"\"\n    system_instruction = \"You are an expert source selector, choosing the most reliable information source.\"\n    prompt = f\"\"\"\n    Select the best source for answering the question, considering past source reliability.\n\n    Example 1:\n    Question: What is the capital of Australia?\n    Past Sources: None\n    Best Source: Wikipedia (General Knowledge, High Reliability)\n\n    Example 2:\n    Question: In what year was the praying mantis species Eremiaphila bifasciata described?\n    Past Sources: Wikipedia (Reliability: High)\n    Best Source: Zoological Record (Zoology, High Reliability)\n\n    Question: {question}\n    Past Sources: {previous_sources or \"None\"}\n    Best Source:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef retrieve_information(question, source):\n    \"\"\"Retrieve information from the selected source.\"\"\"\n    system_instruction = f\"You are an information retriever, extracting relevant data from {source}.\"\n    prompt = f\"\"\"\n    Retrieve the most relevant information from {source} to answer the question.\n\n    Example:\n    Question: What is the capital of Australia?\n    Source: Wikipedia\n    Retrieved Information: Canberra is the capital of Australia.\n\n    Question: {question}\n    Source: {source}\n    Retrieved Information:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_information(question, retrieved_info, source):\n    \"\"\"Verify the accuracy of the retrieved information.\"\"\"\n    system_instruction = \"You are a fact verifier, ensuring the accuracy of information from {source}.\"\n    prompt = f\"\"\"\n    Verify if the information from {source} accurately answers the question.\n\n    Example:\n    Question: What is the capital of Australia?\n    Retrieved Information: Canberra is the capital of Australia.\n    Source: Wikipedia\n    Verification: VALID - Canberra is indeed the capital of Australia.\n\n    Question: {question}\n    Retrieved Information: {retrieved_info}\n    Source: {source}\n    Verification:\n    \"\"\"\n    verification_result = call_llm(prompt, system_instruction)\n    return verification_result\n\ndef extract_answer(question, verified_info):\n    \"\"\"Extract a concise answer from the verified information.\"\"\"\n    system_instruction = \"You are a concise answer extractor, focusing on precision.\"\n    prompt = f\"\"\"\n    Extract a concise answer from the verified information.\n\n    Example:\n    Question: What is the capital of Australia?\n    Verified Information: VALID - Canberra is indeed the capital of Australia.\n    Answer: Canberra\n\n    Question: {question}\n    Verified Information: {verified_info}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef main(question):\n    \"\"\"Solve questions using the Chain of Knowledge approach.\"\"\"\n    try:\n        # Initialize variables\n        previous_sources = None\n        source = None\n\n        # Select the best initial source\n        source = select_source(question, previous_sources)\n        print(f\"Source: {source}\")  # Debug print\n\n        # Retrieve information from the selected source\n        retrieved_info = retrieve_information(question, source)\n        print(f\"Retrieved info: {retrieved_info}\") # Debug print\n\n        # Verify the retrieved information\n        verification_result = verify_information(question, retrieved_info, source)\n        print(f\"Verification: {verification_result}\") # Debug print\n\n        # Extract a concise answer\n        answer = extract_answer(question, verification_result)\n        print(f\"Answer: {answer}\") # Debug print\n\n        # Return the answer\n        return answer\n\n    except Exception as e:\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "This script uses a \"Chain of Knowledge\" approach, iteratively refining information through LLM calls with Adaptive Source Selection. The problem is decomposed into source selection, information retrieval, verification, and answer extraction, each handled by a specialized agent. The workflow involves `select_source` to choose a source, `retrieve_information` to get data, `verify_information` to ensure accuracy, and `extract_answer` to provide a concise response, using `call_llm` for all LLM interactions. The main function orchestrates this process, printing debug information and returning the final answer.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE: In 1624, when the Ottoman Sultan recognized Fakhr-al-Din II as Lord of Arabistan , the Druze leader made Tiberias his capital. Fakhr ad Din II, one of the most famous Druze Emirs, was succeeded in 1635 by his nephew Mulhim Ma'an, who ruled through his death in 1658. Fakhr ad Din II's only surviving son, Husayn, lived the rest of his life as a court official in Constantinople. Emir Mulhim exercised Iltizam taxation rights in the Chouf, Gharb, Jurd, Matn, and Kisrawan districts of Lebanon. Mulhim's forces battled and defeated those of Mustafa Pasha, Beylerbey of Damascus, in 1642, but he is reported by historians to have been otherwise loyal to Ottoman rule. Emir Mulhim Ma'an died in 1658, succeeded by two of his sons.\n\nQUESTION: What was the title of Mulhim Ma'an?",
-      "answer": "Lord of Arabistan",
-      "id": "example_241",
+      "question": "In what year did Charlton Publications sell Hit Parader?",
+      "answer": "1991",
+      "id": "example_95",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In 1624, when the Ottoman Sultan recognized Fakhr-al-Din II as Lord of Arabistan , the Druze leader made Tiberias his capital. Fakhr ad Din II, one of the most famous Druze Emirs, was succeeded in 1635 by his nephew Mulhim Ma'an, who ruled through his death in 1658. Fakhr ad Din II's only surviving son, Husayn, lived the rest of his life as a court official in Constantinople. Emir Mulhim exercised Iltizam taxation rights in the Chouf, Gharb, Jurd, Matn, and Kisrawan districts of Lebanon. Mulhim's forces battled and defeated those of Mustafa Pasha, Beylerbey of Damascus, in 1642, but he is reported by historians to have been otherwise loyal to Ottoman rule. Emir Mulhim Ma'an died in 1658, succeeded by two of his sons.",
-        "original_question": "What was the title of Mulhim Ma'an?",
-        "original_answer_data": {
-          "spans": [
-            "Lord of Arabistan"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 878
+        "source": "SimpleQA",
+        "line_number": 928,
+        "original_data": {
+          "metadata": "{'topic': 'Music', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Hit_Parader', 'https://en.wikipedia.org/wiki/Hit_Parader', 'https://www.hitparader.com/blogs/history/the-final-bow', 'https://www.afka.net/Mags/Hit_Parader.htm']}",
+          "problem": "In what year did Charlton Publications sell Hit Parader?",
+          "answer": "1991",
+          "id": "example_928"
+        }
       }
     },
     {
-      "question": "PASSAGE: Coming off their road win over the Bills, the Saints went home for a Week 4 interconference duel with the New York Jets. New Orleans would deliver the game's first points as kicker John Carney got a 34-yard field goal. In the second quarter, the defense went to work. Safety Darren Sharper would return an interception 99 yards for a touchdown, followed by defensive end Will Smith forcing an endzone fumble by sacking Jets quarterback Mark Sanchez, which allowed defensive tackle Remi Ayodele to land on the ball for a touchdown. Afterwards, New York closed out the half with kicker Jay Feely's 38-yard field goal. The Jets would begin a comeback attempt in the third quarter with running back Thomas Jones getting a 15-yard touchdown run. Afterwards, the Saints would close out the game with running back Pierre Thomas' 1-yard touchdown and the defense making an impressive stand. With the win, New Orleans would enter its bye week at 4-0.\n\nQUESTION: Darren Sharper intercepted and ran the ball for how many more more yards for a touchdown compared to Thomas Jones touchdown run?",
-      "answer": "84",
-      "id": "example_242",
+      "question": "What is the peak brightness of the Asus ROG Phone 5s Pro in nits?",
+      "answer": "1200 nits",
+      "id": "example_96",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their road win over the Bills, the Saints went home for a Week 4 interconference duel with the New York Jets. New Orleans would deliver the game's first points as kicker John Carney got a 34-yard field goal. In the second quarter, the defense went to work. Safety Darren Sharper would return an interception 99 yards for a touchdown, followed by defensive end Will Smith forcing an endzone fumble by sacking Jets quarterback Mark Sanchez, which allowed defensive tackle Remi Ayodele to land on the ball for a touchdown. Afterwards, New York closed out the half with kicker Jay Feely's 38-yard field goal. The Jets would begin a comeback attempt in the third quarter with running back Thomas Jones getting a 15-yard touchdown run. Afterwards, the Saints would close out the game with running back Pierre Thomas' 1-yard touchdown and the defense making an impressive stand. With the win, New Orleans would enter its bye week at 4-0.",
-        "original_question": "Darren Sharper intercepted and ran the ball for how many more more yards for a touchdown compared to Thomas Jones touchdown run?",
-        "original_answer_data": {
-          "spans": [
-            "84"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 212
+        "source": "SimpleQA",
+        "line_number": 398,
+        "original_data": {
+          "metadata": "{'topic': 'Science and technology', 'answer_type': 'Number', 'urls': ['https://www.gsmarena.com/asus_rog_phone_5s_pro-11053.php', 'https://www.yugatech.com/mobile/asus-rog-phone-5s-pro-review/#:~:text=It%20uses%20an%20AMOLED%20panel%20with%20support%20for%201%20billion%20colors%20and%201200%20nits%20peak%20brightness.', 'https://www.gsmarena.com/asus_rog_phone_5s_pro-11053.php#:~:text=800%20nits%20(typ)%2C-,1200%20nits%20(peak),-Size', 'https://www.asus.com/us/news/jmxbvbsgrgvvhku6/#:~:text=1%2C200%20nits%20peak%20brightness']}",
+          "problem": "What is the peak brightness of the Asus ROG Phone 5s Pro in nits?",
+          "answer": "1200 nits",
+          "id": "example_398"
+        }
       }
     },
     {
-      "question": "PASSAGE: Coming off their divisional home win over the Panthers, the Falcons flew to Qualcomm Stadium for a Week 13 interconference duel with the San Diego Chargers.  In the first quarter, Atlanta took off as kicker Jason Elam got a 35-yard field goal.  The Chargers responded with RB LaDainian Tomlinson getting a 3-yard TD run, yet the Falcons stayed close with Elam getting a 40-yard field goal.  In the second quarter, Atlanta regained the lead as rookie quarterback Matt Ryan completed an 18-yard TD pass to TE Justin Peelle, along with their defense forcing opposing quarterback Philip Rivers to commit intentional grounding from his own endzone, giving Atlanta a safety. In the third quarter, San Diego answered with safety Eric Weddle returning a fumble 86 yards for a touchdown (with a failed two-point conversion).  In the fourth quarter, the Falcons replied with Ryan completing a 5-yard TD pass to rookie WR Harry Douglas.  The Chargers tried to come back, as kicker Nate Kaeding nailed a 28-yard field goal.  Atlanta's defense stiffened for the victory.\n\nQUESTION: How many yards was the shortest touchdown pass?",
-      "answer": "5",
-      "id": "example_243",
+      "question": "In what year was Antonio Giolitti awarded the Cavaliere di Gran Croce, the highest honor bestowed by the President of the Italian Republic?",
+      "answer": "2006",
+      "id": "example_97",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their divisional home win over the Panthers, the Falcons flew to Qualcomm Stadium for a Week 13 interconference duel with the San Diego Chargers.  In the first quarter, Atlanta took off as kicker Jason Elam got a 35-yard field goal.  The Chargers responded with RB LaDainian Tomlinson getting a 3-yard TD run, yet the Falcons stayed close with Elam getting a 40-yard field goal.  In the second quarter, Atlanta regained the lead as rookie quarterback Matt Ryan completed an 18-yard TD pass to TE Justin Peelle, along with their defense forcing opposing quarterback Philip Rivers to commit intentional grounding from his own endzone, giving Atlanta a safety. In the third quarter, San Diego answered with safety Eric Weddle returning a fumble 86 yards for a touchdown (with a failed two-point conversion).  In the fourth quarter, the Falcons replied with Ryan completing a 5-yard TD pass to rookie WR Harry Douglas.  The Chargers tried to come back, as kicker Nate Kaeding nailed a 28-yard field goal.  Atlanta's defense stiffened for the victory.",
-        "original_question": "How many yards was the shortest touchdown pass?",
-        "original_answer_data": {
-          "spans": [
-            "5"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 918
-      }
-    },
-    {
-      "question": "PASSAGE: The Qing forces were initially defeated by Wu in 1673-1674. Manchu Generals and Bannermen were put to shame by the performance of the Han Chinese Green Standard Army, who fought better than them against the rebels. The Qing had the support of the majority of Han Chinese soldiers and the Han elite, as they did not join the Three Feudatories. Different sources offer different account of the Han and Manchu forces deployed against the rebels. According to one, 400,000 Green Standard Army soldiers and 150,000 Bannermen served on the Qing side during the war. according to another, 213 Han Chinese Banner companies, and 527 companies of Mongol and Manchu Banners were mobilized by the Qing. According to a third, mustered the Qing a massive army of more than 900,000 Han Chinese to fight the Three Feudatories. Fighting in northwestern China against Wang Fuchen, the Qing put Bannermen in the rear as reserves while they used Han Chinese Green Standard Army soldiers and Han Chinese Generals like Zhang Liangdong, Wang Jinbao, and Zhang Yong as their main military force. The Qing thought that Han Chinese soldiers were superior at fighting other Han people and so used the Green Standard Army as their main army against the rebels instead of Bannermen. As a result, after 1676, the tide turned in favor of the Qing forces. In the northwest, Wang Fuchen surrendered after a three-year-long stalemate, while Geng Jingzhong and Shang Zhixin surrendered in turn as their forces weakened.\n\nQUESTION: How many sources claimed a total of 900000 soldiers fighting against the Three Feudatories?",
-      "answer": "1",
-      "id": "example_244",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Qing forces were initially defeated by Wu in 1673-1674. Manchu Generals and Bannermen were put to shame by the performance of the Han Chinese Green Standard Army, who fought better than them against the rebels. The Qing had the support of the majority of Han Chinese soldiers and the Han elite, as they did not join the Three Feudatories. Different sources offer different account of the Han and Manchu forces deployed against the rebels. According to one, 400,000 Green Standard Army soldiers and 150,000 Bannermen served on the Qing side during the war. according to another, 213 Han Chinese Banner companies, and 527 companies of Mongol and Manchu Banners were mobilized by the Qing. According to a third, mustered the Qing a massive army of more than 900,000 Han Chinese to fight the Three Feudatories. Fighting in northwestern China against Wang Fuchen, the Qing put Bannermen in the rear as reserves while they used Han Chinese Green Standard Army soldiers and Han Chinese Generals like Zhang Liangdong, Wang Jinbao, and Zhang Yong as their main military force. The Qing thought that Han Chinese soldiers were superior at fighting other Han people and so used the Green Standard Army as their main army against the rebels instead of Bannermen. As a result, after 1676, the tide turned in favor of the Qing forces. In the northwest, Wang Fuchen surrendered after a three-year-long stalemate, while Geng Jingzhong and Shang Zhixin surrendered in turn as their forces weakened.",
-        "original_question": "How many sources claimed a total of 900000 soldiers fighting against the Three Feudatories?",
-        "original_answer_data": {
-          "spans": [
-            "1"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 37
-      }
-    },
-    {
-      "question": "PASSAGE: The Giants hosted the Philadelphia Eagles in a match crucial to their playoff and divisional title hopes. The Giants started off well, stopping the Eagles quickly. Chad Morton then returned a punt to the Eagle 21 and Tiki Barber scored from 11 yards out giving New York an early lead.  After Philadelphia converted a third and 11, quarterback Jeff Garcia drove his team the length of field and Correll Buckhalter tied the game.  The Giants offense, although moving well, was hurt by several penalties and fumbles by Visanthe Shiancoe and Brandon Jacobs. The Eagles went ahead 14-7 with a one-yard run by Brian Westbrook on fourth down, and the Giants added a Jay Feely field goal to make it 14-10 at the recess. The Giants had several opportunities to take command in the second half, but red zone difficulties, similar to those experienced against the Cowboys in week 13, hurt their chances.  Eli Manning hit Plaxico Burress in stride for a big gain to get inside the 10, but were forced to settle for a field goal. After forcing a fumble on the ensuing Eagles possession, the Giants had the ball first and goal from the seven-yard line, but two runs and a pass yielded zero yards and Feely kicked another short field goal, putting the Giants ahead 16-14. The Eagles came right back as Reno Mahe returned the ensuing kick 64 yards for Philadelphia. Westbrook then ran through a gaping hole 28 yards for a touchdown. The Eagles' next drive ended with an interception by Giants cornerback Will Demps. The Giants took advantage on a drive culminating with a Jacobs score from one yard out.  After the score, the Giants went for the two-point conversion, but were denied on a draw play, leaving the score 22-21 with seven minutes remaining. Garcia responded swiftly by driving his squad 80 yards in eight plays; an 18-yard strike to Reggie Brown and a conversion put the Eagles up seven.  Manning was then intercepted on the following drive for an insurance touchdown by Trent Cole, ostensibly putting the game away for Philadelphia. For the game, the Eagles 31st-ranked rush defense held the Giants to 88 net running yards, Manning threw for 282 yards on 28 of 40 passing, Burress recorded 120 receiving yards and Jeremy Shockey had eight receptions for 70 yards. Carlos Emmons and Will Demps recorded the only sacks for the Giants.  For Philadelphia, Jeff Garcia continued his surprising rebirth, completing 19 of 28 passes for 237 yards and one touchdown (along with one interception), and Brian Westbrook gained over 140 total yards while scoring a touchdown.\n\nQUESTION: How many receiving yards did Shockey and Burress have combined?",
-      "answer": "190",
-      "id": "example_245",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Giants hosted the Philadelphia Eagles in a match crucial to their playoff and divisional title hopes. The Giants started off well, stopping the Eagles quickly. Chad Morton then returned a punt to the Eagle 21 and Tiki Barber scored from 11 yards out giving New York an early lead.  After Philadelphia converted a third and 11, quarterback Jeff Garcia drove his team the length of field and Correll Buckhalter tied the game.  The Giants offense, although moving well, was hurt by several penalties and fumbles by Visanthe Shiancoe and Brandon Jacobs. The Eagles went ahead 14-7 with a one-yard run by Brian Westbrook on fourth down, and the Giants added a Jay Feely field goal to make it 14-10 at the recess. The Giants had several opportunities to take command in the second half, but red zone difficulties, similar to those experienced against the Cowboys in week 13, hurt their chances.  Eli Manning hit Plaxico Burress in stride for a big gain to get inside the 10, but were forced to settle for a field goal. After forcing a fumble on the ensuing Eagles possession, the Giants had the ball first and goal from the seven-yard line, but two runs and a pass yielded zero yards and Feely kicked another short field goal, putting the Giants ahead 16-14. The Eagles came right back as Reno Mahe returned the ensuing kick 64 yards for Philadelphia. Westbrook then ran through a gaping hole 28 yards for a touchdown. The Eagles' next drive ended with an interception by Giants cornerback Will Demps. The Giants took advantage on a drive culminating with a Jacobs score from one yard out.  After the score, the Giants went for the two-point conversion, but were denied on a draw play, leaving the score 22-21 with seven minutes remaining. Garcia responded swiftly by driving his squad 80 yards in eight plays; an 18-yard strike to Reggie Brown and a conversion put the Eagles up seven.  Manning was then intercepted on the following drive for an insurance touchdown by Trent Cole, ostensibly putting the game away for Philadelphia. For the game, the Eagles 31st-ranked rush defense held the Giants to 88 net running yards, Manning threw for 282 yards on 28 of 40 passing, Burress recorded 120 receiving yards and Jeremy Shockey had eight receptions for 70 yards. Carlos Emmons and Will Demps recorded the only sacks for the Giants.  For Philadelphia, Jeff Garcia continued his surprising rebirth, completing 19 of 28 passes for 237 yards and one touchdown (along with one interception), and Brian Westbrook gained over 140 total yards while scoring a touchdown.",
-        "original_question": "How many receiving yards did Shockey and Burress have combined?",
-        "original_answer_data": {
-          "spans": [
-            "190"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 860
+        "source": "SimpleQA",
+        "line_number": 607,
+        "original_data": {
+          "metadata": "{'topic': 'Politics', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Antonio_Giolitti#:~:text=In%202006%2C%20he%20was%20awarded,Rome%20on%208%20February%202010.', 'https://en.wikipedia.org/wiki/Antonio_Giolitti', 'https://www.treccani.it/enciclopedia/antonio-giolitti/']}",
+          "problem": "In what year was Antonio Giolitti awarded the Cavaliere di Gran Croce, the highest honor bestowed by the President of the Italian Republic?",
+          "answer": "2006",
+          "id": "example_607"
+        }
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": "In 1624, when the Ottoman Sultan recognized Fakhr-al-Din II as Lord of Arabistan , the Druze leader made Tiberias his capital. Fakhr ad Din II, one of the most famous Druze Emirs, was succeeded in 1635 by his nephew Mulhim Ma'an, who ruled through his death in 1658. Fakhr ad Din II's only surviving son, Husayn, lived the rest of his life as a court official in Constantinople. Emir Mulhim exercised Iltizam taxation rights in the Chouf, Gharb, Jurd, Matn, and Kisrawan districts of Lebanon. Mulhim's forces battled and defeated those of Mustafa Pasha, Beylerbey of Damascus, in 1642, but he is reported by historians to have been otherwise loyal to Ottoman rule. Emir Mulhim Ma'an died in 1658, succeeded by two of his sons.",
-      "original_question": "What was the title of Mulhim Ma'an?",
-      "original_answer_data": {
-        "spans": [
-          "Lord of Arabistan"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 878
+      "source": "SimpleQA",
+      "line_number": 928,
+      "original_data": {
+        "metadata": "{'topic': 'Music', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Hit_Parader', 'https://en.wikipedia.org/wiki/Hit_Parader', 'https://www.hitparader.com/blogs/history/the-final-bow', 'https://www.afka.net/Mags/Hit_Parader.htm']}",
+        "problem": "In what year did Charlton Publications sell Hit Parader?",
+        "answer": "1991",
+        "id": "example_928"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their road win over the Bills, the Saints went home for a Week 4 interconference duel with the New York Jets. New Orleans would deliver the game's first points as kicker John Carney got a 34-yard field goal. In the second quarter, the defense went to work. Safety Darren Sharper would return an interception 99 yards for a touchdown, followed by defensive end Will Smith forcing an endzone fumble by sacking Jets quarterback Mark Sanchez, which allowed defensive tackle Remi Ayodele to land on the ball for a touchdown. Afterwards, New York closed out the half with kicker Jay Feely's 38-yard field goal. The Jets would begin a comeback attempt in the third quarter with running back Thomas Jones getting a 15-yard touchdown run. Afterwards, the Saints would close out the game with running back Pierre Thomas' 1-yard touchdown and the defense making an impressive stand. With the win, New Orleans would enter its bye week at 4-0.",
-      "original_question": "Darren Sharper intercepted and ran the ball for how many more more yards for a touchdown compared to Thomas Jones touchdown run?",
-      "original_answer_data": {
-        "spans": [
-          "84"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 212
+      "source": "SimpleQA",
+      "line_number": 398,
+      "original_data": {
+        "metadata": "{'topic': 'Science and technology', 'answer_type': 'Number', 'urls': ['https://www.gsmarena.com/asus_rog_phone_5s_pro-11053.php', 'https://www.yugatech.com/mobile/asus-rog-phone-5s-pro-review/#:~:text=It%20uses%20an%20AMOLED%20panel%20with%20support%20for%201%20billion%20colors%20and%201200%20nits%20peak%20brightness.', 'https://www.gsmarena.com/asus_rog_phone_5s_pro-11053.php#:~:text=800%20nits%20(typ)%2C-,1200%20nits%20(peak),-Size', 'https://www.asus.com/us/news/jmxbvbsgrgvvhku6/#:~:text=1%2C200%20nits%20peak%20brightness']}",
+        "problem": "What is the peak brightness of the Asus ROG Phone 5s Pro in nits?",
+        "answer": "1200 nits",
+        "id": "example_398"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their divisional home win over the Panthers, the Falcons flew to Qualcomm Stadium for a Week 13 interconference duel with the San Diego Chargers.  In the first quarter, Atlanta took off as kicker Jason Elam got a 35-yard field goal.  The Chargers responded with RB LaDainian Tomlinson getting a 3-yard TD run, yet the Falcons stayed close with Elam getting a 40-yard field goal.  In the second quarter, Atlanta regained the lead as rookie quarterback Matt Ryan completed an 18-yard TD pass to TE Justin Peelle, along with their defense forcing opposing quarterback Philip Rivers to commit intentional grounding from his own endzone, giving Atlanta a safety. In the third quarter, San Diego answered with safety Eric Weddle returning a fumble 86 yards for a touchdown (with a failed two-point conversion).  In the fourth quarter, the Falcons replied with Ryan completing a 5-yard TD pass to rookie WR Harry Douglas.  The Chargers tried to come back, as kicker Nate Kaeding nailed a 28-yard field goal.  Atlanta's defense stiffened for the victory.",
-      "original_question": "How many yards was the shortest touchdown pass?",
-      "original_answer_data": {
-        "spans": [
-          "5"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 918
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Qing forces were initially defeated by Wu in 1673-1674. Manchu Generals and Bannermen were put to shame by the performance of the Han Chinese Green Standard Army, who fought better than them against the rebels. The Qing had the support of the majority of Han Chinese soldiers and the Han elite, as they did not join the Three Feudatories. Different sources offer different account of the Han and Manchu forces deployed against the rebels. According to one, 400,000 Green Standard Army soldiers and 150,000 Bannermen served on the Qing side during the war. according to another, 213 Han Chinese Banner companies, and 527 companies of Mongol and Manchu Banners were mobilized by the Qing. According to a third, mustered the Qing a massive army of more than 900,000 Han Chinese to fight the Three Feudatories. Fighting in northwestern China against Wang Fuchen, the Qing put Bannermen in the rear as reserves while they used Han Chinese Green Standard Army soldiers and Han Chinese Generals like Zhang Liangdong, Wang Jinbao, and Zhang Yong as their main military force. The Qing thought that Han Chinese soldiers were superior at fighting other Han people and so used the Green Standard Army as their main army against the rebels instead of Bannermen. As a result, after 1676, the tide turned in favor of the Qing forces. In the northwest, Wang Fuchen surrendered after a three-year-long stalemate, while Geng Jingzhong and Shang Zhixin surrendered in turn as their forces weakened.",
-      "original_question": "How many sources claimed a total of 900000 soldiers fighting against the Three Feudatories?",
-      "original_answer_data": {
-        "spans": [
-          "1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 37
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Giants hosted the Philadelphia Eagles in a match crucial to their playoff and divisional title hopes. The Giants started off well, stopping the Eagles quickly. Chad Morton then returned a punt to the Eagle 21 and Tiki Barber scored from 11 yards out giving New York an early lead.  After Philadelphia converted a third and 11, quarterback Jeff Garcia drove his team the length of field and Correll Buckhalter tied the game.  The Giants offense, although moving well, was hurt by several penalties and fumbles by Visanthe Shiancoe and Brandon Jacobs. The Eagles went ahead 14-7 with a one-yard run by Brian Westbrook on fourth down, and the Giants added a Jay Feely field goal to make it 14-10 at the recess. The Giants had several opportunities to take command in the second half, but red zone difficulties, similar to those experienced against the Cowboys in week 13, hurt their chances.  Eli Manning hit Plaxico Burress in stride for a big gain to get inside the 10, but were forced to settle for a field goal. After forcing a fumble on the ensuing Eagles possession, the Giants had the ball first and goal from the seven-yard line, but two runs and a pass yielded zero yards and Feely kicked another short field goal, putting the Giants ahead 16-14. The Eagles came right back as Reno Mahe returned the ensuing kick 64 yards for Philadelphia. Westbrook then ran through a gaping hole 28 yards for a touchdown. The Eagles' next drive ended with an interception by Giants cornerback Will Demps. The Giants took advantage on a drive culminating with a Jacobs score from one yard out.  After the score, the Giants went for the two-point conversion, but were denied on a draw play, leaving the score 22-21 with seven minutes remaining. Garcia responded swiftly by driving his squad 80 yards in eight plays; an 18-yard strike to Reggie Brown and a conversion put the Eagles up seven.  Manning was then intercepted on the following drive for an insurance touchdown by Trent Cole, ostensibly putting the game away for Philadelphia. For the game, the Eagles 31st-ranked rush defense held the Giants to 88 net running yards, Manning threw for 282 yards on 28 of 40 passing, Burress recorded 120 receiving yards and Jeremy Shockey had eight receptions for 70 yards. Carlos Emmons and Will Demps recorded the only sacks for the Giants.  For Philadelphia, Jeff Garcia continued his surprising rebirth, completing 19 of 28 passes for 237 yards and one touchdown (along with one interception), and Brian Westbrook gained over 140 total yards while scoring a touchdown.",
-      "original_question": "How many receiving yards did Shockey and Burress have combined?",
-      "original_answer_data": {
-        "spans": [
-          "190"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 860
+      "source": "SimpleQA",
+      "line_number": 607,
+      "original_data": {
+        "metadata": "{'topic': 'Politics', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Antonio_Giolitti#:~:text=In%202006%2C%20he%20was%20awarded,Rome%20on%208%20February%202010.', 'https://en.wikipedia.org/wiki/Antonio_Giolitti', 'https://www.treccani.it/enciclopedia/antonio-giolitti/']}",
+        "problem": "In what year was Antonio Giolitti awarded the Cavaliere di Gran Croce, the highest honor bestowed by the President of the Italian Republic?",
+        "answer": "2006",
+        "id": "example_607"
+      }
     }
   ],
   "example_indices": [
-    241,
-    242,
-    243,
-    244,
-    245
+    95,
+    96,
+    97
   ],
   "results": [
     {
       "success": true,
-      "answer": "Emir",
-      "output": "ANSWER_START\nEmir\n\nANSWER_END\n",
+      "answer": "Billboard Magazine archives.",
+      "output": "Source: Best Source: Billboard Magazine Archives (Music Industry History, High Reliability)\n\nRetrieved info: Charlton Publications sold Hit Parader in 1973.\n\nVerification: VALID - Billboard Magazine archives would be a reliable source for this information, and the statement is accurate.\n\nAnswer: Billboard Magazine archives.\n\nANSWER_START\nBillboard Magazine archives.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_30.jsonl",
       "evaluation": {
         "match": false,
-        "confidence": 0.0,
-        "explanation": "The two answers are not semantically equivalent. Emir is a title, but not specifically 'Lord of Arabistan'."
+        "confidence": 0,
+        "explanation": "The system answer \"Billboard Magazine archives\" does not communicate the same information as the golden answer \"1991\". They are completely different concepts."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "99-15 = 84\nDarren Sharper ran 99 yards and Thomas Jones ran 15 yards.\n99-15 = 84\nVerification: 84",
-      "output": "ANSWER_START\n99-15 = 84\nDarren Sharper ran 99 yards and Thomas Jones ran 15 yards.\n99-15 = 84\nVerification: 84\n\nANSWER_END\n",
+      "answer": "840 nits",
+      "output": "Source: Trusted Reviews (Technology Reviews, High Reliability)\n\nRetrieved info: The ROG Phone 5s Pro display is also very bright, peaking at 840 nits when Adaptive Brightness is enabled.\n\nVerification: VALID - The Asus ROG Phone 5s Pro peaks at 840 nits brightness according to the provided information from Trusted Reviews.\n\nAnswer: 840 nits\n\nANSWER_START\n840 nits\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_30.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "The system answer correctly calculates the difference between 99 and 15, arriving at the same result as the golden answer (84)."
+        "explanation": "The values 840 nits and 1200 nits are distinct numerical values and do not convey the same information."
       },
-      "match": true
+      "match": false
     },
     {
       "success": true,
-      "answer": "5",
-      "output": "ANSWER_START\n5\n\nANSWER_END\n",
+      "answer": "Who's Who in Italy",
+      "output": "Source: Who's Who in Italy (Biographical Accuracy, High Reliability)\n\nRetrieved info: 1979\n\nVerification: VALID - Based on the provided context, the answer comes from a reliable source (\"Who's Who in Italy\") and directly answers the question regarding when Antonio Giolitti was awarded the Cavaliere di Gran Croce.\n\nAnswer: Who's Who in Italy\n\nANSWER_START\nWho's Who in Italy\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_30.jsonl",
       "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value: 5."
+        "match": false,
+        "confidence": 0.0,
+        "explanation": "The system answer provides a title, while the golden answer is a year. These are completely different and do not communicate the same information."
       },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "1",
-      "output": "ANSWER_START\n1\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_30.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "190",
-      "output": "ANSWER_START\n190\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_30.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value."
-      },
-      "match": true
+      "match": false
     }
   ],
   "performance": {
-    "accuracy": 0.8,
-    "correct_count": 4,
-    "total_count": 5,
+    "accuracy": 0.0,
+    "correct_count": 0,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Emir",
-        "golden_answer": "Lord of Arabistan",
-        "output": "ANSWER_START\nEmir\n\nANSWER_END\n",
+        "system_answer": "Billboard Magazine archives.",
+        "golden_answer": "1991",
+        "output": "Source: Best Source: Billboard Magazine Archives (Music Industry History, High Reliability)\n\nRetrieved info: Charlton Publications sold Hit Parader in 1973.\n\nVerification: VALID - Billboard Magazine archives would be a reliable source for this information, and the statement is accurate.\n\nAnswer: Billboard Magazine archives.\n\nANSWER_START\nBillboard Magazine archives.\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
-          "confidence": 0.0,
-          "explanation": "The two answers are not semantically equivalent. Emir is a title, but not specifically 'Lord of Arabistan'."
+          "confidence": 0,
+          "explanation": "The system answer \"Billboard Magazine archives\" does not communicate the same information as the golden answer \"1991\". They are completely different concepts."
         },
         "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "99-15 = 84\nDarren Sharper ran 99 yards and Thomas Jones ran 15 yards.\n99-15 = 84\nVerification: 84",
-        "golden_answer": "84",
-        "output": "ANSWER_START\n99-15 = 84\nDarren Sharper ran 99 yards and Thomas Jones ran 15 yards.\n99-15 = 84\nVerification: 84\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "840 nits",
+        "golden_answer": "1200 nits",
+        "output": "Source: Trusted Reviews (Technology Reviews, High Reliability)\n\nRetrieved info: The ROG Phone 5s Pro display is also very bright, peaking at 840 nits when Adaptive Brightness is enabled.\n\nVerification: VALID - The Asus ROG Phone 5s Pro peaks at 840 nits brightness according to the provided information from Trusted Reviews.\n\nAnswer: 840 nits\n\nANSWER_START\n840 nits\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer correctly calculates the difference between 99 and 15, arriving at the same result as the golden answer (84)."
-        }
+          "explanation": "The values 840 nits and 1200 nits are distinct numerical values and do not convey the same information."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "5",
-        "golden_answer": "5",
-        "output": "ANSWER_START\n5\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "Who's Who in Italy",
+        "golden_answer": "2006",
+        "output": "Source: Who's Who in Italy (Biographical Accuracy, High Reliability)\n\nRetrieved info: 1979\n\nVerification: VALID - Based on the provided context, the answer comes from a reliable source (\"Who's Who in Italy\") and directly answers the question regarding when Antonio Giolitti was awarded the Cavaliere di Gran Croce.\n\nAnswer: Who's Who in Italy\n\nANSWER_START\nWho's Who in Italy\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 5."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "1",
-        "golden_answer": "1",
-        "output": "ANSWER_START\n1\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "190",
-        "golden_answer": "190",
-        "output": "ANSWER_START\n190\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        }
+          "match": false,
+          "confidence": 0.0,
+          "explanation": "The system answer provides a title, while the golden answer is a year. These are completely different and do not communicate the same information."
+        },
+        "capability_failures": []
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error or success cases.\n\n## STRENGTHS\n1.  **Numerical Reasoning:** The system demonstrates a good ability to perform basic arithmetic operations (addition, subtraction) when the question requires it. This is evident in Success Case 1, where the system correctly calculates the difference in yardage.\n2.  **Direct Fact Extraction:** The system can accurately extract numerical facts directly stated in the passage (Success Cases 2, 3, and 4).\n3.  **Correct output formatting:** The model is following the specified output format.\n\n## WEAKNESSES\n1.  **Semantic Understanding of Titles and Roles:** The system struggles to differentiate between general titles and specific roles/titles mentioned in the passage. In the error case, it identifies \"Emir\" as a title but fails to recognize \"Lord of Arabistan\" as the specific title held by the person in question.\n2.  **Lack of Deep Semantic Reasoning:** While the system can extract and perform basic calculations, it lacks the ability to reason deeply about the semantic meaning of the extracted information.\n\n## CRITICAL BOTTLENECKS\n1.  **Inability to Discriminate Between General and Specific Titles/Roles:** This prevents the system from providing accurate answers when the question requires identifying a specific title or role within a broader category.\n\n## ERROR PATTERNS\n1.  **Confusion of hierarchical relationships:** The system understands that \"Emir\" is a title, but misses that \"Lord of Arabistan\" is a more specific and therefore correct title in this context.\n\n## PRIMARY ISSUE\nThe primary issue is the system's inability to distinguish between general titles/roles and more specific titles/roles as defined by the context of the passage. It correctly identifies a title, but fails to identify the *most specific* title requested by the question.\n\n## IMPROVEMENT AREAS\n1.  **Enhanced Semantic Understanding:** Improve the system's ability to understand the semantic relationships between different titles and roles.\n2.  **Contextual Reasoning:** Enhance the system's ability to reason about the context of the passage to identify the most relevant and specific answer.\n3.  **Answer Selection Heuristics:** Develop heuristics for prioritizing more specific answers over more general ones when the question requires identifying a particular title or role.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Fine-tuning with examples that highlight the difference between general and specific titles:** Provide the model with training data emphasizing the difference between broad job titles and specific roles, including examples where selecting the \"most specific\" answer is the key to correctness.\n2.  **Implement a title/role hierarchy:** Incorporate a knowledge base or ontology of titles and roles, allowing the system to recognize hierarchical relationships and select the most specific title.\n3.  **Add a \"specificity scoring\" mechanism:** When multiple candidate answers are identified, evaluate each answer's specificity based on the context and prioritize the most specific answer. For example, count tokens in both the question and the answer that are relevant to \"specificity.\"\n\n## CAPABILITY MAPPING\n*   **Sample ID: 0**\n    *   Failed capability: information_extraction, decision_making. The system extracted \"Emir\", but failed to recognize and select \"Lord of Arabistan\" as the more specific and correct answer. The decision-making process failed to select the optimal response.\n",
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors (like JSONDecodeError, TypeError) are found in the provided 'output' fields.\n\n## STRENGTHS\n1. **Reliable Source Selection:** The system consistently selects sources that are generally considered reliable for the type of information requested (e.g., Billboard Magazine Archives for music industry history, Who's Who in Italy for biographical information, Trusted Reviews for technology reviews).\n2. **Valid Verification:** The verification step correctly identifies the information retrieved from the source as directly relating to the question. It labels the retrieved information as VALID, indicating that the system successfully found a statement answering the question.\n\n## WEAKNESSES\n1. **Poor Answer Extraction/Synthesis:** The system frequently fails to extract the specific piece of information (e.g., a year, a numerical value) that directly answers the question, instead often returning the name of the source itself or a more general description.\n2. **Lack of Granularity in Information Retrieval:** The system retrieves information but struggles to pinpoint the *precise* answer within that information. It accepts the \"retrieved info\" field as the final answer, even when it's not the most specific response.\n\n## CRITICAL BOTTLENECKS\n1. **Answer Extraction Logic:** The primary bottleneck is the logic responsible for extracting the final answer from the retrieved information. The current system appears to accept the *source of information* as the *information itself*, leading to incorrect answers.\n2. **Lack of Answer Type Awareness:** The system does not seem to be considering the expected answer type (e.g., year, number) when extracting the final answer from the retrieved information. This lack of \"awareness\" allows it to return source names instead of the required data types.\n\n## ERROR PATTERNS\n1. **Source as Answer:** The most prevalent error is providing the *source* of information (e.g., \"Billboard Magazine archives\", \"Who's Who in Italy\") as the answer, rather than the actual data the user is requesting (e.g., \"1991\", \"2006\").\n2. **Numerical Value Mismatch:** When a numerical answer is expected, the system sometimes provides a *related* numerical value but not the *correct* one (e.g., \"840 nits\" instead of \"1200 nits\").\n\n## PRIMARY ISSUE\nThe most critical problem is the **failure to accurately extract the specific, desired information from the retrieved text**, particularly when the answer should be a specific data type such as a year or a numerical value. The system stops at finding a relevant passage, but it doesn't have the necessary logic to pinpoint and return the *exact* answer.\n\n## IMPROVEMENT AREAS\n1. **Answer Extraction:** Improve the answer extraction logic to specifically identify and isolate the exact piece of information that directly answers the question, rather than simply providing the source or related text.\n2. **Answer Type Validation:** Implement answer type validation to ensure the extracted answer matches the expected data type (e.g., year, number, string). The system needs to *know* that if the question asks for a year, it must return a year and not a source name.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Introduce Named Entity Recognition (NER):** Implement NER to identify specific entities in the retrieved information (dates, numbers, organizations, etc.). This can help the system identify potential answers and prioritize them.\n2. **Implement Question-Specific Answer Parsing:** Tailor the answer parsing logic to the specific question type. For example, if the question contains \"in what year,\" the system should focus on extracting a year from the retrieved information.\n3. **Develop a Post-Processing Step:** Implement a post-processing step that checks the extracted answer against the question and the retrieved information to ensure it is both relevant and accurate. This step could also include a \"data type validation\" check.\n4. **Fine-tune the Verification Step:** Make the verification step more robust. The current \"VALID\" label might be too lenient. Verification should not only check if the retrieved information is *related* but also if it contains the *exact answer*.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information_extraction: Failed - Did not extract the specific year.\n    *   solution_generation: Failed - Generated an incorrect answer (source name).\n    *   solution_verification: Partially Failed - Verified that the source was relevant, but didn't check for the correctness of the extracted answer.\n*   **Sample ID 1:**\n    *   information_extraction: Failed - Extracted the wrong numerical value.\n    *   solution_generation: Failed - Generated an incorrect answer (numerical value).\n    *   solution_verification: Partially Failed - Verified that the source was relevant, but didn't check for the correctness of the extracted numerical value.\n*   **Sample ID 2:**\n    *   information_extraction: Failed - Did not extract the specific year.\n    *   solution_generation: Failed - Generated an incorrect answer (source name).\n    *   solution_verification: Partially Failed - Verified that the source was relevant, but didn't check for the correctness of the extracted answer.\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The primary issue is the system's inability to distinguish between general titles/roles and more specific titles/roles as defined by the context of the passage. It correctly identifies a title, but fails to identify the *most specific* title requested by the question.",
+      "primary_issue": "The most critical problem is the **failure to accurately extract the specific, desired information from the retrieved text**, particularly when the answer should be a specific data type such as a year or a numerical value. The system stops at finding a relevant passage, but it doesn't have the necessary logic to pinpoint and return the *exact* answer.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a comprehensive capability report for your AI system, based on the provided performance summary, error analysis, and sample execution outputs.\n\n## CAPABILITY REPORT: AI System Assessment\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n**ERROR ANALYSIS REPORT:** (Provided by the user)\n\n## EXECUTION ANALYSIS\n\nThe provided `SAMPLE EXECUTION OUTPUTS` confirm the error analysis and highlight some important patterns:\n\n*   **Sample ID: 0 (Error):** The system confidently extracts \"Emir\" but fails to recognize \"Lord of Arabistan\" as the more specific title, illustrating a clear weakness in distinguishing between general and specific roles. The output shows no signs of hallucination, it simply picked the less optimal answer.  The formatting (ANSWER_START/ANSWER_END) is adhered to, showing consistency.\n\n*   **Sample ID: 1 (Success):** The system accurately performs the subtraction and provides a clear explanation of the steps taken, along with verification, which is excellent.\n\n*   **Sample ID: 2 & 3 (Success - from performance summary):** The sample shows that the system can correctly extract a single number and format it into the answer.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a solid foundation in numerical reasoning, direct fact extraction, and adherence to specified output formats. However, its semantic understanding, especially regarding hierarchical relationships between concepts like titles and roles, is a significant limitation. The system can be considered competent for simple extraction and arithmetic, but inadequate for questions requiring deeper semantic analysis and contextual reasoning.\n\n## KEY STRENGTHS\n\n*   **Numerical Reasoning and Calculation:**  Accurately performs calculations when required.\n*   **Direct Fact Extraction:** Reliably extracts numerical facts explicitly stated in the passage.\n*   **Output Formatting:**  Consistently adheres to the specified output format (ANSWER_START/ANSWER_END).\n*   **Provides reasoning:** Shows intermediate steps.\n\n## KEY WEAKNESSES\n\n*   **Semantic Understanding and Hierarchical Reasoning:** Struggles to differentiate between general and specific titles/roles.\n*   **Contextual Reasoning:** Limited ability to use context to identify the most relevant and specific answer.\n*   **Lack of Deep Semantic Reasoning:** Inability to process nuanced information beyond surface-level extraction and basic calculations.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Semantic Understanding and Hierarchical Reasoning**, particularly the ability to discriminate between general and specific terms.  Addressing this will directly impact the system's ability to answer questions accurately when they require identifying the most specific piece of information from a given context.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Curated Fine-tuning Dataset:**\n    *   Create a dataset specifically designed to highlight the difference between general and specific titles, roles, and other hierarchical relationships.  Each example should contain a passage, a question requiring the identification of the most specific term, and the correct answer.  Include negative examples where the system might be tempted to choose a more general term.  This curated fine-tuning data should have roughly 50-100 examples.\n\n2.  **Implement a Title/Role Specificity Scoring Mechanism:**\n    *   Before selecting an answer, implement a \"specificity score\" for each candidate answer. This score could be based on factors such as:\n        *   Presence of modifiers or qualifiers (e.g., \"Lord *of Arabistan*\" is more specific than \"Emir\").\n        *   Frequency of the term in the context (more frequent and relevant terms are often more specific).\n        *   Comparison against a pre-defined knowledge base or ontology of titles/roles (if available).\n    *   The system should then prioritize the answer with the highest specificity score.\n\n3.  **Enhance Question Understanding with Relation Extraction:**\n    *   Before attempting to extract the answer, analyze the question to identify the *type* of information being requested (e.g., \"title,\" \"role,\" \"amount\").  This can be achieved through relation extraction. Use this identified information to prioritize specific terms of that type in the answer selection process. For example, if the question asks for a \"title,\" prioritize candidate answers that the relation extraction module identifies as titles.\n\n## CAPABILITY TREND\n\nBased on the initial performance data and error analysis, the system's capabilities are currently **stable** in its strengths (numerical reasoning, fact extraction) but **stagnant** in its weaknesses (semantic understanding).  Implementing the actionable recommendations above should lead to an **improving** trend in overall capabilities. The trend should be monitored after each iteration.\n",
+      "text_report": "## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe execution outputs confirm the Error Analysis Report's findings. The system consistently demonstrates the following:\n\n*   **Correct Source Selection:** The sources chosen are appropriate for the questions asked. Trusted Reviews for phone specs, Billboard for music history, and Who's Who for biographical information are all valid choices.\n*   **Superficial Verification:** The \"Verification\" step correctly identifies the *relevance* of the retrieved information to the question, labeling it as \"VALID.\" However, it fails to check if the extracted answer is the *precise* and *correct* answer. The verification step seems focused solely on source relevance and a broad connection between the source and question.\n*   **Failed Answer Extraction:** The most glaring issue is the poor answer extraction. In two instances, the system returns the *source* as the answer (e.g., \"Billboard Magazine archives\" instead of \"1973\"). In the numerical value question, it returns a related but incorrect number (840 nits instead of 1200 nits, although the target value isn't explicitly present in the snippets, the system's answer still should have been \"unknown\", not a related value). The system demonstrates a clear inability to pinpoint the specific piece of information required to answer the question.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system exhibits a fundamental flaw in its ability to extract the *precise* answer from relevant information. While it can identify appropriate sources and retrieve related text, it fails to isolate the specific data point required to answer the question. The accuracy score of 0.00 (0/3) reflects this core deficiency. The system demonstrates strength in source retrieval and relevance but falls drastically short in information extraction and validation.\n\n### KEY STRENGTHS\n\n*   **Reliable Source Selection:** The system's ability to identify and select credible sources for different types of questions is a significant strength. This foundation is crucial for building a reliable AI system.\n\n### KEY WEAKNESSES\n\n*   **Precise Answer Extraction:** The inability to extract the *precise* answer from retrieved information is the most critical weakness. This flaw undermines the entire system's utility, as it consistently provides incorrect or incomplete answers.\n*   **Lack of Data Type Awareness:** The system's failure to consider the expected data type (year, number, string) when extracting the answer contributes significantly to the poor accuracy. It treats all retrieved information equally, regardless of whether it matches the question's required data type.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Precise Answer Extraction**. Without this, the system's other strengths are rendered largely irrelevant. The system needs to identify and isolate the exact piece of information that answers the question and validate that it matches the expected data type.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Targeted Information Extraction Module:** Replace the current answer extraction logic with a module that uses more sophisticated techniques, such as:\n    *   **Keyword-Based Extraction:** Focus on extracting text surrounding keywords from the question. For example, if the question contains \"in what year,\" prioritize extracting 4-digit numbers.\n    *   **Regular Expression (Regex) Matching:** Use regex to identify patterns that match the expected answer type. For example, `\\d{4}` for years, `\\d+\\.?\\d*` for numbers.\n    *   **Sentence Segmentation:** Split the retrieved information into sentences and prioritize sentences containing keywords or matching the expected data type.\n\n2.  **Introduce Answer Type Validation:** Implement a function that validates the extracted answer against the expected data type.\n    *   **Data Type Inference:** Determine the expected data type based on the question's wording (e.g., \"when\" implies a date/year, \"how many\" implies a number).\n    *   **Type Checking:** Check if the extracted answer is a valid data type. If the question asks for a year, ensure the extracted answer is a valid year (e.g., an integer between 1000 and the current year).\n    *   **Fallback Mechanism:** If a valid answer of the expected type cannot be found, return a \"not found\" or \"unknown\" response instead of an incorrect answer.\n\n3.  **Refine the Verification Step:** The verification step must be more than just a check for source relevance. It needs to verify that the extracted answer is not only *related* but also *correct*.\n    *   **Answer-Specific Verification:** The verification step should include a check to ensure that the extracted answer is actually present in the retrieved information and that it directly answers the question.\n    *   **Confidence Scoring:** Introduce a confidence score for the extracted answer based on the strength of the evidence supporting it in the retrieved information.\n\n4.  **Enhance Sample Data and Training:** Augment the training data with examples specifically designed to address the answer extraction problem.\n    *   **Negative Examples:** Include examples where the retrieved information is relevant but does not contain the correct answer. The system should be trained to identify and handle these cases gracefully.\n    *   **Data Augmentation:** Create variations of existing training examples by changing the wording of the question or the structure of the retrieved information.\n\n### CAPABILITY TREND\n\nBased on the current performance, the capability trend is **stable but critically low**. Without significant improvements in answer extraction, the system's performance will remain unacceptable. The current state requires focused development to achieve any measurable improvement.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors were detected in the provided error or success cases.\n\n## STRENGTHS\n1.  **Numerical Reasoning:** The system demonstrates a good ability to perform basic arithmetic operations (addition, subtraction) when the question requires it. This is evident in Success Case 1, where the system correctly calculates the difference in yardage.\n2.  **Direct Fact Extraction:** The system can accurately extract numerical facts directly stated in the passage (Success Cases 2, 3, and 4).\n3.  **Correct output formatting:** The model is following the specified output format.\n\n## WEAKNESSES\n1.  **Semantic Understanding of Titles and Roles:** The system struggles to differentiate between general titles and specific roles/titles mentioned in the passage. In the error case, it identifies \"Emir\" as a title but fails to recognize \"Lord of Arabistan\" as the specific title held by the person in question.\n2.  **Lack of Deep Semantic Reasoning:** While the system can extract and perform basic calculations, it lacks the ability to reason deeply about the semantic meaning of the extracted information.\n\n## CRITICAL BOTTLENECKS\n1.  **Inability to Discriminate Between General and Specific Titles/Roles:** This prevents the system from providing accurate answers when the question requires identifying a specific title or role within a broader category.\n\n## ERROR PATTERNS\n1.  **Confusion of hierarchical relationships:** The system understands that \"Emir\" is a title, but misses that \"Lord of Arabistan\" is a more specific and therefore correct title in this context.\n\n## PRIMARY ISSUE\nThe primary issue is the system's inability to distinguish between general titles/roles and more specific titles/roles as defined by the context of the passage. It correctly identifies a title, but fails to identify the *most specific* title requested by the question.\n\n## IMPROVEMENT AREAS\n1.  **Enhanced Semantic Understanding:** Improve the system's ability to understand the semantic relationships between different titles and roles.\n2.  **Contextual Reasoning:** Enhance the system's ability to reason about the context of the passage to identify the most relevant and specific answer.\n3.  **Answer Selection Heuristics:** Develop heuristics for prioritizing more specific answers over more general ones when the question requires identifying a particular title or role.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Fine-tuning with examples that highlight the difference between general and specific titles:** Provide the model with training data emphasizing the difference between broad job titles and specific roles, including examples where selecting the \"most specific\" answer is the key to correctness.\n2.  **Implement a title/role hierarchy:** Incorporate a knowledge base or ontology of titles and roles, allowing the system to recognize hierarchical relationships and select the most specific title.\n3.  **Add a \"specificity scoring\" mechanism:** When multiple candidate answers are identified, evaluate each answer's specificity based on the context and prioritize the most specific answer. For example, count tokens in both the question and the answer that are relevant to \"specificity.\"\n\n## CAPABILITY MAPPING\n*   **Sample ID: 0**\n    *   Failed capability: information_extraction, decision_making. The system extracted \"Emir\", but failed to recognize and select \"Lord of Arabistan\" as the more specific and correct answer. The decision-making process failed to select the optimal response.\n",
-    "capability_report_text": "Okay, here's a comprehensive capability report for your AI system, based on the provided performance summary, error analysis, and sample execution outputs.\n\n## CAPABILITY REPORT: AI System Assessment\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.80 (4/5)\n*   Error samples: 1/5\n\n**ERROR ANALYSIS REPORT:** (Provided by the user)\n\n## EXECUTION ANALYSIS\n\nThe provided `SAMPLE EXECUTION OUTPUTS` confirm the error analysis and highlight some important patterns:\n\n*   **Sample ID: 0 (Error):** The system confidently extracts \"Emir\" but fails to recognize \"Lord of Arabistan\" as the more specific title, illustrating a clear weakness in distinguishing between general and specific roles. The output shows no signs of hallucination, it simply picked the less optimal answer.  The formatting (ANSWER_START/ANSWER_END) is adhered to, showing consistency.\n\n*   **Sample ID: 1 (Success):** The system accurately performs the subtraction and provides a clear explanation of the steps taken, along with verification, which is excellent.\n\n*   **Sample ID: 2 & 3 (Success - from performance summary):** The sample shows that the system can correctly extract a single number and format it into the answer.\n\n## CAPABILITY ASSESSMENT\n\nThe system demonstrates a solid foundation in numerical reasoning, direct fact extraction, and adherence to specified output formats. However, its semantic understanding, especially regarding hierarchical relationships between concepts like titles and roles, is a significant limitation. The system can be considered competent for simple extraction and arithmetic, but inadequate for questions requiring deeper semantic analysis and contextual reasoning.\n\n## KEY STRENGTHS\n\n*   **Numerical Reasoning and Calculation:**  Accurately performs calculations when required.\n*   **Direct Fact Extraction:** Reliably extracts numerical facts explicitly stated in the passage.\n*   **Output Formatting:**  Consistently adheres to the specified output format (ANSWER_START/ANSWER_END).\n*   **Provides reasoning:** Shows intermediate steps.\n\n## KEY WEAKNESSES\n\n*   **Semantic Understanding and Hierarchical Reasoning:** Struggles to differentiate between general and specific titles/roles.\n*   **Contextual Reasoning:** Limited ability to use context to identify the most relevant and specific answer.\n*   **Lack of Deep Semantic Reasoning:** Inability to process nuanced information beyond surface-level extraction and basic calculations.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Semantic Understanding and Hierarchical Reasoning**, particularly the ability to discriminate between general and specific terms.  Addressing this will directly impact the system's ability to answer questions accurately when they require identifying the most specific piece of information from a given context.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Curated Fine-tuning Dataset:**\n    *   Create a dataset specifically designed to highlight the difference between general and specific titles, roles, and other hierarchical relationships.  Each example should contain a passage, a question requiring the identification of the most specific term, and the correct answer.  Include negative examples where the system might be tempted to choose a more general term.  This curated fine-tuning data should have roughly 50-100 examples.\n\n2.  **Implement a Title/Role Specificity Scoring Mechanism:**\n    *   Before selecting an answer, implement a \"specificity score\" for each candidate answer. This score could be based on factors such as:\n        *   Presence of modifiers or qualifiers (e.g., \"Lord *of Arabistan*\" is more specific than \"Emir\").\n        *   Frequency of the term in the context (more frequent and relevant terms are often more specific).\n        *   Comparison against a pre-defined knowledge base or ontology of titles/roles (if available).\n    *   The system should then prioritize the answer with the highest specificity score.\n\n3.  **Enhance Question Understanding with Relation Extraction:**\n    *   Before attempting to extract the answer, analyze the question to identify the *type* of information being requested (e.g., \"title,\" \"role,\" \"amount\").  This can be achieved through relation extraction. Use this identified information to prioritize specific terms of that type in the answer selection process. For example, if the question asks for a \"title,\" prioritize candidate answers that the relation extraction module identifies as titles.\n\n## CAPABILITY TREND\n\nBased on the initial performance data and error analysis, the system's capabilities are currently **stable** in its strengths (numerical reasoning, fact extraction) but **stagnant** in its weaknesses (semantic understanding).  Implementing the actionable recommendations above should lead to an **improving** trend in overall capabilities. The trend should be monitored after each iteration.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors (like JSONDecodeError, TypeError) are found in the provided 'output' fields.\n\n## STRENGTHS\n1. **Reliable Source Selection:** The system consistently selects sources that are generally considered reliable for the type of information requested (e.g., Billboard Magazine Archives for music industry history, Who's Who in Italy for biographical information, Trusted Reviews for technology reviews).\n2. **Valid Verification:** The verification step correctly identifies the information retrieved from the source as directly relating to the question. It labels the retrieved information as VALID, indicating that the system successfully found a statement answering the question.\n\n## WEAKNESSES\n1. **Poor Answer Extraction/Synthesis:** The system frequently fails to extract the specific piece of information (e.g., a year, a numerical value) that directly answers the question, instead often returning the name of the source itself or a more general description.\n2. **Lack of Granularity in Information Retrieval:** The system retrieves information but struggles to pinpoint the *precise* answer within that information. It accepts the \"retrieved info\" field as the final answer, even when it's not the most specific response.\n\n## CRITICAL BOTTLENECKS\n1. **Answer Extraction Logic:** The primary bottleneck is the logic responsible for extracting the final answer from the retrieved information. The current system appears to accept the *source of information* as the *information itself*, leading to incorrect answers.\n2. **Lack of Answer Type Awareness:** The system does not seem to be considering the expected answer type (e.g., year, number) when extracting the final answer from the retrieved information. This lack of \"awareness\" allows it to return source names instead of the required data types.\n\n## ERROR PATTERNS\n1. **Source as Answer:** The most prevalent error is providing the *source* of information (e.g., \"Billboard Magazine archives\", \"Who's Who in Italy\") as the answer, rather than the actual data the user is requesting (e.g., \"1991\", \"2006\").\n2. **Numerical Value Mismatch:** When a numerical answer is expected, the system sometimes provides a *related* numerical value but not the *correct* one (e.g., \"840 nits\" instead of \"1200 nits\").\n\n## PRIMARY ISSUE\nThe most critical problem is the **failure to accurately extract the specific, desired information from the retrieved text**, particularly when the answer should be a specific data type such as a year or a numerical value. The system stops at finding a relevant passage, but it doesn't have the necessary logic to pinpoint and return the *exact* answer.\n\n## IMPROVEMENT AREAS\n1. **Answer Extraction:** Improve the answer extraction logic to specifically identify and isolate the exact piece of information that directly answers the question, rather than simply providing the source or related text.\n2. **Answer Type Validation:** Implement answer type validation to ensure the extracted answer matches the expected data type (e.g., year, number, string). The system needs to *know* that if the question asks for a year, it must return a year and not a source name.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Introduce Named Entity Recognition (NER):** Implement NER to identify specific entities in the retrieved information (dates, numbers, organizations, etc.). This can help the system identify potential answers and prioritize them.\n2. **Implement Question-Specific Answer Parsing:** Tailor the answer parsing logic to the specific question type. For example, if the question contains \"in what year,\" the system should focus on extracting a year from the retrieved information.\n3. **Develop a Post-Processing Step:** Implement a post-processing step that checks the extracted answer against the question and the retrieved information to ensure it is both relevant and accurate. This step could also include a \"data type validation\" check.\n4. **Fine-tune the Verification Step:** Make the verification step more robust. The current \"VALID\" label might be too lenient. Verification should not only check if the retrieved information is *related* but also if it contains the *exact answer*.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information_extraction: Failed - Did not extract the specific year.\n    *   solution_generation: Failed - Generated an incorrect answer (source name).\n    *   solution_verification: Partially Failed - Verified that the source was relevant, but didn't check for the correctness of the extracted answer.\n*   **Sample ID 1:**\n    *   information_extraction: Failed - Extracted the wrong numerical value.\n    *   solution_generation: Failed - Generated an incorrect answer (numerical value).\n    *   solution_verification: Partially Failed - Verified that the source was relevant, but didn't check for the correctness of the extracted numerical value.\n*   **Sample ID 2:**\n    *   information_extraction: Failed - Did not extract the specific year.\n    *   solution_generation: Failed - Generated an incorrect answer (source name).\n    *   solution_verification: Partially Failed - Verified that the source was relevant, but didn't check for the correctness of the extracted answer.\n",
+    "capability_report_text": "## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe execution outputs confirm the Error Analysis Report's findings. The system consistently demonstrates the following:\n\n*   **Correct Source Selection:** The sources chosen are appropriate for the questions asked. Trusted Reviews for phone specs, Billboard for music history, and Who's Who for biographical information are all valid choices.\n*   **Superficial Verification:** The \"Verification\" step correctly identifies the *relevance* of the retrieved information to the question, labeling it as \"VALID.\" However, it fails to check if the extracted answer is the *precise* and *correct* answer. The verification step seems focused solely on source relevance and a broad connection between the source and question.\n*   **Failed Answer Extraction:** The most glaring issue is the poor answer extraction. In two instances, the system returns the *source* as the answer (e.g., \"Billboard Magazine archives\" instead of \"1973\"). In the numerical value question, it returns a related but incorrect number (840 nits instead of 1200 nits, although the target value isn't explicitly present in the snippets, the system's answer still should have been \"unknown\", not a related value). The system demonstrates a clear inability to pinpoint the specific piece of information required to answer the question.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system exhibits a fundamental flaw in its ability to extract the *precise* answer from relevant information. While it can identify appropriate sources and retrieve related text, it fails to isolate the specific data point required to answer the question. The accuracy score of 0.00 (0/3) reflects this core deficiency. The system demonstrates strength in source retrieval and relevance but falls drastically short in information extraction and validation.\n\n### KEY STRENGTHS\n\n*   **Reliable Source Selection:** The system's ability to identify and select credible sources for different types of questions is a significant strength. This foundation is crucial for building a reliable AI system.\n\n### KEY WEAKNESSES\n\n*   **Precise Answer Extraction:** The inability to extract the *precise* answer from retrieved information is the most critical weakness. This flaw undermines the entire system's utility, as it consistently provides incorrect or incomplete answers.\n*   **Lack of Data Type Awareness:** The system's failure to consider the expected data type (year, number, string) when extracting the answer contributes significantly to the poor accuracy. It treats all retrieved information equally, regardless of whether it matches the question's required data type.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Precise Answer Extraction**. Without this, the system's other strengths are rendered largely irrelevant. The system needs to identify and isolate the exact piece of information that answers the question and validate that it matches the expected data type.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Targeted Information Extraction Module:** Replace the current answer extraction logic with a module that uses more sophisticated techniques, such as:\n    *   **Keyword-Based Extraction:** Focus on extracting text surrounding keywords from the question. For example, if the question contains \"in what year,\" prioritize extracting 4-digit numbers.\n    *   **Regular Expression (Regex) Matching:** Use regex to identify patterns that match the expected answer type. For example, `\\d{4}` for years, `\\d+\\.?\\d*` for numbers.\n    *   **Sentence Segmentation:** Split the retrieved information into sentences and prioritize sentences containing keywords or matching the expected data type.\n\n2.  **Introduce Answer Type Validation:** Implement a function that validates the extracted answer against the expected data type.\n    *   **Data Type Inference:** Determine the expected data type based on the question's wording (e.g., \"when\" implies a date/year, \"how many\" implies a number).\n    *   **Type Checking:** Check if the extracted answer is a valid data type. If the question asks for a year, ensure the extracted answer is a valid year (e.g., an integer between 1000 and the current year).\n    *   **Fallback Mechanism:** If a valid answer of the expected type cannot be found, return a \"not found\" or \"unknown\" response instead of an incorrect answer.\n\n3.  **Refine the Verification Step:** The verification step must be more than just a check for source relevance. It needs to verify that the extracted answer is not only *related* but also *correct*.\n    *   **Answer-Specific Verification:** The verification step should include a check to ensure that the extracted answer is actually present in the retrieved information and that it directly answers the question.\n    *   **Confidence Scoring:** Introduce a confidence score for the extracted answer based on the strength of the evidence supporting it in the retrieved information.\n\n4.  **Enhance Sample Data and Training:** Augment the training data with examples specifically designed to address the answer extraction problem.\n    *   **Negative Examples:** Include examples where the retrieved information is relevant but does not contain the correct answer. The system should be trained to identify and handle these cases gracefully.\n    *   **Data Augmentation:** Create variations of existing training examples by changing the wording of the question or the structure of the retrieved information.\n\n### CAPABILITY TREND\n\nBased on the current performance, the capability trend is **stable but critically low**. Without significant improvements in answer extraction, the system's performance will remain unacceptable. The current state requires focused development to achieve any measurable improvement.\n"
   },
-  "progressive_testing": {
-    "total_examples": 10,
-    "successful_runs": 10,
-    "matches": 9,
-    "accuracy": 0.9,
-    "results": [
-      {
-        "success": true,
-        "answer": "Giants",
-        "output": "ANSWER_START\nGiants\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "Cowboys",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The answers 'Giants' and 'Cowboys' are distinct NFL teams and do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "6",
-        "output": "ANSWER_START\n6\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "6",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value (6)."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "1",
-        "output": "ANSWER_START\n1\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical, conveying the same information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "1,043,292 - 287,840 = 755,452\nVerification: 755452",
-        "output": "ANSWER_START\n1,043,292 - 287,840 = 755,452\nVerification: 755452\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "755452",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers provide the same numerical value: 755452."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Ryan Succop",
-        "output": "ANSWER_START\nRyan Succop\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "Ryan Succop",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information (Ryan Succop)."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "2 + 5 = 3\nVerification: 3",
-        "output": "ANSWER_START\n2 + 5 = 3\nVerification: 3\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "3",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer, '2 + 5 = 3 Verification: 3' simplifies to '3', which is equivalent to the golden answer '3'."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Nate Burleson and Shaun Alexander",
-        "output": "ANSWER_START\nNate Burleson and Shaun Alexander\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "Nate Burleson, Shaun Alexander",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers list the same two names, Nate Burleson and Shaun Alexander, separated by 'and' or a comma. They convey the same information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "1",
-        "output": "ANSWER_START\n1\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information, which is the numerical value '1'."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Up to the 1960s",
-        "output": "ANSWER_START\nUp to the 1960s\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "1845, up to the 1960s",
-        "evaluation": {
-          "match": true,
-          "confidence": 0.9,
-          "explanation": "The system answer provides the end of the period mentioned in the golden answer. The golden answer provides the start and end date. Hence, the system answer is not wrong, just less specific, and can be considered equivalent in some contexts."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "22 + 29 + 50 + 33 = 134\n134 / 4 = 33.5\nVerification: 33.5",
-        "output": "ANSWER_START\n22 + 29 + 50 + 33 = 134\n134 / 4 = 33.5\nVerification: 33.5\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_30.jsonl",
-        "golden_answer": "33.5",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer shows the calculation steps and arrives at the same final answer (33.5) as the golden answer."
-        },
-        "match": true
-      }
-    ]
-  },
-  "execution_time": 81.85985112190247,
+  "progressive_testing": null,
+  "execution_time": 39.60883688926697,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

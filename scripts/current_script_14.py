@@ -2,148 +2,6 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach with enhanced question analysis and verification.
-    """
-    try:
-        # Step 1: Analyze question type and keywords with robust verification
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis, question)  # Pass original question
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer using extracted passage and question analysis
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer with enhanced checks
-        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis) #Pass question analysis
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "requires_calculation": false}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "requires_calculation": true}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"], "requires_calculation": false}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question_analysis, question, passage): #Passage and question
-    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text. You must understand the nuances of the text to find the correct answer"
-    prompt = f"""
-    Extract the relevant passage from the following text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "requires_calculation": false}}
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"], "requires_calculation": true}}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal"], "requires_calculation": false}}
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text. You always output a specific answer."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question type.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage, question_analysis): #Pass question analysis
-    """Verifies the generated answer. Includes multiple examples and calculation check."""
-    system_instruction = "You are an expert at verifying answers to questions. You always provide an answer to the question, and you must correct it if wrong."
-    prompt = f"""
-    Verify the following answer to the question based on the relevant passage.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Verification: 2
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Verification: Josh Scobee
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
-
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
@@ -172,3 +30,101 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question, max_attempts=3):
+    """Solve factual questions using a new approach: Contextualized Question Answering with Iterative Context Expansion and Answer Ranking."""
+
+    # Hypothesis: By actively expanding the context of the question in multiple iterations and ranking potential answers based on both the expanded context and the initial question, we can improve accuracy. This approach moves away from simple fact extraction and aims for a deeper understanding of the question's context. This is a fundamentally new approach.
+
+    # Step 1: Initial Contextualization (with examples)
+    contextualization_prompt = f"""
+    Provide a contextualized version of the original question by adding background information and related details.
+
+    Example 1:
+    Original Question: What is the capital of Australia?
+    Contextualized Question: What is the capital city of Australia, a country in the southern hemisphere known for its unique wildlife?
+
+    Example 2:
+    Original Question: Who is known as the first rock star of the Middle East?
+    Contextualized Question: Who is the musician widely recognized as the first rock and roll star of the Middle East?
+
+    Original Question: {question}
+    Contextualized Question:
+    """
+    contextualized_question = call_llm(contextualization_prompt, system_instruction="You are an expert at providing context to questions.").strip()
+    print(f"Contextualized Question: {contextualized_question}")
+
+    # Step 2: Iterative Context Expansion and Answer Extraction (with examples)
+    extracted_answers = []
+    current_question = contextualized_question
+
+    for i in range(2): # Iterate twice to expand the context
+        expansion_extraction_prompt = f"""
+        Expand the current question with additional context, and then extract a *potential* answer from it. Rank the answer for its likelihood to answer the question (1-10). Be concise.
+
+        Example:
+        Current Question: What is the capital city of Australia, a country in the southern hemisphere known for its unique wildlife?
+        Expanded Question: What is the capital city of Australia, which is Canberra, a planned city also known for being the home to Parliament House?
+        Potential Answer: Canberra (Relevance: 9)
+
+        Current Question: {current_question}
+        Expanded Question:
+        """
+        expanded_text = call_llm(expansion_extraction_prompt, system_instruction="You are an expert at expanding questions with context and extracting answers.").strip()
+        print(f"Expanded Text: {expanded_text}")
+
+        # Simple parsing to extract answer and expanded question (error prone JSON is avoided)
+        potential_answer_match = re.search(r"Potential Answer:\s*(.*?)\s*\(", expanded_text)
+        potential_answer = potential_answer_match.group(1) if potential_answer_match else "No answer"
+
+        current_question = expanded_text.split("Potential Answer:")[0].replace("Expanded Question:", "").strip()
+
+        extracted_answers.append(potential_answer)
+        print(f"Extracted answers after iteration {i+1}: {extracted_answers}")
+
+    # Step 3: Answer Ranking (with examples)
+    answer_ranking_prompt = f"""
+    Rank the following potential answers for their likelihood to answer the *original* question, considering the expanded context from each iteration (1-10, 10 is best). Also give a short reasoning about the score.
+
+    Original Question: {question}
+    Potential Answers:
+    {extracted_answers}
+
+    Example:
+    Original Question: What is the capital of Australia?
+    Potential Answers:
+    ['Canberra', 'Sydney']
+    Ranking:
+    1. Canberra (10) - Canberra is the capital.
+    2. Sydney (2) - Sydney is only a major city.
+
+    Ranking:
+    """
+    ranked_answers = call_llm(answer_ranking_prompt, system_instruction="You are an expert at ranking answers.").strip()
+    print(f"Ranked Answers: {ranked_answers}")
+
+    # Basic parsing for the best answer
+    try:
+        best_answer = ranked_answers.split("1. ")[1].split(" (")[0].strip()
+    except:
+        best_answer = "No answer found."
+
+    # Step 4: Validation (with example)
+    validation_prompt = f"""
+    Validate that the selected answer correctly and completely answers the original question.
+
+    Example:
+    Question: What is the capital of Australia?
+    Answer: Canberra
+    Validation: VALID - Canberra is the capital.
+
+    Question: {question}
+    Answer: {best_answer}
+    Validation:
+    """
+    validation_result = call_llm(validation_prompt, system_instruction="You are a strict validator.").strip()
+
+    if "VALID" in validation_result:
+        return best_answer
+    else:
+        return "Could not be validated."

@@ -2,144 +2,20 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach with enhanced verification.
-    """
-    try:
-        # Step 1: Analyze question
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer with enhanced checks
-        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes question type, keywords, and if calculation is needed."""
-    system_instruction = "Expert at analyzing questions for type, keywords, calculation needs."
-    prompt = f"""
-    Analyze the question, identify its type (fact extraction, calculation, comparison), keywords, and if calculation is needed (yes/no).
-
-    Example 1:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_needed": "yes"}}
-
-    Example 2:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_needed": "no"}}
-
-    Example 3:
-    Question: How many more yards did X gain than Y?
-    Analysis: {{"type": "comparison", "keywords": ["yards", "X", "Y"], "calculation_needed": "yes"}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts relevant passage based on question and keywords."""
-    system_instruction = "Expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game? PASSAGE: Text about the game... Rodgers found Boykin on a touchdown.
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_needed": "no"}}
-    Passage: Rodgers found Boykin on a touchdown.
-
-    Example 2:
-    Question: How many running backs ran for a touchdown? PASSAGE: Chris Johnson and LenDale White ran for touchdowns.
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_needed": "yes"}}
-    Passage: Chris Johnson and LenDale White ran for touchdowns.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, passage, and analysis."""
-    system_instruction = "Expert at generating answers from provided text, be concise."
-    prompt = f"""
-    Generate a concise answer to the question based on the relevant passage and question analysis.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game? Passage: Rodgers found Boykin.
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_needed": "no"}}
-    Answer: Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown? Passage: Chris Johnson and LenDale White ran for touchdowns.
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_needed": "yes"}}
-    Answer: 2
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Analysis: {question_analysis}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage, question_analysis):
-    """Verifies the answer and performs calculation if needed."""
-    system_instruction = "Expert at verifying answers and performing calculations if needed."
-    prompt = f"""
-    Verify if the answer is correct based on the passage. If calculation is needed, perform the calculation and provide the correct answer. Return ONLY the final correct answer.
-    
-    Example 1:
-    Question: Who caught the final touchdown? Answer: Boykin. Passage: Rodgers found Boykin. Analysis: no calc
-    Verification: Boykin
-
-    Example 2:
-    Question: How many running backs ran for a TD? Answer: 1. Passage: Only Johnson ran. Analysis: calc needed
-    Verification: 1
-
-    Example 3:
-    Question: How many yards did X gain? Answer: 5. Passage: X and Y gained some yards.
-    Analysis: no calculation needed.
-    Verification: 5
-    
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Analysis: {question_analysis}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
+# Hypothesis: Implement a "Knowledge Source Navigator with Chain-of-Verification" approach, focusing on targeted search query generation,
+# multi-example prompting, and intermediate validation to enhance answer accuracy. The primary change is using multiple few-shot examples in the prompt, and adding validation checks through the different parts of the pipeline.
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response."""
     try:
         from google import genai
         from google.genai import types
 
-        # Initialize the Gemini client
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-        # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -154,4 +30,141 @@ def call_llm(prompt, system_instruction=None):
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
+
+def generate_search_query(question):
+    """Generate a targeted search query based on the question."""
+    system_instruction = "You are an expert search query generator, designing effective queries to find answers."
+    prompt = f"""
+    Generate a targeted search query based on the question.
+    
+    Example 1:
+    Question: In what year did Charlton Publications sell Hit Parader?
+    Search Query: "Charlton Publications" sold "Hit Parader" year
+    
+    Example 2:
+    Question: What is the peak brightness of the Asus ROG Phone 5s Pro in nits?
+    Search Query: "Asus ROG Phone 5s Pro" peak brightness nits
+    
+    Example 3:
+    Question: Who played Creon in Antigone at the Epidaurus Festival 2022?
+    Search Query: Creon Antigone Epidaurus Festival 2022 cast
+    
+    Question: {question}
+    Search Query:
+    """
+    search_query = call_llm(prompt, system_instruction)
+    print(f"Generated search query: {search_query}") # Debugging
+    return search_query
+
+def retrieve_info(search_query):
+    """Retrieve relevant information using the generated search query."""
+    system_instruction = "You are a search engine simulator providing factual and concise information."
+    prompt = f"""
+    Simulate search results for the query.
+    
+    Example 1:
+    Search Query: "Charlton Publications" sold "Hit Parader" year
+    Search Results: Charlton Publications sold Hit Parader in 1991.
+    
+    Example 2:
+    Search Query: "Asus ROG Phone 5s Pro" peak brightness nits
+    Search Results: The peak brightness of the Asus ROG Phone 5s Pro is 1200 nits.
+    
+    Example 3:
+    Search Query: Creon Antigone Epidaurus Festival 2022 cast
+    Search Results: Vasilis Bisbikis played Creon in Antigone at the Epidaurus Festival in 2022.
+    
+    Search Query: {search_query}
+    Search Results:
+    """
+    retrieved_info = call_llm(prompt, system_instruction)
+    print(f"Retrieved info: {retrieved_info}") # Debugging
+    return retrieved_info
+
+def extract_answer(question, retrieved_info):
+    """Extract the answer from the retrieved information."""
+    system_instruction = "You are an expert at extracting precise answers from text. Focus on accuracy."
+    prompt = f"""
+    Extract the concise answer from the search results.
+    
+    Example 1:
+    Question: In what year did Charlton Publications sell Hit Parader?
+    Search Results: Charlton Publications sold Hit Parader in 1991.
+    Answer: 1991
+    
+    Example 2:
+    Question: What is the peak brightness of the Asus ROG Phone 5s Pro in nits?
+    Search Results: The peak brightness of the Asus ROG Phone 5s Pro is 1200 nits.
+    Answer: 1200 nits
+    
+    Example 3:
+    Question: Who played Creon in Antigone at the Epidaurus Festival 2022?
+    Search Results: Vasilis Bisbikis played Creon in Antigone at the Epidaurus Festival in 2022.
+    Answer: Vasilis Bisbikis
+    
+    Question: {question}
+    Search Results: {retrieved_info}
+    Answer:
+    """
+    extracted_answer = call_llm(prompt, system_instruction)
+    print(f"Extracted answer: {extracted_answer}") # Debugging
+    return extracted_answer
+
+def validate_answer(question, answer):
+    """Validate the extracted answer against the question."""
+    system_instruction = "You are a fact validator, ensuring the answer is correct and complete."
+    prompt = f"""
+    Validate if the answer accurately and completely answers the question.
+    
+    Example 1:
+    Question: In what year did Charlton Publications sell Hit Parader?
+    Answer: 1991
+    Validation: VALID
+    
+    Example 2:
+    Question: What is the peak brightness of the Asus ROG Phone 5s Pro in nits?
+    Answer: 1200 nits
+    Validation: VALID
+    
+    Example 3:
+    Question: Who played Creon in Antigone at the Epidaurus Festival 2022?
+    Answer: Vasilis Bisbikis
+    Validation: VALID
+    
+    Question: {question}
+    Answer: {answer}
+    Validation:
+    """
+    validation_result = call_llm(prompt, system_instruction)
+    print(f"Validation result: {validation_result}") # Debugging
+    return validation_result
+
+def main(question):
+    """Solve questions by generating a search query, retrieving info, extracting, and validating."""
+    try:
+        # 1. Generate Search Query
+        search_query = generate_search_query(question)
+        
+        # 2. Retrieve Information
+        retrieved_info = retrieve_info(search_query)
+        if "Error" in retrieved_info:
+          return "Error retrieving information."
+        
+        # 3. Extract Answer
+        answer = extract_answer(question, retrieved_info)
+        if "Error" in answer:
+          return "Error extracting answer."
+
+        # 4. Validate Answer
+        validation_result = validate_answer(question, answer)
+        if "Error" in validation_result:
+          return "Error validating answer."
+        
+        if "VALID" in validation_result:
+            return answer
+        else:
+            return "Could not be validated."
+
+    except Exception as e:
         return f"Error: {str(e)}"

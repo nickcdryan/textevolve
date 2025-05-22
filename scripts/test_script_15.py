@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 15,
-        "sample_id": "c483f44a-3d89-4237-9e5a-6d5d6a32f432",
-        "question": "PASSAGE: Coming off their road win over the Raiders, the Chargers would play their Week 2 home opener against the Baltimore Ravens.  San Diego would deliver the opening strike in the first quarter as quarterback Philip Rivers completed an 81-yard touchdown pass to running back Darren Sproles.  The Ravens would respond with running back Willis McGahee getting a 5-yard touchdown run, yet the Chargers would regain the lead as kicker Nate Kaeding got a 29-yard field goal.  Baltimore would take the lead in the second quarter as McGahee got a 3-yard touchdown run.  San Diego would pull within one as Kaeding made a 22-yard field goal, but the Ravens answered with quarterback Joe Flacco completing a 27-yard touchdown pass to wide receiver Kelley Washington.  The Chargers would end the half as Kaeding would make a 23-yard field goal. In the third quarter, Baltimore would add onto their lead as Flacco completed a 9-yard touchdown pass to tight end Todd Heap.  San Diego would stay close as Rivers completed a 35-yard touchdown pass to wide receiver Vincent Jackson.  In the fourth quarter, the Chargers got closer as Kaeding kicked a 25-yard field goal, but the Ravens would answer with kicker Steve Hauschka nailing a 33-yard field goal.  San Diego would manage to get a late drive all the way to the Ravens' 15-yard line, but on 4th-&-2, Sproles was tackled behind the line of scrimmage by an unblocked Ray Lewis, ending any hope of a comeback.\n\nQUESTION: How many more yards of touchdown passes were there compared to touchdown runs?"
+        "sample_id": "example_52",
+        "question": "What is the British-American kickboxer Andrew Tate's kickboxing name?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 15,
-            "sample_id": "c483f44a-3d89-4237-9e5a-6d5d6a32f432",
+            "sample_id": "example_52",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Coming off their road win over the Raiders, the Chargers would play their Week 2 home opener against the Baltimore Ravens.  San Diego would deliver the opening strike in the first quarter as quarterback Philip Rivers completed an 81-yard touchdown pass to running back Darren Sproles.  The Ravens would respond with running back Willis McGahee getting a 5-yard touchdown run, yet the Chargers would regain the lead as kicker Nate Kaeding got a 29-yard field goal.  Baltimore would take the lead in the second quarter as McGahee got a 3-yard touchdown run.  San Diego would pull within one as Kaeding made a 22-yard field goal, but the Ravens answered with quarterback Joe Flacco completing a 27-yard touchdown pass to wide receiver Kelley Washington.  The Chargers would end the half as Kaeding would make a 23-yard field goal. In the third quarter, Baltimore would add onto their lead as Flacco completed a 9-yard touchdown pass to tight end Todd Heap.  San Diego would stay close as Rivers completed a 35-yard touchdown pass to wide receiver Vincent Jackson.  In the fourth quarter, the Chargers got closer as Kaeding kicked a 25-yard field goal, but the Ravens would answer with kicker Steve Hauschka nailing a 33-yard field goal.  San Diego would manage to get a late drive all the way to the Ravens' 15-yard line, but on 4th-&-2, Sproles was tackled behind the line of scrimmage by an unblocked Ray Lewis, ending any hope of a comeback.\n\nQUESTION: How many more yards of touchdown passes were there compared to touchdown runs?"
+    question = "What is the British-American kickboxer Andrew Tate's kickboxing name?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 15,
-            "sample_id": "c483f44a-3d89-4237-9e5a-6d5d6a32f432",
+            "sample_id": "example_52",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 15,
-            "sample_id": "c483f44a-3d89-4237-9e5a-6d5d6a32f432",
+            "sample_id": "example_52",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 8,
-        "sample_id": "4183533f-6995-483a-aebe-3fbf35b82541",
-        "question": 'PASSAGE: Cities or regions with significant Laotian-American populations include the Seattle metropolitan area (enumerating 12,190; 0.4% of its population); San Francisco Bay Area (11,545; 0.2%); Dallas–Fort Worth metropolitan area (10,500; 0.2%); Sacramento metropolitan area (9,814; 0.4%); Minneapolis – Saint Paul area (8,676; 0.3%); San Diego metropolitan area (8,079; 0.3%); Fresno metropolitan area (7,967; 0.9%); Greater Los Angeles Area (7,120; 0.04%); Nashville metropolitan area (6,210; 0.4%); Portland metropolitan area (5,806; 0.3%); Chicago metropolitan area (4,762; 0.05%); San Joaquin County, California (4,266; 0.6%); Providence, Rhode Island (3,456; 0.2%); Denver metropolitan area (2,673), Des Moines, Iowa (2,270), Anchorage metropolitan area (1,997; 0.5%), and Fort Smith, Arkansas-Arkoma, Oklahoma (1,730).\n\nQUESTION: How many more Laotian-Americans were in the Seattle metropolitan area compared to those in Providence, Rhode Island and the Portland metropolitan area combined?'
+        "sample_id": "example_31",
+        "question": 'During which years was Otto Schlüter a professor of geography at the University of Halle?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 8,
-            "sample_id": "4183533f-6995-483a-aebe-3fbf35b82541",
+            "sample_id": "example_31",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Cities or regions with significant Laotian-American populations include the Seattle metropolitan area (enumerating 12,190; 0.4% of its population); San Francisco Bay Area (11,545; 0.2%); Dallas–Fort Worth metropolitan area (10,500; 0.2%); Sacramento metropolitan area (9,814; 0.4%); Minneapolis – Saint Paul area (8,676; 0.3%); San Diego metropolitan area (8,079; 0.3%); Fresno metropolitan area (7,967; 0.9%); Greater Los Angeles Area (7,120; 0.04%); Nashville metropolitan area (6,210; 0.4%); Portland metropolitan area (5,806; 0.3%); Chicago metropolitan area (4,762; 0.05%); San Joaquin County, California (4,266; 0.6%); Providence, Rhode Island (3,456; 0.2%); Denver metropolitan area (2,673), Des Moines, Iowa (2,270), Anchorage metropolitan area (1,997; 0.5%), and Fort Smith, Arkansas-Arkoma, Oklahoma (1,730).\n\nQUESTION: How many more Laotian-Americans were in the Seattle metropolitan area compared to those in Providence, Rhode Island and the Portland metropolitan area combined?'
+    question = 'During which years was Otto Schlüter a professor of geography at the University of Halle?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 8,
-            "sample_id": "4183533f-6995-483a-aebe-3fbf35b82541",
+            "sample_id": "example_31",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 8,
-            "sample_id": "4183533f-6995-483a-aebe-3fbf35b82541",
+            "sample_id": "example_31",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

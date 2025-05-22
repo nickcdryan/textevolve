@@ -33,8 +33,9 @@ class AgentSystem:
             dataset_loader: A DatasetLoader instance for loading and processing examples
         """
         # Initialize configuration
-        self.explore_rate = 60
-        self.exploit_rate = 40
+        self.explore_rate = 60  # Start with exploration focus
+        self.exploit_rate = 20  # Some exploitation
+        self.refine_rate = 20   # Some refinement
         self.force_exploitation_next = False
 
         # Store the dataset loader

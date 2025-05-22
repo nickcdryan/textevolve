@@ -2,150 +2,12 @@ import os
 import re
 import math
 
-def main(question):
-    """Solve the question using a multi-stage LLM approach with enhanced reasoning and error handling."""
-    try:
-        # Step 1: Analyze question (enhanced type and keyword identification)
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question: " + question_analysis
-
-        # Step 2: Extract relevant passage (focused extraction)
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage: " + relevant_passage
-
-        # Step 3: Generate answer (explicit calculation instruction)
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer: " + answer
-
-        # Step 4: Verify answer (numerical accuracy and unit check)
-        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)
-        if "Error" in verified_answer:
-            return "Error verifying answer: " + verified_answer
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type, keywords, and whether calculation is needed."""
-    system_instruction = "You are an expert question analyzer."
-    prompt = f"""
-    Analyze the question and identify its type, keywords, and if calculation is needed.
-
-    Example 1:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_needed": false}}
-
-    Example 2:
-    Question: How many total points were scored in the game?
-    Analysis: {{"type": "calculation", "keywords": ["total points", "scored"], "calculation_needed": true}}
-
-    Example 3:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_needed": false}}
-    
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage based on keywords, with a focus on extracting all key information."""
-    system_instruction = "You are an expert at extracting relevant passages from text to answer questions."
-    prompt = f"""
-    Extract the relevant passage containing the answer.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "calculation_needed": false}}
-    Text: PASSAGE: ...Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"], "calculation_needed": false}}
-    Text: PASSAGE: ...Chris Johnson got a 6-yard TD run. LenDale White got a 6-yard and a 2-yard TD run.
-    Passage: Chris Johnson got a 6-yard TD run. LenDale White got a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: How many total points were scored in the game?
-    Keywords: {{"type": "calculation", "keywords": ["total points", "scored"], "calculation_needed": true}}
-    Text: PASSAGE: ...The score was 24-17...They scored a touchdown and extra point...
-    Passage: The score was 24-17...They scored a touchdown and extra point...
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer. If calculation is needed, explicitly instruct the LLM to calculate."""
-    system_instruction = "You are an expert at generating answers to questions from provided text. If a calculation is needed, perform the calculation."
-    prompt = f"""
-    Generate the answer to the question. If the question requires a calculation, perform it.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: Chris Johnson got a 6-yard TD run. LenDale White got a 6-yard and a 2-yard TD run.
-    Answer: 2
-
-    Example 3:
-    Question: How many total points were scored in the game?
-    Passage: The score was 24-17...They scored a touchdown and extra point...(7 points)
-    Answer: 48
-    
-    Question: {question}
-    Passage: {relevant_passage}
-    Analysis: {question_analysis}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage, question_analysis):
-    """Verifies the generated answer, performing explicit numerical checks if needed."""
-    system_instruction = "You are an expert at verifying answers, especially numerical accuracy."
-    prompt = f"""
-    Verify the answer. If the question involved calculation, check the numerical accuracy. Return the verified answer, or the correct answer if the original was wrong.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: Chris Johnson got a 6-yard TD run. LenDale White got a 6-yard and a 2-yard TD run.
-    Verification: 2
-
-    Example 3:
-    Question: How many total points were scored in the game?
-    Answer: 48
-    Passage: The score was 24-17...They scored a touchdown and extra point...(7 points)
-    Verification: 48
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Analysis: {question_analysis}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
+# This script improves fact-checking by enhancing search simulation, answer reconciliation, and validation.
+# It builds upon the success of multiple simulated search engines (Approach #1, Iteration 22).
+# To address weaknesses, it integrates source reliability and numerical range validation.
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template."""
+    """Call the Gemini LLM with a prompt and return the response."""
     try:
         from google import genai
         from google.genai import types
@@ -159,12 +21,109 @@ def call_llm(prompt, system_instruction=None):
                 contents=prompt
             )
         else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
+            response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
 
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def simulate_search(query, engine_id):
+    """Simulate different search engines with source reliability."""
+    system_instruction = f"You are a simulated search engine with ID {engine_id} providing factual and CONCISE information. Include a reliability score (1-10, 10=highest) for each piece of information. Your search results might be slightly biased or incomplete."
+    prompt = f"""
+    Simulate search results for the query: '{query}'. Include source reliability.
+
+    Example 1 (Engine ID: 1):
+    Query: capital of Australia
+    Search Results: Canberra is the capital of Australia. (Reliability: 9)
+
+    Example 2 (Engine ID: 2):
+    Query: capital of Australia
+    Search Results: Australia's capital is Canberra, located in the Australian Capital Territory. (Reliability: 8)
+
+    Query: {query}
+    Search Results:
+    """
+    return call_llm(prompt, system_instruction)
+
+def extract_answer(question, search_results):
+    """Extract potential answers and reliability from search results."""
+    system_instruction = "You are an answer extraction expert, focusing on precision and source reliability."
+    prompt = f"""
+    Extract the concise answer and its reliability score from the search results.
+
+    Example:
+    Question: What is the capital of Australia?
+    Search Results: Canberra is the capital of Australia. (Reliability: 9)
+    Answer: Canberra (Reliability: 9)
+
+    Question: {question}
+    Search Results: {search_results}
+    Answer:
+    """
+    return call_llm(prompt, system_instruction)
+
+def reconcile_answers(question, answers):
+    """Reconcile answers from different engines, considering reliability."""
+    system_instruction = "You are an expert at reconciling conflicting answers, considering source reliability, and determining the most accurate answer."
+    all_answers = "\n".join([f"Engine {i+1}: {answer}" for i, answer in enumerate(answers)])
+    prompt = f"""
+    Reconcile these answers from different sources, considering reliability, to answer the question.
+
+    Example:
+    Question: What is the capital of Australia?
+    Engine 1: Canberra (Reliability: 9)
+    Engine 2: Canberra is the capital city. (Reliability: 8)
+    Reconciled Answer: Canberra
+
+    Question: {question}
+    {all_answers}
+    Reconciled Answer:
+    """
+    return call_llm(prompt, system_instruction)
+
+def validate_answer(question, reconciled_answer):
+    """Validate the reconciled answer, including numerical range checks where applicable."""
+    system_instruction = "You are a strict validator, focusing on factual correctness and reasonable numerical ranges."
+    prompt = f"""
+    Validate if the reconciled answer is correct for the question. Consider numerical ranges for reasonableness.
+
+    Example 1:
+    Question: What is the capital of Australia?
+    Answer: Canberra
+    Validation: VALID - Canberra is the capital of Australia.
+
+    Example 2:
+    Question: How many years was the Legacy of Walt Disney museum open at Disneyland, CA?
+    Answer: 3
+    Validation: VALID - 3 years is a reasonable timeframe for a museum exhibit.
+
+    Question: {question}
+    Answer: {reconciled_answer}
+    Validation:
+    """
+    validation_result = call_llm(prompt, system_instruction)
+    return validation_result
+
+def main(question):
+    """Solve questions using multiple search engines, answer reconciliation, and validation."""
+    num_engines = 3
+    answers = []
+
+    # Simulate search with multiple engines
+    for i in range(num_engines):
+        search_results = simulate_search(question, i+1)
+        answer = extract_answer(question, search_results)
+        answers.append(answer)
+
+    # Reconcile answers
+    reconciled_answer = reconcile_answers(question, answers)
+
+    # Validate answer
+    validation_result = validate_answer(question, reconciled_answer)
+
+    if "VALID" in validation_result:
+        return reconciled_answer
+    else:
+        return "Could not be validated."

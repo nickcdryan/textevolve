@@ -1,776 +1,210 @@
 {
   "iteration": 14,
-  "timestamp": "2025-05-20T20:55:09.817955",
-  "strategy": "Exploitation",
-  "explore_rate": 30,
-  "exploit_rate": 70,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with enhanced question analysis and verification.\n    \"\"\"\n    try:\n        # Step 1: Analyze question type and keywords with robust verification\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis, question)  # Pass original question\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question analysis\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer with enhanced checks\n        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis) #Pass question analysis\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n\n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"requires_calculation\": false}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"requires_calculation\": true}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"requires_calculation\": false}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question_analysis, question, passage): #Passage and question\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text. You must understand the nuances of the text to find the correct answer\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"requires_calculation\": false}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"requires_calculation\": true}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"requires_calculation\": false}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text. You always output a specific answer.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage, question_analysis): #Pass question analysis\n    \"\"\"Verifies the generated answer. Includes multiple examples and calculation check.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions. You always provide an answer to the question, and you must correct it if wrong.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Verification: Josh Scobee\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a multi-stage LLM approach to answer questions by analyzing the question, extracting relevant information, generating an initial answer, and then verifying it. The problem is decomposed into four main steps: question analysis, passage extraction, answer generation, and answer verification. Each step is handled by a specialized LLM agent with an \"expert\" role. The `call_llm` function is used to interact with the Gemini LLM, and other functions are `analyze_question`, `extract_relevant_passage`, `generate_answer`, and `verify_answer`, which are called in sequence within the `main` function to process the question and refine the answer. The overall workflow involves analyzing the question, extracting information, generating an answer and verifying the answer for accuracy.",
-  "sample_count": 10,
+  "timestamp": "2025-05-22T05:48:39.507351",
+  "strategy": "Exploration",
+  "explore_rate": 60,
+  "exploit_rate": 40,
+  "batch_size": 3,
+  "script": "import os\nimport re\nimport math\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question, max_attempts=3):\n    \"\"\"Solve factual questions using a new approach: Contextualized Question Answering with Iterative Context Expansion and Answer Ranking.\"\"\"\n\n    # Hypothesis: By actively expanding the context of the question in multiple iterations and ranking potential answers based on both the expanded context and the initial question, we can improve accuracy. This approach moves away from simple fact extraction and aims for a deeper understanding of the question's context. This is a fundamentally new approach.\n\n    # Step 1: Initial Contextualization (with examples)\n    contextualization_prompt = f\"\"\"\n    Provide a contextualized version of the original question by adding background information and related details.\n\n    Example 1:\n    Original Question: What is the capital of Australia?\n    Contextualized Question: What is the capital city of Australia, a country in the southern hemisphere known for its unique wildlife?\n\n    Example 2:\n    Original Question: Who is known as the first rock star of the Middle East?\n    Contextualized Question: Who is the musician widely recognized as the first rock and roll star of the Middle East?\n\n    Original Question: {question}\n    Contextualized Question:\n    \"\"\"\n    contextualized_question = call_llm(contextualization_prompt, system_instruction=\"You are an expert at providing context to questions.\").strip()\n    print(f\"Contextualized Question: {contextualized_question}\")\n\n    # Step 2: Iterative Context Expansion and Answer Extraction (with examples)\n    extracted_answers = []\n    current_question = contextualized_question\n\n    for i in range(2): # Iterate twice to expand the context\n        expansion_extraction_prompt = f\"\"\"\n        Expand the current question with additional context, and then extract a *potential* answer from it. Rank the answer for its likelihood to answer the question (1-10). Be concise.\n\n        Example:\n        Current Question: What is the capital city of Australia, a country in the southern hemisphere known for its unique wildlife?\n        Expanded Question: What is the capital city of Australia, which is Canberra, a planned city also known for being the home to Parliament House?\n        Potential Answer: Canberra (Relevance: 9)\n\n        Current Question: {current_question}\n        Expanded Question:\n        \"\"\"\n        expanded_text = call_llm(expansion_extraction_prompt, system_instruction=\"You are an expert at expanding questions with context and extracting answers.\").strip()\n        print(f\"Expanded Text: {expanded_text}\")\n\n        # Simple parsing to extract answer and expanded question (error prone JSON is avoided)\n        potential_answer_match = re.search(r\"Potential Answer:\\s*(.*?)\\s*\\(\", expanded_text)\n        potential_answer = potential_answer_match.group(1) if potential_answer_match else \"No answer\"\n\n        current_question = expanded_text.split(\"Potential Answer:\")[0].replace(\"Expanded Question:\", \"\").strip()\n\n        extracted_answers.append(potential_answer)\n        print(f\"Extracted answers after iteration {i+1}: {extracted_answers}\")\n\n    # Step 3: Answer Ranking (with examples)\n    answer_ranking_prompt = f\"\"\"\n    Rank the following potential answers for their likelihood to answer the *original* question, considering the expanded context from each iteration (1-10, 10 is best). Also give a short reasoning about the score.\n\n    Original Question: {question}\n    Potential Answers:\n    {extracted_answers}\n\n    Example:\n    Original Question: What is the capital of Australia?\n    Potential Answers:\n    ['Canberra', 'Sydney']\n    Ranking:\n    1. Canberra (10) - Canberra is the capital.\n    2. Sydney (2) - Sydney is only a major city.\n\n    Ranking:\n    \"\"\"\n    ranked_answers = call_llm(answer_ranking_prompt, system_instruction=\"You are an expert at ranking answers.\").strip()\n    print(f\"Ranked Answers: {ranked_answers}\")\n\n    # Basic parsing for the best answer\n    try:\n        best_answer = ranked_answers.split(\"1. \")[1].split(\" (\")[0].strip()\n    except:\n        best_answer = \"No answer found.\"\n\n    # Step 4: Validation (with example)\n    validation_prompt = f\"\"\"\n    Validate that the selected answer correctly and completely answers the original question.\n\n    Example:\n    Question: What is the capital of Australia?\n    Answer: Canberra\n    Validation: VALID - Canberra is the capital.\n\n    Question: {question}\n    Answer: {best_answer}\n    Validation:\n    \"\"\"\n    validation_result = call_llm(validation_prompt, system_instruction=\"You are a strict validator.\").strip()\n\n    if \"VALID\" in validation_result:\n        return best_answer\n    else:\n        return \"Could not be validated.\"",
+  "approach_summary": "The script uses an iterative context expansion and answer ranking approach to answer questions. It decomposes the problem into contextualization, iterative expansion/extraction, answer ranking, and validation steps, leveraging the LLM in different roles such as context provider, question expander/answer extractor, answer ranker, and validator. The functions used are `call_llm` for LLM interaction and `main` to orchestrate the answering process, with `main` calling `call_llm` multiple times to refine the context and evaluate potential answers. The overall workflow involves initially contextualizing the question, iteratively expanding on that context to extract potential answers, ranking these answers based on the original question and expanded context, and finally validating the top-ranked answer.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE: Still looking for their first win, the Bengals flew to The Meadowlands for a Week 6 duel with the throwback-clad New York Jets.  With QB Carson Palmer out again nursing an injured elbow, QB Ryan Fitzpatrick was again named the starter. In the first quarter, Cincinnati pounced first as strong safety Chinedum Ndukwe returned a fumble 15 yards for a touchdown.  The Jets responded with QB Brett Favre completing a 2-yard TD pass to RB Thomas Jones.  In the second quarter, New York took the lead as kicker Jay Feely got a 38-yard field goal, while Jones got a 7-yard TD run.  The Bengals closed out the half with Fitzpatrick getting a 1-yard TD run. In the third quarter, the Jets began to pull away as Feely got a 43-yard field goal.  In the fourth quarter, New York sealed the win as Jones got a 1-yard TD run (with a failed 2-point conversion). With the loss, Cincinnati fell to 0-6 and it became their first 0-6 start as well as 6-game losing streak since 2002.\n\nQUESTION: Who scored the first touchdown of the game?",
-      "answer": "Chinedum Ndukwe",
-      "id": "example_121",
+      "question": "How many losses did Adolf Anderssen have in his 1864 chess match against Berthold Suhle?",
+      "answer": "3",
+      "id": "example_47",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Still looking for their first win, the Bengals flew to The Meadowlands for a Week 6 duel with the throwback-clad New York Jets.  With QB Carson Palmer out again nursing an injured elbow, QB Ryan Fitzpatrick was again named the starter. In the first quarter, Cincinnati pounced first as strong safety Chinedum Ndukwe returned a fumble 15 yards for a touchdown.  The Jets responded with QB Brett Favre completing a 2-yard TD pass to RB Thomas Jones.  In the second quarter, New York took the lead as kicker Jay Feely got a 38-yard field goal, while Jones got a 7-yard TD run.  The Bengals closed out the half with Fitzpatrick getting a 1-yard TD run. In the third quarter, the Jets began to pull away as Feely got a 43-yard field goal.  In the fourth quarter, New York sealed the win as Jones got a 1-yard TD run (with a failed 2-point conversion). With the loss, Cincinnati fell to 0-6 and it became their first 0-6 start as well as 6-game losing streak since 2002.",
-        "original_question": "Who scored the first touchdown of the game?",
-        "original_answer_data": {
-          "spans": [
-            "Chinedum Ndukwe"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 806
+        "source": "SimpleQA",
+        "line_number": 150,
+        "original_data": {
+          "metadata": "{'topic': 'Sports', 'answer_type': 'Number', 'urls': ['https://en.wikipedia.org/wiki/Adolf_Anderssen', 'https://en.wikipedia.org/wiki/Adolf_Anderssen', 'https://en.wikipedia.org/wiki/Berthold_Suhle', 'https://www.sources.com/SSR/Docs/SSRW-Anderssen_Adolf.htm']}",
+          "problem": "How many losses did Adolf Anderssen have in his 1864 chess match against Berthold Suhle?",
+          "answer": "3",
+          "id": "example_150"
+        }
       }
     },
     {
-      "question": "PASSAGE: Hoping to rebound from their road loss to the Vikings, the Panthers went home for a Week 4 NFC South duel with the Atlanta Falcons.  In the first quarter, Carolina pounced first with rookie RB Jonathan Stewart getting an 8-yard TD run.  The Falcons responded with kicker Jason Elam getting a 33-yard field goal.  In the second quarter, Atlanta crept closer as Elam kicked a 33-yard field goal.  Carolina would reply with QB Jake Delhomme completing a 56-yard TD pass to WR Steve Smith.  The Falcons closed out the half with Elam getting a 44-yard field goal. In the third quarter, the Panthers answered with kicker John Kasay nailing a 44-yard field goal.  In the fourth quarter, Carolina closed the game out with Delhomme completing a 36-yard TD pass to WR Muhsin Muhammad. During the game, Muhsin Muhammad (8 receptions for 147 yards and a touchdown) became the Panthers All-Time WR Leader in Receptions (600) and TD Receptions (45).\n\nQUESTION: How many yards shorter was Jake Delhomme's second touchdown pass compared to his first?",
-      "answer": "20",
-      "id": "example_122",
+      "question": "What city was Richard Serra in when he created his work \"To Lift\"?",
+      "answer": "New York",
+      "id": "example_48",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to rebound from their road loss to the Vikings, the Panthers went home for a Week 4 NFC South duel with the Atlanta Falcons.  In the first quarter, Carolina pounced first with rookie RB Jonathan Stewart getting an 8-yard TD run.  The Falcons responded with kicker Jason Elam getting a 33-yard field goal.  In the second quarter, Atlanta crept closer as Elam kicked a 33-yard field goal.  Carolina would reply with QB Jake Delhomme completing a 56-yard TD pass to WR Steve Smith.  The Falcons closed out the half with Elam getting a 44-yard field goal. In the third quarter, the Panthers answered with kicker John Kasay nailing a 44-yard field goal.  In the fourth quarter, Carolina closed the game out with Delhomme completing a 36-yard TD pass to WR Muhsin Muhammad. During the game, Muhsin Muhammad (8 receptions for 147 yards and a touchdown) became the Panthers All-Time WR Leader in Receptions (600) and TD Receptions (45).",
-        "original_question": "How many yards shorter was Jake Delhomme's second touchdown pass compared to his first?",
-        "original_answer_data": {
-          "spans": [
-            "20"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 536
+        "source": "SimpleQA",
+        "line_number": 741,
+        "original_data": {
+          "metadata": "{'topic': 'Art', 'answer_type': 'Place', 'urls': ['https://en.wikipedia.org/wiki/Richard_Serra', 'https://www.moma.org/artists/5349#works', 'https://www.dailyartmagazine.com/sculptures-richard-serra/', 'https://www.tate.org.uk/research/tate-papers/08/richard-serra-case-study']}",
+          "problem": "What city was Richard Serra in when he created his work \"To Lift\"?",
+          "answer": "New York",
+          "id": "example_741"
+        }
       }
     },
     {
-      "question": "PASSAGE: In 2000 there were 79,667 households out of which 38.70% had children under the age of 18 living with them, 61.90% were married couples living together, 10.20% had a female householder with no husband present, and 24.20% were non-families. 19.70% of all households were made up of individuals and 6.80% had someone living alone who was 65 years of age or older.  The average household size was 2.72 and the average family size was 3.14.\n\nQUESTION: How many percent are not non-families?",
-      "answer": "24.2",
-      "id": "example_123",
+      "question": "What patch removed the Silver Armor from the crafting recipe for Jungle Armor in Terraria?",
+      "answer": "1.1",
+      "id": "example_49",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In 2000 there were 79,667 households out of which 38.70% had children under the age of 18 living with them, 61.90% were married couples living together, 10.20% had a female householder with no husband present, and 24.20% were non-families. 19.70% of all households were made up of individuals and 6.80% had someone living alone who was 65 years of age or older.  The average household size was 2.72 and the average family size was 3.14.",
-        "original_question": "How many percent are not non-families?",
-        "original_answer_data": {
-          "spans": [
-            "24.2"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 503
-      }
-    },
-    {
-      "question": "PASSAGE: The 49ers first road game of the year ends in a disaster. The 49ers defense had no answer for Ben Roethlisberger, who went 21 for 27, 369 yards and three touchdown passes as the Steelers won 43-18. The Steelers took a commanding 29-3 halftime lead. Despite only scoring 18 points, the 49ers offense opened up in the second half, with Kaepernick leading the 49ers into the Steelers red zone four times, but only able to score one touchdown (along with a field goal and two turnover on downs). The highlight for the 49ers was Kaepernick hitting wide receiver Torrey Smith for a 75-yard touchdown pass in the fourth quarter.  The Steelers' defense had a field day on Kaepernick by sacking him 5 times and making him lose a fumble.\n\nQUESTION: How many points did Pittsburgh win by?",
-      "answer": "25",
-      "id": "example_124",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The 49ers first road game of the year ends in a disaster. The 49ers defense had no answer for Ben Roethlisberger, who went 21 for 27, 369 yards and three touchdown passes as the Steelers won 43-18. The Steelers took a commanding 29-3 halftime lead. Despite only scoring 18 points, the 49ers offense opened up in the second half, with Kaepernick leading the 49ers into the Steelers red zone four times, but only able to score one touchdown (along with a field goal and two turnover on downs). The highlight for the 49ers was Kaepernick hitting wide receiver Torrey Smith for a 75-yard touchdown pass in the fourth quarter.  The Steelers' defense had a field day on Kaepernick by sacking him 5 times and making him lose a fumble.",
-        "original_question": "How many points did Pittsburgh win by?",
-        "original_answer_data": {
-          "spans": [
-            "25"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 737
-      }
-    },
-    {
-      "question": "PASSAGE: As of the census of 2000, there were 210,528 people, 88,413 households, and 62,507 families residing in the county.  The population density was 221 people per square mile (85/km\u00b2).  There were 102,830 housing units at an average density of 108 per square mile (42/km\u00b2).  The racial makeup of the county was 87.46% Race (United States Census), 8.31% Race (United States Census) or Race (United States Census), 0.33% Race (United States Census), 0.79% Race (United States Census), 0.04% Race (United States Census), 1.88% from Race (United States Census), and 1.18% from two or more races.  5.61% of the population were Race (United States Census) or Race (United States Census) of any race.\n\nQUESTION: Which group is larger according to the census: people or families?",
-      "answer": "people",
-      "id": "example_125",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "As of the census of 2000, there were 210,528 people, 88,413 households, and 62,507 families residing in the county.  The population density was 221 people per square mile (85/km\u00b2).  There were 102,830 housing units at an average density of 108 per square mile (42/km\u00b2).  The racial makeup of the county was 87.46% Race (United States Census), 8.31% Race (United States Census) or Race (United States Census), 0.33% Race (United States Census), 0.79% Race (United States Census), 0.04% Race (United States Census), 1.88% from Race (United States Census), and 1.18% from two or more races.  5.61% of the population were Race (United States Census) or Race (United States Census) of any race.",
-        "original_question": "Which group is larger according to the census: people or families?",
-        "original_answer_data": {
-          "spans": [
-            "people"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 559
-      }
-    },
-    {
-      "question": "PASSAGE: Hoping to rebound from their shutout loss to the Buccaneers, the 49ers flew to the University of Phoenix Stadium for a Week 12 NFC West duel with the Arizona Cardinals on Monday night.  San Francisco made the opening strike in the first quarter as quarterback Troy Smith found wide receiver Michael Crabtree on a 38-yard touchdown pass.  The Cardinals answered with kicker Jay Feely getting a 31-yard field goal, yet the 49ers responded with a 1-yard touchdown run from rookie running back Anthony Dixon.  San Francisco added onto their lead in the second quarter with an 8-yard touchdown pass from running back Brian Westbrook.  Arizona would hang on with Feely's 39-yard field goal.  Afterwards, the 49ers pulled away with a 38-yard field goal in the third quarter and a 26-yard field goal in the fourth quarter from kicker Shane Andrus.\n\nQUESTION: How many yards was the longest run for a touchdown?",
-      "answer": "8",
-      "id": "example_126",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to rebound from their shutout loss to the Buccaneers, the 49ers flew to the University of Phoenix Stadium for a Week 12 NFC West duel with the Arizona Cardinals on Monday night.  San Francisco made the opening strike in the first quarter as quarterback Troy Smith found wide receiver Michael Crabtree on a 38-yard touchdown pass.  The Cardinals answered with kicker Jay Feely getting a 31-yard field goal, yet the 49ers responded with a 1-yard touchdown run from rookie running back Anthony Dixon.  San Francisco added onto their lead in the second quarter with an 8-yard touchdown pass from running back Brian Westbrook.  Arizona would hang on with Feely's 39-yard field goal.  Afterwards, the 49ers pulled away with a 38-yard field goal in the third quarter and a 26-yard field goal in the fourth quarter from kicker Shane Andrus.",
-        "original_question": "How many yards was the longest run for a touchdown?",
-        "original_answer_data": {
-          "spans": [
-            "8"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 544
-      }
-    },
-    {
-      "question": "PASSAGE: In 1602 O'Neill destroyed his capital at Dungannon due to the approach of Mountjoy's forces, and withdrew to hide in the woods. In a symbolic gesture Mountjoy smashed the O'Neills' inauguration stone at Tullaghogue. Famine soon hit Ulster as a result of the English scorched earth strategy. O'Neill's uirithe or sub-lords  began to surrender and Rory O'Donnell, Hugh Roe's brother and successor, surrendered on terms at the end of 1602. However, with a secure base in the large and dense forests of Tir Eoghain, O'Neill held out until 30 March 1603, when he surrendered on good terms to Mountjoy, signing the Treaty of Mellifont. Elizabeth I had died on 24 March. Although the war had effectively ended with the signing of the Treaty of Mellifont, its final battles were fought during the English invasion of West Breifne in April 1603, which remained the sole holdout Irish kingdom following O'Neill's capitulation. The kingdom was ruled by Brian \u00d3g O'Rourke, one of the alliance's chief lieutenants and leader of the Irish forces during the Battle of Curlew Pass. He failed to secure any concessions from the treaty as his half-brother Tadhg O'Rourke had fought with the English during the war and was granted lordship of West Breifne in return. Following a twelve-day siege, a force of 3,000 men led by Tadhg, Henry Folliott and Rory O'Donnell eventually brought the area, and thus all of Ireland, under English control on 25 April 1603.\n\nQUESTION: Who surrendered later, Rory O'Donnell or O'Neill?",
-      "answer": "O'Neill",
-      "id": "example_127",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In 1602 O'Neill destroyed his capital at Dungannon due to the approach of Mountjoy's forces, and withdrew to hide in the woods. In a symbolic gesture Mountjoy smashed the O'Neills' inauguration stone at Tullaghogue. Famine soon hit Ulster as a result of the English scorched earth strategy. O'Neill's uirithe or sub-lords  began to surrender and Rory O'Donnell, Hugh Roe's brother and successor, surrendered on terms at the end of 1602. However, with a secure base in the large and dense forests of Tir Eoghain, O'Neill held out until 30 March 1603, when he surrendered on good terms to Mountjoy, signing the Treaty of Mellifont. Elizabeth I had died on 24 March. Although the war had effectively ended with the signing of the Treaty of Mellifont, its final battles were fought during the English invasion of West Breifne in April 1603, which remained the sole holdout Irish kingdom following O'Neill's capitulation. The kingdom was ruled by Brian \u00d3g O'Rourke, one of the alliance's chief lieutenants and leader of the Irish forces during the Battle of Curlew Pass. He failed to secure any concessions from the treaty as his half-brother Tadhg O'Rourke had fought with the English during the war and was granted lordship of West Breifne in return. Following a twelve-day siege, a force of 3,000 men led by Tadhg, Henry Folliott and Rory O'Donnell eventually brought the area, and thus all of Ireland, under English control on 25 April 1603.",
-        "original_question": "Who surrendered later, Rory O'Donnell or O'Neill?",
-        "original_answer_data": {
-          "spans": [
-            "O'Neill"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 356
-      }
-    },
-    {
-      "question": "PASSAGE: At the 2011 Italian census, there were 179,149  people residing in the city. The population density was 978.9 persons per square kilometre. Minors (children ages 18 and younger) totalled 16.20 percent of the population compared to pensioners who number 22.54 percent. This compares with the Italian average of 18.06 percent (minors) and 19.94 percent (pensioners). The average age of Modena resident is 44 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Modena experienced 2.42% growth, while Italy as a whole grew by 3.56 percent. The current birth rate of Modena is 9.62 births per 1,000 inhabitants compared to the Italian average of 9.45 births.\n\nQUESTION: How many more percentage points did the population of Italy grow between 2002 and 2007 compared to Modena?",
-      "answer": "1.14",
-      "id": "example_128",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "At the 2011 Italian census, there were 179,149  people residing in the city. The population density was 978.9 persons per square kilometre. Minors (children ages 18 and younger) totalled 16.20 percent of the population compared to pensioners who number 22.54 percent. This compares with the Italian average of 18.06 percent (minors) and 19.94 percent (pensioners). The average age of Modena resident is 44 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Modena experienced 2.42% growth, while Italy as a whole grew by 3.56 percent. The current birth rate of Modena is 9.62 births per 1,000 inhabitants compared to the Italian average of 9.45 births.",
-        "original_question": "How many more percentage points did the population of Italy grow between 2002 and 2007 compared to Modena?",
-        "original_answer_data": {
-          "spans": [
-            "1.14"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 206
-      }
-    },
-    {
-      "question": "PASSAGE: The Rams began their 2007 campaign at home against the Carolina Panthers.  In the first quarter, St. Louis trailed early as Panthers QB Jake Delhomme completed a 10-yard TD pass to WR Drew Carter.  The Rams would tie the game with QB Marc Bulger completing a 3-yard TD pass to WR Torry Holt.  In the second quarter, St. Louis would take the lead with kicker Jeff Wilkins getting a 42-yard field goal for the only score of the period.  In the third quarter, Wiklins helped the Rams' lead with a 28-yard field goal.  However, this was all wiped out as Delhomme completed a 68-yard TD pass to WR Steve Smith.  In the fourth quarter, Carolina took over for the remainder of the game as kicker John Kasay nailed a 34-yard field goal, Delhomme and Carter hooked up with each other again on a 9-yard TD pass, and Kasay finished the game with 32-yard field goal. The game was notable when offensive tackle Orlando Pace suffered a season-ending injury. This severely hurt the Rams' offense.\n\nQUESTION: How many yards shorter was Kasay's average yards of field goals than Wilkins' average yards of field goals?",
-      "answer": "2",
-      "id": "example_129",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Rams began their 2007 campaign at home against the Carolina Panthers.  In the first quarter, St. Louis trailed early as Panthers QB Jake Delhomme completed a 10-yard TD pass to WR Drew Carter.  The Rams would tie the game with QB Marc Bulger completing a 3-yard TD pass to WR Torry Holt.  In the second quarter, St. Louis would take the lead with kicker Jeff Wilkins getting a 42-yard field goal for the only score of the period.  In the third quarter, Wiklins helped the Rams' lead with a 28-yard field goal.  However, this was all wiped out as Delhomme completed a 68-yard TD pass to WR Steve Smith.  In the fourth quarter, Carolina took over for the remainder of the game as kicker John Kasay nailed a 34-yard field goal, Delhomme and Carter hooked up with each other again on a 9-yard TD pass, and Kasay finished the game with 32-yard field goal. The game was notable when offensive tackle Orlando Pace suffered a season-ending injury. This severely hurt the Rams' offense.",
-        "original_question": "How many yards shorter was Kasay's average yards of field goals than Wilkins' average yards of field goals?",
-        "original_answer_data": {
-          "spans": [
-            "2"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 888
-      }
-    },
-    {
-      "question": "PASSAGE: Staying on the road, the Titans traveled to Dolphin Stadium for a Week 3 contest against the Miami Dolphins.  From the get-go, the Titans trailed as kicker Olindo Mare got a 40-yard field goal.  The Titans would take the lead before halftime as QB Kerry Collins completed a 27-yard TD pass to TE Bo Scaife in the second quarter.  However, in the third quarter, the Dolphins retook the lead as QB Daunte Culpepper got a touchdown on a 5-yard QB sneak.  Titans kicker Rob Bironas would tie the game up on a 22-yard field goal.  Unfortunately, in the fourth quarter, the Dolphins would be the team that walked away with win #1 as Mare booted a 39-yard field goal to drop the Titans to 0-3.\n\nQUESTION: How many more field goals did Olindo Mare make over Rob Bironas?",
-      "answer": "1",
-      "id": "example_130",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Staying on the road, the Titans traveled to Dolphin Stadium for a Week 3 contest against the Miami Dolphins.  From the get-go, the Titans trailed as kicker Olindo Mare got a 40-yard field goal.  The Titans would take the lead before halftime as QB Kerry Collins completed a 27-yard TD pass to TE Bo Scaife in the second quarter.  However, in the third quarter, the Dolphins retook the lead as QB Daunte Culpepper got a touchdown on a 5-yard QB sneak.  Titans kicker Rob Bironas would tie the game up on a 22-yard field goal.  Unfortunately, in the fourth quarter, the Dolphins would be the team that walked away with win #1 as Mare booted a 39-yard field goal to drop the Titans to 0-3.",
-        "original_question": "How many more field goals did Olindo Mare make over Rob Bironas?",
-        "original_answer_data": {
-          "spans": [
-            "1"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 611
+        "source": "SimpleQA",
+        "line_number": 113,
+        "original_data": {
+          "metadata": "{'topic': 'Video games', 'answer_type': 'Date', 'urls': ['https://terraria.wiki.gg/wiki/Silver_armor', 'https://terraria.fandom.com/wiki/Jungle_armor', 'https://terraria.fandom.com/wiki/Silver_armor?so=search', 'https://terraria.fandom.com/wiki/1.1']}",
+          "problem": "What patch removed the Silver Armor from the crafting recipe for Jungle Armor in Terraria?",
+          "answer": "1.1",
+          "id": "example_113"
+        }
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Still looking for their first win, the Bengals flew to The Meadowlands for a Week 6 duel with the throwback-clad New York Jets.  With QB Carson Palmer out again nursing an injured elbow, QB Ryan Fitzpatrick was again named the starter. In the first quarter, Cincinnati pounced first as strong safety Chinedum Ndukwe returned a fumble 15 yards for a touchdown.  The Jets responded with QB Brett Favre completing a 2-yard TD pass to RB Thomas Jones.  In the second quarter, New York took the lead as kicker Jay Feely got a 38-yard field goal, while Jones got a 7-yard TD run.  The Bengals closed out the half with Fitzpatrick getting a 1-yard TD run. In the third quarter, the Jets began to pull away as Feely got a 43-yard field goal.  In the fourth quarter, New York sealed the win as Jones got a 1-yard TD run (with a failed 2-point conversion). With the loss, Cincinnati fell to 0-6 and it became their first 0-6 start as well as 6-game losing streak since 2002.",
-      "original_question": "Who scored the first touchdown of the game?",
-      "original_answer_data": {
-        "spans": [
-          "Chinedum Ndukwe"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 806
+      "source": "SimpleQA",
+      "line_number": 150,
+      "original_data": {
+        "metadata": "{'topic': 'Sports', 'answer_type': 'Number', 'urls': ['https://en.wikipedia.org/wiki/Adolf_Anderssen', 'https://en.wikipedia.org/wiki/Adolf_Anderssen', 'https://en.wikipedia.org/wiki/Berthold_Suhle', 'https://www.sources.com/SSR/Docs/SSRW-Anderssen_Adolf.htm']}",
+        "problem": "How many losses did Adolf Anderssen have in his 1864 chess match against Berthold Suhle?",
+        "answer": "3",
+        "id": "example_150"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to rebound from their road loss to the Vikings, the Panthers went home for a Week 4 NFC South duel with the Atlanta Falcons.  In the first quarter, Carolina pounced first with rookie RB Jonathan Stewart getting an 8-yard TD run.  The Falcons responded with kicker Jason Elam getting a 33-yard field goal.  In the second quarter, Atlanta crept closer as Elam kicked a 33-yard field goal.  Carolina would reply with QB Jake Delhomme completing a 56-yard TD pass to WR Steve Smith.  The Falcons closed out the half with Elam getting a 44-yard field goal. In the third quarter, the Panthers answered with kicker John Kasay nailing a 44-yard field goal.  In the fourth quarter, Carolina closed the game out with Delhomme completing a 36-yard TD pass to WR Muhsin Muhammad. During the game, Muhsin Muhammad (8 receptions for 147 yards and a touchdown) became the Panthers All-Time WR Leader in Receptions (600) and TD Receptions (45).",
-      "original_question": "How many yards shorter was Jake Delhomme's second touchdown pass compared to his first?",
-      "original_answer_data": {
-        "spans": [
-          "20"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 536
+      "source": "SimpleQA",
+      "line_number": 741,
+      "original_data": {
+        "metadata": "{'topic': 'Art', 'answer_type': 'Place', 'urls': ['https://en.wikipedia.org/wiki/Richard_Serra', 'https://www.moma.org/artists/5349#works', 'https://www.dailyartmagazine.com/sculptures-richard-serra/', 'https://www.tate.org.uk/research/tate-papers/08/richard-serra-case-study']}",
+        "problem": "What city was Richard Serra in when he created his work \"To Lift\"?",
+        "answer": "New York",
+        "id": "example_741"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "In 2000 there were 79,667 households out of which 38.70% had children under the age of 18 living with them, 61.90% were married couples living together, 10.20% had a female householder with no husband present, and 24.20% were non-families. 19.70% of all households were made up of individuals and 6.80% had someone living alone who was 65 years of age or older.  The average household size was 2.72 and the average family size was 3.14.",
-      "original_question": "How many percent are not non-families?",
-      "original_answer_data": {
-        "spans": [
-          "24.2"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 503
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The 49ers first road game of the year ends in a disaster. The 49ers defense had no answer for Ben Roethlisberger, who went 21 for 27, 369 yards and three touchdown passes as the Steelers won 43-18. The Steelers took a commanding 29-3 halftime lead. Despite only scoring 18 points, the 49ers offense opened up in the second half, with Kaepernick leading the 49ers into the Steelers red zone four times, but only able to score one touchdown (along with a field goal and two turnover on downs). The highlight for the 49ers was Kaepernick hitting wide receiver Torrey Smith for a 75-yard touchdown pass in the fourth quarter.  The Steelers' defense had a field day on Kaepernick by sacking him 5 times and making him lose a fumble.",
-      "original_question": "How many points did Pittsburgh win by?",
-      "original_answer_data": {
-        "spans": [
-          "25"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 737
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "As of the census of 2000, there were 210,528 people, 88,413 households, and 62,507 families residing in the county.  The population density was 221 people per square mile (85/km\u00b2).  There were 102,830 housing units at an average density of 108 per square mile (42/km\u00b2).  The racial makeup of the county was 87.46% Race (United States Census), 8.31% Race (United States Census) or Race (United States Census), 0.33% Race (United States Census), 0.79% Race (United States Census), 0.04% Race (United States Census), 1.88% from Race (United States Census), and 1.18% from two or more races.  5.61% of the population were Race (United States Census) or Race (United States Census) of any race.",
-      "original_question": "Which group is larger according to the census: people or families?",
-      "original_answer_data": {
-        "spans": [
-          "people"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 559
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to rebound from their shutout loss to the Buccaneers, the 49ers flew to the University of Phoenix Stadium for a Week 12 NFC West duel with the Arizona Cardinals on Monday night.  San Francisco made the opening strike in the first quarter as quarterback Troy Smith found wide receiver Michael Crabtree on a 38-yard touchdown pass.  The Cardinals answered with kicker Jay Feely getting a 31-yard field goal, yet the 49ers responded with a 1-yard touchdown run from rookie running back Anthony Dixon.  San Francisco added onto their lead in the second quarter with an 8-yard touchdown pass from running back Brian Westbrook.  Arizona would hang on with Feely's 39-yard field goal.  Afterwards, the 49ers pulled away with a 38-yard field goal in the third quarter and a 26-yard field goal in the fourth quarter from kicker Shane Andrus.",
-      "original_question": "How many yards was the longest run for a touchdown?",
-      "original_answer_data": {
-        "spans": [
-          "8"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 544
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In 1602 O'Neill destroyed his capital at Dungannon due to the approach of Mountjoy's forces, and withdrew to hide in the woods. In a symbolic gesture Mountjoy smashed the O'Neills' inauguration stone at Tullaghogue. Famine soon hit Ulster as a result of the English scorched earth strategy. O'Neill's uirithe or sub-lords  began to surrender and Rory O'Donnell, Hugh Roe's brother and successor, surrendered on terms at the end of 1602. However, with a secure base in the large and dense forests of Tir Eoghain, O'Neill held out until 30 March 1603, when he surrendered on good terms to Mountjoy, signing the Treaty of Mellifont. Elizabeth I had died on 24 March. Although the war had effectively ended with the signing of the Treaty of Mellifont, its final battles were fought during the English invasion of West Breifne in April 1603, which remained the sole holdout Irish kingdom following O'Neill's capitulation. The kingdom was ruled by Brian \u00d3g O'Rourke, one of the alliance's chief lieutenants and leader of the Irish forces during the Battle of Curlew Pass. He failed to secure any concessions from the treaty as his half-brother Tadhg O'Rourke had fought with the English during the war and was granted lordship of West Breifne in return. Following a twelve-day siege, a force of 3,000 men led by Tadhg, Henry Folliott and Rory O'Donnell eventually brought the area, and thus all of Ireland, under English control on 25 April 1603.",
-      "original_question": "Who surrendered later, Rory O'Donnell or O'Neill?",
-      "original_answer_data": {
-        "spans": [
-          "O'Neill"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 356
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "At the 2011 Italian census, there were 179,149  people residing in the city. The population density was 978.9 persons per square kilometre. Minors (children ages 18 and younger) totalled 16.20 percent of the population compared to pensioners who number 22.54 percent. This compares with the Italian average of 18.06 percent (minors) and 19.94 percent (pensioners). The average age of Modena resident is 44 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Modena experienced 2.42% growth, while Italy as a whole grew by 3.56 percent. The current birth rate of Modena is 9.62 births per 1,000 inhabitants compared to the Italian average of 9.45 births.",
-      "original_question": "How many more percentage points did the population of Italy grow between 2002 and 2007 compared to Modena?",
-      "original_answer_data": {
-        "spans": [
-          "1.14"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 206
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Rams began their 2007 campaign at home against the Carolina Panthers.  In the first quarter, St. Louis trailed early as Panthers QB Jake Delhomme completed a 10-yard TD pass to WR Drew Carter.  The Rams would tie the game with QB Marc Bulger completing a 3-yard TD pass to WR Torry Holt.  In the second quarter, St. Louis would take the lead with kicker Jeff Wilkins getting a 42-yard field goal for the only score of the period.  In the third quarter, Wiklins helped the Rams' lead with a 28-yard field goal.  However, this was all wiped out as Delhomme completed a 68-yard TD pass to WR Steve Smith.  In the fourth quarter, Carolina took over for the remainder of the game as kicker John Kasay nailed a 34-yard field goal, Delhomme and Carter hooked up with each other again on a 9-yard TD pass, and Kasay finished the game with 32-yard field goal. The game was notable when offensive tackle Orlando Pace suffered a season-ending injury. This severely hurt the Rams' offense.",
-      "original_question": "How many yards shorter was Kasay's average yards of field goals than Wilkins' average yards of field goals?",
-      "original_answer_data": {
-        "spans": [
-          "2"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 888
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Staying on the road, the Titans traveled to Dolphin Stadium for a Week 3 contest against the Miami Dolphins.  From the get-go, the Titans trailed as kicker Olindo Mare got a 40-yard field goal.  The Titans would take the lead before halftime as QB Kerry Collins completed a 27-yard TD pass to TE Bo Scaife in the second quarter.  However, in the third quarter, the Dolphins retook the lead as QB Daunte Culpepper got a touchdown on a 5-yard QB sneak.  Titans kicker Rob Bironas would tie the game up on a 22-yard field goal.  Unfortunately, in the fourth quarter, the Dolphins would be the team that walked away with win #1 as Mare booted a 39-yard field goal to drop the Titans to 0-3.",
-      "original_question": "How many more field goals did Olindo Mare make over Rob Bironas?",
-      "original_answer_data": {
-        "spans": [
-          "1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 611
+      "source": "SimpleQA",
+      "line_number": 113,
+      "original_data": {
+        "metadata": "{'topic': 'Video games', 'answer_type': 'Date', 'urls': ['https://terraria.wiki.gg/wiki/Silver_armor', 'https://terraria.fandom.com/wiki/Jungle_armor', 'https://terraria.fandom.com/wiki/Silver_armor?so=search', 'https://terraria.fandom.com/wiki/1.1']}",
+        "problem": "What patch removed the Silver Armor from the crafting recipe for Jungle Armor in Terraria?",
+        "answer": "1.1",
+        "id": "example_113"
+      }
     }
   ],
   "example_indices": [
-    121,
-    122,
-    123,
-    124,
-    125,
-    126,
-    127,
-    128,
-    129,
-    130
+    47,
+    48,
+    49
   ],
   "results": [
     {
       "success": true,
-      "answer": "Chinedum Ndukwe",
-      "output": "ANSWER_START\nChinedum Ndukwe\n\nANSWER_END\n",
+      "answer": "3",
+      "output": "Contextualized Question: How many games did Adolf Anderssen, a leading chess player of the 19th century, lose in his 1864 chess match against Berthold Suhle, a German chess master and problemist, in Berlin?\nExpanded Text: What was the final score of the 1864 chess match in Berlin between Adolf Anderssen and Berthold Suhle, specifically how many games did Anderssen lose, considering the match consisted of eight games and Anderssen won five?\nPotential Answer: 3 (Relevance: 10)\nExtracted answers after iteration 1: ['3']\nExpanded Text: What was the final score of the 1864 chess match in Berlin between Adolf Anderssen and Berthold Suhle, and how many games did Anderssen lose, knowing that the match consisted of eight games, Anderssen won five, and draws don't count as losses?\nPotential Answer: 3 (Relevance: 10)\nExtracted answers after iteration 2: ['3', '3']\nRanked Answers: 1. 3 (10) - This is the correct answer to the question.\n2. 3 (10) - This is the correct answer to the question.\nANSWER_START\n3\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "Both answers are identical, providing the same name: Chinedum Ndukwe."
+        "explanation": "Both answers are the same numerical value: 3."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "20",
-      "output": "ANSWER_START\n20\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are identical, indicating the same numerical value."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "75.80%",
-      "output": "ANSWER_START\n75.80%\n\nANSWER_END\n",
+      "answer": "Winterthur",
+      "output": "Contextualized Question: What was the specific city that American minimalist sculptor Richard Serra was in when he conceived and created his large-scale steel sculpture \"To Lift,\" a piece known for its massive, curved forms and its exploration of weight, space, and the viewer's perception?\nExpanded Text: What was the specific city that American minimalist sculptor Richard Serra was in when he conceived and created his large-scale steel sculpture \"To Lift,\" a piece known for its massive, curved forms and its exploration of weight, space, and the viewer's perception, which was installed in Winterthur, Switzerland?\nPotential Answer: Winterthur (Relevance: 10)\nExtracted answers after iteration 1: ['Winterthur']\nExpanded Text: What was the specific city that American minimalist sculptor Richard Serra was in when he conceived and created his large-scale steel sculpture \"To Lift,\" a piece known for its massive, curved forms and its exploration of weight, space, and the viewer's perception, which was installed in Winterthur, Switzerland, and given that Serra often worked in specific foundries or locations with specialized equipment for fabricating large steel structures, was he working in Winterthur itself, or was he in a city known for steel fabrication that allowed him to produce the components for \"To Lift\"?\nPotential Answer: A city known for steel fabrication (Relevance: 7)\nExtracted answers after iteration 2: ['Winterthur', 'A city known for steel fabrication']\nRanked Answers: 1.  Winterthur (10) - Winterthur is the city where \"To Lift\" was created.\n2.  A city known for steel fabrication (3) - This is a description that could apply to many cities, but doesn't directly answer the question.\nANSWER_START\nWinterthur\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The values are not semantically equivalent. They don't represent the same information."
+        "explanation": "The answers are different locations. Winterthur is a city in Switzerland, while New York is a state in the USA."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "43-18 = 25\nVerification: 25",
-      "output": "ANSWER_START\n43-18 = 25\nVerification: 25\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer provides the correct answer (25) as a result of the calculation 43-18=25, and the golden answer is 25. Therefore, they are semantically equivalent."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "people",
-      "output": "ANSWER_START\npeople\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are exactly the same word: \"people\"."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "1",
-      "output": "ANSWER_START\n1\n\nANSWER_END\n",
+      "answer": "Could not be validated.",
+      "output": "Contextualized Question: What specific update, or \"patch,\" to the popular 2D action-adventure sandbox game Terraria, removed the requirement of Silver Armor (or its equivalent, Tungsten Armor) from the crafting recipe needed to create Jungle Armor, a pre-hardmode armor set focused on increasing the player's mana and magic critical strike chance?\nExpanded Text: What specific update, or \"patch,\" to the popular 2D action-adventure sandbox game Terraria, removed the requirement of Silver Armor (or its equivalent, Tungsten Armor) from the crafting recipe needed to create Jungle Armor, a pre-hardmode armor set focused on increasing the player's mana and magic critical strike chance, and how did this update change the game?\nPotential Answer: The specific patch number. (Relevance: 7)\nExtracted answers after iteration 1: ['The specific patch number.']\nExpanded Text: What specific update, or \"patch,\" to the popular 2D action-adventure sandbox game Terraria, removed the requirement of Silver Armor (or its equivalent, Tungsten Armor) from the crafting recipe needed to create Jungle Armor, a pre-hardmode armor set focused on increasing the player's mana and magic critical strike chance, and how did this update change the game, making it easier to acquire Jungle Armor early on?\nPotential Answer: The specific patch number is likely found in Terraria update logs or wikis, and the change made Jungle Armor easier to craft. (Relevance: 7)\nExtracted answers after iteration 2: ['The specific patch number.', 'The specific patch number is likely found in Terraria update logs or wikis, and the change made Jungle Armor easier to craft.']\nRanked Answers: 1. The specific patch number. (7) - This is a direct answer to the question. It lacks context but provides the essential information sought.\n2. The specific patch number is likely found in Terraria update logs or wikis, and the change made Jungle Armor easier to craft. (10) - This answer is perfect. It directly answers the question and gives hints on where to find it and the purpose of the change.\nANSWER_START\nCould not be validated.\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_14.jsonl",
       "evaluation": {
         "match": false,
-        "confidence": 1,
-        "explanation": "The system answer '1' does not match the golden answer '8'. They are distinct numerical values."
+        "confidence": 0.0,
+        "explanation": "The system answer \"Could not be validated\" does not contain the numerical value \"1.1\" or any semantically equivalent information. Therefore, the answers do not match."
       },
       "match": false
-    },
-    {
-      "success": true,
-      "answer": "Verification: O'Neill",
-      "output": "ANSWER_START\nVerification: O'Neill\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers identify 'O'Neill' as the correct response. The system answer includes 'Verification:' which is extra context but does not change the answer itself."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "1.  14",
-      "output": "ANSWER_START\n1.  14\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers represent the number 14, although the golden answer includes a decimal point and a zero, implying a more precise representation. However, in this context, they are considered equivalent."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Wilkins' field goals were 42 yards and 28 yards. His average is (42 + 28) / 2 = 70 / 2 = 35 yards.\nKasay's field goals were 34 yards and 32 yards. His average is (34 + 32) / 2 = 66 / 2 = 33 yards.\nThe difference is 35 - 33 = 2 yards.\n\nVerification: 2",
-      "output": "ANSWER_START\nWilkins' field goals were 42 yards and 28 yards. His average is (42 + 28) / 2 = 70 / 2 = 35 yards.\nKasay's field goals were 34 yards and 32 yards. His average is (34 + 32) / 2 = 66 / 2 = 33 yards.\nThe difference is 35 - 33 = 2 yards.\n\nVerification: 2\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer correctly calculates the average field goal distances for both Wilkins and Kasay, and then finds the difference, arriving at the correct final answer of 2. This matches the golden answer of 2."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Verification: 1",
-      "output": "ANSWER_START\nVerification: 1\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_14.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the number 1. The system answer includes \"Verification:\" which is extra information but doesn't change the meaning of the answer."
-      },
-      "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.8,
-    "correct_count": 8,
-    "total_count": 10,
+    "accuracy": 0.3333333333333333,
+    "correct_count": 1,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Chinedum Ndukwe",
-        "golden_answer": "Chinedum Ndukwe",
-        "output": "ANSWER_START\nChinedum Ndukwe\n\nANSWER_END\n",
+        "system_answer": "3",
+        "golden_answer": "3",
+        "output": "Contextualized Question: How many games did Adolf Anderssen, a leading chess player of the 19th century, lose in his 1864 chess match against Berthold Suhle, a German chess master and problemist, in Berlin?\nExpanded Text: What was the final score of the 1864 chess match in Berlin between Adolf Anderssen and Berthold Suhle, specifically how many games did Anderssen lose, considering the match consisted of eight games and Anderssen won five?\nPotential Answer: 3 (Relevance: 10)\nExtracted answers after iteration 1: ['3']\nExpanded Text: What was the final score of the 1864 chess match in Berlin between Adolf Anderssen and Berthold Suhle, and how many games did Anderssen lose, knowing that the match consisted of eight games, Anderssen won five, and draws don't count as losses?\nPotential Answer: 3 (Relevance: 10)\nExtracted answers after iteration 2: ['3', '3']\nRanked Answers: 1. 3 (10) - This is the correct answer to the question.\n2. 3 (10) - This is the correct answer to the question.\nANSWER_START\n3\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are identical, providing the same name: Chinedum Ndukwe."
+          "explanation": "Both answers are the same numerical value: 3."
         }
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "20",
-        "golden_answer": "20",
-        "output": "ANSWER_START\n20\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "Winterthur",
+        "golden_answer": "New York",
+        "output": "Contextualized Question: What was the specific city that American minimalist sculptor Richard Serra was in when he conceived and created his large-scale steel sculpture \"To Lift,\" a piece known for its massive, curved forms and its exploration of weight, space, and the viewer's perception?\nExpanded Text: What was the specific city that American minimalist sculptor Richard Serra was in when he conceived and created his large-scale steel sculpture \"To Lift,\" a piece known for its massive, curved forms and its exploration of weight, space, and the viewer's perception, which was installed in Winterthur, Switzerland?\nPotential Answer: Winterthur (Relevance: 10)\nExtracted answers after iteration 1: ['Winterthur']\nExpanded Text: What was the specific city that American minimalist sculptor Richard Serra was in when he conceived and created his large-scale steel sculpture \"To Lift,\" a piece known for its massive, curved forms and its exploration of weight, space, and the viewer's perception, which was installed in Winterthur, Switzerland, and given that Serra often worked in specific foundries or locations with specialized equipment for fabricating large steel structures, was he working in Winterthur itself, or was he in a city known for steel fabrication that allowed him to produce the components for \"To Lift\"?\nPotential Answer: A city known for steel fabrication (Relevance: 7)\nExtracted answers after iteration 2: ['Winterthur', 'A city known for steel fabrication']\nRanked Answers: 1.  Winterthur (10) - Winterthur is the city where \"To Lift\" was created.\n2.  A city known for steel fabrication (3) - This is a description that could apply to many cities, but doesn't directly answer the question.\nANSWER_START\nWinterthur\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "Both answers are identical, indicating the same numerical value."
-        }
+          "explanation": "The answers are different locations. Winterthur is a city in Switzerland, while New York is a state in the USA."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "75.80%",
-        "golden_answer": "24.2",
-        "output": "ANSWER_START\n75.80%\n\nANSWER_END\n",
+        "system_answer": "Could not be validated.",
+        "golden_answer": "1.1",
+        "output": "Contextualized Question: What specific update, or \"patch,\" to the popular 2D action-adventure sandbox game Terraria, removed the requirement of Silver Armor (or its equivalent, Tungsten Armor) from the crafting recipe needed to create Jungle Armor, a pre-hardmode armor set focused on increasing the player's mana and magic critical strike chance?\nExpanded Text: What specific update, or \"patch,\" to the popular 2D action-adventure sandbox game Terraria, removed the requirement of Silver Armor (or its equivalent, Tungsten Armor) from the crafting recipe needed to create Jungle Armor, a pre-hardmode armor set focused on increasing the player's mana and magic critical strike chance, and how did this update change the game?\nPotential Answer: The specific patch number. (Relevance: 7)\nExtracted answers after iteration 1: ['The specific patch number.']\nExpanded Text: What specific update, or \"patch,\" to the popular 2D action-adventure sandbox game Terraria, removed the requirement of Silver Armor (or its equivalent, Tungsten Armor) from the crafting recipe needed to create Jungle Armor, a pre-hardmode armor set focused on increasing the player's mana and magic critical strike chance, and how did this update change the game, making it easier to acquire Jungle Armor early on?\nPotential Answer: The specific patch number is likely found in Terraria update logs or wikis, and the change made Jungle Armor easier to craft. (Relevance: 7)\nExtracted answers after iteration 2: ['The specific patch number.', 'The specific patch number is likely found in Terraria update logs or wikis, and the change made Jungle Armor easier to craft.']\nRanked Answers: 1. The specific patch number. (7) - This is a direct answer to the question. It lacks context but provides the essential information sought.\n2. The specific patch number is likely found in Terraria update logs or wikis, and the change made Jungle Armor easier to craft. (10) - This answer is perfect. It directly answers the question and gives hints on where to find it and the purpose of the change.\nANSWER_START\nCould not be validated.\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
-          "confidence": 1,
-          "explanation": "The values are not semantically equivalent. They don't represent the same information."
+          "confidence": 0.0,
+          "explanation": "The system answer \"Could not be validated\" does not contain the numerical value \"1.1\" or any semantically equivalent information. Therefore, the answers do not match."
         },
         "capability_failures": []
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "43-18 = 25\nVerification: 25",
-        "golden_answer": "25",
-        "output": "ANSWER_START\n43-18 = 25\nVerification: 25\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides the correct answer (25) as a result of the calculation 43-18=25, and the golden answer is 25. Therefore, they are semantically equivalent."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "people",
-        "golden_answer": "people",
-        "output": "ANSWER_START\npeople\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are exactly the same word: \"people\"."
-        }
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "1",
-        "golden_answer": "8",
-        "output": "ANSWER_START\n1\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer '1' does not match the golden answer '8'. They are distinct numerical values."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "Verification: O'Neill",
-        "golden_answer": "O'Neill",
-        "output": "ANSWER_START\nVerification: O'Neill\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers identify 'O'Neill' as the correct response. The system answer includes 'Verification:' which is extra context but does not change the answer itself."
-        }
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "1.  14",
-        "golden_answer": "1.14",
-        "output": "ANSWER_START\n1.  14\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers represent the number 14, although the golden answer includes a decimal point and a zero, implying a more precise representation. However, in this context, they are considered equivalent."
-        }
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "Wilkins' field goals were 42 yards and 28 yards. His average is (42 + 28) / 2 = 70 / 2 = 35 yards.\nKasay's field goals were 34 yards and 32 yards. His average is (34 + 32) / 2 = 66 / 2 = 33 yards.\nThe difference is 35 - 33 = 2 yards.\n\nVerification: 2",
-        "golden_answer": "2",
-        "output": "ANSWER_START\nWilkins' field goals were 42 yards and 28 yards. His average is (42 + 28) / 2 = 70 / 2 = 35 yards.\nKasay's field goals were 34 yards and 32 yards. His average is (34 + 32) / 2 = 66 / 2 = 33 yards.\nThe difference is 35 - 33 = 2 yards.\n\nVerification: 2\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer correctly calculates the average field goal distances for both Wilkins and Kasay, and then finds the difference, arriving at the correct final answer of 2. This matches the golden answer of 2."
-        }
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "Verification: 1",
-        "golden_answer": "1",
-        "output": "ANSWER_START\nVerification: 1\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the number 1. The system answer includes \"Verification:\" which is extra information but doesn't change the meaning of the answer."
-        }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\n\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) present in the provided 'output' fields of the error cases.\n\n## STRENGTHS\n\n1.  **Correctly identifies and extracts numerical data:** The system successfully extracts numerical data from the passage in several successful cases. This includes identifying specific numbers like percentages, ages, and yards.\n2.  **Simple arithmetic calculations:** The system demonstrates proficiency in simple arithmetic, such as subtraction (sample\\_id 3) and averaging (sample\\_id 8).\n3.  **Identifies and extracts named entities:** The system successfully identifies and extracts named entities, such as person names (sample\\_id 0), locations, and team names.\n\n## WEAKNESSES\n\n1.  **Misinterpreting question intent regarding negation:** The system struggles with questions involving negation, demonstrated by its error in sample\\_id 2. It incorrectly calculates the percentage *of* non-families instead of the percentage of households that *are not* non-families.\n2.  **Difficulty identifying correct number based on context:** The system struggles to choose the correct number based on contextual information in the text, leading to errors when multiple numbers are present with similar descriptions (e.g. distances of touchdown passes). (sample\\_id 5)\n\n## CRITICAL BOTTLENECKS\n\n1.  **Lack of semantic understanding and question interpretation:** The system lacks robust semantic understanding, particularly for negations and complex relational questions. This limits its ability to accurately interpret the user's intent and apply the correct logical operations.\n2.  **Weak contextual reasoning for numerical data:** The system often fails to connect the numerical data with the correct context, resulting in choosing the wrong number from the passage. This is compounded by its limited understanding of the passage's context as a whole.\n\n## ERROR PATTERNS\n\n1. **Incorrect Handling of Negation:** The system struggles with interpreting negations within questions, leading to reversed or misinterpreted answers.\n2. **Confusion between numbers related to similar events:** The system tends to pick the incorrect number when multiple numbers refer to the same event. It often picks the first number it comes across, or fails to correctly relate specific numbers to the entities or actions they describe.\n\n## PRIMARY ISSUE\n\nThe most critical problem is **the system's inability to robustly interpret questions involving negation and to connect the numbers in the passage to the correct context.** This hinders its ability to extract the correct information and apply the correct reasoning to solve the problem.\n\n## IMPROVEMENT AREAS\n\n1.  **Enhanced Question Understanding:** Implement techniques to improve the understanding of question intent, particularly in cases involving negation, complex relational reasoning, and implicit assumptions.\n2.  **Contextual Reasoning:** Improve the system's ability to reason about the relationships between entities, events, and numerical data in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Negation Handling:** Implement specific logic or modules dedicated to processing negation in questions. This could involve using techniques such as dependency parsing to identify negated elements and adjust the reasoning process accordingly.\n2.  **Contextual Linking of Numbers:** Implement a system that keeps track of the entity to which each number in the passage refers to. Implement a method for linking the numbers in the question to the relevant numbers in the passage using contextual information. This could be achieved through techniques such as co-reference resolution and semantic role labeling.\n3.  **Add logging of intermediate reasoning steps:** Add print statements or logging to capture the intermediate reasoning steps of the system. This will allow for more granular debugging and error analysis.\n4.  **Implement a unit testing suite:** Create a set of unit tests that specifically target the identified failure modes, such as negation handling and numerical reasoning.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 2:**\n    *   information\\_extraction: Failed to understand the negation in the question.\n    *   decision\\_making: Made an incorrect decision by calculating the wrong percentage.\n*   **Sample ID 5:**\n    *   information\\_extraction: Failed to identify the correct number based on the context.\n    *   solution\\_generation: Generated an incorrect answer based on faulty information extraction.\n",
+      "text_report": "## RUNTIME ERRORS\nNo runtime errors (like JSONDecodeError, TypeError) were observed in the provided error cases.\n\n## STRENGTHS\n1.  **Contextualization and Expansion:** The system attempts to understand the question in more detail and expand the text with relevant background information. This can help in identifying the specific aspect of the question to focus on.\n2.  **Answer Extraction:** The system attempts to extract potential answers from the expanded text.\n3.  **Answer Ranking:** The system ranks the extracted answers based on relevance scores.\n\n## WEAKNESSES\n1.  **Misinterpretation of Context:** In the Richard Serra case, the system focuses on the installation location (\"Winterthur\") instead of the artist's location during the creation process (\"New York\"). The expanded text seems to mislead the system.\n2.  **Difficulty in Identifying Numerical Answers:** The Terraria case demonstrates difficulty in directly extracting and validating a numerical answer (version number \"1.1\"). It correctly identifies that it needs a version/patch number, but fails to extract it. The system returns \"Could not be validated\" despite hinting where to find the answer.\n\n## CRITICAL BOTTLENECKS\n1.  **Contextual Misdirection:** The system is too easily led astray by context, focusing on irrelevant information.\n2.  **Numerical Answer Extraction and Validation:** The system struggles to extract and validate numerical answers from the expanded context.\n\n## ERROR PATTERNS\n1.  **Location Confusion:** In the Richard Serra case, the system confuses the location of the artwork's installation with the artist's location during creation.\n2.  **Failure to Extract Specific Numerical Information:** The system is unable to identify and extract numerical version numbers from the provided information.\n\n## PRIMARY ISSUE\nThe primary issue is the system's susceptibility to contextual misdirection, combined with a weak ability to extract specific numerical answers. It fails to differentiate between relevant and irrelevant contextual details, and its extraction process for numerical values is unreliable, leading to the \"Could not be validated\" error.\n\n## IMPROVEMENT AREAS\n1.  **Contextual Relevance Filtering:** Improve the system's ability to filter contextual information and focus only on the most relevant aspects of the question. This requires a more robust understanding of relationships between entities and events.\n2.  **Numerical Answer Extraction and Validation:** Enhance the system's ability to identify and extract numerical answers, validate their format, and confirm their relevance to the question.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Enhance Contextual Filtering:** Implement a mechanism to score contextual information based on its relevance to the core question. Use techniques like dependency parsing or semantic role labeling to identify the relationships between entities and events mentioned in the question and the extracted text. Penalize contextual information that is weakly connected to the question's core elements.\n2.  **Improve Numerical Answer Handling:**\n    *   Implement regular expression matching to identify potential numerical answers (version numbers, dates, counts, etc.) within the expanded text.\n    *   Develop a validation step to ensure that the extracted numerical value is in the correct format (e.g., a version number should follow a specific pattern like \"1.1\", \"2.0.3\", etc.).\n    *   Use a separate module specifically for dealing with game version numbers and how updates apply to items/crafting recipes.\n\n## CAPABILITY MAPPING\n*   **Sample 1 (Richard Serra):**\n    *   information_extraction: Partially failed (extracted installation location instead of creation location)\n    *   decision_making: Failed (chose the wrong location as the answer)\n*   **Sample 2 (Terraria):**\n    *   information_extraction: Partially failed (identified the need for a patch number but couldn't extract it)\n    *   solution_generation: Failed (generated \"Could not be validated\")\n    *   solution_verification: Failed (failed to identify and validate the correct patch number)\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The most critical problem is **the system's inability to robustly interpret questions involving negation and to connect the numbers in the passage to the correct context.** This hinders its ability to extract the correct information and apply the correct reasoning to solve the problem.",
-      "improvement_suggestions": [],
+      "primary_issue": "The primary issue is the system's susceptibility to contextual misdirection, combined with a weak ability to extract specific numerical answers. It fails to differentiate between relevant and irrelevant contextual details, and its extraction process for numerical values is unreliable, leading to the \"Could not be validated\" error.",
+      "improvement_suggestions": [
+        "Implement regular expression matching to identify potential numerical answers (version numbers, dates, counts, etc.) within the expanded text.",
+        "Develop a validation step to ensure that the extracted numerical value is in the correct format (e.g., a version number should follow a specific pattern like \"1.1\", \"2.0.3\", etc.).",
+        "Use a separate module specifically for dealing with game version numbers and how updates apply to items/crafting recipes."
+      ],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here is a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and specified sections.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs show a consistent format:  \"ANSWER\\_START\\n[Answer]\\n\\nANSWER\\_END\\n\".  This is good for parsing programmatically. However, the content within the ANSWER\\_START and ANSWER\\_END tags reveals the issues already identified.\n\n*   **Sample ID 2 (Incorrect Percentage):**  The output \"75.80%\" suggests the system performed a calculation, but it was based on a misunderstanding of the question's intent regarding negation. This confirms the weakness identified in the error analysis.\n*   **Sample ID 5 (Not shown in outputs):** There are only three execution outputs provided, whereas sample IDs go up to 8. Assuming Sample ID 5 generated an inaccurate answer, this would further support the problem of confusion between numbers related to similar events.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic ability to extract and manipulate numerical data, and identify named entities within a given text. However, its performance is significantly hindered by a lack of deep semantic understanding, particularly regarding negation and contextual reasoning. The system struggles to accurately interpret complex questions and to link numerical data to the correct context, leading to frequent errors. The architecture, while capable of extracting information, lacks the reasoning capabilities needed for more nuanced tasks.\n\n### KEY STRENGTHS\n\n*   **Numerical Data Extraction:** The system can reliably extract numerical values from text.\n*   **Simple Arithmetic:** It performs basic arithmetic operations (addition, subtraction, averaging) reasonably well when the correct numbers are identified.\n*   **Named Entity Recognition:** Identification of names, locations, and organizations.\n\n### KEY WEAKNESSES\n\n*   **Negation Handling:** Fails to correctly interpret and process questions involving negation.\n*   **Contextual Numerical Reasoning:** Struggles to identify the correct numerical value based on contextual clues within the passage.\n*   **Lack of deep semantic understanding:** Overall limited comprehension of the text's underlying meaning and relationships between entities and events.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to improve is **Contextual Numerical Reasoning**. While negation handling is important, the ability to accurately connect numerical data to the correct context is crucial for answering a wider range of questions and achieving more reliable performance overall. Improving this will indirectly improve negation handling as well, as incorrect context can lead to misinterpreted negations.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Contextual Linking Module:**  Develop a module specifically designed to link numbers in the passage to their corresponding entities, actions, or descriptions. This module should:\n    *   **Use dependency parsing:** Analyze sentence structure to identify relationships between numbers and other words.\n    *   **Implement coreference resolution:** Determine which entities are being referred to throughout the passage.\n    *   **Develop a scoring mechanism:** Assign scores to potential links based on contextual relevance, proximity, and semantic similarity.\n\n2.  **Develop Negation Unit Tests:** Create a comprehensive suite of unit tests specifically designed to evaluate the system's ability to handle different types of negation.  These tests should cover:\n    *   Explicit negation (e.g., \"not,\" \"never\")\n    *   Implicit negation (e.g., \"except,\" \"without\")\n    *   Negation within complex sentences\n\n3.  **Enhance Logging for Numerical Reasoning:** Implement more detailed logging within the numerical reasoning module to track:\n    *   All numerical values extracted from the passage.\n    *   The context associated with each numerical value.\n    *   The reasoning process used to select the correct numerical value for a given question.\n    *   The confidence score for the selected value.\n\n4.  **Introduce a Question Decomposition Step:** Before attempting to extract information or perform calculations, decompose the question into simpler sub-questions. For instance, a question involving negation could be broken down into:\n    *   Identify the entity or event being negated.\n    *   Determine the relevant numerical value associated with the non-negated entity or event.\n    *   Perform the necessary calculation (if any).\n\n### CAPABILITY TREND\n\nBased on the error analysis, the system's capabilities are currently **stable with room for improvement**. While it demonstrates some basic skills, it struggles with more complex tasks requiring deeper semantic understanding. To change the trend toward improvement, the actionable recommendations above must be implemented and rigorously tested. Without these changes, the system will likely continue to exhibit the same weaknesses and error patterns.\n",
+      "text_report": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of your AI system, based on the provided performance summary, error analysis, and execution outputs.\n\n### ## EXECUTION ANALYSIS\n\nThe execution outputs reveal the following:\n\n*   **Contextualization Loop:** The system attempts to improve its answers by contextualizing the question and expanding the text iteratively. This process appears beneficial in the Anderssen case but detrimental in the Richard Serra case.\n*   **Answer Extraction Logic:** The system's method for extracting potential answers is rudimentary, often extracting entire phrases or sentences, leading to verbose and unhelpful answers.\n*   **Ranking Inconsistencies:** The relevance scores assigned to potential answers do not always correlate with their accuracy or usefulness. The Terraria example shows a higher score given to a sentence that includes \"where to find it\" rather than \"the number itself.\"\n*   **Validation Failure:** The \"Could not be validated\" response in the Terraria case indicates a failure in the system's answer validation process, even though the extracted text provides clues to the correct answer. This means the validation process has a significant flaw.\n*   **Lack of Precision:** The system struggles to isolate specific pieces of information (like the version number in Terraria) even when it understands the question.\n*   **Over-Reliance on Expanded Text:** The system appears to be too heavily influenced by the expanded text, even when that text is misleading (Richard Serra).\n\n### ## CAPABILITY ASSESSMENT\n\nThe system demonstrates a basic understanding of question answering and attempts to find relevant information. However, its ability to extract precise answers, filter irrelevant contextual information, and validate numerical values is severely limited. It possesses the *potential* for strong contextual understanding, but it is currently mismanaged, creating errors.\n\n### ## KEY STRENGTHS\n\n*   **Question Contextualization:** The system's attempt to understand and expand the question with relevant background information *could be* a valuable strength if properly controlled.\n*   **Iterative Refinement (Potential):** The iterative expansion process has the *potential* to improve answer quality, but it needs better direction.\n\n### ## KEY WEAKNESSES\n\n*   **Contextual Misdirection (Critical):** The system is easily led astray by irrelevant or misleading contextual information, drastically reducing accuracy.\n*   **Numerical Answer Extraction/Validation (Critical):** Inability to reliably extract and validate numerical answers is a major limitation.\n*   **Lack of Precision:** The system extracts entire phrases and sentences rather than pinpointing the specific requested information.\n\n### ## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Relevance Filtering**. Addressing this will have the greatest impact on overall accuracy and reliability.  By better filtering irrelevant context, you also reduce the burden on the numerical answer extraction component.\n\n### ## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Contextual Relevance Scoring Mechanism:**\n    *   **Dependency Parsing:** Use dependency parsing to identify relationships between words and phrases in the question and the expanded text. Score contextual information based on its directness and relevance to the core entities and actions in the question.\n    *   **Knowledge Graph Integration (Future):** Consider integrating with a knowledge graph (e.g., Wikidata) to assess the semantic relatedness of entities and filter irrelevant information. For example, understanding that \"Winterthur\" is a *location* but is not directly related to the *creation* of the artwork is vital.\n\n2.  **Improve Numerical Answer Handling:**\n    *   **Regular Expression Matching:** Implement regular expressions to identify potential numerical answers (version numbers, dates, counts, etc.) within the expanded text. Provide multiple patterns for multiple version conventions.\n    *   **Format Validation:** Create a validation step that ensures extracted numerical values conform to the expected format (e.g., version number formats, date formats).\n    *   **Data-Type Awareness:** Use specific data-types (like version number) which can carry validation and comparison routines with them.\n\n3.  **Refine Answer Extraction Logic:**\n    *   **Focus on Noun Phrases:** Prioritize extraction of noun phrases directly related to the question's subject.\n    *   **Post-Extraction Filtering:** After extracting candidate answers, use similarity metrics (e.g., cosine similarity) to filter out answers that are semantically similar to the original question but don't provide new information.\n\n4.  **Revise Ranking Algorithm:**\n    *   **Incorporate Precision:** Add a precision score to the ranking algorithm, rewarding answers that are concise and directly address the question.\n    *   **Contextual Penalty:** Penalize answers that contain information unrelated to the question's core entities or actions.\n\n### ## CAPABILITY TREND\n\nCurrently, the capabilities are **stable but unsatisfactory.** While the system shows promise in contextualizing questions, its inability to filter irrelevant information and extract precise answers hinders its overall performance. Immediate implementation of the recommendations above is crucial to drive improvement. Without these improvements, the iterative contextualization process could actively degrade performance.\n",
       "strengths": [],
       "weaknesses": [],
-      "improvement_suggestions": [],
+      "improvement_suggestions": [
+        "Implement regular expression matching to identify potential numerical answers (version numbers, dates, counts, etc.) within the expanded text.",
+        "Develop a validation step to ensure that the extracted numerical value is in the correct format (e.g., a version number should follow a specific pattern like \"1.1\", \"2.0.3\", etc.).",
+        "Use a separate module specifically for dealing with game version numbers and how updates apply to items/crafting recipes."
+      ],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\n\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) present in the provided 'output' fields of the error cases.\n\n## STRENGTHS\n\n1.  **Correctly identifies and extracts numerical data:** The system successfully extracts numerical data from the passage in several successful cases. This includes identifying specific numbers like percentages, ages, and yards.\n2.  **Simple arithmetic calculations:** The system demonstrates proficiency in simple arithmetic, such as subtraction (sample\\_id 3) and averaging (sample\\_id 8).\n3.  **Identifies and extracts named entities:** The system successfully identifies and extracts named entities, such as person names (sample\\_id 0), locations, and team names.\n\n## WEAKNESSES\n\n1.  **Misinterpreting question intent regarding negation:** The system struggles with questions involving negation, demonstrated by its error in sample\\_id 2. It incorrectly calculates the percentage *of* non-families instead of the percentage of households that *are not* non-families.\n2.  **Difficulty identifying correct number based on context:** The system struggles to choose the correct number based on contextual information in the text, leading to errors when multiple numbers are present with similar descriptions (e.g. distances of touchdown passes). (sample\\_id 5)\n\n## CRITICAL BOTTLENECKS\n\n1.  **Lack of semantic understanding and question interpretation:** The system lacks robust semantic understanding, particularly for negations and complex relational questions. This limits its ability to accurately interpret the user's intent and apply the correct logical operations.\n2.  **Weak contextual reasoning for numerical data:** The system often fails to connect the numerical data with the correct context, resulting in choosing the wrong number from the passage. This is compounded by its limited understanding of the passage's context as a whole.\n\n## ERROR PATTERNS\n\n1. **Incorrect Handling of Negation:** The system struggles with interpreting negations within questions, leading to reversed or misinterpreted answers.\n2. **Confusion between numbers related to similar events:** The system tends to pick the incorrect number when multiple numbers refer to the same event. It often picks the first number it comes across, or fails to correctly relate specific numbers to the entities or actions they describe.\n\n## PRIMARY ISSUE\n\nThe most critical problem is **the system's inability to robustly interpret questions involving negation and to connect the numbers in the passage to the correct context.** This hinders its ability to extract the correct information and apply the correct reasoning to solve the problem.\n\n## IMPROVEMENT AREAS\n\n1.  **Enhanced Question Understanding:** Implement techniques to improve the understanding of question intent, particularly in cases involving negation, complex relational reasoning, and implicit assumptions.\n2.  **Contextual Reasoning:** Improve the system's ability to reason about the relationships between entities, events, and numerical data in the passage.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Negation Handling:** Implement specific logic or modules dedicated to processing negation in questions. This could involve using techniques such as dependency parsing to identify negated elements and adjust the reasoning process accordingly.\n2.  **Contextual Linking of Numbers:** Implement a system that keeps track of the entity to which each number in the passage refers to. Implement a method for linking the numbers in the question to the relevant numbers in the passage using contextual information. This could be achieved through techniques such as co-reference resolution and semantic role labeling.\n3.  **Add logging of intermediate reasoning steps:** Add print statements or logging to capture the intermediate reasoning steps of the system. This will allow for more granular debugging and error analysis.\n4.  **Implement a unit testing suite:** Create a set of unit tests that specifically target the identified failure modes, such as negation handling and numerical reasoning.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 2:**\n    *   information\\_extraction: Failed to understand the negation in the question.\n    *   decision\\_making: Made an incorrect decision by calculating the wrong percentage.\n*   **Sample ID 5:**\n    *   information\\_extraction: Failed to identify the correct number based on the context.\n    *   solution\\_generation: Generated an incorrect answer based on faulty information extraction.\n",
-    "capability_report_text": "Okay, here is a comprehensive capability report based on the provided performance summary, error analysis, sample execution outputs, and specified sections.\n\n## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs show a consistent format:  \"ANSWER\\_START\\n[Answer]\\n\\nANSWER\\_END\\n\".  This is good for parsing programmatically. However, the content within the ANSWER\\_START and ANSWER\\_END tags reveals the issues already identified.\n\n*   **Sample ID 2 (Incorrect Percentage):**  The output \"75.80%\" suggests the system performed a calculation, but it was based on a misunderstanding of the question's intent regarding negation. This confirms the weakness identified in the error analysis.\n*   **Sample ID 5 (Not shown in outputs):** There are only three execution outputs provided, whereas sample IDs go up to 8. Assuming Sample ID 5 generated an inaccurate answer, this would further support the problem of confusion between numbers related to similar events.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic ability to extract and manipulate numerical data, and identify named entities within a given text. However, its performance is significantly hindered by a lack of deep semantic understanding, particularly regarding negation and contextual reasoning. The system struggles to accurately interpret complex questions and to link numerical data to the correct context, leading to frequent errors. The architecture, while capable of extracting information, lacks the reasoning capabilities needed for more nuanced tasks.\n\n### KEY STRENGTHS\n\n*   **Numerical Data Extraction:** The system can reliably extract numerical values from text.\n*   **Simple Arithmetic:** It performs basic arithmetic operations (addition, subtraction, averaging) reasonably well when the correct numbers are identified.\n*   **Named Entity Recognition:** Identification of names, locations, and organizations.\n\n### KEY WEAKNESSES\n\n*   **Negation Handling:** Fails to correctly interpret and process questions involving negation.\n*   **Contextual Numerical Reasoning:** Struggles to identify the correct numerical value based on contextual clues within the passage.\n*   **Lack of deep semantic understanding:** Overall limited comprehension of the text's underlying meaning and relationships between entities and events.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to improve is **Contextual Numerical Reasoning**. While negation handling is important, the ability to accurately connect numerical data to the correct context is crucial for answering a wider range of questions and achieving more reliable performance overall. Improving this will indirectly improve negation handling as well, as incorrect context can lead to misinterpreted negations.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Contextual Linking Module:**  Develop a module specifically designed to link numbers in the passage to their corresponding entities, actions, or descriptions. This module should:\n    *   **Use dependency parsing:** Analyze sentence structure to identify relationships between numbers and other words.\n    *   **Implement coreference resolution:** Determine which entities are being referred to throughout the passage.\n    *   **Develop a scoring mechanism:** Assign scores to potential links based on contextual relevance, proximity, and semantic similarity.\n\n2.  **Develop Negation Unit Tests:** Create a comprehensive suite of unit tests specifically designed to evaluate the system's ability to handle different types of negation.  These tests should cover:\n    *   Explicit negation (e.g., \"not,\" \"never\")\n    *   Implicit negation (e.g., \"except,\" \"without\")\n    *   Negation within complex sentences\n\n3.  **Enhance Logging for Numerical Reasoning:** Implement more detailed logging within the numerical reasoning module to track:\n    *   All numerical values extracted from the passage.\n    *   The context associated with each numerical value.\n    *   The reasoning process used to select the correct numerical value for a given question.\n    *   The confidence score for the selected value.\n\n4.  **Introduce a Question Decomposition Step:** Before attempting to extract information or perform calculations, decompose the question into simpler sub-questions. For instance, a question involving negation could be broken down into:\n    *   Identify the entity or event being negated.\n    *   Determine the relevant numerical value associated with the non-negated entity or event.\n    *   Perform the necessary calculation (if any).\n\n### CAPABILITY TREND\n\nBased on the error analysis, the system's capabilities are currently **stable with room for improvement**. While it demonstrates some basic skills, it struggles with more complex tasks requiring deeper semantic understanding. To change the trend toward improvement, the actionable recommendations above must be implemented and rigorously tested. Without these changes, the system will likely continue to exhibit the same weaknesses and error patterns.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNo runtime errors (like JSONDecodeError, TypeError) were observed in the provided error cases.\n\n## STRENGTHS\n1.  **Contextualization and Expansion:** The system attempts to understand the question in more detail and expand the text with relevant background information. This can help in identifying the specific aspect of the question to focus on.\n2.  **Answer Extraction:** The system attempts to extract potential answers from the expanded text.\n3.  **Answer Ranking:** The system ranks the extracted answers based on relevance scores.\n\n## WEAKNESSES\n1.  **Misinterpretation of Context:** In the Richard Serra case, the system focuses on the installation location (\"Winterthur\") instead of the artist's location during the creation process (\"New York\"). The expanded text seems to mislead the system.\n2.  **Difficulty in Identifying Numerical Answers:** The Terraria case demonstrates difficulty in directly extracting and validating a numerical answer (version number \"1.1\"). It correctly identifies that it needs a version/patch number, but fails to extract it. The system returns \"Could not be validated\" despite hinting where to find the answer.\n\n## CRITICAL BOTTLENECKS\n1.  **Contextual Misdirection:** The system is too easily led astray by context, focusing on irrelevant information.\n2.  **Numerical Answer Extraction and Validation:** The system struggles to extract and validate numerical answers from the expanded context.\n\n## ERROR PATTERNS\n1.  **Location Confusion:** In the Richard Serra case, the system confuses the location of the artwork's installation with the artist's location during creation.\n2.  **Failure to Extract Specific Numerical Information:** The system is unable to identify and extract numerical version numbers from the provided information.\n\n## PRIMARY ISSUE\nThe primary issue is the system's susceptibility to contextual misdirection, combined with a weak ability to extract specific numerical answers. It fails to differentiate between relevant and irrelevant contextual details, and its extraction process for numerical values is unreliable, leading to the \"Could not be validated\" error.\n\n## IMPROVEMENT AREAS\n1.  **Contextual Relevance Filtering:** Improve the system's ability to filter contextual information and focus only on the most relevant aspects of the question. This requires a more robust understanding of relationships between entities and events.\n2.  **Numerical Answer Extraction and Validation:** Enhance the system's ability to identify and extract numerical answers, validate their format, and confirm their relevance to the question.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Enhance Contextual Filtering:** Implement a mechanism to score contextual information based on its relevance to the core question. Use techniques like dependency parsing or semantic role labeling to identify the relationships between entities and events mentioned in the question and the extracted text. Penalize contextual information that is weakly connected to the question's core elements.\n2.  **Improve Numerical Answer Handling:**\n    *   Implement regular expression matching to identify potential numerical answers (version numbers, dates, counts, etc.) within the expanded text.\n    *   Develop a validation step to ensure that the extracted numerical value is in the correct format (e.g., a version number should follow a specific pattern like \"1.1\", \"2.0.3\", etc.).\n    *   Use a separate module specifically for dealing with game version numbers and how updates apply to items/crafting recipes.\n\n## CAPABILITY MAPPING\n*   **Sample 1 (Richard Serra):**\n    *   information_extraction: Partially failed (extracted installation location instead of creation location)\n    *   decision_making: Failed (chose the wrong location as the answer)\n*   **Sample 2 (Terraria):**\n    *   information_extraction: Partially failed (identified the need for a patch number but couldn't extract it)\n    *   solution_generation: Failed (generated \"Could not be validated\")\n    *   solution_verification: Failed (failed to identify and validate the correct patch number)\n",
+    "capability_report_text": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of your AI system, based on the provided performance summary, error analysis, and execution outputs.\n\n### ## EXECUTION ANALYSIS\n\nThe execution outputs reveal the following:\n\n*   **Contextualization Loop:** The system attempts to improve its answers by contextualizing the question and expanding the text iteratively. This process appears beneficial in the Anderssen case but detrimental in the Richard Serra case.\n*   **Answer Extraction Logic:** The system's method for extracting potential answers is rudimentary, often extracting entire phrases or sentences, leading to verbose and unhelpful answers.\n*   **Ranking Inconsistencies:** The relevance scores assigned to potential answers do not always correlate with their accuracy or usefulness. The Terraria example shows a higher score given to a sentence that includes \"where to find it\" rather than \"the number itself.\"\n*   **Validation Failure:** The \"Could not be validated\" response in the Terraria case indicates a failure in the system's answer validation process, even though the extracted text provides clues to the correct answer. This means the validation process has a significant flaw.\n*   **Lack of Precision:** The system struggles to isolate specific pieces of information (like the version number in Terraria) even when it understands the question.\n*   **Over-Reliance on Expanded Text:** The system appears to be too heavily influenced by the expanded text, even when that text is misleading (Richard Serra).\n\n### ## CAPABILITY ASSESSMENT\n\nThe system demonstrates a basic understanding of question answering and attempts to find relevant information. However, its ability to extract precise answers, filter irrelevant contextual information, and validate numerical values is severely limited. It possesses the *potential* for strong contextual understanding, but it is currently mismanaged, creating errors.\n\n### ## KEY STRENGTHS\n\n*   **Question Contextualization:** The system's attempt to understand and expand the question with relevant background information *could be* a valuable strength if properly controlled.\n*   **Iterative Refinement (Potential):** The iterative expansion process has the *potential* to improve answer quality, but it needs better direction.\n\n### ## KEY WEAKNESSES\n\n*   **Contextual Misdirection (Critical):** The system is easily led astray by irrelevant or misleading contextual information, drastically reducing accuracy.\n*   **Numerical Answer Extraction/Validation (Critical):** Inability to reliably extract and validate numerical answers is a major limitation.\n*   **Lack of Precision:** The system extracts entire phrases and sentences rather than pinpointing the specific requested information.\n\n### ## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Contextual Relevance Filtering**. Addressing this will have the greatest impact on overall accuracy and reliability.  By better filtering irrelevant context, you also reduce the burden on the numerical answer extraction component.\n\n### ## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Contextual Relevance Scoring Mechanism:**\n    *   **Dependency Parsing:** Use dependency parsing to identify relationships between words and phrases in the question and the expanded text. Score contextual information based on its directness and relevance to the core entities and actions in the question.\n    *   **Knowledge Graph Integration (Future):** Consider integrating with a knowledge graph (e.g., Wikidata) to assess the semantic relatedness of entities and filter irrelevant information. For example, understanding that \"Winterthur\" is a *location* but is not directly related to the *creation* of the artwork is vital.\n\n2.  **Improve Numerical Answer Handling:**\n    *   **Regular Expression Matching:** Implement regular expressions to identify potential numerical answers (version numbers, dates, counts, etc.) within the expanded text. Provide multiple patterns for multiple version conventions.\n    *   **Format Validation:** Create a validation step that ensures extracted numerical values conform to the expected format (e.g., version number formats, date formats).\n    *   **Data-Type Awareness:** Use specific data-types (like version number) which can carry validation and comparison routines with them.\n\n3.  **Refine Answer Extraction Logic:**\n    *   **Focus on Noun Phrases:** Prioritize extraction of noun phrases directly related to the question's subject.\n    *   **Post-Extraction Filtering:** After extracting candidate answers, use similarity metrics (e.g., cosine similarity) to filter out answers that are semantically similar to the original question but don't provide new information.\n\n4.  **Revise Ranking Algorithm:**\n    *   **Incorporate Precision:** Add a precision score to the ranking algorithm, rewarding answers that are concise and directly address the question.\n    *   **Contextual Penalty:** Penalize answers that contain information unrelated to the question's core entities or actions.\n\n### ## CAPABILITY TREND\n\nCurrently, the capabilities are **stable but unsatisfactory.** While the system shows promise in contextualizing questions, its inability to filter irrelevant information and extract precise answers hinders its overall performance. Immediate implementation of the recommendations above is crucial to drive improvement. Without these improvements, the iterative contextualization process could actively degrade performance.\n"
   },
-  "progressive_testing": {
-    "total_examples": 10,
-    "successful_runs": 10,
-    "matches": 6,
-    "accuracy": 0.6,
-    "results": [
-      {
-        "success": true,
-        "answer": "Verification: 3",
-        "output": "ANSWER_START\nVerification: 3\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "2",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer provides the value 3, while the golden answer provides the value 2. These are different numerical values and therefore do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Verification: Field Goals",
-        "output": "ANSWER_START\nVerification: Field Goals\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "field goals",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers identify the same category of plays: field goals."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: 3",
-        "output": "ANSWER_START\nVerification: 3\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "3",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers clearly state the number 3, conveying the same information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "60",
-        "output": "ANSWER_START\n60\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "60",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value (60)."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Males",
-        "output": "ANSWER_START\nMales\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "males",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The answers are the same, differing only in capitalization."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "14",
-        "output": "ANSWER_START\n14\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "12",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer '14' and the golden answer '12' are different numerical values. They do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "DeAndre Hopkins",
-        "output": "ANSWER_START\nDeAndre Hopkins\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "DeAndre Hopkins",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and refer to the same entity."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: 0",
-        "output": "ANSWER_START\nVerification: 0\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer provides '0', while the golden answer is '1'. These are distinct numerical values and do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Kris Brown",
-        "output": "ANSWER_START\nKris Brown\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "Ryan Moats",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The answers refer to different people, so they do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Verification: 0",
-        "output": "ANSWER_START\nVerification: 0\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_14.jsonl",
-        "golden_answer": "0",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer and the golden answer are both 0. They are equivalent."
-        },
-        "match": true
-      }
-    ]
-  },
-  "execution_time": 97.56542325019836,
+  "progressive_testing": null,
+  "execution_time": 46.59490728378296,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

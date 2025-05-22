@@ -505,13 +505,68 @@ class JSONLDatasetLoader(DatasetLoader):
             raise ValueError(f"Error loading JSONL dataset: {e}")
 
 
-# Factory function to create the appropriate loader
+"""
+simpleqa_loader.py - Custom dataset loader for SimpleQA dataset
+"""
+
+import json
+from dataset_loader import DatasetLoader
+
+class SimpleQADatasetLoader(DatasetLoader):
+    """Loader specifically for SimpleQA datasets with 'problem', 'answer', and 'id' fields"""
+
+    def _load_examples(self):
+        """Load examples from SimpleQA JSONL dataset file"""
+        try:
+            examples = []
+            with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f):
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        # Parse the JSON object from this line
+                        data = json.loads(line)
+
+                        # Extract the required fields
+                        problem = data.get("problem", "")
+                        answer = data.get("answer", "")
+                        example_id = data.get("id", f"simpleqa_{line_num}")
+
+                        # Create standardized example with universal field names
+                        examples.append({
+                            "id": example_id,
+                            "question": problem,  # Standard field: "question"
+                            "answer": str(answer),  # Standard field: "answer" (ensure string)
+                            "meta": {
+                                "source": "SimpleQA",
+                                "line_number": line_num,
+                                "original_data": data
+                            }
+                        })
+
+                    except json.JSONDecodeError:
+                        print(f"Warning: Invalid JSON on line {line_num+1}, skipping")
+                    except Exception as e:
+                        print(f"Warning: Error processing line {line_num+1}: {e}")
+
+            self.examples = examples
+            print(f"Loaded {len(examples)} examples from SimpleQA dataset")
+
+            if not self.examples:
+                raise ValueError("No valid examples found in SimpleQA dataset")
+
+        except Exception as e:
+            raise ValueError(f"Error loading SimpleQA dataset: {e}")
+
+
 def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
     """
     Create a dataset loader of the specified type
 
     Args:
-        loader_type: Type of loader to create ("arc", "json", or "custom")
+        loader_type: Type of loader to create ("arc", "json", "jsonl", "simpleqa", or "custom")
         **kwargs: Additional arguments to pass to the loader constructor
 
     Returns:
@@ -523,6 +578,8 @@ def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
         return JSONDatasetLoader(**kwargs)
     elif loader_type.lower() == "jsonl":
         return JSONLDatasetLoader(**kwargs)
+    elif loader_type.lower() == "simpleqa":
+        return SimpleQADatasetLoader(**kwargs)
     elif loader_type.lower() == "custom":
         return CustomDatasetLoader(**kwargs)
     else:

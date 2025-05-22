@@ -187,13 +187,14 @@ def parse_arguments():
         default="dataset.json",
         help="Path to the dataset file or directory (default: dataset.json)")
 
+
     parser.add_argument(
-        "--loader",
-        "-l",
-        type=str,
-        choices=["arc", "json", "jsonl", "custom"],
-        default="arc",
-        help="Type of dataset loader to use (default: arc)")
+            "--loader",
+            "-l",
+            type=str,
+            choices=["arc", "json", "jsonl", "simpleqa", "custom"],  
+            default="arc",
+            help="Type of dataset loader to use (default: arc)")
 
     # JSON loader options
     parser.add_argument(

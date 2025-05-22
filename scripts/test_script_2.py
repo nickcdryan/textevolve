@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 2,
-        "sample_id": "9db97346-580c-4c1a-9998-15698d0dddb4",
-        "question": "PASSAGE: Hoping to rebound from their divisional road loss to the Chiefs, the Broncos went home for a Week 5 interconference duel with the Tampa Bay Buccaneers.  In the first quarter, Denver trailed early as Bucs kicker Matt Bryant got a 33-yard field goal.  In the second quarter, the Broncos took the lead as kicker Matt Prater got a 55-yard and a 40-yard field goal.  Tampa Bay would tie the game at halftime as Bryant kicked a 31-yard field goal.  In the third quarter, Denver took a big lead as QB Jay Cutler completed a 10-yard TD pass to WR Brandon Stokley.  In the fourth quarter, the Broncos increased its lead as Prater nailed a 27-yard field goal.  The Buccaneers would try to rally as QB Jeff Garcia completed a 7-yard TD pass to WR Ike Hilliard.  Fortunately, Denver recovered the onside kick and drained the clock.\n\nQUESTION: How many yards longer was Bryant's first field goal over his second one?"
+        "sample_id": "example_13",
+        "question": 'Who was the recipient of the ISCB Accomplishment by a Senior Scientist Award in 2019?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 2,
-            "sample_id": "9db97346-580c-4c1a-9998-15698d0dddb4",
+            "sample_id": "example_13",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Hoping to rebound from their divisional road loss to the Chiefs, the Broncos went home for a Week 5 interconference duel with the Tampa Bay Buccaneers.  In the first quarter, Denver trailed early as Bucs kicker Matt Bryant got a 33-yard field goal.  In the second quarter, the Broncos took the lead as kicker Matt Prater got a 55-yard and a 40-yard field goal.  Tampa Bay would tie the game at halftime as Bryant kicked a 31-yard field goal.  In the third quarter, Denver took a big lead as QB Jay Cutler completed a 10-yard TD pass to WR Brandon Stokley.  In the fourth quarter, the Broncos increased its lead as Prater nailed a 27-yard field goal.  The Buccaneers would try to rally as QB Jeff Garcia completed a 7-yard TD pass to WR Ike Hilliard.  Fortunately, Denver recovered the onside kick and drained the clock.\n\nQUESTION: How many yards longer was Bryant's first field goal over his second one?"
+    question = 'Who was the recipient of the ISCB Accomplishment by a Senior Scientist Award in 2019?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 2,
-            "sample_id": "9db97346-580c-4c1a-9998-15698d0dddb4",
+            "sample_id": "example_13",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 2,
-            "sample_id": "9db97346-580c-4c1a-9998-15698d0dddb4",
+            "sample_id": "example_13",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

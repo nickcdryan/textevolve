@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 3,
-        "sample_id": "2436207d-a6bf-44f8-9ea5-eea148a5270f",
-        "question": "PASSAGE: In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:\n\nQUESTION: King Tancred of Sicily seized power from who?"
+        "sample_id": "example_16",
+        "question": 'Which genus was the ruby-throated bulbul moved to from *Turdus* before finally being classified in the genus *Rubigula*?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 3,
-            "sample_id": "2436207d-a6bf-44f8-9ea5-eea148a5270f",
+            "sample_id": "example_16",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:\n\nQUESTION: King Tancred of Sicily seized power from who?"
+    question = 'Which genus was the ruby-throated bulbul moved to from *Turdus* before finally being classified in the genus *Rubigula*?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 3,
-            "sample_id": "2436207d-a6bf-44f8-9ea5-eea148a5270f",
+            "sample_id": "example_16",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 3,
-            "sample_id": "2436207d-a6bf-44f8-9ea5-eea148a5270f",
+            "sample_id": "example_16",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 34,
-        "sample_id": "example_280",
-        "question": 'PASSAGE: Buccaneers kicker Kyle Brindza missed three field goals and missed an extra point, as Tampa Bay fell at Houston by the score of 19-9. Jameis Winston threw for 261 yards, one touchdown pass, and one interception in the loss. Brindza did make a 58-yard field goal in the second quarter, which was the second-longest field goal in franchise history. Midway through the third quarter Vincent Jackson appeared to catch a 23-yard touchdown pass from Winston, but it was overturned after review, when it was determined that he did not get both feet down.\n\nQUESTION: How many total points were scored by the end of the game?'
+        "sample_id": "example_494",
+        "question": 'Which is the largest saltwater lake in India?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 34,
-            "sample_id": "example_280",
+            "sample_id": "example_494",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Buccaneers kicker Kyle Brindza missed three field goals and missed an extra point, as Tampa Bay fell at Houston by the score of 19-9. Jameis Winston threw for 261 yards, one touchdown pass, and one interception in the loss. Brindza did make a 58-yard field goal in the second quarter, which was the second-longest field goal in franchise history. Midway through the third quarter Vincent Jackson appeared to catch a 23-yard touchdown pass from Winston, but it was overturned after review, when it was determined that he did not get both feet down.\n\nQUESTION: How many total points were scored by the end of the game?'
+    question = 'Which is the largest saltwater lake in India?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 34,
-            "sample_id": "example_280",
+            "sample_id": "example_494",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 34,
-            "sample_id": "example_280",
+            "sample_id": "example_494",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

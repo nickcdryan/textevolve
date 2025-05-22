@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 13,
-        "sample_id": "example_120",
-        "question": 'PASSAGE: At the start of World War II, the 24th Infantry was stationed at Fort Benning as school troops for the Infantry School. They participated in the Carolina Maneuvers of October - December 1941. During World War II, the 24th Infantry fought in the South Pacific Theatre as a separate regiment. Deploying on 4 April 1942 from the San Francisco Port of Embarkation, the regiment arrived in the New Hebrides Islands on 4 May 1942. The 24th moved to Guadalcanal on 28 August 1943, and was assigned to the XIV Corps. 1st Battalion deployed to Bougainville, attached to the 37th Infantry Division, from March to May 1944 for perimeter defense duty. The regiment departed Guadalcanal on 8 December 1944, and landed on Saipan and Tinian on 19 December 1944 for Garrison Duty that included mopping up the remaining Japanese forces that had yet to surrender. The regiment was assigned to the Pacific Ocean Area Command on 15 March 1945, and then to the Central Pacific Base Command on 15 May 1945, and to the Western pacific Base Command on 22 June 1945. The regiment departed Saipan and Tinian on 9 July 1945, and arrived on the Kerama Islands off Okinawa on 29 July 1945. At the end of the war, the 24th took the surrender of forces on the island of Aka-shima, the first formal surrender of a Japanese Imperial Army garrison. The regiment remained on Okinawa through 1946.\n\nQUESTION: How many months did the Carolina Manuevers last during 1941?'
+        "sample_id": "example_46",
+        "question": 'In which year did Atul Gawande earn an M.A. in Philosophy, Politics and Economics (PPE) from Balliol College, Oxford?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 13,
-            "sample_id": "example_120",
+            "sample_id": "example_46",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: At the start of World War II, the 24th Infantry was stationed at Fort Benning as school troops for the Infantry School. They participated in the Carolina Maneuvers of October - December 1941. During World War II, the 24th Infantry fought in the South Pacific Theatre as a separate regiment. Deploying on 4 April 1942 from the San Francisco Port of Embarkation, the regiment arrived in the New Hebrides Islands on 4 May 1942. The 24th moved to Guadalcanal on 28 August 1943, and was assigned to the XIV Corps. 1st Battalion deployed to Bougainville, attached to the 37th Infantry Division, from March to May 1944 for perimeter defense duty. The regiment departed Guadalcanal on 8 December 1944, and landed on Saipan and Tinian on 19 December 1944 for Garrison Duty that included mopping up the remaining Japanese forces that had yet to surrender. The regiment was assigned to the Pacific Ocean Area Command on 15 March 1945, and then to the Central Pacific Base Command on 15 May 1945, and to the Western pacific Base Command on 22 June 1945. The regiment departed Saipan and Tinian on 9 July 1945, and arrived on the Kerama Islands off Okinawa on 29 July 1945. At the end of the war, the 24th took the surrender of forces on the island of Aka-shima, the first formal surrender of a Japanese Imperial Army garrison. The regiment remained on Okinawa through 1946.\n\nQUESTION: How many months did the Carolina Manuevers last during 1941?'
+    question = 'In which year did Atul Gawande earn an M.A. in Philosophy, Politics and Economics (PPE) from Balliol College, Oxford?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 13,
-            "sample_id": "example_120",
+            "sample_id": "example_46",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 13,
-            "sample_id": "example_120",
+            "sample_id": "example_46",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 5,
-        "sample_id": "f479e08f-92ed-4db1-b6ae-25164566d5f0",
-        "question": 'PASSAGE: About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, "Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows." In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.\n\nQUESTION: Which year had more youth unemployed, 2007 or 2012?'
+        "sample_id": "example_22",
+        "question": 'What was the name of the second runner-up of Miss USA 1976?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 5,
-            "sample_id": "f479e08f-92ed-4db1-b6ae-25164566d5f0",
+            "sample_id": "example_22",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, "Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows." In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.\n\nQUESTION: Which year had more youth unemployed, 2007 or 2012?'
+    question = 'What was the name of the second runner-up of Miss USA 1976?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 5,
-            "sample_id": "f479e08f-92ed-4db1-b6ae-25164566d5f0",
+            "sample_id": "example_22",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 5,
-            "sample_id": "f479e08f-92ed-4db1-b6ae-25164566d5f0",
+            "sample_id": "example_22",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

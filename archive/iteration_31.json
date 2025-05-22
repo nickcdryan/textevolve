@@ -1,783 +1,202 @@
 {
   "iteration": 31,
-  "timestamp": "2025-05-20T21:41:40.160359",
-  "strategy": "Exploitation",
-  "explore_rate": 15,
-  "exploit_rate": 85,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with enhanced reasoning and verification.\n    \"\"\"\n    try:\n        # Step 1: Analyze question with detailed type and constraint identification\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage focusing on question constraints\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer incorporating reasoning and unit handling\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Enhanced verification with constraint and unit checks\n        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n\n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type, keywords, and constraints. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type, keywords, and any constraints.\"\n    prompt = f\"\"\"\n    Analyze the question to identify its type (e.g., fact extraction, calculation, comparison), keywords, and explicit/implicit constraints.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"constraints\": [\"game\"]}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"constraints\": [\"running\"]}}\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"constraints\": [\"only\"]}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage based on keywords and question constraints.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages considering question constraints.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the text based on the question, keywords, and constraints.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"constraints\": [\"game\"]}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"constraints\": [\"running\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"constraints\": [\"only\"]}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Question: {question}\n    Analysis: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer incorporating reasoning and unit handling.\"\"\"\n    system_instruction = \"You are an expert at generating answers based on provided text, reasoning, and unit handling.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage, question type, and any units of measurement. Be precise.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage, question_analysis):\n    \"\"\"Verifies the generated answer with constraint and unit checks.\"\"\"\n    system_instruction = \"You are an expert at verifying answers, checking constraints and units.\"\n    prompt = f\"\"\"\n    Verify the answer based on the question, relevant passage and question analysis. Check for constraints and units.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"constraints\": [\"game\"]}}\n    Verification: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"constraints\": [\"running\"]}}\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"constraints\": [\"only\"]}}\n    Verification: Josh Scobee\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a multi-stage LLM approach, breaking down the problem into question analysis, relevant passage extraction, answer generation, and answer verification. Each stage uses the `call_llm` function to interact with the Gemini model with a specific system instruction that defines the agent's role (e.g., expert at analyzing questions). The overall workflow involves sequentially calling `analyze_question`, `extract_relevant_passage`, `generate_answer`, and `verify_answer`, passing the output of each as input to the next, to arrive at a final verified answer.",
-  "sample_count": 10,
+  "timestamp": "2025-05-22T06:16:36.158009",
+  "strategy": "Exploration",
+  "explore_rate": 75,
+  "exploit_rate": 25,
+  "batch_size": 3,
+  "script": "import os\nimport re\nimport math\n\n# Hypothesis: A \"Chain of Thought with Expert Roles and Validation\" approach to improve information extraction and validation.\n# The key idea is to use specialized LLM roles for each step of the process (extraction, synthesis, validation)\n# and embed validation steps after each to improve overall reliability.\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef extract_info(question):\n    \"\"\"Extract key information from the question using a specialized LLM.\"\"\"\n    system_instruction = \"You are an information extraction expert, skilled at identifying key details from questions.\"\n    prompt = f\"\"\"\n    Extract the key entities, constraints, and expected answer format from the question.\n\n    Example:\n    Question: In what year did Charlton Publications sell Hit Parader?\n    Extracted Information:\n    {{\n        \"entities\": [\"Charlton Publications\", \"Hit Parader\"],\n        \"constraints\": [],\n        \"answer_format\": \"year\"\n    }}\n\n    Question: What is the peak brightness of the Asus ROG Phone 5s Pro in nits?\n    Extracted Information:\n    {{\n        \"entities\": [\"Asus ROG Phone 5s Pro\"],\n        \"constraints\": [\"peak brightness\"],\n        \"answer_format\": \"numerical value with unit nits\"\n    }}\n\n    Question: {question}\n    Extracted Information:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef validate_extraction(question, extracted_info):\n    \"\"\"Validate the extracted information.\"\"\"\n    system_instruction = \"You are a strict validation expert who validates extracted information.\"\n    prompt = f\"\"\"\n    Validate if the extracted information correctly captures the key entities, constraints, and answer format.\n\n    Example:\n    Question: In what year did Charlton Publications sell Hit Parader?\n    Extracted Information: {{ \"entities\": [\"Charlton Publications\", \"Hit Parader\"], \"constraints\": [], \"answer_format\": \"year\" }}\n    Validation: VALID\n\n    Question: What is the peak brightness of the Asus ROG Phone 5s Pro in nits?\n    Extracted Information: {{ \"entities\": [\"Asus ROG Phone 5s Pro\"], \"constraints\": [\"peak brightness\"], \"answer_format\": \"numerical value with unit nits\" }}\n    Validation: VALID\n\n    Question: {question}\n    Extracted Information: {extracted_info}\n    Validation:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_search_query(extracted_info):\n    \"\"\"Generate a search query based on the extracted information.\"\"\"\n    system_instruction = \"You are an expert search query generator, designing effective queries to find answers.\"\n    prompt = f\"\"\"\n    Generate a search query based on the extracted information, focusing on retrieving factual answers.\n\n    Example:\n    Extracted Information: {{ \"entities\": [\"Charlton Publications\", \"Hit Parader\"], \"constraints\": [], \"answer_format\": \"year\" }}\n    Search Query: \"Charlton Publications sell Hit Parader year\"\n\n    Extracted Information: {{ \"entities\": [\"Asus ROG Phone 5s Pro\"], \"constraints\": [\"peak brightness\"], \"answer_format\": \"numerical value with unit nits\" }}\n    Search Query: \"Asus ROG Phone 5s Pro peak brightness nits\"\n\n    Extracted Information: {extracted_info}\n    Search Query:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef retrieve_info(search_query):\n    \"\"\"Retrieve relevant information using the generated search query.\"\"\"\n    system_instruction = \"You are a search engine simulator providing factual and concise information.\"\n    prompt = f\"\"\"\n    Simulate search results for the query.\n\n    Example:\n    Search Query: \"Charlton Publications sell Hit Parader year\"\n    Search Results: Charlton Publications sold Hit Parader in 1991.\n\n    Search Query: \"Asus ROG Phone 5s Pro peak brightness nits\"\n    Search Results: The peak brightness of the Asus ROG Phone 5s Pro is 1200 nits.\n\n    Search Query: {search_query}\n    Search Results:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_answer(retrieved_info, extracted_info):\n    \"\"\"Extract the answer from the retrieved information, considering the expected format.\"\"\"\n    system_instruction = \"You are an answer extraction expert, focusing on accuracy and formatting.\"\n    prompt = f\"\"\"\n    Extract the answer from the retrieved information, based on the expected answer format.\n\n    Example:\n    Retrieved Information: Charlton Publications sold Hit Parader in 1991.\n    Extracted Information: {{ \"entities\": [\"Charlton Publications\", \"Hit Parader\"], \"constraints\": [], \"answer_format\": \"year\" }}\n    Answer: 1991\n\n    Retrieved Information: The peak brightness of the Asus ROG Phone 5s Pro is 1200 nits.\n    Extracted Information: {{ \"entities\": [\"Asus ROG Phone 5s Pro\"], \"constraints\": [\"peak brightness\"], \"answer_format\": \"numerical value with unit nits\" }}\n    Answer: 1200 nits\n\n    Retrieved Information: {retrieved_info}\n    Extracted Information: {extracted_info}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef validate_answer(question, answer):\n    \"\"\"Validate the extracted answer against the question.\"\"\"\n    system_instruction = \"You are a fact validator, ensuring the answer is correct and complete.\"\n    prompt = f\"\"\"\n    Validate if the answer accurately and completely answers the question.\n\n    Example:\n    Question: In what year did Charlton Publications sell Hit Parader?\n    Answer: 1991\n    Validation: VALID\n\n    Question: What is the peak brightness of the Asus ROG Phone 5s Pro in nits?\n    Answer: 1200 nits\n    Validation: VALID\n\n    Question: {question}\n    Answer: {answer}\n    Validation:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef main(question):\n    \"\"\"Orchestrate the question-answering process.\"\"\"\n    try:\n        # 1. Extract Information\n        extracted_info = extract_info(question)\n        validation_result = validate_extraction(question, extracted_info)\n\n        if \"VALID\" not in validation_result:\n            return \"Could not extract information.\"\n\n        # 2. Generate Search Query\n        search_query = generate_search_query(extracted_info)\n\n        # 3. Retrieve Information\n        retrieved_info = retrieve_info(search_query)\n\n        # 4. Extract Answer\n        answer = extract_answer(retrieved_info, extracted_info)\n\n        # 5. Validate Answer\n        final_validation = validate_answer(question, answer)\n\n        if \"VALID\" not in final_validation:\n            return \"Could not be validated.\"\n\n        return answer\n\n    except Exception as e:\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "The script implements a Chain of Thought approach with specialized LLM roles for information extraction and question answering. The problem is decomposed into information extraction, search query generation, information retrieval, answer extraction, and validation steps. The agent roles involved are information extraction expert, validation expert, search query generator, search engine simulator, answer extraction expert, and fact validator.\n\nThe functions used are `extract_info` (extracts key information), `validate_extraction` (validates the extracted information), `generate_search_query` (generates a search query), `retrieve_info` (retrieves information using the search query), `extract_answer` (extracts the answer), and `validate_answer` (validates the final answer). The overall workflow involves extracting information, validating the extraction, generating a search query, retrieving information, extracting the answer, and validating the answer, using `call_llm` to call the LLM in each function.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE: Hoping to rebound from their humiliating home loss to the Patriots, the Bills flew to Jacksonville Municipal Stadium for a Week 12 duel with the Jacksonville Jaguars.  For QB J. P. Losman, he was playing to keep his starting job. In the first quarter, Buffalo trailed early as Jaguars RB Fred Taylor got a 50-yard TD run, along with kicker Josh Scobee getting a 46-yard field goal.  In the second quarter, Jacksonville increased its lead with Scobee kicking a 33-yard field goal.  The Bills managed to get on the board with Losman's 10-yard TD pass to RB Anthony Thomas.  The Jaguars would end the half with Scobee getting a 22-yard field goal. In the third quarter, Jacksonville increased its lead with Scobee kicking a 23-yard field goal. Buffalo managed to respond with WR Roscoe Parrish getting a 24-yard TD run on a reverse.  However, in the fourth quarter, the Jaguars took control for the rest of the game as Scobee nailed a 20-yard field goal, QB David Garrard completing a 59-yard TD pass to WR Reggie Williams, and RB Maurice Jones-Drew getting a 17-yard TD run.\n\nQUESTION: Who had a 24-yard rushing touchdown?",
-      "answer": "Roscoe Parrish",
-      "id": "example_246",
+      "question": "What is the title of Series 1, Episode 17 of *Space: 1999*?",
+      "answer": "\"The Last Sunset\"",
+      "id": "example_98",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to rebound from their humiliating home loss to the Patriots, the Bills flew to Jacksonville Municipal Stadium for a Week 12 duel with the Jacksonville Jaguars.  For QB J. P. Losman, he was playing to keep his starting job. In the first quarter, Buffalo trailed early as Jaguars RB Fred Taylor got a 50-yard TD run, along with kicker Josh Scobee getting a 46-yard field goal.  In the second quarter, Jacksonville increased its lead with Scobee kicking a 33-yard field goal.  The Bills managed to get on the board with Losman's 10-yard TD pass to RB Anthony Thomas.  The Jaguars would end the half with Scobee getting a 22-yard field goal. In the third quarter, Jacksonville increased its lead with Scobee kicking a 23-yard field goal. Buffalo managed to respond with WR Roscoe Parrish getting a 24-yard TD run on a reverse.  However, in the fourth quarter, the Jaguars took control for the rest of the game as Scobee nailed a 20-yard field goal, QB David Garrard completing a 59-yard TD pass to WR Reggie Williams, and RB Maurice Jones-Drew getting a 17-yard TD run.",
-        "original_question": "Who had a 24-yard rushing touchdown?",
-        "original_answer_data": {
-          "spans": [
-            "Roscoe Parrish"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 853
+        "source": "SimpleQA",
+        "line_number": 298,
+        "original_data": {
+          "metadata": "{'topic': 'TV shows', 'answer_type': 'Other', 'urls': ['https://www.imdb.com/title/tt0706348/', 'https://en.wikipedia.org/wiki/List_of_Space:_1999_episodes', 'https://www.imdb.com/title/tt0072564/episodes/?season=1', 'https://epguides.com/Space1999/']}",
+          "problem": "What is the title of Series 1, Episode 17 of *Space: 1999*?",
+          "answer": "\"The Last Sunset\"",
+          "id": "example_298"
+        }
       }
     },
     {
-      "question": "PASSAGE: During the week prior to the Packers' crucial game against the rival 2-1 Bears, Aaron Rodgers addressed the concerns of many Packers fans, who felt that the season was already slipping away just three weeks in with a 1-2 record. In a radio interview, Rodgers said to the fans, \"R-E-L-A-X. Relax.\" Rodgers was true to his word, completing 22 of 28 passes for 302 yards, 4 touchdown passes, 0 interceptions, and a passer rating of 151.2, making it the second game of his career where he had a passer rating of over 150. Two of his touchdown passes were to Randall Cobb as the Packers took advantage of two Jay Cutler interceptions, scoring 17 unanswered points in the second half in a 38-17 win, which was also the Packers' 700th regular season win in the NFL. This was only the second game in NFL history to not have a punt.\n\nQUESTION: How many passes did rogers miss?",
-      "answer": "6",
-      "id": "example_247",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "During the week prior to the Packers' crucial game against the rival 2-1 Bears, Aaron Rodgers addressed the concerns of many Packers fans, who felt that the season was already slipping away just three weeks in with a 1-2 record. In a radio interview, Rodgers said to the fans, \"R-E-L-A-X. Relax.\" Rodgers was true to his word, completing 22 of 28 passes for 302 yards, 4 touchdown passes, 0 interceptions, and a passer rating of 151.2, making it the second game of his career where he had a passer rating of over 150. Two of his touchdown passes were to Randall Cobb as the Packers took advantage of two Jay Cutler interceptions, scoring 17 unanswered points in the second half in a 38-17 win, which was also the Packers' 700th regular season win in the NFL. This was only the second game in NFL history to not have a punt.",
-        "original_question": "How many passes did rogers miss?",
-        "original_answer_data": {
-          "spans": [
-            "6"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 583
-      }
-    },
-    {
-      "question": "PASSAGE: On 10 August 1921, the police attempted to arrest Vadakkevittil Muhammed, the secretary of the Khilafat Committee of Ernad at Pookkottur, alleging that he stolen the pistol of a Hindu Thirumulpad from a Kovilakam  in Nilambur. A crowd of 2,000 Mappilas from the neighbourhood foiled the attempt, but on the following day a squad of police arrested a number of Khilafat volunteers and seized records at the Mambaram mosque in Tirurangadi, leading to rumours that the building had been desecrated. A large crowd of Mappilas converged on Tirurangadi and besieged the local police station. The police opened fire on the crowd, triggering a furious reaction which soon engulfed the Eranad and Valluvanad taluks along with neighbouring areas and continued for over two months. Following the mosque incident, the rebels attacked and seized police stations, government treasuries, and entered the courts and registry offices where they destroyed records. Some even climbed into the judges' seats and proclaimed the advent of swaraj . The rebellion soon spread to the neighbouring areas of Malappuram, Manjeri, Perinthalmanna, Pandikkad and Tirur under principle leaders Variankunnath Kunjahammad Haji, Seethi Koya Thangal of Kumaranpathor and Ali Musliyar. By 8 August 1921, British administration had virtually come to an end in Malappuram, Tirurangadi, Manjeri, and Perinthalmanna, which then fell into the hands of the rebels who established complete domination over the Eranad and Valluvanad Taluks. On 24 August 1921, Variankunnath Kunjahammad Haji took over command of the rebellion from Ali Musliyar. Public proclamations were issued by Variyankunnath and Seethi that no harm should come to Hindus and that those Mappilas who resorted to looting would receive exemplary punishments.\n\nQUESTION: What event happened first, the police attempting to arrest Vadakkevittil Muhammed, or British administration coming to an end in Malappuram?",
-      "answer": "On 10 August 1921, the, police attempted to arrest, Vadakkevittil Muhammed,",
-      "id": "example_248",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "On 10 August 1921, the police attempted to arrest Vadakkevittil Muhammed, the secretary of the Khilafat Committee of Ernad at Pookkottur, alleging that he stolen the pistol of a Hindu Thirumulpad from a Kovilakam  in Nilambur. A crowd of 2,000 Mappilas from the neighbourhood foiled the attempt, but on the following day a squad of police arrested a number of Khilafat volunteers and seized records at the Mambaram mosque in Tirurangadi, leading to rumours that the building had been desecrated. A large crowd of Mappilas converged on Tirurangadi and besieged the local police station. The police opened fire on the crowd, triggering a furious reaction which soon engulfed the Eranad and Valluvanad taluks along with neighbouring areas and continued for over two months. Following the mosque incident, the rebels attacked and seized police stations, government treasuries, and entered the courts and registry offices where they destroyed records. Some even climbed into the judges' seats and proclaimed the advent of swaraj . The rebellion soon spread to the neighbouring areas of Malappuram, Manjeri, Perinthalmanna, Pandikkad and Tirur under principle leaders Variankunnath Kunjahammad Haji, Seethi Koya Thangal of Kumaranpathor and Ali Musliyar. By 8 August 1921, British administration had virtually come to an end in Malappuram, Tirurangadi, Manjeri, and Perinthalmanna, which then fell into the hands of the rebels who established complete domination over the Eranad and Valluvanad Taluks. On 24 August 1921, Variankunnath Kunjahammad Haji took over command of the rebellion from Ali Musliyar. Public proclamations were issued by Variyankunnath and Seethi that no harm should come to Hindus and that those Mappilas who resorted to looting would receive exemplary punishments.",
-        "original_question": "What event happened first, the police attempting to arrest Vadakkevittil Muhammed, or British administration coming to an end in Malappuram?",
-        "original_answer_data": {
-          "spans": [
-            "On 10 August 1921, the",
-            "police attempted to arrest",
-            "Vadakkevittil Muhammed,"
-          ],
-          "types": [
-            "span",
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 122
-      }
-    },
-    {
-      "question": "PASSAGE: The Charleston-North Charleston-Summerville Metropolitan Statistical Area consists of three counties: Charleston, Berkeley, and Dorchester. As of the 2013 U.S. Census, the metropolitan statistical area had a total population of 712,239 people. North Charleston is the second-largest city in the Charleston-North Charleston-Summerville Metropolitan Statistical Area and ranks as the third-largest city in the state; Mount Pleasant and Summerville are the next-largest cities. These cities combined with other incorporated and unincorporated areas along with the city of Charleston form the Charleston-North Charleston Urban Area with a population of 548,404 as of  2010. The metropolitan statistical area also includes a separate and much smaller urban area within Berkeley County, Moncks Corner . The traditional parish system persisted until the Reconstruction Era, when counties were imposed. Nevertheless, traditional parishes still exist in various capacities, mainly as public service districts. When the city of Charleston was formed, it was defined by the limits of the Parish of St. Philip and St. Michael, now also includes parts of St. James' Parish, St. George's Parish, St. Andrew's Parish, and St. John's Parish, although the last two are mostly still incorporated rural parishes.\n\nQUESTION: Which city in the Charleston-North Charleston-Summerville Metropolitan Statistical Area is the largest?",
-      "answer": "Charleston",
-      "id": "example_249",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Charleston-North Charleston-Summerville Metropolitan Statistical Area consists of three counties: Charleston, Berkeley, and Dorchester. As of the 2013 U.S. Census, the metropolitan statistical area had a total population of 712,239 people. North Charleston is the second-largest city in the Charleston-North Charleston-Summerville Metropolitan Statistical Area and ranks as the third-largest city in the state; Mount Pleasant and Summerville are the next-largest cities. These cities combined with other incorporated and unincorporated areas along with the city of Charleston form the Charleston-North Charleston Urban Area with a population of 548,404 as of  2010. The metropolitan statistical area also includes a separate and much smaller urban area within Berkeley County, Moncks Corner . The traditional parish system persisted until the Reconstruction Era, when counties were imposed. Nevertheless, traditional parishes still exist in various capacities, mainly as public service districts. When the city of Charleston was formed, it was defined by the limits of the Parish of St. Philip and St. Michael, now also includes parts of St. James' Parish, St. George's Parish, St. Andrew's Parish, and St. John's Parish, although the last two are mostly still incorporated rural parishes.",
-        "original_question": "Which city in the Charleston-North Charleston-Summerville Metropolitan Statistical Area is the largest?",
-        "original_answer_data": {
-          "spans": [
-            "Charleston"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 413
-      }
-    },
-    {
-      "question": "PASSAGE: In England, in the absence of census figures, historians propose a range of preincident population figures from as high as 7 million to as low as 4 million in 1300, and a postincident population figure as low as 2 million. By the end of 1350, the Black Death subsided, but it never really died out in England. Over the next few hundred years, further outbreaks occurred in 1361\u20131362, 1369, 1379\u20131383, 1389\u20131393, and throughout the first half of the 15th century. An outbreak in 1471 took as much as 10\u201315% of the population, while the death rate of the plague of 1479\u20131480 could have been as high as 20%. The most general outbreaks in Tudor dynasty and House of Stuart England seem to have begun in 1498, 1535, 1543, 1563, 1589, 1603, 1625, and 1636, and ended with the Great Plague of London in 1665.\n\nQUESTION: How many years after the general outbreaks of the plague in the Tudor dynasty and House of Stuart England began did it end with the Great Plague of London?",
-      "answer": "167",
-      "id": "example_250",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In England, in the absence of census figures, historians propose a range of preincident population figures from as high as 7 million to as low as 4 million in 1300, and a postincident population figure as low as 2 million. By the end of 1350, the Black Death subsided, but it never really died out in England. Over the next few hundred years, further outbreaks occurred in 1361\u20131362, 1369, 1379\u20131383, 1389\u20131393, and throughout the first half of the 15th century. An outbreak in 1471 took as much as 10\u201315% of the population, while the death rate of the plague of 1479\u20131480 could have been as high as 20%. The most general outbreaks in Tudor dynasty and House of Stuart England seem to have begun in 1498, 1535, 1543, 1563, 1589, 1603, 1625, and 1636, and ended with the Great Plague of London in 1665.",
-        "original_question": "How many years after the general outbreaks of the plague in the Tudor dynasty and House of Stuart England began did it end with the Great Plague of London?",
-        "original_answer_data": {
-          "spans": [
-            "167"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 240
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off their Bye Week, the Cardinals went home for a Week 10 fight with the Dallas Cowboys.  In the first quarter, Arizona trailed early as kicker Mike Vanderjagt nailed a 28-yard field goal for the only score of the period.  In the second quarter, the Cardinals' year-long struggles continued as QB Tony Romo completed a 30-yard TD pass to WR Patrick Crayton.  The Cards would respond with a 28-yard field goal by kicker Neil Rackers.  Afterwards, Vanderjagt gave the Cowboys some breathing room with a 38-yard field goal as time ran out on the half.  In the third quarter, things continued to get worse for Arizona as Romo completed a 51-yard TD pass to WR Terrell Owens for the only score of the period.  In the fourth quarter, Dallas would wrap up the game with RB Marion Barber's 5-yard TD run.  The Cardinals would get a touchdown as QB Matt Leinart got a 3-yard TD run.  However, the Cards would drop their eighth-straight game.  With the loss, the Cardinals fell to 1-8.\n\nQUESTION: How many yards were gained on rushing touchdowns that equaled 5 yards or shorter?",
-      "answer": "8",
-      "id": "example_251",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their Bye Week, the Cardinals went home for a Week 10 fight with the Dallas Cowboys.  In the first quarter, Arizona trailed early as kicker Mike Vanderjagt nailed a 28-yard field goal for the only score of the period.  In the second quarter, the Cardinals' year-long struggles continued as QB Tony Romo completed a 30-yard TD pass to WR Patrick Crayton.  The Cards would respond with a 28-yard field goal by kicker Neil Rackers.  Afterwards, Vanderjagt gave the Cowboys some breathing room with a 38-yard field goal as time ran out on the half.  In the third quarter, things continued to get worse for Arizona as Romo completed a 51-yard TD pass to WR Terrell Owens for the only score of the period.  In the fourth quarter, Dallas would wrap up the game with RB Marion Barber's 5-yard TD run.  The Cardinals would get a touchdown as QB Matt Leinart got a 3-yard TD run.  However, the Cards would drop their eighth-straight game.  With the loss, the Cardinals fell to 1-8.",
-        "original_question": "How many yards were gained on rushing touchdowns that equaled 5 yards or shorter?",
-        "original_answer_data": {
-          "spans": [
-            "8"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 723
-      }
-    },
-    {
-      "question": "PASSAGE: After a tough win on the road, the Steelers went back home for their second game of the season against the Ravens. Pittsburgh scored first in the first quarter when Ben Roethlisberger found Le'Veon Bell for a 20-yard pass to make it 7-0 and the only score of the period. In the second quarter, the Steelers moved up 14-0 when Bell ran for a 1-yard touchdown. The Ravens got on the board when Joe Flacco found Chris Moore on a 30-yard pass to make it 14-7. The Steelers then moved ahead by double digits again when Chris Boswell put up a 52-yard field goal to make it 17-7. The Ravens then came within 3 when Alex Collins ran for an 18-yard touchdown to make the score 17-14. The Steelers closed out the half with another field goal kicked by Boswell from 43 yards out to make it 20-14 at halftime. In the third quarter, it was all Ravens when they took the lead after scoring 3 times: First when Justin Tucker managed to nail a 47-yard field goal to make it 20-17. This would be followed by Javorious Allen's 1-yard touchdown run as they took the lead 24-20. Flacco then found Patrick Ricard on a 6-yard pass as the Ravens moved up by double digits 31-20. In the fourth quarter, the Steelers managed to come within 2, starting with a 24-yard field goal kicked by Boswell shortening the Ravens' lead to 31-23. This would then be followed up by Roethlisberger connecting with Roosevelt Nix on a 1-yard pass (with a failed 2-point conversion) to make it 31-29. The Ravens managed to pull away when Allen ran for a 9-yard touchdown to make it 38-29. The Steelers then completed the comeback when Bell ran for an 11-yard touchdown to make it 38-36. This would be followed by Boswell kicking a 46-yard field goal to make it 39-38. The Ravens then got the ball back, but Flacco was sacked by T. J. Watt as time expired, sealing the win for the Steelers. With the win, the Steelers improved to 11-2 and were awarded the AFC North division title. The team also managed to win their 9th straight game over a divisional opponent. Pittsburgh notched their first 3-game win streak over the Ravens since defeating them three times during the 2008 season (including the playoffs). The teams' 77 combined points marked the most in series history. The team also swept the Ravens for the first time since 2008.  With the division clinched, the team would win consecutive titles for the first time since the 2007 and 2008 seasons. The Steelers' second consecutive 11+ point comeback victory marked the first time the Steelers had accomplished this feat since coming back from down 14 against the Denver Broncos on December 7, 1997 and then again from down 14 against the New England Patriots on December 13, 1997.\n\nQUESTION: From what distance were two touchdowns runs scored from?",
-      "answer": "1-yard",
-      "id": "example_252",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "After a tough win on the road, the Steelers went back home for their second game of the season against the Ravens. Pittsburgh scored first in the first quarter when Ben Roethlisberger found Le'Veon Bell for a 20-yard pass to make it 7-0 and the only score of the period. In the second quarter, the Steelers moved up 14-0 when Bell ran for a 1-yard touchdown. The Ravens got on the board when Joe Flacco found Chris Moore on a 30-yard pass to make it 14-7. The Steelers then moved ahead by double digits again when Chris Boswell put up a 52-yard field goal to make it 17-7. The Ravens then came within 3 when Alex Collins ran for an 18-yard touchdown to make the score 17-14. The Steelers closed out the half with another field goal kicked by Boswell from 43 yards out to make it 20-14 at halftime. In the third quarter, it was all Ravens when they took the lead after scoring 3 times: First when Justin Tucker managed to nail a 47-yard field goal to make it 20-17. This would be followed by Javorious Allen's 1-yard touchdown run as they took the lead 24-20. Flacco then found Patrick Ricard on a 6-yard pass as the Ravens moved up by double digits 31-20. In the fourth quarter, the Steelers managed to come within 2, starting with a 24-yard field goal kicked by Boswell shortening the Ravens' lead to 31-23. This would then be followed up by Roethlisberger connecting with Roosevelt Nix on a 1-yard pass (with a failed 2-point conversion) to make it 31-29. The Ravens managed to pull away when Allen ran for a 9-yard touchdown to make it 38-29. The Steelers then completed the comeback when Bell ran for an 11-yard touchdown to make it 38-36. This would be followed by Boswell kicking a 46-yard field goal to make it 39-38. The Ravens then got the ball back, but Flacco was sacked by T. J. Watt as time expired, sealing the win for the Steelers. With the win, the Steelers improved to 11-2 and were awarded the AFC North division title. The team also managed to win their 9th straight game over a divisional opponent. Pittsburgh notched their first 3-game win streak over the Ravens since defeating them three times during the 2008 season (including the playoffs). The teams' 77 combined points marked the most in series history. The team also swept the Ravens for the first time since 2008.  With the division clinched, the team would win consecutive titles for the first time since the 2007 and 2008 seasons. The Steelers' second consecutive 11+ point comeback victory marked the first time the Steelers had accomplished this feat since coming back from down 14 against the Denver Broncos on December 7, 1997 and then again from down 14 against the New England Patriots on December 13, 1997.",
-        "original_question": "From what distance were two touchdowns runs scored from?",
-        "original_answer_data": {
-          "spans": [
-            "1-yard"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 609
-      }
-    },
-    {
-      "question": "PASSAGE: In mid-2010, there were 2,754,440 residents in the city proper, while some 4.2 million people lived in the greater Rome area (which can be approximately identified with its administrative metropolitan city, with a population density of about 800 inhab./km\u00b2 stretching over more than 5,000 km\u00b2). Minors (children ages 18 and younger) totalled 17.00% of the population compared to pensioners who number 20.76%. This compares with the Italian average of 18.06% (minors) and 19.94% (pensioners). The average age of a Roman resident is 43 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Rome grew by 6.54%, while Italy as a whole grew by 3.56%. The current birth rate of Rome is 9.10 births per 1,000 inhabitants compared to the Italian average of 9.45 births.\n\nQUESTION: How many people lived in the city and greater Rome area together?",
-      "answer": "6954440",
-      "id": "example_253",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In mid-2010, there were 2,754,440 residents in the city proper, while some 4.2 million people lived in the greater Rome area (which can be approximately identified with its administrative metropolitan city, with a population density of about 800 inhab./km\u00b2 stretching over more than 5,000 km\u00b2). Minors (children ages 18 and younger) totalled 17.00% of the population compared to pensioners who number 20.76%. This compares with the Italian average of 18.06% (minors) and 19.94% (pensioners). The average age of a Roman resident is 43 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Rome grew by 6.54%, while Italy as a whole grew by 3.56%. The current birth rate of Rome is 9.10 births per 1,000 inhabitants compared to the Italian average of 9.45 births.",
-        "original_question": "How many people lived in the city and greater Rome area together?",
-        "original_answer_data": {
-          "spans": [
-            "6954440"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 766
-      }
-    },
-    {
-      "question": "PASSAGE: Still looking for their first win, the Cowboys flew to Reliant Stadium for a Texas rivalry match against the Houston Texans. Dallas trailed early in the second quarter when kicker Neil Rackers hit a 24-yard field goal. Then they took the lead with RB Marion Barber getting a 1-yard TD run, followed by kicker David Buehler's 49-yard field goal. The Cowboys increased their lead in the third quarter when QB Tony Romo completed a 15-yard TD pass to WR Roy E. Williams. Houston replied with Rackers nailing a 30-yard field goal, but Dallas continued to score when Romo found Williams again on a 63-yard TD pass. Then David Buehler made a 40-yard field goal. The Texans would finally score when QB Matt Schaub made a 7-yard TD pass to WR Kevin Walter; the Texans' onside kick attempt was good, but an interception made by Dallas safety Danny McCray ended any chances of a Texans comeback With the win, Dallas went into its bye week at 1-2.\n\nQUESTION: Which team allowed the most points in this game?",
-      "answer": "Texans",
-      "id": "example_254",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Still looking for their first win, the Cowboys flew to Reliant Stadium for a Texas rivalry match against the Houston Texans. Dallas trailed early in the second quarter when kicker Neil Rackers hit a 24-yard field goal. Then they took the lead with RB Marion Barber getting a 1-yard TD run, followed by kicker David Buehler's 49-yard field goal. The Cowboys increased their lead in the third quarter when QB Tony Romo completed a 15-yard TD pass to WR Roy E. Williams. Houston replied with Rackers nailing a 30-yard field goal, but Dallas continued to score when Romo found Williams again on a 63-yard TD pass. Then David Buehler made a 40-yard field goal. The Texans would finally score when QB Matt Schaub made a 7-yard TD pass to WR Kevin Walter; the Texans' onside kick attempt was good, but an interception made by Dallas safety Danny McCray ended any chances of a Texans comeback With the win, Dallas went into its bye week at 1-2.",
-        "original_question": "Which team allowed the most points in this game?",
-        "original_answer_data": {
-          "spans": [
-            "Texans"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 190
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off of their road win over the 49ers, the Ravens went home for a Week 6 interconference duel with the winless St. Louis Rams.  With QB Steve McNair out with injuries, back-up Kyle Boller was given the start. In the first quarter, Baltimore took flight early with kicker Matt Stover getting a 43-yard field goal for the only score of the period.  In the second quarter, the Raven continued to take advantage of an injury-plagued Rams team with Stover kicking a 42-yard field goal, along with RB Willis McGahee getting a 6-yard TD run.  In the third quarter, Baltimore increased its lead with Stover nailing a 23-yard field goal.  Afterwards, St. Louis would get its only score of the game as kicker Jeff Wilkins got a 32-yard field goal.  In the fourth quarter, the Ravens sealed their easy win with Stover kicking a 31-yard and a 36-yard field goal. During the win, the Ravens defense forced six turnovers, which included a franchise-best 5 interceptions.\n\nQUESTION: How many field goals between 25 and 45 yards were made?",
+      "question": "How many years was Tomb Raider: The Ride at Kings Island in operation before being rethemed?",
       "answer": "5",
-      "id": "example_255",
+      "id": "example_99",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off of their road win over the 49ers, the Ravens went home for a Week 6 interconference duel with the winless St. Louis Rams.  With QB Steve McNair out with injuries, back-up Kyle Boller was given the start. In the first quarter, Baltimore took flight early with kicker Matt Stover getting a 43-yard field goal for the only score of the period.  In the second quarter, the Raven continued to take advantage of an injury-plagued Rams team with Stover kicking a 42-yard field goal, along with RB Willis McGahee getting a 6-yard TD run.  In the third quarter, Baltimore increased its lead with Stover nailing a 23-yard field goal.  Afterwards, St. Louis would get its only score of the game as kicker Jeff Wilkins got a 32-yard field goal.  In the fourth quarter, the Ravens sealed their easy win with Stover kicking a 31-yard and a 36-yard field goal. During the win, the Ravens defense forced six turnovers, which included a franchise-best 5 interceptions.",
-        "original_question": "How many field goals between 25 and 45 yards were made?",
-        "original_answer_data": {
-          "spans": [
-            "5"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 82
+        "source": "SimpleQA",
+        "line_number": 848,
+        "original_data": {
+          "metadata": "{'topic': 'Other', 'answer_type': 'Number', 'urls': ['https://en.wikipedia.org/wiki/The_Crypt_(Kings_Island)', 'https://en.wikipedia.org/wiki/The_Crypt_(Kings_Island)', 'https://tombraider.fandom.com/wiki/Tomb_Raider:_The_Ride_(Kings_Island)', 'https://kicentral.com/parkhistory/past-attractions/the-crypt/']}",
+          "problem": "How many years was Tomb Raider: The Ride at Kings Island in operation before being rethemed?",
+          "answer": "5",
+          "id": "example_848"
+        }
+      }
+    },
+    {
+      "question": "What is Vergil's battle quote about bedtime when he stabs the player playing as Nero in Devil May Cry 5?",
+      "answer": "It's past your bedtime",
+      "id": "example_100",
+      "meta": {
+        "source": "SimpleQA",
+        "line_number": 668,
+        "original_data": {
+          "metadata": "{'topic': 'Video games', 'answer_type': 'Other', 'urls': ['https://devilmaycry.fandom.com/wiki/Vergil/Quotes', 'https://www.youtube.com/watch?v=QcAmtUQDkRo', 'https://www.youtube.com/watch?v=a59vvygPjBE', 'https://www.youtube.com/watch?v=pzn7ASjlLqo']}",
+          "problem": "What is Vergil's battle quote about bedtime when he stabs the player playing as Nero in Devil May Cry 5?",
+          "answer": "It's past your bedtime",
+          "id": "example_668"
+        }
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to rebound from their humiliating home loss to the Patriots, the Bills flew to Jacksonville Municipal Stadium for a Week 12 duel with the Jacksonville Jaguars.  For QB J. P. Losman, he was playing to keep his starting job. In the first quarter, Buffalo trailed early as Jaguars RB Fred Taylor got a 50-yard TD run, along with kicker Josh Scobee getting a 46-yard field goal.  In the second quarter, Jacksonville increased its lead with Scobee kicking a 33-yard field goal.  The Bills managed to get on the board with Losman's 10-yard TD pass to RB Anthony Thomas.  The Jaguars would end the half with Scobee getting a 22-yard field goal. In the third quarter, Jacksonville increased its lead with Scobee kicking a 23-yard field goal. Buffalo managed to respond with WR Roscoe Parrish getting a 24-yard TD run on a reverse.  However, in the fourth quarter, the Jaguars took control for the rest of the game as Scobee nailed a 20-yard field goal, QB David Garrard completing a 59-yard TD pass to WR Reggie Williams, and RB Maurice Jones-Drew getting a 17-yard TD run.",
-      "original_question": "Who had a 24-yard rushing touchdown?",
-      "original_answer_data": {
-        "spans": [
-          "Roscoe Parrish"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 853
+      "source": "SimpleQA",
+      "line_number": 298,
+      "original_data": {
+        "metadata": "{'topic': 'TV shows', 'answer_type': 'Other', 'urls': ['https://www.imdb.com/title/tt0706348/', 'https://en.wikipedia.org/wiki/List_of_Space:_1999_episodes', 'https://www.imdb.com/title/tt0072564/episodes/?season=1', 'https://epguides.com/Space1999/']}",
+        "problem": "What is the title of Series 1, Episode 17 of *Space: 1999*?",
+        "answer": "\"The Last Sunset\"",
+        "id": "example_298"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "During the week prior to the Packers' crucial game against the rival 2-1 Bears, Aaron Rodgers addressed the concerns of many Packers fans, who felt that the season was already slipping away just three weeks in with a 1-2 record. In a radio interview, Rodgers said to the fans, \"R-E-L-A-X. Relax.\" Rodgers was true to his word, completing 22 of 28 passes for 302 yards, 4 touchdown passes, 0 interceptions, and a passer rating of 151.2, making it the second game of his career where he had a passer rating of over 150. Two of his touchdown passes were to Randall Cobb as the Packers took advantage of two Jay Cutler interceptions, scoring 17 unanswered points in the second half in a 38-17 win, which was also the Packers' 700th regular season win in the NFL. This was only the second game in NFL history to not have a punt.",
-      "original_question": "How many passes did rogers miss?",
-      "original_answer_data": {
-        "spans": [
-          "6"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 583
+      "source": "SimpleQA",
+      "line_number": 848,
+      "original_data": {
+        "metadata": "{'topic': 'Other', 'answer_type': 'Number', 'urls': ['https://en.wikipedia.org/wiki/The_Crypt_(Kings_Island)', 'https://en.wikipedia.org/wiki/The_Crypt_(Kings_Island)', 'https://tombraider.fandom.com/wiki/Tomb_Raider:_The_Ride_(Kings_Island)', 'https://kicentral.com/parkhistory/past-attractions/the-crypt/']}",
+        "problem": "How many years was Tomb Raider: The Ride at Kings Island in operation before being rethemed?",
+        "answer": "5",
+        "id": "example_848"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "On 10 August 1921, the police attempted to arrest Vadakkevittil Muhammed, the secretary of the Khilafat Committee of Ernad at Pookkottur, alleging that he stolen the pistol of a Hindu Thirumulpad from a Kovilakam  in Nilambur. A crowd of 2,000 Mappilas from the neighbourhood foiled the attempt, but on the following day a squad of police arrested a number of Khilafat volunteers and seized records at the Mambaram mosque in Tirurangadi, leading to rumours that the building had been desecrated. A large crowd of Mappilas converged on Tirurangadi and besieged the local police station. The police opened fire on the crowd, triggering a furious reaction which soon engulfed the Eranad and Valluvanad taluks along with neighbouring areas and continued for over two months. Following the mosque incident, the rebels attacked and seized police stations, government treasuries, and entered the courts and registry offices where they destroyed records. Some even climbed into the judges' seats and proclaimed the advent of swaraj . The rebellion soon spread to the neighbouring areas of Malappuram, Manjeri, Perinthalmanna, Pandikkad and Tirur under principle leaders Variankunnath Kunjahammad Haji, Seethi Koya Thangal of Kumaranpathor and Ali Musliyar. By 8 August 1921, British administration had virtually come to an end in Malappuram, Tirurangadi, Manjeri, and Perinthalmanna, which then fell into the hands of the rebels who established complete domination over the Eranad and Valluvanad Taluks. On 24 August 1921, Variankunnath Kunjahammad Haji took over command of the rebellion from Ali Musliyar. Public proclamations were issued by Variyankunnath and Seethi that no harm should come to Hindus and that those Mappilas who resorted to looting would receive exemplary punishments.",
-      "original_question": "What event happened first, the police attempting to arrest Vadakkevittil Muhammed, or British administration coming to an end in Malappuram?",
-      "original_answer_data": {
-        "spans": [
-          "On 10 August 1921, the",
-          "police attempted to arrest",
-          "Vadakkevittil Muhammed,"
-        ],
-        "types": [
-          "span",
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 122
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Charleston-North Charleston-Summerville Metropolitan Statistical Area consists of three counties: Charleston, Berkeley, and Dorchester. As of the 2013 U.S. Census, the metropolitan statistical area had a total population of 712,239 people. North Charleston is the second-largest city in the Charleston-North Charleston-Summerville Metropolitan Statistical Area and ranks as the third-largest city in the state; Mount Pleasant and Summerville are the next-largest cities. These cities combined with other incorporated and unincorporated areas along with the city of Charleston form the Charleston-North Charleston Urban Area with a population of 548,404 as of  2010. The metropolitan statistical area also includes a separate and much smaller urban area within Berkeley County, Moncks Corner . The traditional parish system persisted until the Reconstruction Era, when counties were imposed. Nevertheless, traditional parishes still exist in various capacities, mainly as public service districts. When the city of Charleston was formed, it was defined by the limits of the Parish of St. Philip and St. Michael, now also includes parts of St. James' Parish, St. George's Parish, St. Andrew's Parish, and St. John's Parish, although the last two are mostly still incorporated rural parishes.",
-      "original_question": "Which city in the Charleston-North Charleston-Summerville Metropolitan Statistical Area is the largest?",
-      "original_answer_data": {
-        "spans": [
-          "Charleston"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 413
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In England, in the absence of census figures, historians propose a range of preincident population figures from as high as 7 million to as low as 4 million in 1300, and a postincident population figure as low as 2 million. By the end of 1350, the Black Death subsided, but it never really died out in England. Over the next few hundred years, further outbreaks occurred in 1361\u20131362, 1369, 1379\u20131383, 1389\u20131393, and throughout the first half of the 15th century. An outbreak in 1471 took as much as 10\u201315% of the population, while the death rate of the plague of 1479\u20131480 could have been as high as 20%. The most general outbreaks in Tudor dynasty and House of Stuart England seem to have begun in 1498, 1535, 1543, 1563, 1589, 1603, 1625, and 1636, and ended with the Great Plague of London in 1665.",
-      "original_question": "How many years after the general outbreaks of the plague in the Tudor dynasty and House of Stuart England began did it end with the Great Plague of London?",
-      "original_answer_data": {
-        "spans": [
-          "167"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 240
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their Bye Week, the Cardinals went home for a Week 10 fight with the Dallas Cowboys.  In the first quarter, Arizona trailed early as kicker Mike Vanderjagt nailed a 28-yard field goal for the only score of the period.  In the second quarter, the Cardinals' year-long struggles continued as QB Tony Romo completed a 30-yard TD pass to WR Patrick Crayton.  The Cards would respond with a 28-yard field goal by kicker Neil Rackers.  Afterwards, Vanderjagt gave the Cowboys some breathing room with a 38-yard field goal as time ran out on the half.  In the third quarter, things continued to get worse for Arizona as Romo completed a 51-yard TD pass to WR Terrell Owens for the only score of the period.  In the fourth quarter, Dallas would wrap up the game with RB Marion Barber's 5-yard TD run.  The Cardinals would get a touchdown as QB Matt Leinart got a 3-yard TD run.  However, the Cards would drop their eighth-straight game.  With the loss, the Cardinals fell to 1-8.",
-      "original_question": "How many yards were gained on rushing touchdowns that equaled 5 yards or shorter?",
-      "original_answer_data": {
-        "spans": [
-          "8"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 723
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "After a tough win on the road, the Steelers went back home for their second game of the season against the Ravens. Pittsburgh scored first in the first quarter when Ben Roethlisberger found Le'Veon Bell for a 20-yard pass to make it 7-0 and the only score of the period. In the second quarter, the Steelers moved up 14-0 when Bell ran for a 1-yard touchdown. The Ravens got on the board when Joe Flacco found Chris Moore on a 30-yard pass to make it 14-7. The Steelers then moved ahead by double digits again when Chris Boswell put up a 52-yard field goal to make it 17-7. The Ravens then came within 3 when Alex Collins ran for an 18-yard touchdown to make the score 17-14. The Steelers closed out the half with another field goal kicked by Boswell from 43 yards out to make it 20-14 at halftime. In the third quarter, it was all Ravens when they took the lead after scoring 3 times: First when Justin Tucker managed to nail a 47-yard field goal to make it 20-17. This would be followed by Javorious Allen's 1-yard touchdown run as they took the lead 24-20. Flacco then found Patrick Ricard on a 6-yard pass as the Ravens moved up by double digits 31-20. In the fourth quarter, the Steelers managed to come within 2, starting with a 24-yard field goal kicked by Boswell shortening the Ravens' lead to 31-23. This would then be followed up by Roethlisberger connecting with Roosevelt Nix on a 1-yard pass (with a failed 2-point conversion) to make it 31-29. The Ravens managed to pull away when Allen ran for a 9-yard touchdown to make it 38-29. The Steelers then completed the comeback when Bell ran for an 11-yard touchdown to make it 38-36. This would be followed by Boswell kicking a 46-yard field goal to make it 39-38. The Ravens then got the ball back, but Flacco was sacked by T. J. Watt as time expired, sealing the win for the Steelers. With the win, the Steelers improved to 11-2 and were awarded the AFC North division title. The team also managed to win their 9th straight game over a divisional opponent. Pittsburgh notched their first 3-game win streak over the Ravens since defeating them three times during the 2008 season (including the playoffs). The teams' 77 combined points marked the most in series history. The team also swept the Ravens for the first time since 2008.  With the division clinched, the team would win consecutive titles for the first time since the 2007 and 2008 seasons. The Steelers' second consecutive 11+ point comeback victory marked the first time the Steelers had accomplished this feat since coming back from down 14 against the Denver Broncos on December 7, 1997 and then again from down 14 against the New England Patriots on December 13, 1997.",
-      "original_question": "From what distance were two touchdowns runs scored from?",
-      "original_answer_data": {
-        "spans": [
-          "1-yard"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 609
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In mid-2010, there were 2,754,440 residents in the city proper, while some 4.2 million people lived in the greater Rome area (which can be approximately identified with its administrative metropolitan city, with a population density of about 800 inhab./km\u00b2 stretching over more than 5,000 km\u00b2). Minors (children ages 18 and younger) totalled 17.00% of the population compared to pensioners who number 20.76%. This compares with the Italian average of 18.06% (minors) and 19.94% (pensioners). The average age of a Roman resident is 43 compared to the Italian average of 42. In the five years between 2002 and 2007, the population of Rome grew by 6.54%, while Italy as a whole grew by 3.56%. The current birth rate of Rome is 9.10 births per 1,000 inhabitants compared to the Italian average of 9.45 births.",
-      "original_question": "How many people lived in the city and greater Rome area together?",
-      "original_answer_data": {
-        "spans": [
-          "6954440"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 766
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Still looking for their first win, the Cowboys flew to Reliant Stadium for a Texas rivalry match against the Houston Texans. Dallas trailed early in the second quarter when kicker Neil Rackers hit a 24-yard field goal. Then they took the lead with RB Marion Barber getting a 1-yard TD run, followed by kicker David Buehler's 49-yard field goal. The Cowboys increased their lead in the third quarter when QB Tony Romo completed a 15-yard TD pass to WR Roy E. Williams. Houston replied with Rackers nailing a 30-yard field goal, but Dallas continued to score when Romo found Williams again on a 63-yard TD pass. Then David Buehler made a 40-yard field goal. The Texans would finally score when QB Matt Schaub made a 7-yard TD pass to WR Kevin Walter; the Texans' onside kick attempt was good, but an interception made by Dallas safety Danny McCray ended any chances of a Texans comeback With the win, Dallas went into its bye week at 1-2.",
-      "original_question": "Which team allowed the most points in this game?",
-      "original_answer_data": {
-        "spans": [
-          "Texans"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 190
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off of their road win over the 49ers, the Ravens went home for a Week 6 interconference duel with the winless St. Louis Rams.  With QB Steve McNair out with injuries, back-up Kyle Boller was given the start. In the first quarter, Baltimore took flight early with kicker Matt Stover getting a 43-yard field goal for the only score of the period.  In the second quarter, the Raven continued to take advantage of an injury-plagued Rams team with Stover kicking a 42-yard field goal, along with RB Willis McGahee getting a 6-yard TD run.  In the third quarter, Baltimore increased its lead with Stover nailing a 23-yard field goal.  Afterwards, St. Louis would get its only score of the game as kicker Jeff Wilkins got a 32-yard field goal.  In the fourth quarter, the Ravens sealed their easy win with Stover kicking a 31-yard and a 36-yard field goal. During the win, the Ravens defense forced six turnovers, which included a franchise-best 5 interceptions.",
-      "original_question": "How many field goals between 25 and 45 yards were made?",
-      "original_answer_data": {
-        "spans": [
-          "5"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 82
+      "source": "SimpleQA",
+      "line_number": 668,
+      "original_data": {
+        "metadata": "{'topic': 'Video games', 'answer_type': 'Other', 'urls': ['https://devilmaycry.fandom.com/wiki/Vergil/Quotes', 'https://www.youtube.com/watch?v=QcAmtUQDkRo', 'https://www.youtube.com/watch?v=a59vvygPjBE', 'https://www.youtube.com/watch?v=pzn7ASjlLqo']}",
+        "problem": "What is Vergil's battle quote about bedtime when he stabs the player playing as Nero in Devil May Cry 5?",
+        "answer": "It's past your bedtime",
+        "id": "example_668"
+      }
     }
   ],
   "example_indices": [
-    246,
-    247,
-    248,
-    249,
-    250,
-    251,
-    252,
-    253,
-    254,
-    255
+    98,
+    99,
+    100
   ],
   "results": [
     {
       "success": true,
-      "answer": "Verification: Roscoe Parrish",
-      "output": "ANSWER_START\nVerification: Roscoe Parrish\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_31.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer contains the golden answer as its answer, with the addition of 'Verification:' which does not change the meaning."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Verification:\n\nThe passage states that Rodgers completed 22 of 28 passes. Therefore, the number of passes Rodgers missed is 28 - 22 = 6. The answer is consistent with the passage and the question.",
-      "output": "ANSWER_START\nVerification:\n\nThe passage states that Rodgers completed 22 of 28 passes. Therefore, the number of passes Rodgers missed is 28 - 22 = 6. The answer is consistent with the passage and the question.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_31.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer explains the calculation and arrives at the same answer as the golden answer (6). The system answer contains the golden answer within its explanation."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The passage states the police attempted to arrest Vadakkevittil Muhammed on 10 August 1921. The passage also states that by 8 August 1921, British administration had virtually come to an end in Malappuram. Therefore, the British administration coming to an end in Malappuram happened first. The answer is incorrect.\nFinal Answer: The police attempting to arrest Vadakkevittil Muhammed.",
-      "output": "ANSWER_START\nThe passage states the police attempted to arrest Vadakkevittil Muhammed on 10 August 1921. The passage also states that by 8 August 1921, British administration had virtually come to an end in Malappuram. Therefore, the British administration coming to an end in Malappuram happened first. The answer is incorrect.\nFinal Answer: The police attempting to arrest Vadakkevittil Muhammed.\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_31.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer identifies the event of 'The police attempting to arrest Vadakkevittil Muhammed', which is semantically equivalent to the golden answer which states 'On 10 August 1921, the, police attempted to arrest, Vadakkevittil Muhammed'."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Verification: Charleston",
-      "output": "ANSWER_START\nVerification: Charleston\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_31.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers indicate 'Charleston'. The 'System answer' includes 'Verification:' which is extra context but doesn't change the meaning of the actual answer."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The question asks for the number of years between the beginning of the general outbreaks of the plague in the Tudor dynasty and House of Stuart England and the end of those outbreaks with the Great Plague of London. The passage states that the outbreaks began in 1498, 1535, 1543, 1563, 1589, 1603, 1625, and 1636, and ended in 1665. To find the number of years, we should subtract the first year of the outbreaks (1498) from the year it ended (1665).\n\n1665 - 1498 = 167\n\nSo, the answer is 167 years.",
-      "output": "ANSWER_START\nThe question asks for the number of years between the beginning of the general outbreaks of the plague in the Tudor dynasty and House of Stuart England and the end of those outbreaks with the Great Plague of London. The passage states that the outbreaks began in 1498, 1535, 1543, 1563, 1589, 1603, 1625, and 1636, and ended in 1665. To find the number of years, we should subtract the first year of the outbreaks (1498) from the year it ended (1665).\n\n1665 - 1498 = 167\n\nSo, the answer is 167 years.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_31.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer explains the reasoning and arrives at the correct numerical answer of 167, which is the same as the golden answer."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Verification:\n\nThe passage states:\n- Marion Barber's 5-yard TD run\n- Matt Leinart got a 3-yard TD run\n\nBoth touchdowns were rushing touchdowns that equaled 5 yards or shorter.\n5 + 3 = 8\nThe answer is 8.\n```\nFinal Answer: The final answer is $\\boxed{8 yards}$",
-      "output": "ANSWER_START\nVerification:\n\nThe passage states:\n- Marion Barber's 5-yard TD run\n- Matt Leinart got a 3-yard TD run\n\nBoth touchdowns were rushing touchdowns that equaled 5 yards or shorter.\n5 + 3 = 8\nThe answer is 8.\n```\nFinal Answer: The final answer is $\\boxed{8 yards}$\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_31.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers provide the same numerical answer, which is 8."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Verification: Correct",
-      "output": "ANSWER_START\nVerification: Correct\n\nANSWER_END\n",
+      "answer": "The Guardian of Piri",
+      "output": "ANSWER_START\nThe Guardian of Piri\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_31.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer indicates a verification status, not the actual answer which is 1-yard."
+        "explanation": "The two answers refer to different names: 'The Guardian of Piri' and 'The Last Sunset'. They do not communicate the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "Verification:\n\nThe question asks for the total number of people living in the city and greater Rome area combined.\nThe passage states: \"In mid-2010, there were 2,754,440 residents in the city proper, while some 4.2 million people lived in the greater Rome area\".\nTo find the total, we need to add these two numbers: 2,754,440 + 4,200,000 = 6,954,440\nThe answer provided, 6,954,440, matches this calculation. The units are people.\n\nFinal Answer: The final answer is correct.",
-      "output": "ANSWER_START\nVerification:\n\nThe question asks for the total number of people living in the city and greater Rome area combined.\nThe passage states: \"In mid-2010, there were 2,754,440 residents in the city proper, while some 4.2 million people lived in the greater Rome area\".\nTo find the total, we need to add these two numbers: 2,754,440 + 4,200,000 = 6,954,440\nThe answer provided, 6,954,440, matches this calculation. The units are people.\n\nFinal Answer: The final answer is correct.\n\nANSWER_END\n",
+      "answer": "5 years",
+      "output": "ANSWER_START\n5 years\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_31.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer correctly calculates and provides the same numerical answer as the golden answer (6954440)."
+        "explanation": "Both answers indicate a duration of 5 years, with the system answer including the unit \"years\" while the golden answer provides just the numerical value. They are semantically equivalent."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "Let's analyze the passage to determine the score and verify the answer.\n\n*   **Dallas Scores:**\n    *   Marion Barber TD run: 6 points + assumed 1 point for extra point = 7 points\n    *   David Buehler field goal: 3 points\n    *   Tony Romo to Roy E. Williams TD: 6 points + assumed 1 point for extra point = 7 points\n    *   Tony Romo to Roy E. Williams TD: 6 points + assumed 1 point for extra point = 7 points\n    *   David Buehler field goal: 3 points\n    *   Total Dallas points: 7 + 3 + 7 + 7 + 3 = 27\n\n*   **Houston Scores:**\n    *   Neil Rackers field goal: 3 points\n    *   Neil Rackers field goal: 3 points\n    *   Matt Schaub to Kevin Walter TD: 6 points + assumed 1 point for extra point = 7 points\n    *   Total Houston points = 3 + 3 + 7 = 13\n\nDallas scored 27 points and Houston scored 13 points. The question asks which team ALLOWED the most points. Dallas allowed 13 points and Houston allowed 27 points. Therefore, the Houston Texans allowed the most points.\n\nThe answer is correct.",
-      "output": "ANSWER_START\nLet's analyze the passage to determine the score and verify the answer.\n\n*   **Dallas Scores:**\n    *   Marion Barber TD run: 6 points + assumed 1 point for extra point = 7 points\n    *   David Buehler field goal: 3 points\n    *   Tony Romo to Roy E. Williams TD: 6 points + assumed 1 point for extra point = 7 points\n    *   Tony Romo to Roy E. Williams TD: 6 points + assumed 1 point for extra point = 7 points\n    *   David Buehler field goal: 3 points\n    *   Total Dallas points: 7 + 3 + 7 + 7 + 3 = 27\n\n*   **Houston Scores:**\n    *   Neil Rackers field goal: 3 points\n    *   Neil Rackers field goal: 3 points\n    *   Matt Schaub to Kevin Walter TD: 6 points + assumed 1 point for extra point = 7 points\n    *   Total Houston points = 3 + 3 + 7 = 13\n\nDallas scored 27 points and Houston scored 13 points. The question asks which team ALLOWED the most points. Dallas allowed 13 points and Houston allowed 27 points. Therefore, the Houston Texans allowed the most points.\n\nThe answer is correct.\n\nANSWER_END\n",
+      "answer": "You're just dead weight.",
+      "output": "ANSWER_START\nYou're just dead weight.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_31.jsonl",
       "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer explains the reasoning and arrives at the correct conclusion, which is that the Houston Texans allowed the most points, which is the meaning conveyed by the golden answer 'Texans'."
+        "match": false,
+        "confidence": 0.0,
+        "explanation": "The two answers do not communicate the same information. 'You're just dead weight' implies uselessness, while 'It's past your bedtime' suggests it's time for someone to sleep."
       },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The passage mentions the following field goals:\n- 43-yard (Stover) - between 25 and 45\n- 42-yard (Stover) - between 25 and 45\n- 23-yard (Stover) - not between 25 and 45\n- 32-yard (Wilkins) - between 25 and 45\n- 31-yard (Stover) - between 25 and 45\n- 36-yard (Stover) - between 25 and 45\n\nThere are five field goals between 25 and 45 yards.\n\nVerification: 5",
-      "output": "ANSWER_START\nThe passage mentions the following field goals:\n- 43-yard (Stover) - between 25 and 45\n- 42-yard (Stover) - between 25 and 45\n- 23-yard (Stover) - not between 25 and 45\n- 32-yard (Wilkins) - between 25 and 45\n- 31-yard (Stover) - between 25 and 45\n- 36-yard (Stover) - between 25 and 45\n\nThere are five field goals between 25 and 45 yards.\n\nVerification: 5\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_31.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer correctly identifies the relevant information in the passage and arrives at the correct final answer of 5, which matches the golden answer."
-      },
-      "match": true
+      "match": false
     }
   ],
   "performance": {
-    "accuracy": 0.9,
-    "correct_count": 9,
-    "total_count": 10,
+    "accuracy": 0.3333333333333333,
+    "correct_count": 1,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Verification: Roscoe Parrish",
-        "golden_answer": "Roscoe Parrish",
-        "output": "ANSWER_START\nVerification: Roscoe Parrish\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "The Guardian of Piri",
+        "golden_answer": "\"The Last Sunset\"",
+        "output": "ANSWER_START\nThe Guardian of Piri\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer contains the golden answer as its answer, with the addition of 'Verification:' which does not change the meaning."
-        }
+          "explanation": "The two answers refer to different names: 'The Guardian of Piri' and 'The Last Sunset'. They do not communicate the same information."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "Verification:\n\nThe passage states that Rodgers completed 22 of 28 passes. Therefore, the number of passes Rodgers missed is 28 - 22 = 6. The answer is consistent with the passage and the question.",
-        "golden_answer": "6",
-        "output": "ANSWER_START\nVerification:\n\nThe passage states that Rodgers completed 22 of 28 passes. Therefore, the number of passes Rodgers missed is 28 - 22 = 6. The answer is consistent with the passage and the question.\n\nANSWER_END\n",
+        "system_answer": "5 years",
+        "golden_answer": "5",
+        "output": "ANSWER_START\n5 years\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer explains the calculation and arrives at the same answer as the golden answer (6). The system answer contains the golden answer within its explanation."
+          "explanation": "Both answers indicate a duration of 5 years, with the system answer including the unit \"years\" while the golden answer provides just the numerical value. They are semantically equivalent."
         }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "The passage states the police attempted to arrest Vadakkevittil Muhammed on 10 August 1921. The passage also states that by 8 August 1921, British administration had virtually come to an end in Malappuram. Therefore, the British administration coming to an end in Malappuram happened first. The answer is incorrect.\nFinal Answer: The police attempting to arrest Vadakkevittil Muhammed.",
-        "golden_answer": "On 10 August 1921, the, police attempted to arrest, Vadakkevittil Muhammed,",
-        "output": "ANSWER_START\nThe passage states the police attempted to arrest Vadakkevittil Muhammed on 10 August 1921. The passage also states that by 8 August 1921, British administration had virtually come to an end in Malappuram. Therefore, the British administration coming to an end in Malappuram happened first. The answer is incorrect.\nFinal Answer: The police attempting to arrest Vadakkevittil Muhammed.\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer identifies the event of 'The police attempting to arrest Vadakkevittil Muhammed', which is semantically equivalent to the golden answer which states 'On 10 August 1921, the, police attempted to arrest, Vadakkevittil Muhammed'."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "Verification: Charleston",
-        "golden_answer": "Charleston",
-        "output": "ANSWER_START\nVerification: Charleston\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers indicate 'Charleston'. The 'System answer' includes 'Verification:' which is extra context but doesn't change the meaning of the actual answer."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "The question asks for the number of years between the beginning of the general outbreaks of the plague in the Tudor dynasty and House of Stuart England and the end of those outbreaks with the Great Plague of London. The passage states that the outbreaks began in 1498, 1535, 1543, 1563, 1589, 1603, 1625, and 1636, and ended in 1665. To find the number of years, we should subtract the first year of the outbreaks (1498) from the year it ended (1665).\n\n1665 - 1498 = 167\n\nSo, the answer is 167 years.",
-        "golden_answer": "167",
-        "output": "ANSWER_START\nThe question asks for the number of years between the beginning of the general outbreaks of the plague in the Tudor dynasty and House of Stuart England and the end of those outbreaks with the Great Plague of London. The passage states that the outbreaks began in 1498, 1535, 1543, 1563, 1589, 1603, 1625, and 1636, and ended in 1665. To find the number of years, we should subtract the first year of the outbreaks (1498) from the year it ended (1665).\n\n1665 - 1498 = 167\n\nSo, the answer is 167 years.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer explains the reasoning and arrives at the correct numerical answer of 167, which is the same as the golden answer."
-        }
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "Verification:\n\nThe passage states:\n- Marion Barber's 5-yard TD run\n- Matt Leinart got a 3-yard TD run\n\nBoth touchdowns were rushing touchdowns that equaled 5 yards or shorter.\n5 + 3 = 8\nThe answer is 8.\n```\nFinal Answer: The final answer is $\\boxed{8 yards}$",
-        "golden_answer": "8",
-        "output": "ANSWER_START\nVerification:\n\nThe passage states:\n- Marion Barber's 5-yard TD run\n- Matt Leinart got a 3-yard TD run\n\nBoth touchdowns were rushing touchdowns that equaled 5 yards or shorter.\n5 + 3 = 8\nThe answer is 8.\n```\nFinal Answer: The final answer is $\\boxed{8 yards}$\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers provide the same numerical answer, which is 8."
-        }
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "Verification: Correct",
-        "golden_answer": "1-yard",
-        "output": "ANSWER_START\nVerification: Correct\n\nANSWER_END\n",
+        "system_answer": "You're just dead weight.",
+        "golden_answer": "It's past your bedtime",
+        "output": "ANSWER_START\nYou're just dead weight.\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
-          "confidence": 1,
-          "explanation": "The system answer indicates a verification status, not the actual answer which is 1-yard."
+          "confidence": 0.0,
+          "explanation": "The two answers do not communicate the same information. 'You're just dead weight' implies uselessness, while 'It's past your bedtime' suggests it's time for someone to sleep."
         },
         "capability_failures": []
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "Verification:\n\nThe question asks for the total number of people living in the city and greater Rome area combined.\nThe passage states: \"In mid-2010, there were 2,754,440 residents in the city proper, while some 4.2 million people lived in the greater Rome area\".\nTo find the total, we need to add these two numbers: 2,754,440 + 4,200,000 = 6,954,440\nThe answer provided, 6,954,440, matches this calculation. The units are people.\n\nFinal Answer: The final answer is correct.",
-        "golden_answer": "6954440",
-        "output": "ANSWER_START\nVerification:\n\nThe question asks for the total number of people living in the city and greater Rome area combined.\nThe passage states: \"In mid-2010, there were 2,754,440 residents in the city proper, while some 4.2 million people lived in the greater Rome area\".\nTo find the total, we need to add these two numbers: 2,754,440 + 4,200,000 = 6,954,440\nThe answer provided, 6,954,440, matches this calculation. The units are people.\n\nFinal Answer: The final answer is correct.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer correctly calculates and provides the same numerical answer as the golden answer (6954440)."
-        }
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "Let's analyze the passage to determine the score and verify the answer.\n\n*   **Dallas Scores:**\n    *   Marion Barber TD run: 6 points + assumed 1 point for extra point = 7 points\n    *   David Buehler field goal: 3 points\n    *   Tony Romo to Roy E. Williams TD: 6 points + assumed 1 point for extra point = 7 points\n    *   Tony Romo to Roy E. Williams TD: 6 points + assumed 1 point for extra point = 7 points\n    *   David Buehler field goal: 3 points\n    *   Total Dallas points: 7 + 3 + 7 + 7 + 3 = 27\n\n*   **Houston Scores:**\n    *   Neil Rackers field goal: 3 points\n    *   Neil Rackers field goal: 3 points\n    *   Matt Schaub to Kevin Walter TD: 6 points + assumed 1 point for extra point = 7 points\n    *   Total Houston points = 3 + 3 + 7 = 13\n\nDallas scored 27 points and Houston scored 13 points. The question asks which team ALLOWED the most points. Dallas allowed 13 points and Houston allowed 27 points. Therefore, the Houston Texans allowed the most points.\n\nThe answer is correct.",
-        "golden_answer": "Texans",
-        "output": "ANSWER_START\nLet's analyze the passage to determine the score and verify the answer.\n\n*   **Dallas Scores:**\n    *   Marion Barber TD run: 6 points + assumed 1 point for extra point = 7 points\n    *   David Buehler field goal: 3 points\n    *   Tony Romo to Roy E. Williams TD: 6 points + assumed 1 point for extra point = 7 points\n    *   Tony Romo to Roy E. Williams TD: 6 points + assumed 1 point for extra point = 7 points\n    *   David Buehler field goal: 3 points\n    *   Total Dallas points: 7 + 3 + 7 + 7 + 3 = 27\n\n*   **Houston Scores:**\n    *   Neil Rackers field goal: 3 points\n    *   Neil Rackers field goal: 3 points\n    *   Matt Schaub to Kevin Walter TD: 6 points + assumed 1 point for extra point = 7 points\n    *   Total Houston points = 3 + 3 + 7 = 13\n\nDallas scored 27 points and Houston scored 13 points. The question asks which team ALLOWED the most points. Dallas allowed 13 points and Houston allowed 27 points. Therefore, the Houston Texans allowed the most points.\n\nThe answer is correct.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer explains the reasoning and arrives at the correct conclusion, which is that the Houston Texans allowed the most points, which is the meaning conveyed by the golden answer 'Texans'."
-        }
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "The passage mentions the following field goals:\n- 43-yard (Stover) - between 25 and 45\n- 42-yard (Stover) - between 25 and 45\n- 23-yard (Stover) - not between 25 and 45\n- 32-yard (Wilkins) - between 25 and 45\n- 31-yard (Stover) - between 25 and 45\n- 36-yard (Stover) - between 25 and 45\n\nThere are five field goals between 25 and 45 yards.\n\nVerification: 5",
-        "golden_answer": "5",
-        "output": "ANSWER_START\nThe passage mentions the following field goals:\n- 43-yard (Stover) - between 25 and 45\n- 42-yard (Stover) - between 25 and 45\n- 23-yard (Stover) - not between 25 and 45\n- 32-yard (Wilkins) - between 25 and 45\n- 31-yard (Stover) - between 25 and 45\n- 36-yard (Stover) - between 25 and 45\n\nThere are five field goals between 25 and 45 yards.\n\nVerification: 5\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer correctly identifies the relevant information in the passage and arrives at the correct final answer of 5, which matches the golden answer."
-        }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nNone\n\n## STRENGTHS\n1.  **Information Extraction:** The system is generally good at extracting relevant information from the passage, as demonstrated by its success in calculating the number of field goals within a specific range or identifying the teams and their scores.\n2.  **Reasoning Ability:** The system can perform basic calculations and comparisons based on the extracted information. This is seen in the successful cases where it calculates the difference between two numbers or identifies which team allowed the most points.\n\n## WEAKNESSES\n1.  **Answer Formatting and Completeness:** The system sometimes provides answers with unnecessary prefixes (\"Verification:\") or fails to extract the actual desired answer, only providing a verification status. This indicates a problem in the final answer generation step.\n2.  **Lack of Contextual Awareness:** While the system can extract relevant information, it sometimes struggles to connect the dots or synthesize the information into a concise answer, especially when the question requires a specific format.\n\n## CRITICAL BOTTLENECKS\n1.  **Final Answer Generation:** The primary bottleneck is the system's inability to reliably format and output the desired answer in the correct format, even when it has correctly identified or calculated the answer internally. The added \"Verification:\" suggests that the program is trying to verify correctness, but fails to output what it has verified.\n\n## ERROR PATTERNS\n1.  **\"Verification:\" Prefix:** In several successful cases, the system prepends \"Verification:\" to the answer, which isn't always required or ideal. In the error case, this prefix is the *entire* answer, meaning the actual information is lost.\n\n## PRIMARY ISSUE\nThe most critical problem is the failure to output the *actual* answer, instead providing only a \"Verification: Correct\" response. This occurs even when the system appears to have correctly processed the question and located the relevant information within the passage. This suggests a final step error where the actual answer is not being extracted from the internal representation and displayed as the final output.\n\n## IMPROVEMENT AREAS\n1.  **Answer Extraction and Formatting:** The system needs a more robust mechanism to extract and format the final answer in the exact required format. This might involve more precise instructions or post-processing to remove unnecessary prefixes/suffixes.\n2.  **Template Handling:** If using templates for generating answers, ensure the templates are correctly filled with the extracted information, and that templates are not being misidentified causing the verification response when the answer is required.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Refine Answer Extraction Logic:** Review the code responsible for extracting the final answer from the reasoning process. Ensure that the relevant variables are correctly accessed and formatted for output.\n2.  **Remove Unnecessary Verification Step:** If the verification step is not providing useful information to the user, consider removing it or making it optional. The focus should be on presenting the answer directly.\n3.  **Implement Output Formatting Rules:** Define specific output formatting rules for different question types. For example, numerical answers should be presented without any prefixes, while entity-based answers should directly name the entity.\n4.  **Add Unit Tests:** Write unit tests to verify that the answer extraction and formatting logic produces the expected output for various question types and passage scenarios. Pay specific attention to boundary conditions and edge cases.\n\n## CAPABILITY MAPPING\n*   **Sample ID 6:**\n    *   information\\_extraction: Successful\n    *   constraint\\_handling: Successful (identifying touchdown runs)\n    *   solution\\_generation: Potentially successful (identifying 1-yard)\n    *   solution\\_verification: Possibly successful (identifying that it is correct)\n    *   decision\\_making: Failed (did not output the actual answer)\n",
+      "text_report": "## RUNTIME ERRORS\n\nNo runtime errors (e.g., JSONDecodeError, TypeError) were found in the provided output fields. This suggests that the code execution itself is not the primary source of the errors.\n\n## STRENGTHS\n\n1.  **Numerical Answer Handling:** The system correctly handles numerical answers and can even include the unit when appropriate (e.g., \"5 years\" in sample 1), indicating a degree of understanding about answer context.\n2.  **Semantic Equivalence Recognition:** The system can identify semantic equivalence between answers presented with slightly different wording (e.g., \"5 years\" vs \"5\").\n\n## WEAKNESSES\n\n1.  **Inability to Discriminate Between Similar Information:** The system struggles to differentiate between answers that are relevant but ultimately incorrect, choosing a plausible but wrong answer over the actual correct one. This suggests a problem with nuanced information recall or filtering.\n2.  **Lack of Contextual Understanding:** The system appears to lack a deep understanding of context within the questions, specifically related to nuances of quotes or episode titles.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Insufficiently Precise Information Retrieval:** The system retrieves information related to the question topic but fails to pinpoint the *exact* answer required. It's likely pulling candidate answers that are too broad or generic.\n2.  **Weak Contextual Reasoning:** The system struggles to properly understand the nuanced context of questions, particularly those involving quotes or specific episodes of a series.\n\n## ERROR PATTERNS\n\nThe consistent pattern across the error cases is the selection of a relevant but incorrect answer. The system seems to be retrieving information based on keywords but lacks the ability to filter and prioritize the precise information needed.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the system's **failure to perform precise information retrieval based on contextual understanding.** This leads to the selection of plausible but ultimately incorrect answers. The system's information retrieval process must be refined to consider the specific context and constraints presented in the question.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Retrieval Precision:** Improve the system's ability to retrieve the most precise information from a knowledge base based on the question's context.\n2.  **Contextual Understanding:** Enhance the system's understanding of context, particularly when dealing with quotes, specific episodes of a series, or nuanced descriptions.\n3.  **Answer Verification Rigor:** Strengthen the verification process to rigorously compare candidate answers against the specific criteria established in the question.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Refine Information Retrieval Queries:** Modify the information retrieval queries to include more specific keywords and constraints derived from the question. For example, when the question includes \"Series 1, Episode 17\", ensure that this information is explicitly included in the search query.\n2.  **Implement a Multi-Stage Filtering Process:** Add a filtering stage after the initial information retrieval to remove candidate answers that do not precisely match the question's constraints. This could involve using techniques like semantic similarity comparison or rule-based filtering.\n3.  **Incorporate Contextual Reasoning:** Incorporate contextual reasoning techniques such as using question answering models capable of understanding the nuances of the question, and then comparing the extracted answer from the model to the answer directly obtained.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   information_extraction: Partially successful (extracted relevant information about *Space: 1999*)\n    *   solution_generation: Incorrect (generated a plausible but wrong answer)\n    *   solution_verification: Failed (did not verify that the answer matched the specific episode number)\n    *   decision_making: Failed (chose the incorrect answer)\n\n*   **Sample ID 2:**\n    *   information_extraction: Partially successful (extracted relevant information about *Devil May Cry 5* and Vergil)\n    *   solution_generation: Incorrect (generated a plausible but wrong answer)\n    *   solution_verification: Failed (did not verify that the answer was specifically about Nero and bedtime)\n    *   decision_making: Failed (chose the incorrect answer)\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The most critical problem is the failure to output the *actual* answer, instead providing only a \"Verification: Correct\" response. This occurs even when the system appears to have correctly processed the question and located the relevant information within the passage. This suggests a final step error where the actual answer is not being extracted from the internal representation and displayed as the final output.",
+      "primary_issue": "The most critical problem is the system's **failure to perform precise information retrieval based on contextual understanding.** This leads to the selection of plausible but ultimately incorrect answers. The system's information retrieval process must be refined to consider the specific context and constraints presented in the question.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## AI System Capability Report\n\nBased on the provided performance summary, error analysis, and sample execution outputs, here's a comprehensive capability assessment for your AI system:\n\n### EXECUTION ANALYSIS\n\nThe execution outputs confirm the analysis provided in the problem description.  Here's a breakdown:\n\n*   **Sample 1 (\"Roscoe Parrish\"):** The system appears to correctly identify \"Roscoe Parrish\" as relevant but fails to provide it directly as the answer. Instead, it prefixes it with \"Verification:\". This indicates a potential problem in answer formatting or template usage.\n*   **Sample 2 (\"Passes Rodgers Missed\"):** This output is verbose and provides a complete explanation of the reasoning, which is good. However, it doesn't extract *just* the answer (6). It explains how the answer was derived. While not *wrong*, it demonstrates an inconsistency in how the system presents its answers.  It suggests the system *can* do calculations and reason, but doesn't know *when* to provide the raw answer vs. the full explanation.\n*   **Sample 3 (\"Vadakkevittil Muhammed\"):** This output is a mix of positive and negative. The system initially states that the answer is *incorrect*, but then provides an alternative, which is positive. This suggests a possible issue in the reasoning or fact verification stage. The system does eventually provide a suitable response, but there is a mis-step in the process.\n\n**Overall observations:**\n\n*   The \"Verification:\" prefix is a recurring issue and is often unnecessary and even, in some cases, *harmful* when it masks the desired answer.\n*   The system sometimes provides verbose, explanation-driven outputs, even when only the final answer is required.\n*   The reasoning appears mostly sound, but the initial assessment of correctness can be flawed, leading to a potentially misleading response.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates good *potential* for information extraction and basic reasoning. However, its reliability is hampered by issues in answer formatting, output control, and sometimes a flawed initial assessment of the correctness of the answer. The system seems to struggle with distinguishing when an explanation is needed versus when the direct answer should be returned.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** It identifies and extracts relevant information from the input text.\n*   **Reasoning:** It can perform calculations and logical comparisons to answer questions.\n*   **Potential for Accuracy:** The 90% accuracy rate, despite output issues, indicates a strong underlying capability.\n\n### KEY WEAKNESSES\n\n*   **Answer Formatting/Extraction:** Fails to consistently extract *only* the required answer in the correct format, often prepending with \"Verification:\" or providing verbose explanations when not needed.\n*   **Inconsistent Output:** The verbosity and style of answers vary significantly, even for similar question types.\n*   **Flawed Initial Verification:** The initial assessment of correctness can be incorrect, potentially leading to misleading responses.\n\n### IMPROVEMENT FOCUS\n\nThe primary focus should be on **Answer Formatting and Extraction.** This single change will likely have the most significant positive impact on the system's usability and reliability. Getting the right information is only half the battle; the system must communicate it clearly and concisely.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Strict Output Formatting Rules:** Define explicit formatting rules for each question type. For example:\n    *   Numerical answers: Output only the number.\n    *   Entity answers (names, dates, places): Output only the entity name.\n    *   Explanatory answers:  Have a boolean parameter for *requiring* the explanation, if this exists.\n2.  **Eliminate Unnecessary \"Verification:\" Prefix:**  Completely remove the \"Verification:\" prefix unless there's a *specific*, documented reason to include it (e.g., explicitly requested by the user in a debug mode). Remove it entirely from a production version of the code.\n3.  **Refactor Answer Extraction Logic:** The code responsible for extracting the final answer needs to be thoroughly reviewed. Ensure that it's accessing the correct variables and that it's designed to extract *only* the necessary information. Ensure proper isolation of this section from other parts of the code.\n4.  **Add Answer Validation Step (Post-Extraction):** After extracting the answer, add a quick validation step to ensure that it conforms to the expected format for the question type. This could include checking for numerical values, removing extraneous characters, etc.\n5.  **Implement Unit Tests for Answer Formatting:** Create a comprehensive suite of unit tests specifically designed to verify the output formatting for different question types and scenarios. This will help prevent regressions as the system evolves.\n6.  **Review the Reasoning/Fact Verification step**: Check for inconsistencies in the reasoning process to ensure correct assessment of the correctness of the answer.\n\n### CAPABILITY TREND\n\nBased on the error analysis and execution outputs, the capabilities appear to be **stable but underperforming.** The system has a solid foundation in information extraction and reasoning, but the output issues prevent it from reaching its full potential. Addressing the answer formatting and extraction problems will likely lead to a significant improvement in perceived accuracy and usability.\n",
+      "text_report": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and your instructions.\n\n### EXECUTION ANALYSIS\n\nThe raw execution outputs reveal the following:\n\n*   **`ANSWER_START` and `ANSWER_END` Markers:** The presence of `ANSWER_START` and `ANSWER_END` suggests a consistent output formatting mechanism. This is good for parsing and downstream processing.\n*   **Answer Length Variation:** The answers vary in length, from a short numerical value (\"5 years\") to a longer quote (\"You're just dead weight.\") to a longer string of characters (\"The Guardian of Piri\"). The system can seemingly handle a range of output lengths and datatypes.\n*   **Lack of Formatting within Answers:** There's no formatting (e.g., bolding, italics) within the extracted answers. This may or may not be a weakness, depending on the task requirements.\n*   **Evidence of Information Extraction:** In each case, the system has extracted *something* related to the question. The problem isn't a complete failure to retrieve information; rather, it's retrieving the *wrong* information or incomplete information.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates basic information retrieval and answer generation capabilities. It can identify relevant entities and concepts within questions, extract corresponding information, and format it according to predefined markers. However, its accuracy is significantly hampered by a lack of precision in information retrieval and an inadequate understanding of context. The system struggles to discriminate between plausible but incorrect answers and the actual correct answer.\n\n### KEY STRENGTHS\n\n*   **Output Formatting:** The system consistently uses `ANSWER_START` and `ANSWER_END` markers, facilitating reliable parsing.\n*   **Handling of Numerical and Textual Answers:** The system can extract and present both numerical and textual answers, including units.\n*   **Semantic Understanding:** The system can understand and identify semantic equivalence between answers, as seen with '5 years' vs '5'.\n\n### KEY WEAKNESSES\n\n*   **Precise Information Retrieval:** The system frequently returns plausible but incorrect answers, indicating a lack of precision in its retrieval mechanism. This is the single most impactful weakness.\n*   **Contextual Reasoning:** The system's understanding of question context is limited, leading to errors in question answering tasks with subtle nuances.\n*   **Answer Verification:** The system lacks a robust verification step to ensure that the generated answer precisely matches the question's constraints.\n\n### IMPROVEMENT FOCUS\n\nThe **single most important capability to focus on improving** is **Precise Information Retrieval**. Addressing this weakness will have the most significant impact on the system's overall accuracy and performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\nTo improve the precision of information retrieval, implement the following changes in the next iteration:\n\n1.  **Query Expansion with Contextual Keywords:** When constructing retrieval queries, include not only the primary keywords from the question but also keywords that capture the contextual nuances. For example, if the question mentions \"Series 1, Episode 17\", ensure these are explicitly included in the query. If a quote is present, include that quote, along with who said it. This forces the system to search within a more specific context.\n2.  **Implement a Re-ranking Stage Based on Semantic Similarity:** After the initial retrieval, implement a re-ranking stage that uses semantic similarity to rank candidate answers based on their alignment with the question's overall meaning and constraints. This could involve using pre-trained language models to calculate semantic similarity scores between the question and each candidate answer. Answers with higher scores should be prioritized.\n3.  **Introduce a Filtering Mechanism Based on Entity Matching:** Implement a filtering mechanism that checks for the presence of key entities (e.g., specific episode titles, character names) mentioned in the question within the candidate answers. Discard any answers that do not contain these entities. This will help eliminate irrelevant or less precise answers.\n\n### CAPABILITY TREND\n\nBased on the low accuracy score (0.33), the system's capabilities are currently **stable but low**. Without targeted improvements, the system will likely continue to produce similar results, resulting in consistent errors. The suggested improvements aim to shift the trend towards **improving** by enhancing the precision and context-awareness of the information retrieval process.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nNone\n\n## STRENGTHS\n1.  **Information Extraction:** The system is generally good at extracting relevant information from the passage, as demonstrated by its success in calculating the number of field goals within a specific range or identifying the teams and their scores.\n2.  **Reasoning Ability:** The system can perform basic calculations and comparisons based on the extracted information. This is seen in the successful cases where it calculates the difference between two numbers or identifies which team allowed the most points.\n\n## WEAKNESSES\n1.  **Answer Formatting and Completeness:** The system sometimes provides answers with unnecessary prefixes (\"Verification:\") or fails to extract the actual desired answer, only providing a verification status. This indicates a problem in the final answer generation step.\n2.  **Lack of Contextual Awareness:** While the system can extract relevant information, it sometimes struggles to connect the dots or synthesize the information into a concise answer, especially when the question requires a specific format.\n\n## CRITICAL BOTTLENECKS\n1.  **Final Answer Generation:** The primary bottleneck is the system's inability to reliably format and output the desired answer in the correct format, even when it has correctly identified or calculated the answer internally. The added \"Verification:\" suggests that the program is trying to verify correctness, but fails to output what it has verified.\n\n## ERROR PATTERNS\n1.  **\"Verification:\" Prefix:** In several successful cases, the system prepends \"Verification:\" to the answer, which isn't always required or ideal. In the error case, this prefix is the *entire* answer, meaning the actual information is lost.\n\n## PRIMARY ISSUE\nThe most critical problem is the failure to output the *actual* answer, instead providing only a \"Verification: Correct\" response. This occurs even when the system appears to have correctly processed the question and located the relevant information within the passage. This suggests a final step error where the actual answer is not being extracted from the internal representation and displayed as the final output.\n\n## IMPROVEMENT AREAS\n1.  **Answer Extraction and Formatting:** The system needs a more robust mechanism to extract and format the final answer in the exact required format. This might involve more precise instructions or post-processing to remove unnecessary prefixes/suffixes.\n2.  **Template Handling:** If using templates for generating answers, ensure the templates are correctly filled with the extracted information, and that templates are not being misidentified causing the verification response when the answer is required.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Refine Answer Extraction Logic:** Review the code responsible for extracting the final answer from the reasoning process. Ensure that the relevant variables are correctly accessed and formatted for output.\n2.  **Remove Unnecessary Verification Step:** If the verification step is not providing useful information to the user, consider removing it or making it optional. The focus should be on presenting the answer directly.\n3.  **Implement Output Formatting Rules:** Define specific output formatting rules for different question types. For example, numerical answers should be presented without any prefixes, while entity-based answers should directly name the entity.\n4.  **Add Unit Tests:** Write unit tests to verify that the answer extraction and formatting logic produces the expected output for various question types and passage scenarios. Pay specific attention to boundary conditions and edge cases.\n\n## CAPABILITY MAPPING\n*   **Sample ID 6:**\n    *   information\\_extraction: Successful\n    *   constraint\\_handling: Successful (identifying touchdown runs)\n    *   solution\\_generation: Potentially successful (identifying 1-yard)\n    *   solution\\_verification: Possibly successful (identifying that it is correct)\n    *   decision\\_making: Failed (did not output the actual answer)\n",
-    "capability_report_text": "## AI System Capability Report\n\nBased on the provided performance summary, error analysis, and sample execution outputs, here's a comprehensive capability assessment for your AI system:\n\n### EXECUTION ANALYSIS\n\nThe execution outputs confirm the analysis provided in the problem description.  Here's a breakdown:\n\n*   **Sample 1 (\"Roscoe Parrish\"):** The system appears to correctly identify \"Roscoe Parrish\" as relevant but fails to provide it directly as the answer. Instead, it prefixes it with \"Verification:\". This indicates a potential problem in answer formatting or template usage.\n*   **Sample 2 (\"Passes Rodgers Missed\"):** This output is verbose and provides a complete explanation of the reasoning, which is good. However, it doesn't extract *just* the answer (6). It explains how the answer was derived. While not *wrong*, it demonstrates an inconsistency in how the system presents its answers.  It suggests the system *can* do calculations and reason, but doesn't know *when* to provide the raw answer vs. the full explanation.\n*   **Sample 3 (\"Vadakkevittil Muhammed\"):** This output is a mix of positive and negative. The system initially states that the answer is *incorrect*, but then provides an alternative, which is positive. This suggests a possible issue in the reasoning or fact verification stage. The system does eventually provide a suitable response, but there is a mis-step in the process.\n\n**Overall observations:**\n\n*   The \"Verification:\" prefix is a recurring issue and is often unnecessary and even, in some cases, *harmful* when it masks the desired answer.\n*   The system sometimes provides verbose, explanation-driven outputs, even when only the final answer is required.\n*   The reasoning appears mostly sound, but the initial assessment of correctness can be flawed, leading to a potentially misleading response.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates good *potential* for information extraction and basic reasoning. However, its reliability is hampered by issues in answer formatting, output control, and sometimes a flawed initial assessment of the correctness of the answer. The system seems to struggle with distinguishing when an explanation is needed versus when the direct answer should be returned.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** It identifies and extracts relevant information from the input text.\n*   **Reasoning:** It can perform calculations and logical comparisons to answer questions.\n*   **Potential for Accuracy:** The 90% accuracy rate, despite output issues, indicates a strong underlying capability.\n\n### KEY WEAKNESSES\n\n*   **Answer Formatting/Extraction:** Fails to consistently extract *only* the required answer in the correct format, often prepending with \"Verification:\" or providing verbose explanations when not needed.\n*   **Inconsistent Output:** The verbosity and style of answers vary significantly, even for similar question types.\n*   **Flawed Initial Verification:** The initial assessment of correctness can be incorrect, potentially leading to misleading responses.\n\n### IMPROVEMENT FOCUS\n\nThe primary focus should be on **Answer Formatting and Extraction.** This single change will likely have the most significant positive impact on the system's usability and reliability. Getting the right information is only half the battle; the system must communicate it clearly and concisely.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Strict Output Formatting Rules:** Define explicit formatting rules for each question type. For example:\n    *   Numerical answers: Output only the number.\n    *   Entity answers (names, dates, places): Output only the entity name.\n    *   Explanatory answers:  Have a boolean parameter for *requiring* the explanation, if this exists.\n2.  **Eliminate Unnecessary \"Verification:\" Prefix:**  Completely remove the \"Verification:\" prefix unless there's a *specific*, documented reason to include it (e.g., explicitly requested by the user in a debug mode). Remove it entirely from a production version of the code.\n3.  **Refactor Answer Extraction Logic:** The code responsible for extracting the final answer needs to be thoroughly reviewed. Ensure that it's accessing the correct variables and that it's designed to extract *only* the necessary information. Ensure proper isolation of this section from other parts of the code.\n4.  **Add Answer Validation Step (Post-Extraction):** After extracting the answer, add a quick validation step to ensure that it conforms to the expected format for the question type. This could include checking for numerical values, removing extraneous characters, etc.\n5.  **Implement Unit Tests for Answer Formatting:** Create a comprehensive suite of unit tests specifically designed to verify the output formatting for different question types and scenarios. This will help prevent regressions as the system evolves.\n6.  **Review the Reasoning/Fact Verification step**: Check for inconsistencies in the reasoning process to ensure correct assessment of the correctness of the answer.\n\n### CAPABILITY TREND\n\nBased on the error analysis and execution outputs, the capabilities appear to be **stable but underperforming.** The system has a solid foundation in information extraction and reasoning, but the output issues prevent it from reaching its full potential. Addressing the answer formatting and extraction problems will likely lead to a significant improvement in perceived accuracy and usability.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\n\nNo runtime errors (e.g., JSONDecodeError, TypeError) were found in the provided output fields. This suggests that the code execution itself is not the primary source of the errors.\n\n## STRENGTHS\n\n1.  **Numerical Answer Handling:** The system correctly handles numerical answers and can even include the unit when appropriate (e.g., \"5 years\" in sample 1), indicating a degree of understanding about answer context.\n2.  **Semantic Equivalence Recognition:** The system can identify semantic equivalence between answers presented with slightly different wording (e.g., \"5 years\" vs \"5\").\n\n## WEAKNESSES\n\n1.  **Inability to Discriminate Between Similar Information:** The system struggles to differentiate between answers that are relevant but ultimately incorrect, choosing a plausible but wrong answer over the actual correct one. This suggests a problem with nuanced information recall or filtering.\n2.  **Lack of Contextual Understanding:** The system appears to lack a deep understanding of context within the questions, specifically related to nuances of quotes or episode titles.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Insufficiently Precise Information Retrieval:** The system retrieves information related to the question topic but fails to pinpoint the *exact* answer required. It's likely pulling candidate answers that are too broad or generic.\n2.  **Weak Contextual Reasoning:** The system struggles to properly understand the nuanced context of questions, particularly those involving quotes or specific episodes of a series.\n\n## ERROR PATTERNS\n\nThe consistent pattern across the error cases is the selection of a relevant but incorrect answer. The system seems to be retrieving information based on keywords but lacks the ability to filter and prioritize the precise information needed.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the system's **failure to perform precise information retrieval based on contextual understanding.** This leads to the selection of plausible but ultimately incorrect answers. The system's information retrieval process must be refined to consider the specific context and constraints presented in the question.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Retrieval Precision:** Improve the system's ability to retrieve the most precise information from a knowledge base based on the question's context.\n2.  **Contextual Understanding:** Enhance the system's understanding of context, particularly when dealing with quotes, specific episodes of a series, or nuanced descriptions.\n3.  **Answer Verification Rigor:** Strengthen the verification process to rigorously compare candidate answers against the specific criteria established in the question.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Refine Information Retrieval Queries:** Modify the information retrieval queries to include more specific keywords and constraints derived from the question. For example, when the question includes \"Series 1, Episode 17\", ensure that this information is explicitly included in the search query.\n2.  **Implement a Multi-Stage Filtering Process:** Add a filtering stage after the initial information retrieval to remove candidate answers that do not precisely match the question's constraints. This could involve using techniques like semantic similarity comparison or rule-based filtering.\n3.  **Incorporate Contextual Reasoning:** Incorporate contextual reasoning techniques such as using question answering models capable of understanding the nuances of the question, and then comparing the extracted answer from the model to the answer directly obtained.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   information_extraction: Partially successful (extracted relevant information about *Space: 1999*)\n    *   solution_generation: Incorrect (generated a plausible but wrong answer)\n    *   solution_verification: Failed (did not verify that the answer matched the specific episode number)\n    *   decision_making: Failed (chose the incorrect answer)\n\n*   **Sample ID 2:**\n    *   information_extraction: Partially successful (extracted relevant information about *Devil May Cry 5* and Vergil)\n    *   solution_generation: Incorrect (generated a plausible but wrong answer)\n    *   solution_verification: Failed (did not verify that the answer was specifically about Nero and bedtime)\n    *   decision_making: Failed (chose the incorrect answer)\n",
+    "capability_report_text": "## AI System Capability Report\n\nHere's a comprehensive capability assessment of the AI system based on the provided performance summary, error analysis, sample execution outputs, and your instructions.\n\n### EXECUTION ANALYSIS\n\nThe raw execution outputs reveal the following:\n\n*   **`ANSWER_START` and `ANSWER_END` Markers:** The presence of `ANSWER_START` and `ANSWER_END` suggests a consistent output formatting mechanism. This is good for parsing and downstream processing.\n*   **Answer Length Variation:** The answers vary in length, from a short numerical value (\"5 years\") to a longer quote (\"You're just dead weight.\") to a longer string of characters (\"The Guardian of Piri\"). The system can seemingly handle a range of output lengths and datatypes.\n*   **Lack of Formatting within Answers:** There's no formatting (e.g., bolding, italics) within the extracted answers. This may or may not be a weakness, depending on the task requirements.\n*   **Evidence of Information Extraction:** In each case, the system has extracted *something* related to the question. The problem isn't a complete failure to retrieve information; rather, it's retrieving the *wrong* information or incomplete information.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates basic information retrieval and answer generation capabilities. It can identify relevant entities and concepts within questions, extract corresponding information, and format it according to predefined markers. However, its accuracy is significantly hampered by a lack of precision in information retrieval and an inadequate understanding of context. The system struggles to discriminate between plausible but incorrect answers and the actual correct answer.\n\n### KEY STRENGTHS\n\n*   **Output Formatting:** The system consistently uses `ANSWER_START` and `ANSWER_END` markers, facilitating reliable parsing.\n*   **Handling of Numerical and Textual Answers:** The system can extract and present both numerical and textual answers, including units.\n*   **Semantic Understanding:** The system can understand and identify semantic equivalence between answers, as seen with '5 years' vs '5'.\n\n### KEY WEAKNESSES\n\n*   **Precise Information Retrieval:** The system frequently returns plausible but incorrect answers, indicating a lack of precision in its retrieval mechanism. This is the single most impactful weakness.\n*   **Contextual Reasoning:** The system's understanding of question context is limited, leading to errors in question answering tasks with subtle nuances.\n*   **Answer Verification:** The system lacks a robust verification step to ensure that the generated answer precisely matches the question's constraints.\n\n### IMPROVEMENT FOCUS\n\nThe **single most important capability to focus on improving** is **Precise Information Retrieval**. Addressing this weakness will have the most significant impact on the system's overall accuracy and performance.\n\n### ACTIONABLE RECOMMENDATIONS\n\nTo improve the precision of information retrieval, implement the following changes in the next iteration:\n\n1.  **Query Expansion with Contextual Keywords:** When constructing retrieval queries, include not only the primary keywords from the question but also keywords that capture the contextual nuances. For example, if the question mentions \"Series 1, Episode 17\", ensure these are explicitly included in the query. If a quote is present, include that quote, along with who said it. This forces the system to search within a more specific context.\n2.  **Implement a Re-ranking Stage Based on Semantic Similarity:** After the initial retrieval, implement a re-ranking stage that uses semantic similarity to rank candidate answers based on their alignment with the question's overall meaning and constraints. This could involve using pre-trained language models to calculate semantic similarity scores between the question and each candidate answer. Answers with higher scores should be prioritized.\n3.  **Introduce a Filtering Mechanism Based on Entity Matching:** Implement a filtering mechanism that checks for the presence of key entities (e.g., specific episode titles, character names) mentioned in the question within the candidate answers. Discard any answers that do not contain these entities. This will help eliminate irrelevant or less precise answers.\n\n### CAPABILITY TREND\n\nBased on the low accuracy score (0.33), the system's capabilities are currently **stable but low**. Without targeted improvements, the system will likely continue to produce similar results, resulting in consistent errors. The suggested improvements aim to shift the trend towards **improving** by enhancing the precision and context-awareness of the information retrieval process.\n"
   },
-  "progressive_testing": {
-    "total_examples": 10,
-    "successful_runs": 10,
-    "matches": 9,
-    "accuracy": 0.9,
-    "results": [
-      {
-        "success": true,
-        "answer": "Verification: 1",
-        "output": "ANSWER_START\nVerification: 1\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer contains '1' which is the same as the golden answer '1'."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: The passage states that Reggie Bush had a 25-yard touchdown run and a 65-yard touchdown run. 25 + 65 = 90. The answer is correct.",
-        "output": "ANSWER_START\nVerification: The passage states that Reggie Bush had a 25-yard touchdown run and a 65-yard touchdown run. 25 + 65 = 90. The answer is correct.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "90",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides a calculation that leads to the same numerical answer (90) as the golden answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: The formation of the United Nations",
-        "output": "ANSWER_START\nVerification: The formation of the United Nations\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "formation of the United Nations",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer includes \"formation of the United Nations\" which is the same as the golden answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification:\n\nThe passage states that Mehmed II had 300 cannons and 200 river war vessels. The question asks how many more cannons he had than river war vessels, which requires a subtraction operation. 300 - 200 = 100. The answer is consistent with the passage and the question.",
-        "output": "ANSWER_START\nVerification:\n\nThe passage states that Mehmed II had 300 cannons and 200 river war vessels. The question asks how many more cannons he had than river war vessels, which requires a subtraction operation. 300 - 200 = 100. The answer is consistent with the passage and the question.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "100",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer explains the reasoning and arrives at the correct answer, 100, which is the same as the golden answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: The passage describes 5 passing touchdowns: Brees to Shockey, Ryan to Gonzalez, Brees to Moore, Brees to Moore again, and Ryan to White. So the answer is correct.",
-        "output": "ANSWER_START\nVerification: The passage describes 5 passing touchdowns: Brees to Shockey, Ryan to Gonzalez, Brees to Moore, Brees to Moore again, and Ryan to White. So the answer is correct.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "5",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer's reasoning confirms that there are 5 passing touchdowns, matching the golden answer of '5'."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: Anquan Boldin",
-        "output": "ANSWER_START\nVerification: Anquan Boldin\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "Anquan Boldin",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer includes the golden answer (Anquan Boldin) along with a verification prefix, making them semantically equivalent."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "The first issue of coins was in 1954. The silver 20-drachma piece was issued in 1960. 1960 - 1954 = 6. The answer is correct.",
-        "output": "ANSWER_START\nThe first issue of coins was in 1954. The silver 20-drachma piece was issued in 1960. 1960 - 1954 = 6. The answer is correct.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "6",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer arrives at the correct numerical answer of 6, even though it includes additional information and calculations."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: 24-21",
-        "output": "ANSWER_START\nVerification: 24-21\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "24-21",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides the same numerical result as the golden answer, with the addition of a label ('Verification:') before the numbers. The numerical information is identical."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: LaDainian Tomlinson",
-        "output": "ANSWER_START\nVerification: LaDainian Tomlinson\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "LaDainian Tomlinson",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer includes the golden answer as part of the full answer. The prefix 'Verification:' does not change the meaning of the answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: Correct. The passage mentions Edgerrin James scoring one 7-yard TD run.",
-        "output": "ANSWER_START\nVerification: Correct. The passage mentions Edgerrin James scoring one 7-yard TD run.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_31.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer identifies that Edgerrin James scored one touchdown, but doesn't provide the final answer of '1'. Therefore, the answers do not match."
-        },
-        "match": false
-      }
-    ]
-  },
-  "execution_time": 106.2434093952179,
+  "progressive_testing": null,
+  "execution_time": 39.53094530105591,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

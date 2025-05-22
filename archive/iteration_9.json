@@ -1,782 +1,203 @@
 {
   "iteration": 9,
-  "timestamp": "2025-05-19T14:46:45.235932",
-  "strategy": "Exploitation",
-  "explore_rate": 40,
-  "exploit_rate": 60,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with improved question analysis and numerical reasoning.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer and perform calculations if needed\n        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type and keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type and keywords, including if a calculation is needed.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.  Also determine if a calculation is REQUIRED.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"calculation_required\": false}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"calculation_required\": true}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"calculation_required\": false}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"calculation_required\": false}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"calculation_required\": true}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"calculation_required\": false}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question type. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text. Prioritize extracting the specific answer rather than just saying the answer is correct.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question type. Prioritize extracting the SPECIFIC answer from the passage rather than simply saying 'correct'.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage, question_analysis):\n    \"\"\"Verifies the generated answer and performs calculations if required. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions and performing basic calculations when needed. Output the final calculated result.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage. \n\n    If a calculation is required (as determined in the question analysis), perform the calculation and provide the result.\n    If the answer is correct and no calculation is needed, return the answer.\n    If the answer is incorrect, return the correct answer.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Question Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"calculation_required\": false}}\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Question Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"calculation_required\": true}}\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Question Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"calculation_required\": false}}\n    Verification: Josh Scobee\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Question Analysis: {question_analysis}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a multi-stage LLM approach, including chain-of-thought reasoning by decomposing the problem into question analysis, relevant passage extraction, answer generation, and answer verification. It uses the `call_llm` function to interact with the Gemini model with specific system instructions and prompts at each stage, effectively assigning different \"expert\" roles to the LLM. The workflow involves `analyze_question` to determine the question type and keywords, `extract_relevant_passage` to find relevant text, `generate_answer` to create an initial answer, and `verify_answer` to confirm the answer and perform calculations if needed.",
-  "sample_count": 10,
+  "timestamp": "2025-05-22T05:40:20.004090",
+  "strategy": "Exploration",
+  "explore_rate": 70,
+  "exploit_rate": 30,
+  "batch_size": 3,
+  "script": "import os\nimport re\nimport math\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question, max_attempts=3):\n    \"\"\"Solve factual questions using a new approach: Question Transformation & Focused Verification.\"\"\"\n\n    # Hypothesis: Transform the question into multiple simpler questions each focused on a specific aspect. Then, focus the verification process specifically on validating the transformations and intermediate answers. This approach isolates potential failure points and allows for targeted refinement.\n\n    # Step 1: Question Transformation - Transform the original question into multiple simpler questions (with examples)\n    transformation_prompt = f\"\"\"\n    Transform the original question into a set of simpler questions that, when answered individually, will collectively answer the original question. Focus each question on a specific aspect of the original.\n\n    Example 1:\n    Original Question: What is the capital of the country where the Great Barrier Reef is located, and what is the population of that capital?\n    Transformed Questions:\n    1.  What country is the Great Barrier Reef located in?\n    2.  What is the capital of [country from question 1]?\n    3.  What is the population of [capital from question 2]?\n\n    Example 2:\n    Original Question: In what year was Jamini Roy awarded the Padma Bhushan, and what was his primary artistic style?\n    Transformed Questions:\n    1. In what year was Jamini Roy awarded the Padma Bhushan?\n    2. What was Jamini Roy's primary artistic style?\n\n    Original Question: {question}\n    Transformed Questions:\n    \"\"\"\n    transformed_questions = call_llm(transformation_prompt, system_instruction=\"You are an expert question transformer.\").split(\"\\n\")\n    print(f\"Transformed Questions: {transformed_questions}\")\n\n    # Step 2: Answer the transformed questions (with error handling).\n    answers = []\n    for q in transformed_questions:\n        if not q.strip():\n            continue  # Skip empty questions\n        search_query = call_llm(f\"Generate a search query for: {q}\", \"You are a search query generator.\")\n        search_results = call_llm(f\"Simulated search results for: {search_query}.\", \"You are a search engine.\")\n        answer = call_llm(f\"Answer the question '{q}' using the search results: {search_results}\", \"You are an answer extraction expert.\")\n        answers.append(answer)\n    print(f\"Answers: {answers}\")\n    # Step 3: Synthesize the answers into a final answer (with examples).\n    synthesis_prompt = f\"\"\"\n    Synthesize the individual answers into a coherent final answer to the original question.\n    Example 1:\n    Original Question: What is the capital of the country where the Great Barrier Reef is located, and what is the population of that capital?\n    Individual Answers:\n    1. Australia\n    2. Canberra\n    3. 450,000\n    Final Answer: The capital of Australia, where the Great Barrier Reef is located, is Canberra, which has a population of approximately 450,000.\n\n    Original Question: {question}\n    Individual Answers:\n    {answers}\n    Final Answer:\n    \"\"\"\n    final_answer = call_llm(synthesis_prompt, system_instruction=\"You are an expert answer synthesizer.\")\n\n    # Step 4: Focused Validation\n    validation_prompt = f\"\"\"\n    Validate the transformation and the synthesized answer.\n    First, confirm that the TRANSFORMED QUESTIONS, if answered completely and accurately, would address the original question completely. Then, validate the final answer based on the transformed questions and answers.\n    Original Question: {question}\n    Transformed Questions: {transformed_questions}\n    Final Answer: {final_answer}\n\n    Example 1:\n    Original Question: What is the capital of the country where the Great Barrier Reef is located, and what is the population of that capital?\n    Transformed Questions:\n    1.  What country is the Great Barrier Reef located in?\n    2.  What is the capital of [country from question 1]?\n    3.  What is the population of [capital from question 2]?\n    Final Answer: The capital of Australia, where the Great Barrier Reef is located, is Canberra, which has a population of approximately 450,000.\n    Validation: VALID. The transformed questions cover all aspects of the original. The final answer correctly synthesizes the answers to those questions.\n\n    \"\"\"\n    validation_result = call_llm(validation_prompt, \"You are an expert validator.\")\n\n    if \"VALID\" in validation_result:\n        return final_answer\n    else:\n        return \"Could not be validated.\"",
+  "approach_summary": "The script addresses factual questions using a \"Question Transformation & Focused Verification\" approach, leveraging the Gemini LLM. It decomposes the problem by first transforming the original question into simpler sub-questions, answering them individually using simulated search, and then synthesizing the answers. The script employs different agent roles (question transformer, search query generator, search engine, answer extraction expert, and answer synthesizer) to perform each of the steps. The main function orchestrates the process, calling `call_llm` to interact with the LLM for question transformation, search query generation, simulated search, answering sub-questions, synthesizing a final answer, and validating the result; the helper function `call_llm` centralizes calls to the Gemini LLM.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE: The war took a heavy toll, especially in the northern British colonies. The losses of Massachusetts men alone in 1745-46 have been estimated as 8% of that colony's adult male population. According to the Treaty of Aix-la-Chapelle, Louisbourg was returned to France three years later, in exchange for the city of Madras in India, captured by the French from the British. This decision outraged New Englanders, particularly Massachusetts colonists who had contributed the most to the expedition  The British government eventually acknowledged Massachusetts' effort with a payment of \u00a3180,000 after the war, which the province used to retire its devalued paper currency. The peace treaty, which restored all colonial borders to their pre-war status, did little to end the lingering enmity between France, Britain, and their respective colonies, nor did it resolve any territorial disputes. Tensions remained in both North America and Europe, and were reignited with the 1754 outbreak of the French and Indian War in North America, which spread to Europe two years later as the Seven Years' War. Between 1749 and 1755 in Acadia and Nova Scotia, the fighting continued in Father Le Loutre's War.\n\nQUESTION: In which year did the Seven Years' War start in Europe?",
-      "answer": "1756",
-      "id": "example_71",
+      "question": "Who was the first president of the Supreme Court of Argentina?",
+      "answer": "Francisco de las Carreras",
+      "id": "example_32",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The war took a heavy toll, especially in the northern British colonies. The losses of Massachusetts men alone in 1745-46 have been estimated as 8% of that colony's adult male population. According to the Treaty of Aix-la-Chapelle, Louisbourg was returned to France three years later, in exchange for the city of Madras in India, captured by the French from the British. This decision outraged New Englanders, particularly Massachusetts colonists who had contributed the most to the expedition  The British government eventually acknowledged Massachusetts' effort with a payment of \u00a3180,000 after the war, which the province used to retire its devalued paper currency. The peace treaty, which restored all colonial borders to their pre-war status, did little to end the lingering enmity between France, Britain, and their respective colonies, nor did it resolve any territorial disputes. Tensions remained in both North America and Europe, and were reignited with the 1754 outbreak of the French and Indian War in North America, which spread to Europe two years later as the Seven Years' War. Between 1749 and 1755 in Acadia and Nova Scotia, the fighting continued in Father Le Loutre's War.",
-        "original_question": "In which year did the Seven Years' War start in Europe?",
-        "original_answer_data": {
-          "spans": [
-            "1756"
-          ],
-          "types": [
-            "date"
-          ]
-        },
-        "line_number": 138
+        "source": "SimpleQA",
+        "line_number": 797,
+        "original_data": {
+          "metadata": "{'topic': 'Politics', 'answer_type': 'Person', 'urls': ['https://en.wikipedia.org/wiki/Francisco_de_las_Carreras', 'https://www.csjn.gov.ar/institucional/jueces/historicos/carreras', 'https://en.wikipedia.org/wiki/Francisco_de_las_Carreras', 'https://en.wikipedia.org/wiki/Supreme_Court_of_Argentina']}",
+          "problem": "Who was the first president of the Supreme Court of Argentina?",
+          "answer": "Francisco de las Carreras",
+          "id": "example_797"
+        }
       }
     },
     {
-      "question": "PASSAGE: The Chiefs took an early lead on a 30-yard pass from Tyler Thigpen to Mark Bradley.  The Chiefs defense continued to show improvement in the red zone, limiting the Chargers to two field goals instead of two touch downs.  At the end of the first half, Thigpen threw a pass to 34&#160;yard touchdown pass to Tony Gonzalez. However, the extra point snap was botched and an attempt at a quick pass failed. The Chargers controlled the second half better than the first, scoring two touchdowns and leading the Chiefs by 7 at the end of the fourth quarter.  The Chiefs' final drive ended with a 3-yard touchdown pass to Gonzalez. A 1-point PAT would tie the game. However, Herm Edwards told Thigpen to go for two, explaining in a post-game interview that the defense was too beat up for overtime play.  The resulting two-point conversion ended in an incomplete pass.  The Chiefs lost by one point.\n\nQUESTION: How many yards were there in difference between the longest and shortest touchdown pass?",
-      "answer": "31",
-      "id": "example_72",
+      "question": "In what patch did the item Mechanical Glove change to only apply its damage buff to melee weapons instead of all weapon types in Terraria?",
+      "answer": "1.2.3",
+      "id": "example_33",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Chiefs took an early lead on a 30-yard pass from Tyler Thigpen to Mark Bradley.  The Chiefs defense continued to show improvement in the red zone, limiting the Chargers to two field goals instead of two touch downs.  At the end of the first half, Thigpen threw a pass to 34&#160;yard touchdown pass to Tony Gonzalez. However, the extra point snap was botched and an attempt at a quick pass failed. The Chargers controlled the second half better than the first, scoring two touchdowns and leading the Chiefs by 7 at the end of the fourth quarter.  The Chiefs' final drive ended with a 3-yard touchdown pass to Gonzalez. A 1-point PAT would tie the game. However, Herm Edwards told Thigpen to go for two, explaining in a post-game interview that the defense was too beat up for overtime play.  The resulting two-point conversion ended in an incomplete pass.  The Chiefs lost by one point.",
-        "original_question": "How many yards were there in difference between the longest and shortest touchdown pass?",
-        "original_answer_data": {
-          "spans": [
-            "31"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 191
+        "source": "SimpleQA",
+        "line_number": 496,
+        "original_data": {
+          "metadata": "{'topic': 'Video games', 'answer_type': 'Date', 'urls': ['https://terraria.wiki.gg/wiki/Mechanical_Glove', 'https://terraria.wiki.gg/wiki/Mechanical_Glove', 'https://terraria.wiki.gg/wiki/1.2.3', 'https://www.reddit.com/r/Terraria/comments/1xwt84/123_tldr_patchnotes/']}",
+          "problem": "In what patch did the item Mechanical Glove change to only apply its damage buff to melee weapons instead of all weapon types in Terraria?",
+          "answer": "1.2.3",
+          "id": "example_496"
+        }
       }
     },
     {
-      "question": "PASSAGE: As of the 2010 United States Census, there were 18,728 people, 5,720 households, and 4,410 families residing in the county. The population density was . There were 6,242 housing units at an average density of . The racial makeup of the county was 62.5% white, 1.9% American Indian, 0.7% Asian, 0.6% black or African American, 31.5% from other races, and 2.8% from two or more races. Those of Hispanic or Latino origin made up 59.3% of the population. In terms of ancestry, 16.4% were Germans, 6.8% were Irish people, 5.6% were English people, and 2.2% were Americans.\n\nQUESTION: How many in percent from the census weren't white?",
-      "answer": "37.5",
-      "id": "example_73",
+      "question": "At what university did Leslie Gabriel Valiant spend the year 1973-74 as a visiting assistant professor?",
+      "answer": " Carnegie Mellon University",
+      "id": "example_34",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "As of the 2010 United States Census, there were 18,728 people, 5,720 households, and 4,410 families residing in the county. The population density was . There were 6,242 housing units at an average density of . The racial makeup of the county was 62.5% white, 1.9% American Indian, 0.7% Asian, 0.6% black or African American, 31.5% from other races, and 2.8% from two or more races. Those of Hispanic or Latino origin made up 59.3% of the population. In terms of ancestry, 16.4% were Germans, 6.8% were Irish people, 5.6% were English people, and 2.2% were Americans.",
-        "original_question": "How many in percent from the census weren't white?",
-        "original_answer_data": {
-          "spans": [
-            "37.5"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 4
-      }
-    },
-    {
-      "question": "PASSAGE: Regent Moray and his secretary John Wood tried to gain English support by producing the Casket letters in England, which were intended to incriminate Mary in the death of Lord Darnley. Moray also raised money in London by selling items from the Scottish crown jewels, including what was claimed to be a unicorn horn. Queen Elizabeth and her advisors were at first reluctant to intervene but their actions, and support of Moray, served to prevent reconciliation in Scotland. The Regent Moray was assassinated in January 1570 by a member of the Hamilton family. Elizabeth sent an army into Scotland in May 1570, which reached Glasgow, where the Queen's party were besieging Glasgow Castle. The army was commanded by the Earl of Sussex from Berwick, its leader in Scotland was William Drury, styled \"Captain General.\" The Earl of Lennox was in their company, arriving at Edinburgh on 14 May 1570. The Marian lords abandoned their siege of Glasgow Castle before the English arrived on 18 May, and returned to their homelands, the Hamiltons to Arran and Craignethan Castle, and Drury attempted a siege of Dumbarton Castle. For Elizabeth's foreign policy this intervention had the effect of making France and Spain less likely to offer tangible pro-Marian support. After the Rising of the North and the discovery of the Ridolfi plot which further damaged Mary's reputation, Regent Mar and James Douglas, Earl of Morton were able to broker the deployment of an English army against Mary's supporters at Edinburgh Castle. The English diplomat Henry Killigrew worked on the reconciliation of the Scottish nobility at Perth in February 1572, where many promised not to support Mary as Queen. The fall of Edinburgh Castle concluded the civil war.\n\nQUESTION: Why were the English unable to reconcile with Scotland?",
-      "answer": "support of Moray",
-      "id": "example_74",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Regent Moray and his secretary John Wood tried to gain English support by producing the Casket letters in England, which were intended to incriminate Mary in the death of Lord Darnley. Moray also raised money in London by selling items from the Scottish crown jewels, including what was claimed to be a unicorn horn. Queen Elizabeth and her advisors were at first reluctant to intervene but their actions, and support of Moray, served to prevent reconciliation in Scotland. The Regent Moray was assassinated in January 1570 by a member of the Hamilton family. Elizabeth sent an army into Scotland in May 1570, which reached Glasgow, where the Queen's party were besieging Glasgow Castle. The army was commanded by the Earl of Sussex from Berwick, its leader in Scotland was William Drury, styled \"Captain General.\" The Earl of Lennox was in their company, arriving at Edinburgh on 14 May 1570. The Marian lords abandoned their siege of Glasgow Castle before the English arrived on 18 May, and returned to their homelands, the Hamiltons to Arran and Craignethan Castle, and Drury attempted a siege of Dumbarton Castle. For Elizabeth's foreign policy this intervention had the effect of making France and Spain less likely to offer tangible pro-Marian support. After the Rising of the North and the discovery of the Ridolfi plot which further damaged Mary's reputation, Regent Mar and James Douglas, Earl of Morton were able to broker the deployment of an English army against Mary's supporters at Edinburgh Castle. The English diplomat Henry Killigrew worked on the reconciliation of the Scottish nobility at Perth in February 1572, where many promised not to support Mary as Queen. The fall of Edinburgh Castle concluded the civil war.",
-        "original_question": "Why were the English unable to reconcile with Scotland?",
-        "original_answer_data": {
-          "spans": [
-            "support of Moray"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 443
-      }
-    },
-    {
-      "question": "PASSAGE: Trying to avoid their first 0-3 start since 1999, the Falcons played their Week 3 home opener against their divisional rival, the Carolina Panthers. After a scoreless first quarter, Atlanta trailed early as Panthers kicker John Kasay got a 45-yard field goal. Afterwards, the Falcons took the lead with QB Joey Harrington completing a 69-yard TD pass to WR Roddy White. However, Carolina retook the lead with QB Jake Delhomme completing a 13-yard TD pass to RB DeShaun Foster. Atlanta tied the game prior to halftime with kicker Morten Andersen getting a 24-yard field goal. In the third quarter, the Falcons regained the lead with Harrington completing a 13-yard TD pass to TE Alge Crumpler, yet the Panthers regained the lead with Delhomme completing a 5-yard TD pass to TE Jeff King, along with Foster's 10-yard TD run. In the fourth quarter, Carolina ended its scoring with Kasay kicking a 49-yard field goal. Atlanta tried to mount a comeback, yet the only score was Andersen's 25-yard field goal.\n\nQUESTION: How many yards longer was Morten Andersen's longest field goal than his shortest?",
-      "answer": "1",
-      "id": "example_75",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Trying to avoid their first 0-3 start since 1999, the Falcons played their Week 3 home opener against their divisional rival, the Carolina Panthers. After a scoreless first quarter, Atlanta trailed early as Panthers kicker John Kasay got a 45-yard field goal. Afterwards, the Falcons took the lead with QB Joey Harrington completing a 69-yard TD pass to WR Roddy White. However, Carolina retook the lead with QB Jake Delhomme completing a 13-yard TD pass to RB DeShaun Foster. Atlanta tied the game prior to halftime with kicker Morten Andersen getting a 24-yard field goal. In the third quarter, the Falcons regained the lead with Harrington completing a 13-yard TD pass to TE Alge Crumpler, yet the Panthers regained the lead with Delhomme completing a 5-yard TD pass to TE Jeff King, along with Foster's 10-yard TD run. In the fourth quarter, Carolina ended its scoring with Kasay kicking a 49-yard field goal. Atlanta tried to mount a comeback, yet the only score was Andersen's 25-yard field goal.",
-        "original_question": "How many yards longer was Morten Andersen's longest field goal than his shortest?",
-        "original_answer_data": {
-          "spans": [
-            "1"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 20
-      }
-    },
-    {
-      "question": "PASSAGE: For Bayinnaung, the work was not yet done. On 15 October 1569, Bayinnaung at Ayutthaya led several regiments of his wounded army to invade Lan Xang via Phitsanulok. Setthathirath again fled Vientiane. Bayinnaung's men pursued but could not find him. Tired by long marches in a mountainous country, the Burmese army gave up and left Vientiane in May 1570. Another expedition in 1572 after Setthathirath's death also failed to bring order. Finally, the king himself led another expedition, and put his nominee on the Lan Xang throne in November 1574. Aside from a minor rebellion in 1579, Lan Xang gave no trouble for the rest of Bayinnaung's reign.\n\nQUESTION: What happened first: the Burmese army left Vientiane or Setthathirath's death?",
-      "answer": "Burmese army left Vientiane",
-      "id": "example_76",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "For Bayinnaung, the work was not yet done. On 15 October 1569, Bayinnaung at Ayutthaya led several regiments of his wounded army to invade Lan Xang via Phitsanulok. Setthathirath again fled Vientiane. Bayinnaung's men pursued but could not find him. Tired by long marches in a mountainous country, the Burmese army gave up and left Vientiane in May 1570. Another expedition in 1572 after Setthathirath's death also failed to bring order. Finally, the king himself led another expedition, and put his nominee on the Lan Xang throne in November 1574. Aside from a minor rebellion in 1579, Lan Xang gave no trouble for the rest of Bayinnaung's reign.",
-        "original_question": "What happened first: the Burmese army left Vientiane or Setthathirath's death?",
-        "original_answer_data": {
-          "spans": [
-            "Burmese army left Vientiane"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 213
-      }
-    },
-    {
-      "question": "PASSAGE: In 1862, at the age of 87, he had reportedly acquired some illness. In October, his condition deteriorated. He was \"spoon-fed on broth\" but he found that difficult too by 3 November. On 6 November, the British Commissioner H.N. Davies recorded that Zafar \"is evidently sinking from pure despitude and paralysis in the region of his throat\". To prepare for his death Davies commanded for the collection of lime and bricks and a spot was selected at the \"back of Zafar's enclosure\" for his burial. Zafar died on Friday, 7 November 1862 at 5\u00a0am. Zafar was buried at 4\u00a0pm near the Shwe Degon Pagoda at 6 Ziwaka Road, near the intersection with Shwe Degon Pagoda road, Yangon. The shrine of Bahadur Shah Zafar Dargah was built there after recovery of its tomb on 16 February 1991. Davies commenting on Zafar, described his life to be \"very uncertain\".\n\nQUESTION: Where did he feel paralyzed?",
-      "answer": "his throat",
-      "id": "example_77",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In 1862, at the age of 87, he had reportedly acquired some illness. In October, his condition deteriorated. He was \"spoon-fed on broth\" but he found that difficult too by 3 November. On 6 November, the British Commissioner H.N. Davies recorded that Zafar \"is evidently sinking from pure despitude and paralysis in the region of his throat\". To prepare for his death Davies commanded for the collection of lime and bricks and a spot was selected at the \"back of Zafar's enclosure\" for his burial. Zafar died on Friday, 7 November 1862 at 5\u00a0am. Zafar was buried at 4\u00a0pm near the Shwe Degon Pagoda at 6 Ziwaka Road, near the intersection with Shwe Degon Pagoda road, Yangon. The shrine of Bahadur Shah Zafar Dargah was built there after recovery of its tomb on 16 February 1991. Davies commenting on Zafar, described his life to be \"very uncertain\".",
-        "original_question": "Where did he feel paralyzed?",
-        "original_answer_data": {
-          "spans": [
-            "his throat"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 64
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off their win over the Bills the Bears played on home ground for an NFC North rivalry match against the Vikings. In the first quarter the Bears trailed early after kicker Ryan Longwell hit a 36-yard field goal. They took the lead in the second quarter when QB Jay Cutler threw a 17-yard TD pass to TE Greg Olsen. They fell behind after QB Brett Favre completed a 53-yard TD pass to WR Percy Harvin. They got the lead back when Cutler got a 19-yard TD pass to WR Devin Hester. The Bears extended their lead in the third quarter after kicker Robbie Gould nailed a 34-yard field goal. The Vikings replied with Longwell making a 33-yard field goal, but the Bears continued to score with Gould hitting a 37-yard field goal, and in the 4th quarter with Cutler making a 19-yard TD pass to TE Kellen Davis.\n\nQUESTION: How many field goals did Ryan Longwell kick?",
-      "answer": "2",
-      "id": "example_78",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their win over the Bills the Bears played on home ground for an NFC North rivalry match against the Vikings. In the first quarter the Bears trailed early after kicker Ryan Longwell hit a 36-yard field goal. They took the lead in the second quarter when QB Jay Cutler threw a 17-yard TD pass to TE Greg Olsen. They fell behind after QB Brett Favre completed a 53-yard TD pass to WR Percy Harvin. They got the lead back when Cutler got a 19-yard TD pass to WR Devin Hester. The Bears extended their lead in the third quarter after kicker Robbie Gould nailed a 34-yard field goal. The Vikings replied with Longwell making a 33-yard field goal, but the Bears continued to score with Gould hitting a 37-yard field goal, and in the 4th quarter with Cutler making a 19-yard TD pass to TE Kellen Davis.",
-        "original_question": "How many field goals did Ryan Longwell kick?",
-        "original_answer_data": {
-          "spans": [
-            "2"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 411
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off their win over the Jaguars the Chargers flew to Qwest Field where they played their former division rival, the Seattle Seahawks. In the second quarter San Diego trailed early when kicker Olindo Mare made a 23-yard field goal. Then QB Matt Hasselbeck completed a 9-yard TD pass to TE John Carlson. This was followed in the third quarter by RB Leon Washington returning a kickoff 101&#160;yards to the endzone for a touchdown. The Chargers cut the lead with QB Philip Rivers getting a 3-yard TD pass to WR Malcolm Floyd, followed by Hasselbeck getting sacked by ILB Brandon Siler in the endzone for a safety. Then kicker Nate Kaeding made a 29-yard field goal. The Seahawks increased their lead when Mare made a 23-yard field goal, but the Chargers replied and tied the game when Rivers found TE Antonio Gates on a 12-yard TD pass. (With a successful 2-point conversion as Rivers found WR Legedu Naanee). Before the clock struck zero Seattle took the winning score as RB Leon Washington returned his second kickoff of the game into the endzone running 99&#160;yards for a touchdown, giving the Chargers the loss.\n\nQUESTION: Which player caught the first passing touchdown?",
-      "answer": "TE John Carlson",
-      "id": "example_79",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their win over the Jaguars the Chargers flew to Qwest Field where they played their former division rival, the Seattle Seahawks. In the second quarter San Diego trailed early when kicker Olindo Mare made a 23-yard field goal. Then QB Matt Hasselbeck completed a 9-yard TD pass to TE John Carlson. This was followed in the third quarter by RB Leon Washington returning a kickoff 101&#160;yards to the endzone for a touchdown. The Chargers cut the lead with QB Philip Rivers getting a 3-yard TD pass to WR Malcolm Floyd, followed by Hasselbeck getting sacked by ILB Brandon Siler in the endzone for a safety. Then kicker Nate Kaeding made a 29-yard field goal. The Seahawks increased their lead when Mare made a 23-yard field goal, but the Chargers replied and tied the game when Rivers found TE Antonio Gates on a 12-yard TD pass. (With a successful 2-point conversion as Rivers found WR Legedu Naanee). Before the clock struck zero Seattle took the winning score as RB Leon Washington returned his second kickoff of the game into the endzone running 99&#160;yards for a touchdown, giving the Chargers the loss.",
-        "original_question": "Which player caught the first passing touchdown?",
-        "original_answer_data": {
-          "spans": [
-            "TE John Carlson"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 301
-      }
-    },
-    {
-      "question": "PASSAGE: Coming out of their bye week, the Buccaneers traveled to Cincinnati to face the Bengals. The Bengals took an early 7-0 lead after Carson Palmer threw a 43-yard touchdown pass to Terrell Owens. At the end the first quarter, the Buccaneers pinned the Bengals back at their own 6-yard line. One the first play of the second quarter, Cody Grimm intercepted Palmer, and returned the ball 11 yards for a touchdown for a 7-7 tie. A Mike Nugent 31-yard field goal gave the Bengals a 10-7 halftime lead. In the third quarter, Tampa Bay drove 80 yards for their second touchdown, and a 14-10 lead. the Bengals replied with a field goal, to trim their deficit to 14-13. Micheal Spurlock fumbled the ensuing kickoff, and the Bengals recovered deep in Tampa Bay territory. In the fourth quarter, the Bengals capitalized on the turnover. Palmer found Jermaine Gresham for a 1-yard touchdown pass (along with a successful Cedric Benson 2-point conversion run) to take a 21-14 lead. The teams traded possession twice, and with 2:28 remaining, the Bengals faced 3rd down & 8 at their own 43-yard line. Tampa Bay had no timeouts, and a first down would secure the win for Cincinnati. Palmer was intercepted by Aqib Talib at the 50-yard line. Five plays later, Josh Freeman completed a 20-yard touchdown pass to Mike Williams. With 25 second left, the Buccaneers again intercepted Palmer. Sabby Piscitelli returned the ball to the Cincinnati 34-yard line. With 5 seconds left in regulation, Connor Barth made a 31-yard field goal to win the game 24-21.\n\nQUESTION: Which players intercepted passed thrown by Carson Palmer?",
-      "answer": "Cody Grimm, Aqib Talib, Sabby Piscitelli",
-      "id": "example_80",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming out of their bye week, the Buccaneers traveled to Cincinnati to face the Bengals. The Bengals took an early 7-0 lead after Carson Palmer threw a 43-yard touchdown pass to Terrell Owens. At the end the first quarter, the Buccaneers pinned the Bengals back at their own 6-yard line. One the first play of the second quarter, Cody Grimm intercepted Palmer, and returned the ball 11 yards for a touchdown for a 7-7 tie. A Mike Nugent 31-yard field goal gave the Bengals a 10-7 halftime lead. In the third quarter, Tampa Bay drove 80 yards for their second touchdown, and a 14-10 lead. the Bengals replied with a field goal, to trim their deficit to 14-13. Micheal Spurlock fumbled the ensuing kickoff, and the Bengals recovered deep in Tampa Bay territory. In the fourth quarter, the Bengals capitalized on the turnover. Palmer found Jermaine Gresham for a 1-yard touchdown pass (along with a successful Cedric Benson 2-point conversion run) to take a 21-14 lead. The teams traded possession twice, and with 2:28 remaining, the Bengals faced 3rd down & 8 at their own 43-yard line. Tampa Bay had no timeouts, and a first down would secure the win for Cincinnati. Palmer was intercepted by Aqib Talib at the 50-yard line. Five plays later, Josh Freeman completed a 20-yard touchdown pass to Mike Williams. With 25 second left, the Buccaneers again intercepted Palmer. Sabby Piscitelli returned the ball to the Cincinnati 34-yard line. With 5 seconds left in regulation, Connor Barth made a 31-yard field goal to win the game 24-21.",
-        "original_question": "Which players intercepted passed thrown by Carson Palmer?",
-        "original_answer_data": {
-          "spans": [
-            "Cody Grimm",
-            "Aqib Talib",
-            "Sabby Piscitelli"
-          ],
-          "types": [
-            "span",
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 333
+        "source": "SimpleQA",
+        "line_number": 924,
+        "original_data": {
+          "metadata": "{'topic': 'Other', 'answer_type': 'Place', 'urls': ['https://mathshistory.st-andrews.ac.uk/Biographies/Valiant/', 'https://www.britannica.com/biography/Leslie-Valiant', 'https://mathshistory.st-andrews.ac.uk/Biographies/Valiant/', 'http://library.isical.ac.in:8080/jspui/bitstream/10263/7049/2/Leslie%20Gabriel%20Valiant%20biography.pdf']}",
+          "problem": "At what university did Leslie Gabriel Valiant spend the year 1973-74 as a visiting assistant professor?",
+          "answer": " Carnegie Mellon University",
+          "id": "example_924"
+        }
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": "The war took a heavy toll, especially in the northern British colonies. The losses of Massachusetts men alone in 1745-46 have been estimated as 8% of that colony's adult male population. According to the Treaty of Aix-la-Chapelle, Louisbourg was returned to France three years later, in exchange for the city of Madras in India, captured by the French from the British. This decision outraged New Englanders, particularly Massachusetts colonists who had contributed the most to the expedition  The British government eventually acknowledged Massachusetts' effort with a payment of \u00a3180,000 after the war, which the province used to retire its devalued paper currency. The peace treaty, which restored all colonial borders to their pre-war status, did little to end the lingering enmity between France, Britain, and their respective colonies, nor did it resolve any territorial disputes. Tensions remained in both North America and Europe, and were reignited with the 1754 outbreak of the French and Indian War in North America, which spread to Europe two years later as the Seven Years' War. Between 1749 and 1755 in Acadia and Nova Scotia, the fighting continued in Father Le Loutre's War.",
-      "original_question": "In which year did the Seven Years' War start in Europe?",
-      "original_answer_data": {
-        "spans": [
-          "1756"
-        ],
-        "types": [
-          "date"
-        ]
-      },
-      "line_number": 138
+      "source": "SimpleQA",
+      "line_number": 797,
+      "original_data": {
+        "metadata": "{'topic': 'Politics', 'answer_type': 'Person', 'urls': ['https://en.wikipedia.org/wiki/Francisco_de_las_Carreras', 'https://www.csjn.gov.ar/institucional/jueces/historicos/carreras', 'https://en.wikipedia.org/wiki/Francisco_de_las_Carreras', 'https://en.wikipedia.org/wiki/Supreme_Court_of_Argentina']}",
+        "problem": "Who was the first president of the Supreme Court of Argentina?",
+        "answer": "Francisco de las Carreras",
+        "id": "example_797"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "The Chiefs took an early lead on a 30-yard pass from Tyler Thigpen to Mark Bradley.  The Chiefs defense continued to show improvement in the red zone, limiting the Chargers to two field goals instead of two touch downs.  At the end of the first half, Thigpen threw a pass to 34&#160;yard touchdown pass to Tony Gonzalez. However, the extra point snap was botched and an attempt at a quick pass failed. The Chargers controlled the second half better than the first, scoring two touchdowns and leading the Chiefs by 7 at the end of the fourth quarter.  The Chiefs' final drive ended with a 3-yard touchdown pass to Gonzalez. A 1-point PAT would tie the game. However, Herm Edwards told Thigpen to go for two, explaining in a post-game interview that the defense was too beat up for overtime play.  The resulting two-point conversion ended in an incomplete pass.  The Chiefs lost by one point.",
-      "original_question": "How many yards were there in difference between the longest and shortest touchdown pass?",
-      "original_answer_data": {
-        "spans": [
-          "31"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 191
+      "source": "SimpleQA",
+      "line_number": 496,
+      "original_data": {
+        "metadata": "{'topic': 'Video games', 'answer_type': 'Date', 'urls': ['https://terraria.wiki.gg/wiki/Mechanical_Glove', 'https://terraria.wiki.gg/wiki/Mechanical_Glove', 'https://terraria.wiki.gg/wiki/1.2.3', 'https://www.reddit.com/r/Terraria/comments/1xwt84/123_tldr_patchnotes/']}",
+        "problem": "In what patch did the item Mechanical Glove change to only apply its damage buff to melee weapons instead of all weapon types in Terraria?",
+        "answer": "1.2.3",
+        "id": "example_496"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "As of the 2010 United States Census, there were 18,728 people, 5,720 households, and 4,410 families residing in the county. The population density was . There were 6,242 housing units at an average density of . The racial makeup of the county was 62.5% white, 1.9% American Indian, 0.7% Asian, 0.6% black or African American, 31.5% from other races, and 2.8% from two or more races. Those of Hispanic or Latino origin made up 59.3% of the population. In terms of ancestry, 16.4% were Germans, 6.8% were Irish people, 5.6% were English people, and 2.2% were Americans.",
-      "original_question": "How many in percent from the census weren't white?",
-      "original_answer_data": {
-        "spans": [
-          "37.5"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 4
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Regent Moray and his secretary John Wood tried to gain English support by producing the Casket letters in England, which were intended to incriminate Mary in the death of Lord Darnley. Moray also raised money in London by selling items from the Scottish crown jewels, including what was claimed to be a unicorn horn. Queen Elizabeth and her advisors were at first reluctant to intervene but their actions, and support of Moray, served to prevent reconciliation in Scotland. The Regent Moray was assassinated in January 1570 by a member of the Hamilton family. Elizabeth sent an army into Scotland in May 1570, which reached Glasgow, where the Queen's party were besieging Glasgow Castle. The army was commanded by the Earl of Sussex from Berwick, its leader in Scotland was William Drury, styled \"Captain General.\" The Earl of Lennox was in their company, arriving at Edinburgh on 14 May 1570. The Marian lords abandoned their siege of Glasgow Castle before the English arrived on 18 May, and returned to their homelands, the Hamiltons to Arran and Craignethan Castle, and Drury attempted a siege of Dumbarton Castle. For Elizabeth's foreign policy this intervention had the effect of making France and Spain less likely to offer tangible pro-Marian support. After the Rising of the North and the discovery of the Ridolfi plot which further damaged Mary's reputation, Regent Mar and James Douglas, Earl of Morton were able to broker the deployment of an English army against Mary's supporters at Edinburgh Castle. The English diplomat Henry Killigrew worked on the reconciliation of the Scottish nobility at Perth in February 1572, where many promised not to support Mary as Queen. The fall of Edinburgh Castle concluded the civil war.",
-      "original_question": "Why were the English unable to reconcile with Scotland?",
-      "original_answer_data": {
-        "spans": [
-          "support of Moray"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 443
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Trying to avoid their first 0-3 start since 1999, the Falcons played their Week 3 home opener against their divisional rival, the Carolina Panthers. After a scoreless first quarter, Atlanta trailed early as Panthers kicker John Kasay got a 45-yard field goal. Afterwards, the Falcons took the lead with QB Joey Harrington completing a 69-yard TD pass to WR Roddy White. However, Carolina retook the lead with QB Jake Delhomme completing a 13-yard TD pass to RB DeShaun Foster. Atlanta tied the game prior to halftime with kicker Morten Andersen getting a 24-yard field goal. In the third quarter, the Falcons regained the lead with Harrington completing a 13-yard TD pass to TE Alge Crumpler, yet the Panthers regained the lead with Delhomme completing a 5-yard TD pass to TE Jeff King, along with Foster's 10-yard TD run. In the fourth quarter, Carolina ended its scoring with Kasay kicking a 49-yard field goal. Atlanta tried to mount a comeback, yet the only score was Andersen's 25-yard field goal.",
-      "original_question": "How many yards longer was Morten Andersen's longest field goal than his shortest?",
-      "original_answer_data": {
-        "spans": [
-          "1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 20
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "For Bayinnaung, the work was not yet done. On 15 October 1569, Bayinnaung at Ayutthaya led several regiments of his wounded army to invade Lan Xang via Phitsanulok. Setthathirath again fled Vientiane. Bayinnaung's men pursued but could not find him. Tired by long marches in a mountainous country, the Burmese army gave up and left Vientiane in May 1570. Another expedition in 1572 after Setthathirath's death also failed to bring order. Finally, the king himself led another expedition, and put his nominee on the Lan Xang throne in November 1574. Aside from a minor rebellion in 1579, Lan Xang gave no trouble for the rest of Bayinnaung's reign.",
-      "original_question": "What happened first: the Burmese army left Vientiane or Setthathirath's death?",
-      "original_answer_data": {
-        "spans": [
-          "Burmese army left Vientiane"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 213
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In 1862, at the age of 87, he had reportedly acquired some illness. In October, his condition deteriorated. He was \"spoon-fed on broth\" but he found that difficult too by 3 November. On 6 November, the British Commissioner H.N. Davies recorded that Zafar \"is evidently sinking from pure despitude and paralysis in the region of his throat\". To prepare for his death Davies commanded for the collection of lime and bricks and a spot was selected at the \"back of Zafar's enclosure\" for his burial. Zafar died on Friday, 7 November 1862 at 5\u00a0am. Zafar was buried at 4\u00a0pm near the Shwe Degon Pagoda at 6 Ziwaka Road, near the intersection with Shwe Degon Pagoda road, Yangon. The shrine of Bahadur Shah Zafar Dargah was built there after recovery of its tomb on 16 February 1991. Davies commenting on Zafar, described his life to be \"very uncertain\".",
-      "original_question": "Where did he feel paralyzed?",
-      "original_answer_data": {
-        "spans": [
-          "his throat"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 64
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their win over the Bills the Bears played on home ground for an NFC North rivalry match against the Vikings. In the first quarter the Bears trailed early after kicker Ryan Longwell hit a 36-yard field goal. They took the lead in the second quarter when QB Jay Cutler threw a 17-yard TD pass to TE Greg Olsen. They fell behind after QB Brett Favre completed a 53-yard TD pass to WR Percy Harvin. They got the lead back when Cutler got a 19-yard TD pass to WR Devin Hester. The Bears extended their lead in the third quarter after kicker Robbie Gould nailed a 34-yard field goal. The Vikings replied with Longwell making a 33-yard field goal, but the Bears continued to score with Gould hitting a 37-yard field goal, and in the 4th quarter with Cutler making a 19-yard TD pass to TE Kellen Davis.",
-      "original_question": "How many field goals did Ryan Longwell kick?",
-      "original_answer_data": {
-        "spans": [
-          "2"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 411
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their win over the Jaguars the Chargers flew to Qwest Field where they played their former division rival, the Seattle Seahawks. In the second quarter San Diego trailed early when kicker Olindo Mare made a 23-yard field goal. Then QB Matt Hasselbeck completed a 9-yard TD pass to TE John Carlson. This was followed in the third quarter by RB Leon Washington returning a kickoff 101&#160;yards to the endzone for a touchdown. The Chargers cut the lead with QB Philip Rivers getting a 3-yard TD pass to WR Malcolm Floyd, followed by Hasselbeck getting sacked by ILB Brandon Siler in the endzone for a safety. Then kicker Nate Kaeding made a 29-yard field goal. The Seahawks increased their lead when Mare made a 23-yard field goal, but the Chargers replied and tied the game when Rivers found TE Antonio Gates on a 12-yard TD pass. (With a successful 2-point conversion as Rivers found WR Legedu Naanee). Before the clock struck zero Seattle took the winning score as RB Leon Washington returned his second kickoff of the game into the endzone running 99&#160;yards for a touchdown, giving the Chargers the loss.",
-      "original_question": "Which player caught the first passing touchdown?",
-      "original_answer_data": {
-        "spans": [
-          "TE John Carlson"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 301
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming out of their bye week, the Buccaneers traveled to Cincinnati to face the Bengals. The Bengals took an early 7-0 lead after Carson Palmer threw a 43-yard touchdown pass to Terrell Owens. At the end the first quarter, the Buccaneers pinned the Bengals back at their own 6-yard line. One the first play of the second quarter, Cody Grimm intercepted Palmer, and returned the ball 11 yards for a touchdown for a 7-7 tie. A Mike Nugent 31-yard field goal gave the Bengals a 10-7 halftime lead. In the third quarter, Tampa Bay drove 80 yards for their second touchdown, and a 14-10 lead. the Bengals replied with a field goal, to trim their deficit to 14-13. Micheal Spurlock fumbled the ensuing kickoff, and the Bengals recovered deep in Tampa Bay territory. In the fourth quarter, the Bengals capitalized on the turnover. Palmer found Jermaine Gresham for a 1-yard touchdown pass (along with a successful Cedric Benson 2-point conversion run) to take a 21-14 lead. The teams traded possession twice, and with 2:28 remaining, the Bengals faced 3rd down & 8 at their own 43-yard line. Tampa Bay had no timeouts, and a first down would secure the win for Cincinnati. Palmer was intercepted by Aqib Talib at the 50-yard line. Five plays later, Josh Freeman completed a 20-yard touchdown pass to Mike Williams. With 25 second left, the Buccaneers again intercepted Palmer. Sabby Piscitelli returned the ball to the Cincinnati 34-yard line. With 5 seconds left in regulation, Connor Barth made a 31-yard field goal to win the game 24-21.",
-      "original_question": "Which players intercepted passed thrown by Carson Palmer?",
-      "original_answer_data": {
-        "spans": [
-          "Cody Grimm",
-          "Aqib Talib",
-          "Sabby Piscitelli"
-        ],
-        "types": [
-          "span",
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 333
+      "source": "SimpleQA",
+      "line_number": 924,
+      "original_data": {
+        "metadata": "{'topic': 'Other', 'answer_type': 'Place', 'urls': ['https://mathshistory.st-andrews.ac.uk/Biographies/Valiant/', 'https://www.britannica.com/biography/Leslie-Valiant', 'https://mathshistory.st-andrews.ac.uk/Biographies/Valiant/', 'http://library.isical.ac.in:8080/jspui/bitstream/10263/7049/2/Leslie%20Gabriel%20Valiant%20biography.pdf']}",
+        "problem": "At what university did Leslie Gabriel Valiant spend the year 1973-74 as a visiting assistant professor?",
+        "answer": " Carnegie Mellon University",
+        "id": "example_924"
+      }
     }
   ],
   "example_indices": [
-    71,
-    72,
-    73,
-    74,
-    75,
-    76,
-    77,
-    78,
-    79,
-    80
+    32,
+    33,
+    34
   ],
   "results": [
     {
       "success": true,
-      "answer": "1756",
-      "output": "ANSWER_START\n1756\n\nANSWER_END\n",
+      "answer": "I am unable to answer the question because the search results do not contain information about the first president of the Supreme Court of Argentina.",
+      "output": "Transformed Questions: ['1. What is the name of the Supreme Court of Argentina in Spanish?', '2. Who was the first president of [Supreme Court of Argentina from question 1]?', '']\nAnswers: ['Corte Suprema de Justicia de la Naci\u00f3n Argentina.\\n', 'My apologies, I am unable to answer the question as the search results do not contain information about the first president of the Supreme Court of Argentina.\\n']\nANSWER_START\nI am unable to answer the question because the search results do not contain information about the first president of the Supreme Court of Argentina.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_9.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value."
+        "explanation": "The system answer explicitly states it cannot answer the question due to lack of information in the search results, whereas the golden answer provides a specific name, implying it knows the answer. These are contradictory, not semantically equivalent."
       },
-      "match": true
+      "match": false
     },
     {
       "success": true,
-      "answer": "The passage states the touchdown passes were 30 yards, 34 yards, and 3 yards. The longest was 34 yards and the shortest was 3 yards. The difference between the longest and shortest is 34 - 3 = 31.\n31",
-      "output": "ANSWER_START\nThe passage states the touchdown passes were 30 yards, 34 yards, and 3 yards. The longest was 34 yards and the shortest was 3 yards. The difference between the longest and shortest is 34 - 3 = 31.\n31\n\nANSWER_END\n",
+      "answer": "The item \"Mechanical Glove\" in Terraria increases melee damage, critical strike chance, speed, and knockback. Originally, the speed buff only applied to melee weapons with a swinging animation. Unfortunately, the specific patch number in which the Mechanical Glove's effect changed is not available in the search results. Consult the official Terraria Wiki and look at the \"History\" section on the Mechanical Glove page to find that information.",
+      "output": "Transformed Questions: ['1. What game features the item \"Mechanical Glove\"?', '2. In the game from question 1, what was the original effect of the \"Mechanical Glove\" on weapon types?', '3. In the game from question 1, what is the current effect of the \"Mechanical Glove\" on weapon types?', '4. In the game from question 1, what is a \"patch\"?', '5. In the game from question 1, in which specific patch did the \"Mechanical Glove\\'s\" effect change?', '']\nAnswers: ['Terraria features the item \"Mechanical Glove\".\\n', \"Originally, the Mechanical Glove's speed buff only applied to melee weapons that used a swinging animation, such as swords and axes.\\n\", 'The \"Mechanical Glove\" increases melee damage by 12%, melee critical strike chance by 2%, melee speed by 12%, and knockback by 10%.\\n', 'The search results do not contain the answer to the question. To answer the question, I need the game name to generate simulated search results about that specific game.\\n', 'I cannot provide the specific patch number in which the Mechanical Glove\\'s effect changed. To find that information, consult the official Terraria Wiki and look at the \"History\" section on the Mechanical Glove page.\\n']\nANSWER_START\nThe item \"Mechanical Glove\" in Terraria increases melee damage, critical strike chance, speed, and knockback. Originally, the speed buff only applied to melee weapons with a swinging animation. Unfortunately, the specific patch number in which the Mechanical Glove's effect changed is not available in the search results. Consult the official Terraria Wiki and look at the \"History\" section on the Mechanical Glove page to find that information.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_9.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "Both answers provide the same numerical answer, 31."
+        "explanation": "The golden answer provides a specific version number (1.2.3), while the system answer states that it cannot find the specific patch number where the Mechanical Glove's effect changed and suggests consulting the Terraria Wiki. They do not convey the same information."
       },
-      "match": true
+      "match": false
     },
     {
       "success": true,
-      "answer": "100 - 62.5 = 37.5",
-      "output": "ANSWER_START\n100 - 62.5 = 37.5\n\nANSWER_END\n",
+      "answer": "I am unable to answer this question. The provided search results do not contain the answer. More specific information is needed regarding Leslie Gabriel Valiant's position during the 1973-74 academic year to provide an accurate answer.",
+      "output": "Transformed Questions: ['1. Who is Leslie Gabriel Valiant?', '2. What position did Leslie Gabriel Valiant hold during the 1973-74 academic year?', '3. Where did Leslie Gabriel Valiant work as a visiting assistant professor in 1973-74?', '4. Is [location from question 3] a university?', '']\nAnswers: ['Leslie Gabriel Valiant is not definitively answered in the search results, however, it is noted that more information is needed to provide an adequate biography.\\n', \"I am unable to answer this question. The provided search results indicate that more specific information is needed regarding the type of organization and the nature of the position (academic, research, etc.) to provide an accurate answer about Leslie Gabriel Valiant's position during the 1973-74 academic year.\\n\", 'I am sorry, I cannot answer the question as the search results do not contain the answer.\\n', 'Okay, I understand. To answer your question, I need the location that was the subject of question 3. Please provide that location.\\n']\nANSWER_START\nI am unable to answer this question. The provided search results do not contain the answer. More specific information is needed regarding Leslie Gabriel Valiant's position during the 1973-74 academic year to provide an accurate answer.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_9.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "The system answer shows the calculation and then arrives at the correct answer of 37.5, which is equivalent to the golden answer."
+        "explanation": "The system answer states it cannot answer the question based on the provided search results, while the golden answer provides a specific answer. These answers do not convey the same information."
       },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Their actions, and support of Moray, served to prevent reconciliation in Scotland.",
-      "output": "ANSWER_START\nTheir actions, and support of Moray, served to prevent reconciliation in Scotland.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_9.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer mentions their support of Moray, which is the golden answer. The system answer provides more context but includes the correct information."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "25 - 24 = 1\nFinal Answer: 1",
-      "output": "ANSWER_START\n25 - 24 = 1\nFinal Answer: 1\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_9.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers clearly indicate the final answer is 1."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The Burmese army left Vientiane",
-      "output": "ANSWER_START\nThe Burmese army left Vientiane\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_9.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers convey the same information: The Burmese army left Vientiane. The slight difference in phrasing (using \"The\" at the beginning) does not change the core meaning."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Region of his throat",
-      "output": "ANSWER_START\nRegion of his throat\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_9.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer specifies the location as 'Region of his throat' while the golden answer simplifies it to 'his throat'. They both refer to the same anatomical location."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "2",
-      "output": "ANSWER_START\n2\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_9.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "John Carlson",
-      "output": "ANSWER_START\nJohn Carlson\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_9.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers refer to the same entity, John Carlson. The golden answer includes the position 'TE' (Tight End), which is additional context but doesn't change the core identity."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Cody Grimm, Aqib Talib, Sabby Piscitelli",
-      "output": "ANSWER_START\nCody Grimm, Aqib Talib, Sabby Piscitelli\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_9.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers contain the same list of names: Cody Grimm, Aqib Talib, and Sabby Piscitelli, in the same order."
-      },
-      "match": true
+      "match": false
     }
   ],
   "performance": {
-    "accuracy": 1.0,
-    "correct_count": 10,
-    "total_count": 10,
+    "accuracy": 0.0,
+    "correct_count": 0,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "1756",
-        "golden_answer": "1756",
-        "output": "ANSWER_START\n1756\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "I am unable to answer the question because the search results do not contain information about the first president of the Supreme Court of Argentina.",
+        "golden_answer": "Francisco de las Carreras",
+        "output": "Transformed Questions: ['1. What is the name of the Supreme Court of Argentina in Spanish?', '2. Who was the first president of [Supreme Court of Argentina from question 1]?', '']\nAnswers: ['Corte Suprema de Justicia de la Naci\u00f3n Argentina.\\n', 'My apologies, I am unable to answer the question as the search results do not contain information about the first president of the Supreme Court of Argentina.\\n']\nANSWER_START\nI am unable to answer the question because the search results do not contain information about the first president of the Supreme Court of Argentina.\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        }
+          "explanation": "The system answer explicitly states it cannot answer the question due to lack of information in the search results, whereas the golden answer provides a specific name, implying it knows the answer. These are contradictory, not semantically equivalent."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "The passage states the touchdown passes were 30 yards, 34 yards, and 3 yards. The longest was 34 yards and the shortest was 3 yards. The difference between the longest and shortest is 34 - 3 = 31.\n31",
-        "golden_answer": "31",
-        "output": "ANSWER_START\nThe passage states the touchdown passes were 30 yards, 34 yards, and 3 yards. The longest was 34 yards and the shortest was 3 yards. The difference between the longest and shortest is 34 - 3 = 31.\n31\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "The item \"Mechanical Glove\" in Terraria increases melee damage, critical strike chance, speed, and knockback. Originally, the speed buff only applied to melee weapons with a swinging animation. Unfortunately, the specific patch number in which the Mechanical Glove's effect changed is not available in the search results. Consult the official Terraria Wiki and look at the \"History\" section on the Mechanical Glove page to find that information.",
+        "golden_answer": "1.2.3",
+        "output": "Transformed Questions: ['1. What game features the item \"Mechanical Glove\"?', '2. In the game from question 1, what was the original effect of the \"Mechanical Glove\" on weapon types?', '3. In the game from question 1, what is the current effect of the \"Mechanical Glove\" on weapon types?', '4. In the game from question 1, what is a \"patch\"?', '5. In the game from question 1, in which specific patch did the \"Mechanical Glove\\'s\" effect change?', '']\nAnswers: ['Terraria features the item \"Mechanical Glove\".\\n', \"Originally, the Mechanical Glove's speed buff only applied to melee weapons that used a swinging animation, such as swords and axes.\\n\", 'The \"Mechanical Glove\" increases melee damage by 12%, melee critical strike chance by 2%, melee speed by 12%, and knockback by 10%.\\n', 'The search results do not contain the answer to the question. To answer the question, I need the game name to generate simulated search results about that specific game.\\n', 'I cannot provide the specific patch number in which the Mechanical Glove\\'s effect changed. To find that information, consult the official Terraria Wiki and look at the \"History\" section on the Mechanical Glove page.\\n']\nANSWER_START\nThe item \"Mechanical Glove\" in Terraria increases melee damage, critical strike chance, speed, and knockback. Originally, the speed buff only applied to melee weapons with a swinging animation. Unfortunately, the specific patch number in which the Mechanical Glove's effect changed is not available in the search results. Consult the official Terraria Wiki and look at the \"History\" section on the Mechanical Glove page to find that information.\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "Both answers provide the same numerical answer, 31."
-        }
+          "explanation": "The golden answer provides a specific version number (1.2.3), while the system answer states that it cannot find the specific patch number where the Mechanical Glove's effect changed and suggests consulting the Terraria Wiki. They do not convey the same information."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "100 - 62.5 = 37.5",
-        "golden_answer": "37.5",
-        "output": "ANSWER_START\n100 - 62.5 = 37.5\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "I am unable to answer this question. The provided search results do not contain the answer. More specific information is needed regarding Leslie Gabriel Valiant's position during the 1973-74 academic year to provide an accurate answer.",
+        "golden_answer": "Carnegie Mellon University",
+        "output": "Transformed Questions: ['1. Who is Leslie Gabriel Valiant?', '2. What position did Leslie Gabriel Valiant hold during the 1973-74 academic year?', '3. Where did Leslie Gabriel Valiant work as a visiting assistant professor in 1973-74?', '4. Is [location from question 3] a university?', '']\nAnswers: ['Leslie Gabriel Valiant is not definitively answered in the search results, however, it is noted that more information is needed to provide an adequate biography.\\n', \"I am unable to answer this question. The provided search results indicate that more specific information is needed regarding the type of organization and the nature of the position (academic, research, etc.) to provide an accurate answer about Leslie Gabriel Valiant's position during the 1973-74 academic year.\\n\", 'I am sorry, I cannot answer the question as the search results do not contain the answer.\\n', 'Okay, I understand. To answer your question, I need the location that was the subject of question 3. Please provide that location.\\n']\nANSWER_START\nI am unable to answer this question. The provided search results do not contain the answer. More specific information is needed regarding Leslie Gabriel Valiant's position during the 1973-74 academic year to provide an accurate answer.\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer shows the calculation and then arrives at the correct answer of 37.5, which is equivalent to the golden answer."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "Their actions, and support of Moray, served to prevent reconciliation in Scotland.",
-        "golden_answer": "support of Moray",
-        "output": "ANSWER_START\nTheir actions, and support of Moray, served to prevent reconciliation in Scotland.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer mentions their support of Moray, which is the golden answer. The system answer provides more context but includes the correct information."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "25 - 24 = 1\nFinal Answer: 1",
-        "golden_answer": "1",
-        "output": "ANSWER_START\n25 - 24 = 1\nFinal Answer: 1\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers clearly indicate the final answer is 1."
-        }
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "The Burmese army left Vientiane",
-        "golden_answer": "Burmese army left Vientiane",
-        "output": "ANSWER_START\nThe Burmese army left Vientiane\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers convey the same information: The Burmese army left Vientiane. The slight difference in phrasing (using \"The\" at the beginning) does not change the core meaning."
-        }
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "Region of his throat",
-        "golden_answer": "his throat",
-        "output": "ANSWER_START\nRegion of his throat\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer specifies the location as 'Region of his throat' while the golden answer simplifies it to 'his throat'. They both refer to the same anatomical location."
-        }
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "2",
-        "golden_answer": "2",
-        "output": "ANSWER_START\n2\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        }
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "John Carlson",
-        "golden_answer": "TE John Carlson",
-        "output": "ANSWER_START\nJohn Carlson\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers refer to the same entity, John Carlson. The golden answer includes the position 'TE' (Tight End), which is additional context but doesn't change the core identity."
-        }
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "Cody Grimm, Aqib Talib, Sabby Piscitelli",
-        "golden_answer": "Cody Grimm, Aqib Talib, Sabby Piscitelli",
-        "output": "ANSWER_START\nCody Grimm, Aqib Talib, Sabby Piscitelli\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers contain the same list of names: Cody Grimm, Aqib Talib, and Sabby Piscitelli, in the same order."
-        }
+          "explanation": "The system answer states it cannot answer the question based on the provided search results, while the golden answer provides a specific answer. These answers do not convey the same information."
+        },
+        "capability_failures": []
       }
     ],
     "error_analysis": {
-      "text_report": "Okay, I will perform a forensic analysis of the provided success cases, as no error cases were provided.\n\n## RUNTIME ERRORS\nNone. There are no error messages in any of the successful samples provided.\n\n## STRENGTHS\n\n1.  **Accurate Information Extraction:** The system demonstrates a strong ability to extract relevant numerical and textual information from the provided passages. This is evident in samples like 1, 4, and 9 where specific details are identified and used correctly.\n2.  **Arithmetic Reasoning:** The system is capable of performing basic arithmetic calculations to answer quantitative questions. This is demonstrated in examples like 2 and 4.\n3. **Contextual Understanding:** The system shows the ability to understand and apply contextual information from the passages, even if the answer requires more than a direct quote (e.g., sample 3 and 6).\n\n## WEAKNESSES\n\n1. **Redundant Verbosity:** While generally correct, the system can sometimes be overly verbose in its explanations, including unnecessary introductory phrases. While not technically an error, it can increase processing time and might indicate inefficiencies in the reasoning process (e.g., sample 1).\n2. **Lack of Conciseness in Output:** The system sometimes provides answers with more context than is strictly required (e.g., samples 3, 6, and 8), suggesting an area for improvement in precision.\n\n## CRITICAL BOTTLENECKS\n\n1. **Optimization of Reasoning Process:** The system sometimes performs correct reasoning but includes unnecessary steps or verbose explanations that could be streamlined. This indicates a need for better optimization.\n\n## ERROR PATTERNS\n\nSince there are no error cases, there are no error patterns.\n\n## PRIMARY ISSUE\n\nThe primary issue is not an error, but an inefficiency: **Unnecessary verbosity and potentially redundant reasoning steps**, leading to a less-than-optimal response.\n\n## IMPROVEMENT AREAS\n\n1.  **Response Conciseness:** Improve the system's ability to provide concise and directly relevant answers, avoiding unnecessary context or introductory phrases.\n2.  **Reasoning Efficiency:** Optimize the reasoning process to eliminate redundant steps or calculations, leading to faster and more efficient solutions.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Refine Output Generation:** Implement a post-processing step to remove unnecessary phrases or redundant information from the final answer. This could involve training a small language model to summarize the system's reasoning into a concise answer.\n2.  **Optimize Reasoning Chains:** Analyze the reasoning chains used for successful samples and identify potential redundancies or inefficiencies. Refine the system's logic to eliminate these. Add intermediate outputs to the reasoning chain so that they can be reviewed.\n3. **Implement Relevance Scoring:** When extracting information from the passage, implement a relevance scoring mechanism that prioritizes the most pertinent information for answering the question. This would reduce the chances of including less relevant details in the final answer.\n\n## CAPABILITY MAPPING\n\nNo errors were observed in the provided samples.\n",
+      "text_report": "## RUNTIME ERRORS\nNo explicit runtime errors (e.g., JSONDecodeError, TypeError) were observed in the provided outputs. The system's inability to answer stems from a lack of information retrieved from the search results and failures in question reformulation and subsequent search.\n\n## STRENGTHS\n1. **Question Decomposition:** The system attempts to break down complex questions into smaller, more manageable sub-questions to facilitate information retrieval.\n2. **Acknowledging Limitations:** The system explicitly states when it cannot answer a question due to insufficient information, avoiding fabrication.\n\n## WEAKNESSES\n1. **Information Retrieval Failure:** The system frequently fails to retrieve the specific information needed to answer the questions, even when the information is likely available online. This suggests issues with query formulation and search strategy.\n2. **Lack of Robustness in Question Transformation:** The system's question transformation strategy sometimes leads to less effective search queries, ultimately hindering information retrieval. In some cases, it even requests the user to provide information (like in sample_id 2, asking for the location from the previous question).\n\n## CRITICAL BOTTLENECKS\n1. **Ineffective Search Queries:** The inability to formulate effective search queries that retrieve the necessary information is the primary bottleneck. This could be due to poor keyword selection, lack of contextual understanding, or insufficient exploration of different search strategies.\n2. **Dependency on Perfect Information Retrieval:** The system relies heavily on retrieving complete and direct answers from the initial search results. It lacks the ability to synthesize information from multiple sources or make reasonable inferences when the answer isn't explicitly stated.\n\n## ERROR PATTERNS\n1. **\"I am unable to answer...\" Response:** This is a recurring theme, indicating a consistent failure in information retrieval and subsequent reasoning.\n2. **Escalating \"I don't know\" Responses:** The system often responds with \"I don't know\" at multiple stages of question decomposition, indicating a lack of accumulated knowledge or contextual awareness across sub-questions.\n3. **Dependency on Sub-question Results:** The system's reasoning becomes blocked if the results to even one sub-question return a null or vague answer. The system doesn't attempt to resolve these issues.\n\n## PRIMARY ISSUE\nThe most critical problem is the **system's inability to formulate and execute effective search queries that reliably retrieve the necessary information to answer complex questions.** This failure cascades through the subsequent reasoning steps, rendering the system unable to provide accurate answers.\n\n## IMPROVEMENT AREAS\n1. **Search Query Optimization:** Improve the system's ability to generate relevant and effective search queries by incorporating techniques such as:\n    - Keyword expansion and synonym identification\n    - Query refinement based on initial search results\n    - Exploring different search engines and APIs\n2. **Information Synthesis and Inference:** Enhance the system's capability to synthesize information from multiple sources and make reasonable inferences when the answer isn't directly available in the search results.\n3. **Contextual Awareness and Knowledge Accumulation:** Implement mechanisms to maintain context across sub-questions and accumulate knowledge to avoid redundant \"I don't know\" responses.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Implement a Query Refinement Loop:** After an initial search, analyze the top results. If the results are insufficient, modify the query (e.g., add/remove keywords, use different phrasing) and re-execute the search. This iterative process can help identify more relevant information.\n2. **Integrate a Knowledge Graph or External Database:** Augment the system's knowledge base with a pre-existing knowledge graph or external database (e.g., Wikidata, DBpedia) to provide a broader context and improve information retrieval.\n3. **Implement a Multi-Document Summarization Technique:** Develop a module that can summarize information from multiple search results to extract key facts and relationships, even when the answer is not explicitly stated in a single document.\n4. **Implement a Fallback Mechanism:** If the system is unable to answer a sub-question after multiple attempts, try a different reasoning path or simplify the question to focus on a more specific aspect of the problem.\n5. **Provide print statements after question transformations, after each API call, and before the final answer.** This will help in later debugging efforts.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information_extraction, solution_generation\n*   **Sample ID 1:** information_extraction, solution_generation\n*   **Sample ID 2:** information_extraction, solution_generation\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The primary issue is not an error, but an inefficiency: **Unnecessary verbosity and potentially redundant reasoning steps**, leading to a less-than-optimal response.",
+      "primary_issue": "The most critical problem is the **system's inability to formulate and execute effective search queries that reliably retrieve the necessary information to answer complex questions.** This failure cascades through the subsequent reasoning steps, rendering the system unable to provide accurate answers.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "## AI System Capability Assessment\n\nHere's a thorough capability assessment based on the provided performance summary, error analysis, sample execution outputs, and your instructions.\n\n### EXECUTION ANALYSIS\n\n*   **Sample 1:** Extracted \"1756\" accurately. Output is clean and concise.\n*   **Sample 2:** Correctly identifies touchdown pass lengths and calculates the difference. Includes a detailed explanation, which, while accurate, is longer than necessary. The final answer \"31\" is correct.\n*   **Sample 3:** Correctly performs the subtraction. Output is concise.\n\nOverall, the execution outputs confirm the initial assessment: the system is accurate in its calculations and information extraction. However, Sample 2 clearly illustrates the verbosity issue flagged in the error analysis. The system correctly performs the calculation and states the correct answer, but includes a redundant explanation of its reasoning.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates strong capabilities in information extraction, arithmetic reasoning, and contextual understanding. It reliably generates correct answers. However, the system sometimes exhibits unnecessary verbosity and includes redundant information in its outputs, suggesting inefficiencies in its reasoning process and/or output generation.\n\n### KEY STRENGTHS\n\n*   **Accuracy:** The system consistently provides correct answers based on the provided information.\n*   **Arithmetic Reasoning:** The system accurately performs arithmetic calculations.\n*   **Information Extraction:** The system identifies and extracts relevant information from the input text.\n\n### KEY WEAKNESSES\n\n*   **Verbosity:** The system includes unnecessary explanations and contextual details in its outputs, leading to a lack of conciseness.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Response Conciseness**. Reducing verbosity will improve efficiency, reduce processing time, and make the system easier to use.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Post-Processing Summarization Module:** Train a small language model or rule-based system to summarize the system's initial reasoning into a concise answer. This module would take the initial output as input and generate a shorter, more direct response.\n    *   **Action:** Develop and integrate a post-processing summarization module, focusing on removing redundant phrases and contextual details.\n2.  **Refine Reasoning Chains and Add Reviewable Intermediate Outputs:** Review the logic underlying the answers, particularly those identified as verbose. Identify and eliminate any redundant steps. Adding intermediate outputs to the reasoning chain will allow for review and identification of unnecessary steps.\n    *   **Action:** Add intermediate outputs to the reasoning chain, review chain to find redundant steps, then remove redundant steps.\n3.  **Implement a Relevance Scoring Mechanism for Information Extraction:** Assign scores to extracted information based on its relevance to the question being answered. Prioritize high-scoring information for inclusion in the final response.\n    *   **Action:** Develop and implement a relevance scoring mechanism within the information extraction module.\n4.  **Output Length Constraint:** Introduce a hard limit or a target length on the response outputs to force the system to be more concise. This would be coupled with the summarization module to maintain accuracy while staying within the length constraint.\n    *   **Action:** Implement a length constraint on the system's outputs and fine-tune it to balance conciseness with accuracy.\n5.  **Introduce Verbosity Penalty During Training/Fine-Tuning:** If the system undergoes further training or fine-tuning, introduce a penalty for verbose outputs. This would encourage the model to generate more concise and direct responses.\n    *   **Action:** Incorporate a verbosity penalty into the training/fine-tuning process.\n\n### CAPABILITY TREND\n\nBased on the limited data, the system's capabilities appear to be **stable** in terms of accuracy. However, there's an opportunity for significant improvement in efficiency and user experience by addressing the verbosity issue. Therefore, the potential trend is positive if the improvement recommendations are implemented.\n",
+      "text_report": "Okay, here's a comprehensive capability report for your AI system, based on the provided performance summary, error analysis, sample execution outputs, and requested structure.\n\n## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample executions highlight several key issues:\n\n*   **Information Retrieval is Unreliable:** Across all samples, the system struggles to find accurate and complete answers in the initial search results. This often leads to \"I don't know\" responses, even when the information seems likely to be available online (e.g., who was the first president of the Argentine Supreme Court).\n*   **Broken Chains of Reasoning:**  The reliance on sub-question results is problematic. If any sub-question fails to yield a suitable answer, the entire chain breaks down. Sample ID 2 demonstrates this perfectly, with the system needing the location from the previous turn and being unable to move on.\n*   **Question Transformation Issues:** While the attempt at question decomposition is positive, the transformed questions are not always optimal. Sometimes they are too specific or lack the necessary context for effective search. The transformation in Sample ID 2 is particularly problematic; asking for the location from question 3 when the system already failed at question 3 is an odd outcome.\n*   **Lack of Error Handling/Recovery:** The system doesn't attempt to handle failed search queries intelligently. It doesn't retry with different queries, try to synthesize information from multiple less-than-perfect sources, or adapt its reasoning strategy when encountering a dead end.\n*   **Excessive Verbosity/Redundancy:** The system often prefaces answers with statements like \"The search results do not contain the answer to the question.\" This adds unnecessary length and detracts from the user experience. The system says a variation of \"I am unable to answer\" multiple times per sample.\n* **Over-Reliance on search:** The system depends too much on external search and fails to reason when the answer isn't directly stated.\n\n### CAPABILITY ASSESSMENT\n\nThe system currently demonstrates very limited capabilities in answering complex questions. Its core issue lies in reliably retrieving and synthesizing information from external sources. While it attempts question decomposition, the execution is flawed due to poor query formulation, lack of error handling, and an inability to reason beyond the immediate search results. The system's overall capability can be described as **nascent and unreliable.** Its accuracy score of 0/3 confirms this assessment.\n\n### KEY STRENGTHS\n\n*   **Question Decomposition:** The attempt to break down complex questions is a valuable architectural decision that should be retained and improved.\n*   **Acknowledging Limitations:**  Avoiding hallucination by admitting when it cannot answer is crucial. This ethical behavior should be preserved.\n\n### KEY WEAKNESSES\n\n*   **Information Retrieval Failure:** Consistently failing to retrieve necessary information is the most critical weakness.\n*   **Lack of Robustness in Question Transformation:** Transformed questions are not always effective and can sometimes exacerbate information retrieval difficulties.\n*   **Inability to Synthesize Information:** The system cannot combine information from multiple sources or make inferences when a direct answer is unavailable.\n*   **Poor Error Handling and Recovery:** The system lacks mechanisms to retry failed searches, adapt its reasoning strategy, or handle incomplete information.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **information retrieval**. Without reliable information retrieval, all other components of the system are rendered ineffective.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Query Rewriting and Expansion Module:**\n\n    *   **Action:** Develop a dedicated module that analyzes the initial query and generates multiple variations. This should include:\n        *   Synonym expansion using a thesaurus or word embeddings.\n        *   Adding context from previous turns of the conversation.\n        *   Trying different question structures (e.g., \"What is X?\" vs. \"Define X\").\n        *   Removing unnecessary words or phrases that may be hindering search.\n    *   **Rationale:** This directly addresses the core problem of ineffective search queries.\n\n2.  **Implement a Multi-Pass Search Strategy with Result Analysis:**\n\n    *   **Action:** After the initial search (using multiple query variations from recommendation #1), analyze the top N results (e.g., top 5). Determine the relevance of each result based on keyword matching, semantic similarity, and other metrics. If the results are insufficient (e.g., low relevance scores), automatically refine the query (more aggressive synonym expansion, adding more context) and re-execute the search. Repeat this process for a maximum number of passes.\n    *   **Rationale:** Provides a more robust approach to information retrieval, increasing the chances of finding relevant information.\n\n3.  **Implement a Basic Information Fusion Module:**\n\n    *   **Action:**  After retrieving multiple relevant search results, develop a module that attempts to extract and synthesize key facts and relationships from these results. This could involve:\n        *   Identifying named entities and relationships between them.\n        *   Summarizing the content of each result.\n        *   Resolving conflicting information from different sources (e.g., by prioritizing more authoritative sources).\n    *   **Rationale:** Moves the system beyond simply regurgitating search results and towards actual reasoning and answering.\n\n4.  **Introduce Logging and Debugging Enhancements:**\n\n    *   **Action:** Add detailed print statements to the code at critical stages:\n        *   Before and after each question transformation.\n        *   Before and after each API call (search engine).\n        *   Before making any final decisions or providing the final answer.\n        *   Include information about the queries being executed, the raw search results, and the intermediate reasoning steps.\n    *   **Rationale:** Crucial for debugging and understanding why the system is failing in specific cases. The current lack of transparency makes it difficult to diagnose the root cause of errors.\n\n5.  **Reduce Verbosity and Redundancy:**\n\n    *   **Action:** Remove redundant phrases like \"The search results do not contain the answer to the question.\" and aim for more concise and direct responses.\n    *   **Rationale:** Improves the user experience and makes the system appear more intelligent.\n\n### CAPABILITY TREND\n\nBased on the current performance (0/3 accuracy), the capability trend is currently **stable and very low**. Significant improvements are needed to demonstrate any upward trend. Addressing the information retrieval weaknesses outlined above is crucial for driving positive change.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "Okay, I will perform a forensic analysis of the provided success cases, as no error cases were provided.\n\n## RUNTIME ERRORS\nNone. There are no error messages in any of the successful samples provided.\n\n## STRENGTHS\n\n1.  **Accurate Information Extraction:** The system demonstrates a strong ability to extract relevant numerical and textual information from the provided passages. This is evident in samples like 1, 4, and 9 where specific details are identified and used correctly.\n2.  **Arithmetic Reasoning:** The system is capable of performing basic arithmetic calculations to answer quantitative questions. This is demonstrated in examples like 2 and 4.\n3. **Contextual Understanding:** The system shows the ability to understand and apply contextual information from the passages, even if the answer requires more than a direct quote (e.g., sample 3 and 6).\n\n## WEAKNESSES\n\n1. **Redundant Verbosity:** While generally correct, the system can sometimes be overly verbose in its explanations, including unnecessary introductory phrases. While not technically an error, it can increase processing time and might indicate inefficiencies in the reasoning process (e.g., sample 1).\n2. **Lack of Conciseness in Output:** The system sometimes provides answers with more context than is strictly required (e.g., samples 3, 6, and 8), suggesting an area for improvement in precision.\n\n## CRITICAL BOTTLENECKS\n\n1. **Optimization of Reasoning Process:** The system sometimes performs correct reasoning but includes unnecessary steps or verbose explanations that could be streamlined. This indicates a need for better optimization.\n\n## ERROR PATTERNS\n\nSince there are no error cases, there are no error patterns.\n\n## PRIMARY ISSUE\n\nThe primary issue is not an error, but an inefficiency: **Unnecessary verbosity and potentially redundant reasoning steps**, leading to a less-than-optimal response.\n\n## IMPROVEMENT AREAS\n\n1.  **Response Conciseness:** Improve the system's ability to provide concise and directly relevant answers, avoiding unnecessary context or introductory phrases.\n2.  **Reasoning Efficiency:** Optimize the reasoning process to eliminate redundant steps or calculations, leading to faster and more efficient solutions.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Refine Output Generation:** Implement a post-processing step to remove unnecessary phrases or redundant information from the final answer. This could involve training a small language model to summarize the system's reasoning into a concise answer.\n2.  **Optimize Reasoning Chains:** Analyze the reasoning chains used for successful samples and identify potential redundancies or inefficiencies. Refine the system's logic to eliminate these. Add intermediate outputs to the reasoning chain so that they can be reviewed.\n3. **Implement Relevance Scoring:** When extracting information from the passage, implement a relevance scoring mechanism that prioritizes the most pertinent information for answering the question. This would reduce the chances of including less relevant details in the final answer.\n\n## CAPABILITY MAPPING\n\nNo errors were observed in the provided samples.\n",
-    "capability_report_text": "## AI System Capability Assessment\n\nHere's a thorough capability assessment based on the provided performance summary, error analysis, sample execution outputs, and your instructions.\n\n### EXECUTION ANALYSIS\n\n*   **Sample 1:** Extracted \"1756\" accurately. Output is clean and concise.\n*   **Sample 2:** Correctly identifies touchdown pass lengths and calculates the difference. Includes a detailed explanation, which, while accurate, is longer than necessary. The final answer \"31\" is correct.\n*   **Sample 3:** Correctly performs the subtraction. Output is concise.\n\nOverall, the execution outputs confirm the initial assessment: the system is accurate in its calculations and information extraction. However, Sample 2 clearly illustrates the verbosity issue flagged in the error analysis. The system correctly performs the calculation and states the correct answer, but includes a redundant explanation of its reasoning.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates strong capabilities in information extraction, arithmetic reasoning, and contextual understanding. It reliably generates correct answers. However, the system sometimes exhibits unnecessary verbosity and includes redundant information in its outputs, suggesting inefficiencies in its reasoning process and/or output generation.\n\n### KEY STRENGTHS\n\n*   **Accuracy:** The system consistently provides correct answers based on the provided information.\n*   **Arithmetic Reasoning:** The system accurately performs arithmetic calculations.\n*   **Information Extraction:** The system identifies and extracts relevant information from the input text.\n\n### KEY WEAKNESSES\n\n*   **Verbosity:** The system includes unnecessary explanations and contextual details in its outputs, leading to a lack of conciseness.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Response Conciseness**. Reducing verbosity will improve efficiency, reduce processing time, and make the system easier to use.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Post-Processing Summarization Module:** Train a small language model or rule-based system to summarize the system's initial reasoning into a concise answer. This module would take the initial output as input and generate a shorter, more direct response.\n    *   **Action:** Develop and integrate a post-processing summarization module, focusing on removing redundant phrases and contextual details.\n2.  **Refine Reasoning Chains and Add Reviewable Intermediate Outputs:** Review the logic underlying the answers, particularly those identified as verbose. Identify and eliminate any redundant steps. Adding intermediate outputs to the reasoning chain will allow for review and identification of unnecessary steps.\n    *   **Action:** Add intermediate outputs to the reasoning chain, review chain to find redundant steps, then remove redundant steps.\n3.  **Implement a Relevance Scoring Mechanism for Information Extraction:** Assign scores to extracted information based on its relevance to the question being answered. Prioritize high-scoring information for inclusion in the final response.\n    *   **Action:** Develop and implement a relevance scoring mechanism within the information extraction module.\n4.  **Output Length Constraint:** Introduce a hard limit or a target length on the response outputs to force the system to be more concise. This would be coupled with the summarization module to maintain accuracy while staying within the length constraint.\n    *   **Action:** Implement a length constraint on the system's outputs and fine-tune it to balance conciseness with accuracy.\n5.  **Introduce Verbosity Penalty During Training/Fine-Tuning:** If the system undergoes further training or fine-tuning, introduce a penalty for verbose outputs. This would encourage the model to generate more concise and direct responses.\n    *   **Action:** Incorporate a verbosity penalty into the training/fine-tuning process.\n\n### CAPABILITY TREND\n\nBased on the limited data, the system's capabilities appear to be **stable** in terms of accuracy. However, there's an opportunity for significant improvement in efficiency and user experience by addressing the verbosity issue. Therefore, the potential trend is positive if the improvement recommendations are implemented.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nNo explicit runtime errors (e.g., JSONDecodeError, TypeError) were observed in the provided outputs. The system's inability to answer stems from a lack of information retrieved from the search results and failures in question reformulation and subsequent search.\n\n## STRENGTHS\n1. **Question Decomposition:** The system attempts to break down complex questions into smaller, more manageable sub-questions to facilitate information retrieval.\n2. **Acknowledging Limitations:** The system explicitly states when it cannot answer a question due to insufficient information, avoiding fabrication.\n\n## WEAKNESSES\n1. **Information Retrieval Failure:** The system frequently fails to retrieve the specific information needed to answer the questions, even when the information is likely available online. This suggests issues with query formulation and search strategy.\n2. **Lack of Robustness in Question Transformation:** The system's question transformation strategy sometimes leads to less effective search queries, ultimately hindering information retrieval. In some cases, it even requests the user to provide information (like in sample_id 2, asking for the location from the previous question).\n\n## CRITICAL BOTTLENECKS\n1. **Ineffective Search Queries:** The inability to formulate effective search queries that retrieve the necessary information is the primary bottleneck. This could be due to poor keyword selection, lack of contextual understanding, or insufficient exploration of different search strategies.\n2. **Dependency on Perfect Information Retrieval:** The system relies heavily on retrieving complete and direct answers from the initial search results. It lacks the ability to synthesize information from multiple sources or make reasonable inferences when the answer isn't explicitly stated.\n\n## ERROR PATTERNS\n1. **\"I am unable to answer...\" Response:** This is a recurring theme, indicating a consistent failure in information retrieval and subsequent reasoning.\n2. **Escalating \"I don't know\" Responses:** The system often responds with \"I don't know\" at multiple stages of question decomposition, indicating a lack of accumulated knowledge or contextual awareness across sub-questions.\n3. **Dependency on Sub-question Results:** The system's reasoning becomes blocked if the results to even one sub-question return a null or vague answer. The system doesn't attempt to resolve these issues.\n\n## PRIMARY ISSUE\nThe most critical problem is the **system's inability to formulate and execute effective search queries that reliably retrieve the necessary information to answer complex questions.** This failure cascades through the subsequent reasoning steps, rendering the system unable to provide accurate answers.\n\n## IMPROVEMENT AREAS\n1. **Search Query Optimization:** Improve the system's ability to generate relevant and effective search queries by incorporating techniques such as:\n    - Keyword expansion and synonym identification\n    - Query refinement based on initial search results\n    - Exploring different search engines and APIs\n2. **Information Synthesis and Inference:** Enhance the system's capability to synthesize information from multiple sources and make reasonable inferences when the answer isn't directly available in the search results.\n3. **Contextual Awareness and Knowledge Accumulation:** Implement mechanisms to maintain context across sub-questions and accumulate knowledge to avoid redundant \"I don't know\" responses.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Implement a Query Refinement Loop:** After an initial search, analyze the top results. If the results are insufficient, modify the query (e.g., add/remove keywords, use different phrasing) and re-execute the search. This iterative process can help identify more relevant information.\n2. **Integrate a Knowledge Graph or External Database:** Augment the system's knowledge base with a pre-existing knowledge graph or external database (e.g., Wikidata, DBpedia) to provide a broader context and improve information retrieval.\n3. **Implement a Multi-Document Summarization Technique:** Develop a module that can summarize information from multiple search results to extract key facts and relationships, even when the answer is not explicitly stated in a single document.\n4. **Implement a Fallback Mechanism:** If the system is unable to answer a sub-question after multiple attempts, try a different reasoning path or simplify the question to focus on a more specific aspect of the problem.\n5. **Provide print statements after question transformations, after each API call, and before the final answer.** This will help in later debugging efforts.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:** information_extraction, solution_generation\n*   **Sample ID 1:** information_extraction, solution_generation\n*   **Sample ID 2:** information_extraction, solution_generation\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report for your AI system, based on the provided performance summary, error analysis, sample execution outputs, and requested structure.\n\n## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe sample executions highlight several key issues:\n\n*   **Information Retrieval is Unreliable:** Across all samples, the system struggles to find accurate and complete answers in the initial search results. This often leads to \"I don't know\" responses, even when the information seems likely to be available online (e.g., who was the first president of the Argentine Supreme Court).\n*   **Broken Chains of Reasoning:**  The reliance on sub-question results is problematic. If any sub-question fails to yield a suitable answer, the entire chain breaks down. Sample ID 2 demonstrates this perfectly, with the system needing the location from the previous turn and being unable to move on.\n*   **Question Transformation Issues:** While the attempt at question decomposition is positive, the transformed questions are not always optimal. Sometimes they are too specific or lack the necessary context for effective search. The transformation in Sample ID 2 is particularly problematic; asking for the location from question 3 when the system already failed at question 3 is an odd outcome.\n*   **Lack of Error Handling/Recovery:** The system doesn't attempt to handle failed search queries intelligently. It doesn't retry with different queries, try to synthesize information from multiple less-than-perfect sources, or adapt its reasoning strategy when encountering a dead end.\n*   **Excessive Verbosity/Redundancy:** The system often prefaces answers with statements like \"The search results do not contain the answer to the question.\" This adds unnecessary length and detracts from the user experience. The system says a variation of \"I am unable to answer\" multiple times per sample.\n* **Over-Reliance on search:** The system depends too much on external search and fails to reason when the answer isn't directly stated.\n\n### CAPABILITY ASSESSMENT\n\nThe system currently demonstrates very limited capabilities in answering complex questions. Its core issue lies in reliably retrieving and synthesizing information from external sources. While it attempts question decomposition, the execution is flawed due to poor query formulation, lack of error handling, and an inability to reason beyond the immediate search results. The system's overall capability can be described as **nascent and unreliable.** Its accuracy score of 0/3 confirms this assessment.\n\n### KEY STRENGTHS\n\n*   **Question Decomposition:** The attempt to break down complex questions is a valuable architectural decision that should be retained and improved.\n*   **Acknowledging Limitations:**  Avoiding hallucination by admitting when it cannot answer is crucial. This ethical behavior should be preserved.\n\n### KEY WEAKNESSES\n\n*   **Information Retrieval Failure:** Consistently failing to retrieve necessary information is the most critical weakness.\n*   **Lack of Robustness in Question Transformation:** Transformed questions are not always effective and can sometimes exacerbate information retrieval difficulties.\n*   **Inability to Synthesize Information:** The system cannot combine information from multiple sources or make inferences when a direct answer is unavailable.\n*   **Poor Error Handling and Recovery:** The system lacks mechanisms to retry failed searches, adapt its reasoning strategy, or handle incomplete information.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **information retrieval**. Without reliable information retrieval, all other components of the system are rendered ineffective.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Query Rewriting and Expansion Module:**\n\n    *   **Action:** Develop a dedicated module that analyzes the initial query and generates multiple variations. This should include:\n        *   Synonym expansion using a thesaurus or word embeddings.\n        *   Adding context from previous turns of the conversation.\n        *   Trying different question structures (e.g., \"What is X?\" vs. \"Define X\").\n        *   Removing unnecessary words or phrases that may be hindering search.\n    *   **Rationale:** This directly addresses the core problem of ineffective search queries.\n\n2.  **Implement a Multi-Pass Search Strategy with Result Analysis:**\n\n    *   **Action:** After the initial search (using multiple query variations from recommendation #1), analyze the top N results (e.g., top 5). Determine the relevance of each result based on keyword matching, semantic similarity, and other metrics. If the results are insufficient (e.g., low relevance scores), automatically refine the query (more aggressive synonym expansion, adding more context) and re-execute the search. Repeat this process for a maximum number of passes.\n    *   **Rationale:** Provides a more robust approach to information retrieval, increasing the chances of finding relevant information.\n\n3.  **Implement a Basic Information Fusion Module:**\n\n    *   **Action:**  After retrieving multiple relevant search results, develop a module that attempts to extract and synthesize key facts and relationships from these results. This could involve:\n        *   Identifying named entities and relationships between them.\n        *   Summarizing the content of each result.\n        *   Resolving conflicting information from different sources (e.g., by prioritizing more authoritative sources).\n    *   **Rationale:** Moves the system beyond simply regurgitating search results and towards actual reasoning and answering.\n\n4.  **Introduce Logging and Debugging Enhancements:**\n\n    *   **Action:** Add detailed print statements to the code at critical stages:\n        *   Before and after each question transformation.\n        *   Before and after each API call (search engine).\n        *   Before making any final decisions or providing the final answer.\n        *   Include information about the queries being executed, the raw search results, and the intermediate reasoning steps.\n    *   **Rationale:** Crucial for debugging and understanding why the system is failing in specific cases. The current lack of transparency makes it difficult to diagnose the root cause of errors.\n\n5.  **Reduce Verbosity and Redundancy:**\n\n    *   **Action:** Remove redundant phrases like \"The search results do not contain the answer to the question.\" and aim for more concise and direct responses.\n    *   **Rationale:** Improves the user experience and makes the system appear more intelligent.\n\n### CAPABILITY TREND\n\nBased on the current performance (0/3 accuracy), the capability trend is currently **stable and very low**. Significant improvements are needed to demonstrate any upward trend. Addressing the information retrieval weaknesses outlined above is crucial for driving positive change.\n"
   },
-  "progressive_testing": {
-    "total_examples": 10,
-    "successful_runs": 10,
-    "matches": 7,
-    "accuracy": 0.7,
-    "results": [
-      {
-        "success": true,
-        "answer": "The passage gives the percentages of people with German, Irish, Italian, English, \"American\", and Polish ancestry. It states that 9.8% of the population were of Italian ancestry. To find the percentage of people who were *not* Italian, we would need to subtract the percentage of Italian ancestry from the total percentage (100%). However, the passage only provides percentages for a few ancestries, and these do not add up to 100%. Therefore, we cannot determine the percentage of people who were not Italian based on the given information.\n\nAnswer: Not enough information.",
-        "output": "ANSWER_START\nThe passage gives the percentages of people with German, Irish, Italian, English, \"American\", and Polish ancestry. It states that 9.8% of the population were of Italian ancestry. To find the percentage of people who were *not* Italian, we would need to subtract the percentage of Italian ancestry from the total percentage (100%). However, the passage only provides percentages for a few ancestries, and these do not add up to 100%. Therefore, we cannot determine the percentage of people who were not Italian based on the given information.\n\nAnswer: Not enough information.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "90.2",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer states there isn't enough information to answer the question. This contradicts the golden answer which has an answer."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "27",
-        "output": "ANSWER_START\n27\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "27",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "15 + 27 = 42",
-        "output": "ANSWER_START\n15 + 27 = 42\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "42",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer shows the operation being performed and the final answer, which matches the golden answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "24 + 32 + 28 + 51 + 35 = 170",
-        "output": "ANSWER_START\n24 + 32 + 28 + 51 + 35 = 170\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "142",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The golden answer is 142. The system answer calculates 24 + 32 + 28 + 51 + 35 = 170. Therefore, the two answers are not equivalent."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Jaguars",
-        "output": "ANSWER_START\nJaguars\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "Jaguars",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer \"Jaguars\" is identical to the golden answer \"Jaguars\"."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Game 4 and Game 7",
-        "output": "ANSWER_START\nGame 4 and Game 7\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "Game 4 123\u2013118 in overtime., Game 7, force overtime.",
-        "evaluation": {
-          "match": false,
-          "confidence": 0.7,
-          "explanation": "The golden answer provides more specific details (score and overtime) about the games mentioned, which the system answer lacks. Therefore, they don't convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "30 - 26 = 4",
-        "output": "ANSWER_START\n30 - 26 = 4\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "4",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer shows the calculation (30-26=4) which results in the golden answer (4)."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Romo's longest TD pass: 45 yards\nMcNabb's longest TD pass: 10 yards\nDifference: 45 - 10 = 35 yards\n\nThe answer is correct.\nFINAL ANSWER: 35",
-        "output": "ANSWER_START\nRomo's longest TD pass: 45 yards\nMcNabb's longest TD pass: 10 yards\nDifference: 45 - 10 = 35 yards\n\nThe answer is correct.\nFINAL ANSWER: 35\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "35",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers provide the same numerical value '35' as the final answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "beheaded",
-        "output": "ANSWER_START\nbeheaded\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "beheaded",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are exactly the same."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "9,864,422 (1980) > 9,558,615 (1990). The answer is 1980.",
-        "output": "ANSWER_START\n9,864,422 (1980) > 9,558,615 (1990). The answer is 1980.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_9.jsonl",
-        "golden_answer": "1980",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer includes the golden answer (1980) within its reasoning."
-        },
-        "match": true
-      }
-    ]
-  },
-  "execution_time": 117.04683566093445,
+  "progressive_testing": null,
+  "execution_time": 85.80333638191223,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

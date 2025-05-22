@@ -1,479 +1,203 @@
 {
   "iteration": 28,
-  "timestamp": "2025-05-20T21:34:51.552322",
-  "strategy": "Exploitation",
-  "explore_rate": 15,
-  "exploit_rate": 85,
-  "batch_size": 5,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach with enhanced reasoning and validation.\n    \"\"\"\n    try:\n        # Step 1: Analyze question to identify type and keywords, including calculation need\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using keywords, now with unit awareness\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer, explicitly instructing to perform calculations if needed\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer, checking for calculation completeness and unit inclusion\n        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes question, identifying type, keywords, and if calculation is needed. Includes examples.\"\"\"\n    system_instruction = \"You are an expert question analyzer determining type, keywords, and calculation needs.\"\n    prompt = f\"\"\"\n    Analyze the question, identify its type (fact extraction, calculation, comparison), keywords, and if calculation is needed.\n\n    Example 1:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"calculation_needed\": false}}\n\n    Example 2:\n    Question: How many more yards did Chris Johnson gain than LenDale White?\n    Analysis: {{\"type\": \"comparison\", \"keywords\": [\"yards\", \"Chris Johnson\", \"LenDale White\"], \"calculation_needed\": true}}\n\n    Example 3:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"calculation_needed\": false}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts relevant passage based on keywords. Focuses on unit awareness. Includes examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages, focusing on unit awareness.\"\n    prompt = f\"\"\"\n    Extract the relevant passage based on the question, keywords, and especially units.\n\n    Example 1:\n    Question: How many yards did Chris Johnson gain?\n    Keywords: {{\"keywords\": [\"yards\", \"Chris Johnson\"]}}\n    Text: PASSAGE: Chris Johnson ran for 120 yards.\n    Passage: Chris Johnson ran for 120 yards.\n\n    Example 2:\n    Question: What was the final score?\n    Keywords: {{\"keywords\": [\"final score\"]}}\n    Text: PASSAGE: The final score was 27-14.\n    Passage: The final score was 27-14.\n\n     Example 3:\n    Question: How many touchdowns were scored in the first quarter?\n    Keywords: {{\"keywords\": [\"touchdowns\", \"first quarter\"]}}\n    Text: PASSAGE: Two touchdowns were scored in the first quarter.\n    Passage: Two touchdowns were scored in the first quarter.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates answer, with explicit instruction to perform calculation if needed. Includes examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers, performing calculations if needed.\"\n    prompt = f\"\"\"\n    Generate the answer, performing any necessary calculations based on the question type.\n\n    Example 1:\n    Question: What was the final score of the game?\n    Passage: The final score was 27-14.\n    Answer: 27-14\n\n    Example 2:\n    Question: How many yards did Chris Johnson gain?\n    Passage: Chris Johnson ran for 120 yards.\n    Answer: 120 yards\n\n    Example 3:\n    Question: How many more yards did Chris Johnson gain than LenDale White?\n    Passage: Chris Johnson ran for 120 yards. LenDale White ran for 80 yards.\n    Answer: 40 yards\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage, question_analysis):\n    \"\"\"Verifies answer, checking calculation completeness and unit inclusion. Includes examples.\"\"\"\n    system_instruction = \"You are an expert at verifying answers, checking calculations and units.\"\n    prompt = f\"\"\"\n    Verify the answer, checking that all necessary calculations were completed and units are included. Return the answer if correct, else return the correct answer.\n\n    Example 1:\n    Question: What was the final score of the game?\n    Answer: 27-14\n    Passage: The final score was 27-14.\n    Verification: 27-14\n\n    Example 2:\n    Question: How many yards did Chris Johnson gain?\n    Answer: 120 yards\n    Passage: Chris Johnson ran for 120 yards.\n    Verification: 120 yards\n\n    Example 3:\n    Question: How many more yards did Chris Johnson gain than LenDale White?\n    Answer: 40 yards\n    Passage: Chris Johnson ran for 120 yards. LenDale White ran for 80 yards.\n    Verification: 40 yards\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a multi-stage LLM approach to answer questions, incorporating techniques like chain-of-thought reasoning and result verification. The problem is decomposed into question analysis, relevant passage extraction, answer generation, and answer verification. The script employs different agent roles through system instructions.\n\nThe `main` function orchestrates the process, calling `analyze_question` to understand the question, `extract_relevant_passage` to find supporting text, `generate_answer` to create an initial answer, and `verify_answer` to validate the response. Each of these functions uses `call_llm` to interact with the Gemini LLM, passing a prompt and system instruction. The overall workflow involves sequentially refining the answer through these stages, leveraging the LLM at each step with focused prompts and system instructions to emulate specialized agents.",
-  "sample_count": 5,
+  "timestamp": "2025-05-22T06:12:31.394120",
+  "strategy": "Exploration",
+  "explore_rate": 55,
+  "exploit_rate": 45,
+  "batch_size": 3,
+  "script": "import os\nimport re\nimport math\n\n# Hypothesis: Implementing a two-stage retrieval and focused summarization approach with self-reflection.\n# The first stage retrieves broad information, then the second stage summarizes with respect to the question.\n# A self-reflection mechanism validates the answer.\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef initial_info_retrieval(question):\n    \"\"\"Retrieve initial information related to the question.\"\"\"\n    system_instruction = \"You are an information retrieval expert. Find relevant background information.\"\n    prompt = f\"\"\"\n    Provide background information that could be useful in answering the question.\n\n    Example:\n    Question: What is the capital of Australia?\n    Background Information: Australia is a country in the southern hemisphere. Its largest city is Sydney, but its capital is Canberra.\n\n    Question: {question}\n    Background Information:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef focused_summarization(question, background_info):\n    \"\"\"Summarize the background information, focusing on the question.\"\"\"\n    system_instruction = \"You are a summarization expert, focusing on answering the given question.\"\n    prompt = f\"\"\"\n    Summarize the background information with respect to the specific question.\n\n    Example:\n    Question: What is the capital of Australia?\n    Background Information: Australia is a country in the southern hemisphere. Its largest city is Sydney, but its capital is Canberra.\n    Focused Summary: The capital of Australia is Canberra.\n\n    Question: {question}\n    Background Information: {background_info}\n    Focused Summary:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef self_reflection_validation(question, summarized_info):\n    \"\"\"Validate the summarized information and answer the question.\"\"\"\n    system_instruction = \"You are a validation expert, verifying the accuracy of the information and answering the question.\"\n    prompt = f\"\"\"\n    Validate the summarized information and answer the question concisely. Determine if it answers the question accurately, and provide a concise answer. If validation fails respond with 'Could not be validated.'\n\n    Example:\n    Question: What is the capital of Australia?\n    Summarized Information: The capital of Australia is Canberra.\n    Validation and Answer: Canberra\n\n    Question: {question}\n    Summarized Information: {summarized_info}\n    Validation and Answer:\n    \"\"\"\n    validation_result = call_llm(prompt, system_instruction)\n    return validation_result\n\ndef main(question):\n    \"\"\"Solve questions using two-stage retrieval and self-reflection.\"\"\"\n    try:\n        # Initial Information Retrieval\n        background_info = initial_info_retrieval(question)\n\n        # Focused Summarization\n        summarized_info = focused_summarization(question, background_info)\n\n        # Self-Reflection Validation and Answer\n        validation_result = self_reflection_validation(question, summarized_info)\n\n        return validation_result\n\n    except Exception as e:\n        return f\"Error: {str(e)}\"",
+  "approach_summary": "This script employs a two-stage retrieval and focused summarization approach, enhanced with a self-reflection mechanism, to answer questions using the Gemini LLM. It decomposes the problem into three distinct stages: initial information retrieval, focused summarization, and self-reflection validation. The script defines the functions `initial_info_retrieval`, `focused_summarization`, and `self_reflection_validation`, each acting as an agent with a specific role (information retrieval, summarization, and validation, respectively), while `call_llm` sends the prompt to the LLM and retrieves a response, and `main` orchestrates the entire process. The `main` function first calls `initial_info_retrieval` to get background information, then passes this and the original question to `focused_summarization`, and finally uses `self_reflection_validation` to validate and answer the question.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE: In November 1944, after Greece was liberated from Germany, old drachmae were exchanged for new ones at the rate of 50,000,000,000 to 1. Only paper money was issued. The government issued notes of 1, 5, 10 and 20 drachmae, with the Bank of Greece issuing 50-, 100-, 500-, 1000-, 5000-, and 10,000-drachma notes. This drachma also suffered from high inflation. The government later issued 100-, 500-, and 1000-drachma notes, and the Bank of Greece issued 20,000-and 50,000-drachma notes. Third modern drachma coins The first issue of coins minted in 1954 consisted of holed aluminium 5-, 10- and 20-lepton pieces, with 50-lepton, 1-, 2-, 5- and 10-drachma pieces in cupro-nickel. A silver 20-drachma piece was issued in 1960, replacing the 20-drachma banknote, and also minted only in collector sets in 1965.  Coins in denominations from 50 lepta to 20 drachmae carried a portrait of Paul of Greece (1947\u20131964). New coins were introduced in 1966, ranging from 50 lepta to 10 drachmae, depicting Constantine II of Greece (1964\u20131974). A silver 30 drachma coin for the centennial of Greeces royal dynasty was minted in 1963.  The following year a non-circulating coin of this value was produced to commemorate the royal wedding.  The reverse of all coins was altered in 1971 to reflect the military junta which was in power from 1967 to 1974. This design included a soldier standing in front of the flames of the rising phoenix.\n\nQUESTION: How many years after the first issue of coins was the silver 20-drachma piece issued?",
-      "answer": "6",
-      "id": "example_226",
+      "question": "What instrument did Alec Aitken play well enough for a professional musician to remark, \"Aitken is the most accomplished amateur musician I have ever known\"?",
+      "answer": "Violin",
+      "id": "example_89",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In November 1944, after Greece was liberated from Germany, old drachmae were exchanged for new ones at the rate of 50,000,000,000 to 1. Only paper money was issued. The government issued notes of 1, 5, 10 and 20 drachmae, with the Bank of Greece issuing 50-, 100-, 500-, 1000-, 5000-, and 10,000-drachma notes. This drachma also suffered from high inflation. The government later issued 100-, 500-, and 1000-drachma notes, and the Bank of Greece issued 20,000-and 50,000-drachma notes. Third modern drachma coins The first issue of coins minted in 1954 consisted of holed aluminium 5-, 10- and 20-lepton pieces, with 50-lepton, 1-, 2-, 5- and 10-drachma pieces in cupro-nickel. A silver 20-drachma piece was issued in 1960, replacing the 20-drachma banknote, and also minted only in collector sets in 1965.  Coins in denominations from 50 lepta to 20 drachmae carried a portrait of Paul of Greece (1947\u20131964). New coins were introduced in 1966, ranging from 50 lepta to 10 drachmae, depicting Constantine II of Greece (1964\u20131974). A silver 30 drachma coin for the centennial of Greeces royal dynasty was minted in 1963.  The following year a non-circulating coin of this value was produced to commemorate the royal wedding.  The reverse of all coins was altered in 1971 to reflect the military junta which was in power from 1967 to 1974. This design included a soldier standing in front of the flames of the rising phoenix.",
-        "original_question": "How many years after the first issue of coins was the silver 20-drachma piece issued?",
-        "original_answer_data": {
-          "spans": [
-            "6"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 655
+        "source": "SimpleQA",
+        "line_number": 24,
+        "original_data": {
+          "metadata": "{'topic': 'Music', 'answer_type': 'Other', 'urls': ['https://mathshistory.st-andrews.ac.uk/Biographies/Aitken/', 'https://mathshistory.st-andrews.ac.uk/Biographies/Aitken/', 'https://thesavantsyndrome.blogspot.com/2013/07/alexander-craig-aitken.html', 'https://nzmathsoc.org.nz/downloads/profiles/NZMSprofile63_Alexander_Aitken.pdf?t=1262766681']}",
+          "problem": "What instrument did Alec Aitken play well enough for a professional musician to remark, \"Aitken is the most accomplished amateur musician I have ever known\"?",
+          "answer": "Violin",
+          "id": "example_24"
+        }
       }
     },
     {
-      "question": "PASSAGE: The Bills' WR Lee Evans and QB J. P. Losman were unstoppable in the first quarter, connecting for 205 yards and two 83-yard touchdowns. Evans' first-quarter performance was a Buffalo record for a period and just shy of the NFL record for yards receiving in a quarter of 210 by Baltimore's Qadry Ismail in 1999. The first touchdown came after Nate Clements' interception on the third play of the game. Both were after Evans got in front of Texans cornerback Demarcus Faggins for the easy score. The 83-yard TDs were career highs for both Losman and Evans and marked the first time in franchise history the Bills have had two 80-yard passes in a single game. David Carr opened 1 for 3 with an interception on his first pass before completing his next 22 throws. Carr finished 25 of 30 for 223 yards and no touchdowns. Carr tied the record held by Mark Brunell, who had 22 consecutive completions in Washington's 31-15 win over the Texans at Reliant Stadium on September 24. He tied Brunell's record on a short pass to Wali Lundy for no gain with 6:19 left. The streak was broken when his pass to Andre Johnson with 5:44 remaining fell short. Lundy cut the lead to 14-7 with a 17-yard run in the first quarter. That score was set up by a 17-yard reception by Eric Moulds on third-and-8. Samkon Gado made it 17-14 on a 1-yard run in the second quarter. Moulds also had a key third-down reception on that drive. Dunta Robinson gave the Texans the lead on a 9-yard interception return midway through the third quarter. Losman was throwing out of the end zone when Robinson intercepted the pass intended for Evans to score his first career touchdown and the Texans' first defensive touchdown since 2004. But after the offense failed to put the game away in the fourth quarter the Texans gave the Bills just enough time to beat them. Losman hit a diving Peerless Price in the back of the end zone for the 15-yard touchdown with 13 seconds left, giving Buffalo the 24-21 win.\n\nQUESTION: What was the final score of the game?",
-      "answer": "24-21",
-      "id": "example_227",
+      "question": "Babymetal's song \"Road of Resistance\" charted at what number on the Billboard World Digital Songs chart for the week of February 21, 2015?",
+      "answer": "22",
+      "id": "example_90",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Bills' WR Lee Evans and QB J. P. Losman were unstoppable in the first quarter, connecting for 205 yards and two 83-yard touchdowns. Evans' first-quarter performance was a Buffalo record for a period and just shy of the NFL record for yards receiving in a quarter of 210 by Baltimore's Qadry Ismail in 1999. The first touchdown came after Nate Clements' interception on the third play of the game. Both were after Evans got in front of Texans cornerback Demarcus Faggins for the easy score. The 83-yard TDs were career highs for both Losman and Evans and marked the first time in franchise history the Bills have had two 80-yard passes in a single game. David Carr opened 1 for 3 with an interception on his first pass before completing his next 22 throws. Carr finished 25 of 30 for 223 yards and no touchdowns. Carr tied the record held by Mark Brunell, who had 22 consecutive completions in Washington's 31-15 win over the Texans at Reliant Stadium on September 24. He tied Brunell's record on a short pass to Wali Lundy for no gain with 6:19 left. The streak was broken when his pass to Andre Johnson with 5:44 remaining fell short. Lundy cut the lead to 14-7 with a 17-yard run in the first quarter. That score was set up by a 17-yard reception by Eric Moulds on third-and-8. Samkon Gado made it 17-14 on a 1-yard run in the second quarter. Moulds also had a key third-down reception on that drive. Dunta Robinson gave the Texans the lead on a 9-yard interception return midway through the third quarter. Losman was throwing out of the end zone when Robinson intercepted the pass intended for Evans to score his first career touchdown and the Texans' first defensive touchdown since 2004. But after the offense failed to put the game away in the fourth quarter the Texans gave the Bills just enough time to beat them. Losman hit a diving Peerless Price in the back of the end zone for the 15-yard touchdown with 13 seconds left, giving Buffalo the 24-21 win.",
-        "original_question": "What was the final score of the game?",
-        "original_answer_data": {
-          "spans": [
-            "24-21"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 276
+        "source": "SimpleQA",
+        "line_number": 694,
+        "original_data": {
+          "metadata": "{'topic': 'Music', 'answer_type': 'Number', 'urls': ['https://en.wikipedia.org/wiki/Road_of_Resistance', 'https://en.wikipedia.org/wiki/Road_of_Resistance', 'https://babymetal.fandom.com/wiki/Road_of_Resistance_(Digital_single)']}",
+          "problem": "Babymetal's song \"Road of Resistance\" charted at what number on the Billboard World Digital Songs chart for the week of February 21, 2015?",
+          "answer": "22",
+          "id": "example_694"
+        }
       }
     },
     {
-      "question": "PASSAGE: Hoping to snap a three-game losing streak and give rookie QB Jay Cutler his first NFL win, the Broncos flew to Qualcomm Stadium for an AFC West rematch with the San Diego Chargers.  In the first quarter, Denver trailed early as QB Philip Rivers completed a 12-yard TD pass to TE Antonio Gates, while FB Lorenzo Neal got a 4-yard TD run.  In the second quarter, the Broncos managed to get on the board with kicker Jason Elam's 34-yard field goal.  However, San Diego's dominance continued with RB LaDainian Tomlinson's 1-yard TD run, along with a 7-yard TD pass from Rivers to Gates.  In the third quarter, the Broncos showed some signs of life as Cutler completed a 28-yard TD pass and an 11-yard TD pass to rookie TE Tony Scheffler, while Elam nailed a 33-yard field goal.  However, in the fourth quarter, the Chargers pulled away with kicker Nate Kaeding's 34-yard and 35-yard field goal, while Tomlinson broke the single-season TD record with a 6-yard and a 7-yard TD run.  With their fourth-straight defeat, Denver fell to 7-6.\n\nQUESTION: Which player had the shortest touchdown scoring play?",
-      "answer": "LaDainian Tomlinson",
-      "id": "example_228",
+      "question": "What month, day, and year did Phase 2 of Kunming Metro's Line 6 open?",
+      "answer": "23 September 2020",
+      "id": "example_91",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to snap a three-game losing streak and give rookie QB Jay Cutler his first NFL win, the Broncos flew to Qualcomm Stadium for an AFC West rematch with the San Diego Chargers.  In the first quarter, Denver trailed early as QB Philip Rivers completed a 12-yard TD pass to TE Antonio Gates, while FB Lorenzo Neal got a 4-yard TD run.  In the second quarter, the Broncos managed to get on the board with kicker Jason Elam's 34-yard field goal.  However, San Diego's dominance continued with RB LaDainian Tomlinson's 1-yard TD run, along with a 7-yard TD pass from Rivers to Gates.  In the third quarter, the Broncos showed some signs of life as Cutler completed a 28-yard TD pass and an 11-yard TD pass to rookie TE Tony Scheffler, while Elam nailed a 33-yard field goal.  However, in the fourth quarter, the Chargers pulled away with kicker Nate Kaeding's 34-yard and 35-yard field goal, while Tomlinson broke the single-season TD record with a 6-yard and a 7-yard TD run.  With their fourth-straight defeat, Denver fell to 7-6.",
-        "original_question": "Which player had the shortest touchdown scoring play?",
-        "original_answer_data": {
-          "spans": [
-            "LaDainian Tomlinson"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 388
-      }
-    },
-    {
-      "question": "PASSAGE: The Cardinals began their 2007 campaign on the road against their NFC West foe, the San Francisco 49ers.  In the first quarter, Arizona trailed early as 49ers RB Frank Gore got a 6-yard TD run for the only score of the period.  In the second quarter, the Cardinals took the lead with kicker Neil Rackers getting a 35-yard field goal, while RB Edgerrin James got a 7-yard TD run.  San Francisco would tie the game with kicker Joe Nedney getting a 33-yard field goal. In the third quarter, the 49ers regained the lead with Nedney kicking a 30-yard field goal for the only score of the period.  In the fourth quarter, the Cardinals retook the lead with QB Matt Leinart completing a 5-yard TD pass to WR Anquan Boldin.  However, late in the game, the Cards' defense failed to hold off San Francisco's ensuing drive, which ended with WR Arnaz Battle getting a 1-yard TD run.  With just over&#160;:20 seconds left in the game, Arizona had one final chance to save the game. Leinart's pass to WR Larry Fitzgerald was intercepted by 49ers CB Shawntae Spencer. With the heartbreaking loss, the Cardinals began their season at 0-1. Q1 - SF - 11:24 - Frank Gore 6-yard TD run (Joe Nedney kick) (SF 7-0) Q2 - ARI - 12:55 - Neil Rackers 35-yard FG (SF 7-3) Q2 - ARI - 9:15 - Edgerrin James 7-yard TD run (Rackers kick) (ARI 10-7) Q2 - SF - 3:40 - Joe Nedney 33-yard FG (10-10) Q3 - SF - 11:20 - Joe Nedney 30-yard FG (SF 13-10) Q4 - ARI - 6:46 - 5-yard TD pass from Matt Leinart to Anquan Boldin (Rackers kick) (ARI 17-13) Q4 - SF - 0:26 - Arnaz Battle 1-yard TD run (Nedney kick) (SF 20-17)\n\nQUESTION: How many rushing tds did Edgerrin James have in the game?",
-      "answer": "1",
-      "id": "example_229",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Cardinals began their 2007 campaign on the road against their NFC West foe, the San Francisco 49ers.  In the first quarter, Arizona trailed early as 49ers RB Frank Gore got a 6-yard TD run for the only score of the period.  In the second quarter, the Cardinals took the lead with kicker Neil Rackers getting a 35-yard field goal, while RB Edgerrin James got a 7-yard TD run.  San Francisco would tie the game with kicker Joe Nedney getting a 33-yard field goal. In the third quarter, the 49ers regained the lead with Nedney kicking a 30-yard field goal for the only score of the period.  In the fourth quarter, the Cardinals retook the lead with QB Matt Leinart completing a 5-yard TD pass to WR Anquan Boldin.  However, late in the game, the Cards' defense failed to hold off San Francisco's ensuing drive, which ended with WR Arnaz Battle getting a 1-yard TD run.  With just over&#160;:20 seconds left in the game, Arizona had one final chance to save the game. Leinart's pass to WR Larry Fitzgerald was intercepted by 49ers CB Shawntae Spencer. With the heartbreaking loss, the Cardinals began their season at 0-1. Q1 - SF - 11:24 - Frank Gore 6-yard TD run (Joe Nedney kick) (SF 7-0) Q2 - ARI - 12:55 - Neil Rackers 35-yard FG (SF 7-3) Q2 - ARI - 9:15 - Edgerrin James 7-yard TD run (Rackers kick) (ARI 10-7) Q2 - SF - 3:40 - Joe Nedney 33-yard FG (10-10) Q3 - SF - 11:20 - Joe Nedney 30-yard FG (SF 13-10) Q4 - ARI - 6:46 - 5-yard TD pass from Matt Leinart to Anquan Boldin (Rackers kick) (ARI 17-13) Q4 - SF - 0:26 - Arnaz Battle 1-yard TD run (Nedney kick) (SF 20-17)",
-        "original_question": "How many rushing tds did Edgerrin James have in the game?",
-        "original_answer_data": {
-          "spans": [
-            "1"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 473
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off their bye week, the Broncos went home for a Week 9 duel with the Miami Dolphins.  In the first quarter, Denver trailed early as Dolphins kicker Dan Carpenter got a 45-yard and a 47-yard field goal, along with CB Will Allen returning an interception 32 yards for a touchdown.  The Broncos would answer with QB Jay Cutler completing a 2-yard TD pass to rookie WR Eddie Royal.  In the second quarter, Miami answered with Carpenter getting a 23-yard field goal. In the third quarter, Denver tried to rally as kicker Matt Prater got a 50-yard field goal.  In the fourth quarter, the Dolphins replied with Carpenter nailing a 41-yard field goal.  The Broncos tried to come back as Cutler completed a 1-yard TD pass to rookie FB Peyton Hillis.  However, Miami pulled away as RB Ronnie Brown got a 2-yard TD run.\n\nQUESTION: Which player scored more field goals, Dan Carpenter or Matt Prater?",
-      "answer": "Dan Carpenter",
-      "id": "example_230",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their bye week, the Broncos went home for a Week 9 duel with the Miami Dolphins.  In the first quarter, Denver trailed early as Dolphins kicker Dan Carpenter got a 45-yard and a 47-yard field goal, along with CB Will Allen returning an interception 32 yards for a touchdown.  The Broncos would answer with QB Jay Cutler completing a 2-yard TD pass to rookie WR Eddie Royal.  In the second quarter, Miami answered with Carpenter getting a 23-yard field goal. In the third quarter, Denver tried to rally as kicker Matt Prater got a 50-yard field goal.  In the fourth quarter, the Dolphins replied with Carpenter nailing a 41-yard field goal.  The Broncos tried to come back as Cutler completed a 1-yard TD pass to rookie FB Peyton Hillis.  However, Miami pulled away as RB Ronnie Brown got a 2-yard TD run.",
-        "original_question": "Which player scored more field goals, Dan Carpenter or Matt Prater?",
-        "original_answer_data": {
-          "spans": [
-            "Dan Carpenter"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 167
+        "source": "SimpleQA",
+        "line_number": 210,
+        "original_data": {
+          "metadata": "{'topic': 'Geography', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Kunming_Metro', 'https://en.wikipedia.org/wiki/Kunming_Metro', 'https://www.gokunming.com/en/blog/item/4511/kunming-metro-line-4-and-line-6-phase-2-officially-in-operation', 'https://en.wikipedia.org/wiki/Line_6_(Kunming_Metro)']}",
+          "problem": "What month, day, and year did Phase 2 of Kunming Metro's Line 6 open?",
+          "answer": "23 September 2020",
+          "id": "example_210"
+        }
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": "In November 1944, after Greece was liberated from Germany, old drachmae were exchanged for new ones at the rate of 50,000,000,000 to 1. Only paper money was issued. The government issued notes of 1, 5, 10 and 20 drachmae, with the Bank of Greece issuing 50-, 100-, 500-, 1000-, 5000-, and 10,000-drachma notes. This drachma also suffered from high inflation. The government later issued 100-, 500-, and 1000-drachma notes, and the Bank of Greece issued 20,000-and 50,000-drachma notes. Third modern drachma coins The first issue of coins minted in 1954 consisted of holed aluminium 5-, 10- and 20-lepton pieces, with 50-lepton, 1-, 2-, 5- and 10-drachma pieces in cupro-nickel. A silver 20-drachma piece was issued in 1960, replacing the 20-drachma banknote, and also minted only in collector sets in 1965.  Coins in denominations from 50 lepta to 20 drachmae carried a portrait of Paul of Greece (1947\u20131964). New coins were introduced in 1966, ranging from 50 lepta to 10 drachmae, depicting Constantine II of Greece (1964\u20131974). A silver 30 drachma coin for the centennial of Greeces royal dynasty was minted in 1963.  The following year a non-circulating coin of this value was produced to commemorate the royal wedding.  The reverse of all coins was altered in 1971 to reflect the military junta which was in power from 1967 to 1974. This design included a soldier standing in front of the flames of the rising phoenix.",
-      "original_question": "How many years after the first issue of coins was the silver 20-drachma piece issued?",
-      "original_answer_data": {
-        "spans": [
-          "6"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 655
+      "source": "SimpleQA",
+      "line_number": 24,
+      "original_data": {
+        "metadata": "{'topic': 'Music', 'answer_type': 'Other', 'urls': ['https://mathshistory.st-andrews.ac.uk/Biographies/Aitken/', 'https://mathshistory.st-andrews.ac.uk/Biographies/Aitken/', 'https://thesavantsyndrome.blogspot.com/2013/07/alexander-craig-aitken.html', 'https://nzmathsoc.org.nz/downloads/profiles/NZMSprofile63_Alexander_Aitken.pdf?t=1262766681']}",
+        "problem": "What instrument did Alec Aitken play well enough for a professional musician to remark, \"Aitken is the most accomplished amateur musician I have ever known\"?",
+        "answer": "Violin",
+        "id": "example_24"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "The Bills' WR Lee Evans and QB J. P. Losman were unstoppable in the first quarter, connecting for 205 yards and two 83-yard touchdowns. Evans' first-quarter performance was a Buffalo record for a period and just shy of the NFL record for yards receiving in a quarter of 210 by Baltimore's Qadry Ismail in 1999. The first touchdown came after Nate Clements' interception on the third play of the game. Both were after Evans got in front of Texans cornerback Demarcus Faggins for the easy score. The 83-yard TDs were career highs for both Losman and Evans and marked the first time in franchise history the Bills have had two 80-yard passes in a single game. David Carr opened 1 for 3 with an interception on his first pass before completing his next 22 throws. Carr finished 25 of 30 for 223 yards and no touchdowns. Carr tied the record held by Mark Brunell, who had 22 consecutive completions in Washington's 31-15 win over the Texans at Reliant Stadium on September 24. He tied Brunell's record on a short pass to Wali Lundy for no gain with 6:19 left. The streak was broken when his pass to Andre Johnson with 5:44 remaining fell short. Lundy cut the lead to 14-7 with a 17-yard run in the first quarter. That score was set up by a 17-yard reception by Eric Moulds on third-and-8. Samkon Gado made it 17-14 on a 1-yard run in the second quarter. Moulds also had a key third-down reception on that drive. Dunta Robinson gave the Texans the lead on a 9-yard interception return midway through the third quarter. Losman was throwing out of the end zone when Robinson intercepted the pass intended for Evans to score his first career touchdown and the Texans' first defensive touchdown since 2004. But after the offense failed to put the game away in the fourth quarter the Texans gave the Bills just enough time to beat them. Losman hit a diving Peerless Price in the back of the end zone for the 15-yard touchdown with 13 seconds left, giving Buffalo the 24-21 win.",
-      "original_question": "What was the final score of the game?",
-      "original_answer_data": {
-        "spans": [
-          "24-21"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 276
+      "source": "SimpleQA",
+      "line_number": 694,
+      "original_data": {
+        "metadata": "{'topic': 'Music', 'answer_type': 'Number', 'urls': ['https://en.wikipedia.org/wiki/Road_of_Resistance', 'https://en.wikipedia.org/wiki/Road_of_Resistance', 'https://babymetal.fandom.com/wiki/Road_of_Resistance_(Digital_single)']}",
+        "problem": "Babymetal's song \"Road of Resistance\" charted at what number on the Billboard World Digital Songs chart for the week of February 21, 2015?",
+        "answer": "22",
+        "id": "example_694"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to snap a three-game losing streak and give rookie QB Jay Cutler his first NFL win, the Broncos flew to Qualcomm Stadium for an AFC West rematch with the San Diego Chargers.  In the first quarter, Denver trailed early as QB Philip Rivers completed a 12-yard TD pass to TE Antonio Gates, while FB Lorenzo Neal got a 4-yard TD run.  In the second quarter, the Broncos managed to get on the board with kicker Jason Elam's 34-yard field goal.  However, San Diego's dominance continued with RB LaDainian Tomlinson's 1-yard TD run, along with a 7-yard TD pass from Rivers to Gates.  In the third quarter, the Broncos showed some signs of life as Cutler completed a 28-yard TD pass and an 11-yard TD pass to rookie TE Tony Scheffler, while Elam nailed a 33-yard field goal.  However, in the fourth quarter, the Chargers pulled away with kicker Nate Kaeding's 34-yard and 35-yard field goal, while Tomlinson broke the single-season TD record with a 6-yard and a 7-yard TD run.  With their fourth-straight defeat, Denver fell to 7-6.",
-      "original_question": "Which player had the shortest touchdown scoring play?",
-      "original_answer_data": {
-        "spans": [
-          "LaDainian Tomlinson"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 388
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Cardinals began their 2007 campaign on the road against their NFC West foe, the San Francisco 49ers.  In the first quarter, Arizona trailed early as 49ers RB Frank Gore got a 6-yard TD run for the only score of the period.  In the second quarter, the Cardinals took the lead with kicker Neil Rackers getting a 35-yard field goal, while RB Edgerrin James got a 7-yard TD run.  San Francisco would tie the game with kicker Joe Nedney getting a 33-yard field goal. In the third quarter, the 49ers regained the lead with Nedney kicking a 30-yard field goal for the only score of the period.  In the fourth quarter, the Cardinals retook the lead with QB Matt Leinart completing a 5-yard TD pass to WR Anquan Boldin.  However, late in the game, the Cards' defense failed to hold off San Francisco's ensuing drive, which ended with WR Arnaz Battle getting a 1-yard TD run.  With just over&#160;:20 seconds left in the game, Arizona had one final chance to save the game. Leinart's pass to WR Larry Fitzgerald was intercepted by 49ers CB Shawntae Spencer. With the heartbreaking loss, the Cardinals began their season at 0-1. Q1 - SF - 11:24 - Frank Gore 6-yard TD run (Joe Nedney kick) (SF 7-0) Q2 - ARI - 12:55 - Neil Rackers 35-yard FG (SF 7-3) Q2 - ARI - 9:15 - Edgerrin James 7-yard TD run (Rackers kick) (ARI 10-7) Q2 - SF - 3:40 - Joe Nedney 33-yard FG (10-10) Q3 - SF - 11:20 - Joe Nedney 30-yard FG (SF 13-10) Q4 - ARI - 6:46 - 5-yard TD pass from Matt Leinart to Anquan Boldin (Rackers kick) (ARI 17-13) Q4 - SF - 0:26 - Arnaz Battle 1-yard TD run (Nedney kick) (SF 20-17)",
-      "original_question": "How many rushing tds did Edgerrin James have in the game?",
-      "original_answer_data": {
-        "spans": [
-          "1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 473
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their bye week, the Broncos went home for a Week 9 duel with the Miami Dolphins.  In the first quarter, Denver trailed early as Dolphins kicker Dan Carpenter got a 45-yard and a 47-yard field goal, along with CB Will Allen returning an interception 32 yards for a touchdown.  The Broncos would answer with QB Jay Cutler completing a 2-yard TD pass to rookie WR Eddie Royal.  In the second quarter, Miami answered with Carpenter getting a 23-yard field goal. In the third quarter, Denver tried to rally as kicker Matt Prater got a 50-yard field goal.  In the fourth quarter, the Dolphins replied with Carpenter nailing a 41-yard field goal.  The Broncos tried to come back as Cutler completed a 1-yard TD pass to rookie FB Peyton Hillis.  However, Miami pulled away as RB Ronnie Brown got a 2-yard TD run.",
-      "original_question": "Which player scored more field goals, Dan Carpenter or Matt Prater?",
-      "original_answer_data": {
-        "spans": [
-          "Dan Carpenter"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 167
+      "source": "SimpleQA",
+      "line_number": 210,
+      "original_data": {
+        "metadata": "{'topic': 'Geography', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Kunming_Metro', 'https://en.wikipedia.org/wiki/Kunming_Metro', 'https://www.gokunming.com/en/blog/item/4511/kunming-metro-line-4-and-line-6-phase-2-officially-in-operation', 'https://en.wikipedia.org/wiki/Line_6_(Kunming_Metro)']}",
+        "problem": "What month, day, and year did Phase 2 of Kunming Metro's Line 6 open?",
+        "answer": "23 September 2020",
+        "id": "example_210"
+      }
     }
   ],
   "example_indices": [
-    226,
-    227,
-    228,
-    229,
-    230
+    89,
+    90,
+    91
   ],
   "results": [
     {
       "success": true,
-      "answer": "1960 - 1954 = 6 years\nVerification: 6 years",
-      "output": "ANSWER_START\n1960 - 1954 = 6 years\nVerification: 6 years\n\nANSWER_END\n",
+      "answer": "Could not be validated.",
+      "output": "ANSWER_START\nCould not be validated.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_28.jsonl",
       "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer clearly shows the calculation and arrives at the correct answer of 6 years, which is semantically equivalent to the golden answer of 6."
+        "match": false,
+        "confidence": 0,
+        "explanation": "The system answer failed to produce a valid response, while the golden answer is \"Violin\". These answers do not match."
       },
-      "match": true
+      "match": false
     },
     {
       "success": true,
-      "answer": "24-21",
-      "output": "ANSWER_START\n24-21\n\nANSWER_END\n",
+      "answer": "Could not be validated.",
+      "output": "ANSWER_START\nCould not be validated.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_28.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "The system answer is identical to the golden answer."
+        "explanation": "The system answer 'Could not be validated' does not provide the numerical answer '22' as the golden answer does. Therefore, they do not communicate the same information."
       },
-      "match": true
+      "match": false
     },
     {
       "success": true,
-      "answer": "The passage states that LaDainian Tomlinson had a 1-yard TD run, which is shorter than Lorenzo Neal's 4-yard TD run and Antonio Gates' 12-yard and 7-yard TD passes.\nTherefore, the answer is correct.\n\nVerification: LaDainian Tomlinson",
-      "output": "ANSWER_START\nThe passage states that LaDainian Tomlinson had a 1-yard TD run, which is shorter than Lorenzo Neal's 4-yard TD run and Antonio Gates' 12-yard and 7-yard TD passes.\nTherefore, the answer is correct.\n\nVerification: LaDainian Tomlinson\n\nANSWER_END\n",
+      "answer": "Could not be validated.",
+      "output": "ANSWER_START\nCould not be validated.\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_28.jsonl",
       "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer contains \"LaDainian Tomlinson\" which matches the golden answer."
+        "match": false,
+        "confidence": 0.0,
+        "explanation": "The system answer states it could not be validated, indicating that it couldn't produce the date '23 September 2020'. Thus, they don't communicate the same information."
       },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "1",
-      "output": "ANSWER_START\n1\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_28.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value: 1."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Dan Carpenter scored 4 field goals (45-yard, 47-yard, 23-yard, and 41-yard). Matt Prater scored 1 field goal (50-yard). Therefore, Dan Carpenter scored more field goals than Matt Prater.",
-      "output": "ANSWER_START\nDan Carpenter scored 4 field goals (45-yard, 47-yard, 23-yard, and 41-yard). Matt Prater scored 1 field goal (50-yard). Therefore, Dan Carpenter scored more field goals than Matt Prater.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_28.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer accurately reasons that Dan Carpenter scored more field goals than Matt Prater, thus leading to the answer of Dan Carpenter."
-      },
-      "match": true
+      "match": false
     }
   ],
   "performance": {
-    "accuracy": 1.0,
-    "correct_count": 5,
-    "total_count": 5,
+    "accuracy": 0.0,
+    "correct_count": 0,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "1960 - 1954 = 6 years\nVerification: 6 years",
-        "golden_answer": "6",
-        "output": "ANSWER_START\n1960 - 1954 = 6 years\nVerification: 6 years\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "Could not be validated.",
+        "golden_answer": "Violin",
+        "output": "ANSWER_START\nCould not be validated.\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer clearly shows the calculation and arrives at the correct answer of 6 years, which is semantically equivalent to the golden answer of 6."
-        }
+          "match": false,
+          "confidence": 0,
+          "explanation": "The system answer failed to produce a valid response, while the golden answer is \"Violin\". These answers do not match."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "24-21",
-        "golden_answer": "24-21",
-        "output": "ANSWER_START\n24-21\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "Could not be validated.",
+        "golden_answer": "22",
+        "output": "ANSWER_START\nCould not be validated.\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer is identical to the golden answer."
-        }
+          "explanation": "The system answer 'Could not be validated' does not provide the numerical answer '22' as the golden answer does. Therefore, they do not communicate the same information."
+        },
+        "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "The passage states that LaDainian Tomlinson had a 1-yard TD run, which is shorter than Lorenzo Neal's 4-yard TD run and Antonio Gates' 12-yard and 7-yard TD passes.\nTherefore, the answer is correct.\n\nVerification: LaDainian Tomlinson",
-        "golden_answer": "LaDainian Tomlinson",
-        "output": "ANSWER_START\nThe passage states that LaDainian Tomlinson had a 1-yard TD run, which is shorter than Lorenzo Neal's 4-yard TD run and Antonio Gates' 12-yard and 7-yard TD passes.\nTherefore, the answer is correct.\n\nVerification: LaDainian Tomlinson\n\nANSWER_END\n",
-        "match": true,
+        "system_answer": "Could not be validated.",
+        "golden_answer": "23 September 2020",
+        "output": "ANSWER_START\nCould not be validated.\n\nANSWER_END\n",
+        "match": false,
         "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer contains \"LaDainian Tomlinson\" which matches the golden answer."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "1",
-        "golden_answer": "1",
-        "output": "ANSWER_START\n1\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 1."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "Dan Carpenter scored 4 field goals (45-yard, 47-yard, 23-yard, and 41-yard). Matt Prater scored 1 field goal (50-yard). Therefore, Dan Carpenter scored more field goals than Matt Prater.",
-        "golden_answer": "Dan Carpenter",
-        "output": "ANSWER_START\nDan Carpenter scored 4 field goals (45-yard, 47-yard, 23-yard, and 41-yard). Matt Prater scored 1 field goal (50-yard). Therefore, Dan Carpenter scored more field goals than Matt Prater.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer accurately reasons that Dan Carpenter scored more field goals than Matt Prater, thus leading to the answer of Dan Carpenter."
-        }
+          "match": false,
+          "confidence": 0.0,
+          "explanation": "The system answer states it could not be validated, indicating that it couldn't produce the date '23 September 2020'. Thus, they don't communicate the same information."
+        },
+        "capability_failures": []
       }
     ],
     "error_analysis": {
-      "text_report": "Okay, I will perform a thorough forensic analysis of the provided success cases. Since there are no error cases, I will focus on extracting patterns from successful runs and suggest improvements based on those observations.\n\n## RUNTIME ERRORS\n\nThere are no runtime errors in the provided data since all cases are successful.\n\n## STRENGTHS\n\n1.  **Accurate Information Extraction:** The system consistently extracts relevant information from the passage, even when the passage contains numerical data, dates, and specific player names in sports contexts. This is evident in examples such as determining the correct years for subtraction (sample_id 0) or identifying players and their scoring plays (sample_id 2 and 4).\n\n2.  **Logical Reasoning and Calculation:** The system demonstrates the ability to perform basic arithmetic operations (subtraction in sample_id 0), compare numerical values (sample_id 4), and draw logical conclusions based on extracted information (sample_id 2).\n\n3.  **Direct Answer Retrieval:** When the answer is explicitly stated in the passage, the system correctly identifies and extracts it (sample_id 1 and 3).\n\n## WEAKNESSES\n\n1.  **Lack of Error Cases:** Without error cases, it's impossible to fully assess potential weaknesses or failure points of the system. We can only infer potential weaknesses based on the type of questions the system answers correctly. More complex reasoning or inference may pose a challenge.\n\n2.  **Limited Complexity of Reasoning:** The successful cases mostly involve direct information retrieval and simple calculations. The system's performance on more complex questions requiring multiple steps of reasoning or inference is unknown.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Dependence on Explicit Information:** The system seems to excel at answering questions based on explicitly stated information. A critical bottleneck could be its ability to handle questions requiring deeper inference, synthesis of information from different parts of the passage, or understanding nuanced language.\n\n## ERROR PATTERNS\n\nSince there are no error cases, there are no error patterns to identify.\n\n## PRIMARY ISSUE\n\nThe primary issue is the **lack of error case data**, which prevents a thorough analysis and identification of specific weaknesses. Without error cases, it's challenging to pinpoint areas where the system needs improvement.\n\n## IMPROVEMENT AREAS\n\n1.  **Complex Reasoning:** Improve the system's ability to handle questions that require complex reasoning, inference, and synthesis of information.\n2.  **Ambiguity Resolution:** Enhance the system's capability to deal with ambiguous questions or passages and to clarify the question before proceeding.\n3.  **Counterfactual Reasoning:** Add the ability to deal with counterfactual questions\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Introduce a Dataset of Challenging Questions:** Create a dataset of questions that require more complex reasoning, inference, and synthesis of information, specifically designed to expose potential weaknesses in the current system. This dataset should include ambiguous questions, and questions that require combining information from multiple places in the passage.\n2.  **Implement Reasoning Traces:** Add detailed reasoning traces (e.g., using print statements or logging) to track the system's decision-making process at each step. This will make it easier to identify where the reasoning goes wrong when the system fails.\n3.  **Develop a More Robust Inference Engine:** Investigate and implement more sophisticated inference techniques, such as rule-based reasoning, probabilistic reasoning, or neural network-based inference models.\n4.   **Implement an \"I don't know\" Feature:** The system should confidently and gracefully say \"I don't know\" when it cannot answer a question, rather than confidently providing incorrect answers.\n\n## CAPABILITY MAPPING\n\nSince there are no error cases, there are no capability failures to map.\n",
+      "text_report": "## RUNTIME ERRORS\n\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) reported in the provided error cases. The error message \"Could not be validated\" suggests a logical error or inability to retrieve or process the information needed to answer the question, rather than a code-level crash.\n\n## STRENGTHS\n\nBased on the provided data (only error cases), it's difficult to identify specific strengths. However, we can infer a couple of potential strengths:\n\n1.  **Error Handling:** The system gracefully handles cases where it cannot find a valid answer, returning a \"Could not be validated\" message instead of crashing or providing a nonsensical answer.\n2.  **Problem Statement Parsing:** The system is likely able to parse the question and identify the relevant information required to answer it, even if it ultimately fails to find or validate the answer.\n\n## WEAKNESSES\n\n1.  **Information Retrieval/Validation:** The system consistently fails to retrieve and validate the correct information to answer the questions. This is evidenced by the \"Could not be validated\" response in all error cases.\n2.  **Lack of Specificity in Failure Reporting:** The error message \"Could not be validated\" is too general and doesn't provide any insights into why the validation failed. This makes debugging difficult.\n3.  **Numerical Data Handling:** Two out of three questions require numerical answers which seems to be more difficult for the system.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Information Retrieval and Validation:** The primary bottleneck is the system's inability to reliably retrieve and validate information from external sources or internal knowledge bases.\n2.  **Debugging Information:** The lack of specific error messages hinders the debugging process.\n\n## ERROR PATTERNS\n\nThe dominant pattern is the \"Could not be validated\" response, suggesting a systematic issue in the information retrieval or validation process. The questions seem to require lookup from external data sources which is not working well.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the inability to reliably retrieve and validate information required to answer questions. The vague error message \"Could not be validated\" masks the underlying cause, be it a failure in searching, parsing, or verifying the extracted information.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Retrieval:** Improve the system's ability to find relevant information from external sources (e.g., search engines, databases).\n2.  **Information Validation:** Enhance the validation process to ensure the retrieved information is accurate and relevant to the question.\n3.  **Detailed Error Reporting:** Implement more specific error messages to pinpoint the exact cause of the validation failure. For example, differentiate between \"Could not find relevant information\" and \"Information found, but failed validation check [reason]\".\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement More Robust Search Strategies:** Explore different search engines, query formulations, and search parameters to improve the chances of finding relevant information.\n2.  **Improve Information Extraction from Search Results:** Enhance the system's ability to extract relevant information from web pages, articles, or other data sources returned by search queries. Use techniques like Named Entity Recognition (NER) or Relation Extraction.\n3.  **Add Validation Checks:** Implement specific validation checks to ensure the retrieved information is consistent with the question's requirements. For example, check the data type, range, or format of the answer.\n4.  **Implement Detailed Logging:** Add detailed logging to track the information retrieval and validation process. Log the search queries, retrieved data, validation checks performed, and any errors encountered.\n5.  **Implement Caching:** Implement a caching mechanism for frequently accessed information to reduce the reliance on external sources and improve performance.\n6.  **Debug numerical question failures separately**: Focus attention on why the numbers are failing. Is it because of a particular data structure used for number representation and comparisons?\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** information\\_extraction, solution\\_generation, solution\\_verification, decision\\_making\n*   **Sample ID 1:** information\\_extraction, solution\\_generation, solution\\_verification, decision\\_making\n*   **Sample ID 2:** information\\_extraction, solution\\_generation, solution\\_verification, decision\\_making\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The primary issue is the **lack of error case data**, which prevents a thorough analysis and identification of specific weaknesses. Without error cases, it's challenging to pinpoint areas where the system needs improvement.",
+      "primary_issue": "The single most critical problem is the inability to reliably retrieve and validate information required to answer questions. The vague error message \"Could not be validated\" masks the underlying cause, be it a failure in searching, parsing, or verifying the extracted information.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, I've reviewed the provided information and generated a comprehensive capability report for your AI system.\n\n## EXECUTION ANALYSIS\n\nThe provided sample execution outputs show generally good performance. Here's a breakdown:\n\n*   **Sample 1:** The system correctly performs subtraction to calculate the difference between two years. The inclusion of \"Verification: 6 years\" suggests a self-checking mechanism, which is excellent.\n*   **Sample 2:** A direct answer retrieval, indicating the system can find and extract information accurately.\n*   **Sample 3:** The system demonstrates a more complex understanding of the passage. It correctly identifies that LaDainian Tomlinson's TD run was shorter than other scoring plays mentioned and accurately confirms its initial assessment. The \"Verification: LaDainian Tomlinson\" shows the system pinpointing its final answer.\n\n*Lack of information:* No errors, only successful execution traces. This makes a proper analysis of the system's weaknesses difficult.\n\n## CAPABILITY ASSESSMENT\n\nBased on the limited successful sample execution outputs, the system demonstrates:\n\n*   **Strong Arithmetic Skills:** Can perform basic calculations accurately.\n*   **Direct Information Extraction:** Can reliably find and extract specific information when explicitly stated in the passage.\n*   **Limited Logical Reasoning:** Shows some ability to compare values and draw basic conclusions.\n*   **Self-Verification:** Appears to have a self-verification mechanism, which is a valuable feature.\n\nHowever, it's crucial to remember this assessment is based on a very small and exclusively successful dataset.  The true capabilities of the system are difficult to assess without error cases. It is unknown how the system handles more complex scenarios or questions.\n\n## KEY STRENGTHS\n\n*   **Accuracy:** The system achieves 100% accuracy on the provided examples.\n*   **Arithmetic Ability:** Correctly executes simple calculations.\n*   **Direct Information Retrieval:** Excellently extracts factual answers from the input.\n*   **Self-Verification:** The presence of a verification step in the output shows that the system attempts to validate its answer, a powerful technique.\n\n## KEY WEAKNESSES\n\n*   **Lack of Error Data:** The most significant weakness is the complete absence of error cases. This prevents a thorough analysis of failure modes.\n*   **Limited Reasoning Depth:** The successful examples suggest the system might struggle with questions requiring deeper reasoning, multi-step inference, or synthesis of information.\n*   **Unknown Handling of Ambiguity:** Without error cases, it's impossible to assess how the system handles ambiguous questions, contradictory information, or nuanced language.\n*   **Potential Overconfidence:** A lack of \"I don't know\" responses *could* indicate that the system might provide confident, but incorrect, answers in scenarios it cannot handle.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is the system's ability to handle **complex reasoning and inference**. This is crucial for moving beyond simple question answering and achieving a more robust and capable AI system. This needs to be done via the introduction of a more complicated and varied test data set to identify failures, and iterate on.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Develop a Challenging Test Suite:** Create a diverse dataset of questions that require:\n    *   **Multi-step reasoning:** Questions requiring combining information from different parts of the passage.\n    *   **Inference:** Questions where the answer is not explicitly stated but must be inferred.\n    *   **Ambiguity resolution:** Questions designed to test the system's ability to handle unclear or conflicting information.\n    *   **Numerical Reasoning:** Questions with calculations of varying complexity.\n    *   **Counterfactual questions**: \"What if...\" scenarios to test the system's understanding of the context.\n2.  **Implement Detailed Logging:** Enhance the system to log its reasoning process step-by-step. This should include:\n    *   The specific parts of the passage being considered.\n    *   The intermediate calculations or inferences being made.\n    *   The confidence level associated with each step.\n    *   Log timestamps, memory usage, and other performance metrics for optimization.\n3.  **Introduce Uncertainty Handling:** Integrate a mechanism for the system to express uncertainty and answer, \"I don't know,\" when it cannot confidently determine the answer.  This is crucial for avoiding incorrect responses and building trust in the system. Base the confidence level on a combination of the information retrieval accuracy and the complexity of the reasoning required.\n4.  **Investigate alternative modeling approaches.** Since the model currently can only answer simple questions, consider switching to a more advanced model capable of common-sense reasoning, such as Google's PaLM or OpenAI's GPT-4.\n\n## CAPABILITY TREND\n\nBased on the limited data, it's impossible to accurately assess the capability trend. The system performs well on simple tasks, but its ability to handle more complex scenarios is unknown. To determine the capability trend, you *must* implement the actionable recommendations, particularly the creation of a challenging test suite and detailed logging, so that the performance of your AI can be comprehensively evaluated in future iterations.\n",
+      "text_report": "## AI System Capability Report\n\n**System Version:** (Assuming this is the first assessment, we'll call it v1.0)\n**Date:** October 26, 2023\n**Analyst:** AI System Capability Analyst\n\n### EXECUTION ANALYSIS\n\nThe execution outputs consistently return \"Could not be validated.\" This indicates a systemic failure in the process of retrieving, processing, or validating information required to generate answers. The absence of more specific error messages makes it difficult to pinpoint the exact stage where the process is failing. The uniformity of the errors across all samples suggests a core issue, not just isolated incidents of failure. The ANSWER_START and ANSWER_END tags are present, indicating the code is executing properly to the point of returning *something*. However, the \"Could not be validated\" message within these tags is the key indicator of failure.\n\n### CAPABILITY ASSESSMENT\n\nThe system currently demonstrates very limited capability. With an accuracy of 0.00, it essentially fails to answer any of the tested questions. The system *attempts* to retrieve and validate information, as evidenced by the structured output format and the consistent error message, but it consistently fails in this process.\n\nOverall, the system can be considered to be in a pre-alpha stage.  It has some basic architecture for handling questions and returning answers but lacks the core functionality of reliably providing *correct* answers.\n\n### KEY STRENGTHS\n\n*   **Structured Output:** The system produces a structured output (using ANSWER_START/ANSWER_END tags) even when it fails. This is important for downstream processing and error handling.\n*   **Error Handling (Basic):** The system doesn't crash or throw exceptions; instead, it provides a consistent error message. While the message is vague, it's preferable to a system that halts unexpectedly.\n*   **Problem Statement Parsing:** The system appears capable of parsing the question, identifying requirements, and attempting to retrieve data.\n\n### KEY WEAKNESSES\n\n*   **Information Retrieval Failure:** The most critical weakness is the system's inability to retrieve the information necessary to answer questions.\n*   **Information Validation Failure:** Even if information is retrieved, the system cannot validate it, suggesting a potential issue with data integrity or relevance checks.\n*   **Vague Error Reporting:** The \"Could not be validated\" error message provides no actionable insight into the cause of the failure.\n*   **Numerical Data Handling**: Appears to have significant problems when numerical answers are expected.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Retrieval and Validation**. Until the system can reliably retrieve and validate information, it cannot function effectively. Specifically, providing *actionable* validation failure messages is critical.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Granular Error Reporting:** Replace the generic \"Could not be validated\" message with specific error codes and messages. For example:\n    *   \"ERROR_CODE: IR-001 - Could not find relevant information for query: [query]\"\n    *   \"ERROR_CODE: IR-002 - Retrieved data does not match expected format: [expected format], [actual format]\"\n    *   \"ERROR_CODE: IR-003 - Validation check failed: Retrieved value [value] is outside acceptable range [range]\"\n    *   \"ERROR_CODE: IR-004 - Failed to extract numeric information\"\n    This will provide valuable insights into *why* validation is failing.\n\n2.  **Review and Refine Information Retrieval Logic:**\n    *   **Examine search queries:** Log the exact search queries used for each question. Are they correctly formulated? Are they specific enough?\n    *   **Evaluate data sources:** Are the data sources reliable and up-to-date? Are the APIs used to access these sources functioning correctly?\n    *   **Implement alternative search strategies:** Explore multiple search engines or data sources to improve the chances of finding relevant information.\n\n3.  **Implement Data Validation Checks:**\n    *   **Data type validation:** Ensure the retrieved data matches the expected data type (e.g., number, date, string).\n    *   **Range validation:** Verify that numeric values fall within acceptable ranges.\n    *   **Consistency checks:** Cross-validate retrieved data with other sources to ensure consistency.\n\n4.  **Debugging and Logging Enhancement:** Implement extensive logging of the information retrieval and validation process. This should include:\n    *   The original question\n    *   The search queries used\n    *   The retrieved data\n    *   The validation checks performed\n    *   The outcome of each validation check\n    *   Any errors or exceptions encountered\n\n5.  **Address Numeric Data Handling Specifically:** Focus attention on sample IDs 1 and 2 as they contain numeric output. Examine the numerical data structure used to represent expected and received answers, and comparisons in validation checks.\n\n### CAPABILITY TREND\n\nBased on the provided data, the capability trend is **Stable (but critically low)**. The system consistently fails, indicating a lack of progress. The implementation of the above actionable recommendations will be critical to initiating a positive trend.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "Okay, I will perform a thorough forensic analysis of the provided success cases. Since there are no error cases, I will focus on extracting patterns from successful runs and suggest improvements based on those observations.\n\n## RUNTIME ERRORS\n\nThere are no runtime errors in the provided data since all cases are successful.\n\n## STRENGTHS\n\n1.  **Accurate Information Extraction:** The system consistently extracts relevant information from the passage, even when the passage contains numerical data, dates, and specific player names in sports contexts. This is evident in examples such as determining the correct years for subtraction (sample_id 0) or identifying players and their scoring plays (sample_id 2 and 4).\n\n2.  **Logical Reasoning and Calculation:** The system demonstrates the ability to perform basic arithmetic operations (subtraction in sample_id 0), compare numerical values (sample_id 4), and draw logical conclusions based on extracted information (sample_id 2).\n\n3.  **Direct Answer Retrieval:** When the answer is explicitly stated in the passage, the system correctly identifies and extracts it (sample_id 1 and 3).\n\n## WEAKNESSES\n\n1.  **Lack of Error Cases:** Without error cases, it's impossible to fully assess potential weaknesses or failure points of the system. We can only infer potential weaknesses based on the type of questions the system answers correctly. More complex reasoning or inference may pose a challenge.\n\n2.  **Limited Complexity of Reasoning:** The successful cases mostly involve direct information retrieval and simple calculations. The system's performance on more complex questions requiring multiple steps of reasoning or inference is unknown.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Dependence on Explicit Information:** The system seems to excel at answering questions based on explicitly stated information. A critical bottleneck could be its ability to handle questions requiring deeper inference, synthesis of information from different parts of the passage, or understanding nuanced language.\n\n## ERROR PATTERNS\n\nSince there are no error cases, there are no error patterns to identify.\n\n## PRIMARY ISSUE\n\nThe primary issue is the **lack of error case data**, which prevents a thorough analysis and identification of specific weaknesses. Without error cases, it's challenging to pinpoint areas where the system needs improvement.\n\n## IMPROVEMENT AREAS\n\n1.  **Complex Reasoning:** Improve the system's ability to handle questions that require complex reasoning, inference, and synthesis of information.\n2.  **Ambiguity Resolution:** Enhance the system's capability to deal with ambiguous questions or passages and to clarify the question before proceeding.\n3.  **Counterfactual Reasoning:** Add the ability to deal with counterfactual questions\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Introduce a Dataset of Challenging Questions:** Create a dataset of questions that require more complex reasoning, inference, and synthesis of information, specifically designed to expose potential weaknesses in the current system. This dataset should include ambiguous questions, and questions that require combining information from multiple places in the passage.\n2.  **Implement Reasoning Traces:** Add detailed reasoning traces (e.g., using print statements or logging) to track the system's decision-making process at each step. This will make it easier to identify where the reasoning goes wrong when the system fails.\n3.  **Develop a More Robust Inference Engine:** Investigate and implement more sophisticated inference techniques, such as rule-based reasoning, probabilistic reasoning, or neural network-based inference models.\n4.   **Implement an \"I don't know\" Feature:** The system should confidently and gracefully say \"I don't know\" when it cannot answer a question, rather than confidently providing incorrect answers.\n\n## CAPABILITY MAPPING\n\nSince there are no error cases, there are no capability failures to map.\n",
-    "capability_report_text": "Okay, I've reviewed the provided information and generated a comprehensive capability report for your AI system.\n\n## EXECUTION ANALYSIS\n\nThe provided sample execution outputs show generally good performance. Here's a breakdown:\n\n*   **Sample 1:** The system correctly performs subtraction to calculate the difference between two years. The inclusion of \"Verification: 6 years\" suggests a self-checking mechanism, which is excellent.\n*   **Sample 2:** A direct answer retrieval, indicating the system can find and extract information accurately.\n*   **Sample 3:** The system demonstrates a more complex understanding of the passage. It correctly identifies that LaDainian Tomlinson's TD run was shorter than other scoring plays mentioned and accurately confirms its initial assessment. The \"Verification: LaDainian Tomlinson\" shows the system pinpointing its final answer.\n\n*Lack of information:* No errors, only successful execution traces. This makes a proper analysis of the system's weaknesses difficult.\n\n## CAPABILITY ASSESSMENT\n\nBased on the limited successful sample execution outputs, the system demonstrates:\n\n*   **Strong Arithmetic Skills:** Can perform basic calculations accurately.\n*   **Direct Information Extraction:** Can reliably find and extract specific information when explicitly stated in the passage.\n*   **Limited Logical Reasoning:** Shows some ability to compare values and draw basic conclusions.\n*   **Self-Verification:** Appears to have a self-verification mechanism, which is a valuable feature.\n\nHowever, it's crucial to remember this assessment is based on a very small and exclusively successful dataset.  The true capabilities of the system are difficult to assess without error cases. It is unknown how the system handles more complex scenarios or questions.\n\n## KEY STRENGTHS\n\n*   **Accuracy:** The system achieves 100% accuracy on the provided examples.\n*   **Arithmetic Ability:** Correctly executes simple calculations.\n*   **Direct Information Retrieval:** Excellently extracts factual answers from the input.\n*   **Self-Verification:** The presence of a verification step in the output shows that the system attempts to validate its answer, a powerful technique.\n\n## KEY WEAKNESSES\n\n*   **Lack of Error Data:** The most significant weakness is the complete absence of error cases. This prevents a thorough analysis of failure modes.\n*   **Limited Reasoning Depth:** The successful examples suggest the system might struggle with questions requiring deeper reasoning, multi-step inference, or synthesis of information.\n*   **Unknown Handling of Ambiguity:** Without error cases, it's impossible to assess how the system handles ambiguous questions, contradictory information, or nuanced language.\n*   **Potential Overconfidence:** A lack of \"I don't know\" responses *could* indicate that the system might provide confident, but incorrect, answers in scenarios it cannot handle.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is the system's ability to handle **complex reasoning and inference**. This is crucial for moving beyond simple question answering and achieving a more robust and capable AI system. This needs to be done via the introduction of a more complicated and varied test data set to identify failures, and iterate on.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Develop a Challenging Test Suite:** Create a diverse dataset of questions that require:\n    *   **Multi-step reasoning:** Questions requiring combining information from different parts of the passage.\n    *   **Inference:** Questions where the answer is not explicitly stated but must be inferred.\n    *   **Ambiguity resolution:** Questions designed to test the system's ability to handle unclear or conflicting information.\n    *   **Numerical Reasoning:** Questions with calculations of varying complexity.\n    *   **Counterfactual questions**: \"What if...\" scenarios to test the system's understanding of the context.\n2.  **Implement Detailed Logging:** Enhance the system to log its reasoning process step-by-step. This should include:\n    *   The specific parts of the passage being considered.\n    *   The intermediate calculations or inferences being made.\n    *   The confidence level associated with each step.\n    *   Log timestamps, memory usage, and other performance metrics for optimization.\n3.  **Introduce Uncertainty Handling:** Integrate a mechanism for the system to express uncertainty and answer, \"I don't know,\" when it cannot confidently determine the answer.  This is crucial for avoiding incorrect responses and building trust in the system. Base the confidence level on a combination of the information retrieval accuracy and the complexity of the reasoning required.\n4.  **Investigate alternative modeling approaches.** Since the model currently can only answer simple questions, consider switching to a more advanced model capable of common-sense reasoning, such as Google's PaLM or OpenAI's GPT-4.\n\n## CAPABILITY TREND\n\nBased on the limited data, it's impossible to accurately assess the capability trend. The system performs well on simple tasks, but its ability to handle more complex scenarios is unknown. To determine the capability trend, you *must* implement the actionable recommendations, particularly the creation of a challenging test suite and detailed logging, so that the performance of your AI can be comprehensively evaluated in future iterations.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\n\nThere are no explicit runtime errors (like JSONDecodeError or TypeError) reported in the provided error cases. The error message \"Could not be validated\" suggests a logical error or inability to retrieve or process the information needed to answer the question, rather than a code-level crash.\n\n## STRENGTHS\n\nBased on the provided data (only error cases), it's difficult to identify specific strengths. However, we can infer a couple of potential strengths:\n\n1.  **Error Handling:** The system gracefully handles cases where it cannot find a valid answer, returning a \"Could not be validated\" message instead of crashing or providing a nonsensical answer.\n2.  **Problem Statement Parsing:** The system is likely able to parse the question and identify the relevant information required to answer it, even if it ultimately fails to find or validate the answer.\n\n## WEAKNESSES\n\n1.  **Information Retrieval/Validation:** The system consistently fails to retrieve and validate the correct information to answer the questions. This is evidenced by the \"Could not be validated\" response in all error cases.\n2.  **Lack of Specificity in Failure Reporting:** The error message \"Could not be validated\" is too general and doesn't provide any insights into why the validation failed. This makes debugging difficult.\n3.  **Numerical Data Handling:** Two out of three questions require numerical answers which seems to be more difficult for the system.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Information Retrieval and Validation:** The primary bottleneck is the system's inability to reliably retrieve and validate information from external sources or internal knowledge bases.\n2.  **Debugging Information:** The lack of specific error messages hinders the debugging process.\n\n## ERROR PATTERNS\n\nThe dominant pattern is the \"Could not be validated\" response, suggesting a systematic issue in the information retrieval or validation process. The questions seem to require lookup from external data sources which is not working well.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the inability to reliably retrieve and validate information required to answer questions. The vague error message \"Could not be validated\" masks the underlying cause, be it a failure in searching, parsing, or verifying the extracted information.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Retrieval:** Improve the system's ability to find relevant information from external sources (e.g., search engines, databases).\n2.  **Information Validation:** Enhance the validation process to ensure the retrieved information is accurate and relevant to the question.\n3.  **Detailed Error Reporting:** Implement more specific error messages to pinpoint the exact cause of the validation failure. For example, differentiate between \"Could not find relevant information\" and \"Information found, but failed validation check [reason]\".\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement More Robust Search Strategies:** Explore different search engines, query formulations, and search parameters to improve the chances of finding relevant information.\n2.  **Improve Information Extraction from Search Results:** Enhance the system's ability to extract relevant information from web pages, articles, or other data sources returned by search queries. Use techniques like Named Entity Recognition (NER) or Relation Extraction.\n3.  **Add Validation Checks:** Implement specific validation checks to ensure the retrieved information is consistent with the question's requirements. For example, check the data type, range, or format of the answer.\n4.  **Implement Detailed Logging:** Add detailed logging to track the information retrieval and validation process. Log the search queries, retrieved data, validation checks performed, and any errors encountered.\n5.  **Implement Caching:** Implement a caching mechanism for frequently accessed information to reduce the reliance on external sources and improve performance.\n6.  **Debug numerical question failures separately**: Focus attention on why the numbers are failing. Is it because of a particular data structure used for number representation and comparisons?\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:** information\\_extraction, solution\\_generation, solution\\_verification, decision\\_making\n*   **Sample ID 1:** information\\_extraction, solution\\_generation, solution\\_verification, decision\\_making\n*   **Sample ID 2:** information\\_extraction, solution\\_generation, solution\\_verification, decision\\_making\n",
+    "capability_report_text": "## AI System Capability Report\n\n**System Version:** (Assuming this is the first assessment, we'll call it v1.0)\n**Date:** October 26, 2023\n**Analyst:** AI System Capability Analyst\n\n### EXECUTION ANALYSIS\n\nThe execution outputs consistently return \"Could not be validated.\" This indicates a systemic failure in the process of retrieving, processing, or validating information required to generate answers. The absence of more specific error messages makes it difficult to pinpoint the exact stage where the process is failing. The uniformity of the errors across all samples suggests a core issue, not just isolated incidents of failure. The ANSWER_START and ANSWER_END tags are present, indicating the code is executing properly to the point of returning *something*. However, the \"Could not be validated\" message within these tags is the key indicator of failure.\n\n### CAPABILITY ASSESSMENT\n\nThe system currently demonstrates very limited capability. With an accuracy of 0.00, it essentially fails to answer any of the tested questions. The system *attempts* to retrieve and validate information, as evidenced by the structured output format and the consistent error message, but it consistently fails in this process.\n\nOverall, the system can be considered to be in a pre-alpha stage.  It has some basic architecture for handling questions and returning answers but lacks the core functionality of reliably providing *correct* answers.\n\n### KEY STRENGTHS\n\n*   **Structured Output:** The system produces a structured output (using ANSWER_START/ANSWER_END tags) even when it fails. This is important for downstream processing and error handling.\n*   **Error Handling (Basic):** The system doesn't crash or throw exceptions; instead, it provides a consistent error message. While the message is vague, it's preferable to a system that halts unexpectedly.\n*   **Problem Statement Parsing:** The system appears capable of parsing the question, identifying requirements, and attempting to retrieve data.\n\n### KEY WEAKNESSES\n\n*   **Information Retrieval Failure:** The most critical weakness is the system's inability to retrieve the information necessary to answer questions.\n*   **Information Validation Failure:** Even if information is retrieved, the system cannot validate it, suggesting a potential issue with data integrity or relevance checks.\n*   **Vague Error Reporting:** The \"Could not be validated\" error message provides no actionable insight into the cause of the failure.\n*   **Numerical Data Handling**: Appears to have significant problems when numerical answers are expected.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Retrieval and Validation**. Until the system can reliably retrieve and validate information, it cannot function effectively. Specifically, providing *actionable* validation failure messages is critical.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Granular Error Reporting:** Replace the generic \"Could not be validated\" message with specific error codes and messages. For example:\n    *   \"ERROR_CODE: IR-001 - Could not find relevant information for query: [query]\"\n    *   \"ERROR_CODE: IR-002 - Retrieved data does not match expected format: [expected format], [actual format]\"\n    *   \"ERROR_CODE: IR-003 - Validation check failed: Retrieved value [value] is outside acceptable range [range]\"\n    *   \"ERROR_CODE: IR-004 - Failed to extract numeric information\"\n    This will provide valuable insights into *why* validation is failing.\n\n2.  **Review and Refine Information Retrieval Logic:**\n    *   **Examine search queries:** Log the exact search queries used for each question. Are they correctly formulated? Are they specific enough?\n    *   **Evaluate data sources:** Are the data sources reliable and up-to-date? Are the APIs used to access these sources functioning correctly?\n    *   **Implement alternative search strategies:** Explore multiple search engines or data sources to improve the chances of finding relevant information.\n\n3.  **Implement Data Validation Checks:**\n    *   **Data type validation:** Ensure the retrieved data matches the expected data type (e.g., number, date, string).\n    *   **Range validation:** Verify that numeric values fall within acceptable ranges.\n    *   **Consistency checks:** Cross-validate retrieved data with other sources to ensure consistency.\n\n4.  **Debugging and Logging Enhancement:** Implement extensive logging of the information retrieval and validation process. This should include:\n    *   The original question\n    *   The search queries used\n    *   The retrieved data\n    *   The validation checks performed\n    *   The outcome of each validation check\n    *   Any errors or exceptions encountered\n\n5.  **Address Numeric Data Handling Specifically:** Focus attention on sample IDs 1 and 2 as they contain numeric output. Examine the numerical data structure used to represent expected and received answers, and comparisons in validation checks.\n\n### CAPABILITY TREND\n\nBased on the provided data, the capability trend is **Stable (but critically low)**. The system consistently fails, indicating a lack of progress. The implementation of the above actionable recommendations will be critical to initiating a positive trend.\n"
   },
-  "progressive_testing": {
-    "total_examples": 10,
-    "successful_runs": 10,
-    "matches": 8,
-    "accuracy": 0.8,
-    "results": [
-      {
-        "success": true,
-        "answer": "5",
-        "output": "ANSWER_START\n5\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "5",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "0",
-        "output": "ANSWER_START\n0\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer is 0, while the golden answer is 1. These are different numerical values, so they do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "94.  7 + 2.2 + 0.5 + 0.2 + 0.5 + 1.9 = 100\n101.  0 - 94.7 = 5.3\nThe calculation is correct.\nFinal Answer: 5.3%",
-        "output": "ANSWER_START\n94.  7 + 2.2 + 0.5 + 0.2 + 0.5 + 1.9 = 100\n101.  0 - 94.7 = 5.3\nThe calculation is correct.\nFinal Answer: 5.3%\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "5.3",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers provide the same numerical value: 5.3. The system answer includes additional calculations and formatting, but the final answer is 5.3, which matches the golden answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "60,000 are in Surrey and 36,000 are in Oxfordshire. Surrey is larger than Oxfordshire.\nVerification: Surrey",
-        "output": "ANSWER_START\n60,000 are in Surrey and 36,000 are in Oxfordshire. Surrey is larger than Oxfordshire.\nVerification: Surrey\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "Surrey",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer correctly identifies Surrey as being larger than Oxfordshire based on the provided data. The golden answer only requires 'Surrey', which is present in the system answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "1 year",
-        "output": "ANSWER_START\n1 year\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer '1 year' and the golden answer '1' both represent the same numerical value of one, with the system answer including the unit 'year' which doesn't affect the numerical equivalence."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "4",
-        "output": "ANSWER_START\n4\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "4",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same single number, 4."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "1918 - 1793 = 125 years\n125 years",
-        "output": "ANSWER_START\n1918 - 1793 = 125 years\n125 years\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "125",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer calculates the correct difference and includes the golden answer 125."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "The passage mentions the following touchdown passes:\n1. 13-yard pass from Peyton Manning to Eric Decker\n2. 10-yard pass from Andy Dalton to A.J. Green\n3. 1-yard pass from Peyton Manning to Joel Dreessen\n4. 4-yard pass from Peyton Manning to Decker\n\nArranging these in descending order:\n1. 13-yard pass\n2. 10-yard pass\n3. 4-yard pass\n4. 1-yard pass\n\nThe third longest TD pass was a 4-yard pass from Manning to Decker.\n\nFinal Answer: The final answer is Peyton Manning.",
-        "output": "ANSWER_START\nThe passage mentions the following touchdown passes:\n1. 13-yard pass from Peyton Manning to Eric Decker\n2. 10-yard pass from Andy Dalton to A.J. Green\n3. 1-yard pass from Peyton Manning to Joel Dreessen\n4. 4-yard pass from Peyton Manning to Decker\n\nArranging these in descending order:\n1. 13-yard pass\n2. 10-yard pass\n3. 4-yard pass\n4. 1-yard pass\n\nThe third longest TD pass was a 4-yard pass from Manning to Decker.\n\nFinal Answer: The final answer is Peyton Manning.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "Manning",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer identifies Peyton Manning as the relevant entity, which matches the golden answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "6.  8%",
-        "output": "ANSWER_START\n6.  8%\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "6.8",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The answers are numerically different. 6.8 is not the same as 6.  8%"
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Albanian captains",
-        "output": "ANSWER_START\nAlbanian captains\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_28.jsonl",
-        "golden_answer": "Albanian captains",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information."
-        },
-        "match": true
-      }
-    ]
-  },
-  "execution_time": 81.91599869728088,
+  "progressive_testing": null,
+  "execution_time": 48.17776584625244,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

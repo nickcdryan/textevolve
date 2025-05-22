@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 28,
-        "sample_id": "4312789b-0f97-4627-a640-9ff7b225ec9d",
-        "question": 'PASSAGE: After the unsuccessful operation Athanasius returned to Himara for the preparations of another rebellion. The remaining Spaniards left the region, but Athanasius awaited this time an aid of 3-4,000 soldiers from the Spanish king. On August 23, 1596 he met with Albanian captains Michael Bua, Giovanni Golemi and Michael Papada. They each received a monthly pay of 50 ducats. They then went to Lecce to arm the Himariotes with 1,000 arquebuses, powder, lead, four drums and four royal banners . Athanasius then moved to Rome and had an audience with the Pope. The following 20 years he continued to visit various western European leaders to trigger their intervention against the Ottomans, but without success. On the other hand, Venetian Cypriot Hieronimo Combi discouraged Michael Bua and his companions. In the Sanjak of Herzegovina and Montenegro Vilayet, the Serbs rose up in 1596-97, but without foreign support the rebels were forced to capitulate. In 1600, a rebellion broke out in Thessaly.\n\nQUESTION: Who did Athanasius meet with first, the Albanian captains or the Pope?'
+        "sample_id": "example_91",
+        "question": "What month, day, and year did Phase 2 of Kunming Metro's Line 6 open?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 28,
-            "sample_id": "4312789b-0f97-4627-a640-9ff7b225ec9d",
+            "sample_id": "example_91",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: After the unsuccessful operation Athanasius returned to Himara for the preparations of another rebellion. The remaining Spaniards left the region, but Athanasius awaited this time an aid of 3-4,000 soldiers from the Spanish king. On August 23, 1596 he met with Albanian captains Michael Bua, Giovanni Golemi and Michael Papada. They each received a monthly pay of 50 ducats. They then went to Lecce to arm the Himariotes with 1,000 arquebuses, powder, lead, four drums and four royal banners . Athanasius then moved to Rome and had an audience with the Pope. The following 20 years he continued to visit various western European leaders to trigger their intervention against the Ottomans, but without success. On the other hand, Venetian Cypriot Hieronimo Combi discouraged Michael Bua and his companions. In the Sanjak of Herzegovina and Montenegro Vilayet, the Serbs rose up in 1596-97, but without foreign support the rebels were forced to capitulate. In 1600, a rebellion broke out in Thessaly.\n\nQUESTION: Who did Athanasius meet with first, the Albanian captains or the Pope?'
+    question = "What month, day, and year did Phase 2 of Kunming Metro's Line 6 open?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 28,
-            "sample_id": "4312789b-0f97-4627-a640-9ff7b225ec9d",
+            "sample_id": "example_91",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 28,
-            "sample_id": "4312789b-0f97-4627-a640-9ff7b225ec9d",
+            "sample_id": "example_91",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

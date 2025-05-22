@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 35,
-        "sample_id": "a6d5feed-0d8b-420a-8a75-c2ea9f6d57ee",
-        "question": "PASSAGE: In week 5 the Lions hosted the St. Louis Rams. The Lions started the scoring early with a 30-yard Jason Hanson field goal. The Rams tied it up at the end of the first quarter with a 28-yard field goal by Josh Brown. To start the second quarter, the Lions took the lead with a 105-yard kickoff return by Stefan Logan, the longest touchdown run in the NFL this season. The Lions added to their lead a few minutes later with a 1-yard TD catch by Calvin Johnson. The Rams kicked another 28-yard field goal a few minutes later. The Lions made it 24-6 just before halftime with a 3-yard TD catch by Brandon Pettigrew. The Lions' defense shut out the Rams in the second half. The only score of the third quarter was a 26-yard TD catch by Nate Burleson. In the fourth quarter the Lions kicked 2 field goals: from 48 then from 47. The Lions capped off their victory with a 42-yard interception return TD by Alphonso Smith.  With the win, not only did the Lions improve to 1-4, but it was their largest margin of victory since 1995 and their first win since November 22, 2009.\n\nQUESTION: Who scored the second longest touchdown?"
+        "sample_id": "example_112",
+        "question": 'During which years did Jean Galloway Bissell, the U.S. Circuit Judge, work in private legal practice in Greenville?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 35,
-            "sample_id": "a6d5feed-0d8b-420a-8a75-c2ea9f6d57ee",
+            "sample_id": "example_112",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: In week 5 the Lions hosted the St. Louis Rams. The Lions started the scoring early with a 30-yard Jason Hanson field goal. The Rams tied it up at the end of the first quarter with a 28-yard field goal by Josh Brown. To start the second quarter, the Lions took the lead with a 105-yard kickoff return by Stefan Logan, the longest touchdown run in the NFL this season. The Lions added to their lead a few minutes later with a 1-yard TD catch by Calvin Johnson. The Rams kicked another 28-yard field goal a few minutes later. The Lions made it 24-6 just before halftime with a 3-yard TD catch by Brandon Pettigrew. The Lions' defense shut out the Rams in the second half. The only score of the third quarter was a 26-yard TD catch by Nate Burleson. In the fourth quarter the Lions kicked 2 field goals: from 48 then from 47. The Lions capped off their victory with a 42-yard interception return TD by Alphonso Smith.  With the win, not only did the Lions improve to 1-4, but it was their largest margin of victory since 1995 and their first win since November 22, 2009.\n\nQUESTION: Who scored the second longest touchdown?"
+    question = 'During which years did Jean Galloway Bissell, the U.S. Circuit Judge, work in private legal practice in Greenville?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 35,
-            "sample_id": "a6d5feed-0d8b-420a-8a75-c2ea9f6d57ee",
+            "sample_id": "example_112",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 35,
-            "sample_id": "a6d5feed-0d8b-420a-8a75-c2ea9f6d57ee",
+            "sample_id": "example_112",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

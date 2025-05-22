@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 0,
-        "sample_id": "20738319-be7d-40c3-8afb-47298c80e27d",
-        "question": "PASSAGE: When Halsey turned TF\xa034 southwards at 11:15, he detached a task group of four of its cruisers and nine of its destroyers under Rear Admiral DuBose, and reassigned this group to TF\xa038. At 14:15, Mitscher ordered DuBose to pursue the remnants of the Japanese Northern Force. His cruisers finished off the light carrier Chiyoda at around 17:00, and at 20:59 his ships sank the destroyer Hatsuzuki after a very stubborn fight. When Admiral Ozawa learned of the deployment of DuBose's relatively weak task group, he ordered battleships Ise and Hyūga to turn southwards and attack it, but they failed to locate DuBose's group, which they heavily outgunned. Halsey's withdrawal of all six of Lee's battleships in his attempt to assist Seventh Fleet had now rendered TF\xa038 vulnerable to a surface counterattack by the decoy Northern Force. At about 23:10, the American submarine Jallao torpedoed and sank the light cruiser Tama of Ozawa's force. This was the last act of the Battle of Cape Engaño, and—apart from some final air strikes on the retreating Japanese forces on 26 October—the conclusion of the Battle for Leyte Gulf.\n\nQUESTION: Did Rear Admiral DuBose have more cruisers or more destroyers?"
+        "sample_id": "example_7",
+        "question": "What is the name of the man who purchased Belmont on St. Saviour's Hill, Jersey, UK, in 1822?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 0,
-            "sample_id": "20738319-be7d-40c3-8afb-47298c80e27d",
+            "sample_id": "example_7",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: When Halsey turned TF\xa034 southwards at 11:15, he detached a task group of four of its cruisers and nine of its destroyers under Rear Admiral DuBose, and reassigned this group to TF\xa038. At 14:15, Mitscher ordered DuBose to pursue the remnants of the Japanese Northern Force. His cruisers finished off the light carrier Chiyoda at around 17:00, and at 20:59 his ships sank the destroyer Hatsuzuki after a very stubborn fight. When Admiral Ozawa learned of the deployment of DuBose's relatively weak task group, he ordered battleships Ise and Hyūga to turn southwards and attack it, but they failed to locate DuBose's group, which they heavily outgunned. Halsey's withdrawal of all six of Lee's battleships in his attempt to assist Seventh Fleet had now rendered TF\xa038 vulnerable to a surface counterattack by the decoy Northern Force. At about 23:10, the American submarine Jallao torpedoed and sank the light cruiser Tama of Ozawa's force. This was the last act of the Battle of Cape Engaño, and—apart from some final air strikes on the retreating Japanese forces on 26 October—the conclusion of the Battle for Leyte Gulf.\n\nQUESTION: Did Rear Admiral DuBose have more cruisers or more destroyers?"
+    question = "What is the name of the man who purchased Belmont on St. Saviour's Hill, Jersey, UK, in 1822?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 0,
-            "sample_id": "20738319-be7d-40c3-8afb-47298c80e27d",
+            "sample_id": "example_7",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 0,
-            "sample_id": "20738319-be7d-40c3-8afb-47298c80e27d",
+            "sample_id": "example_7",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

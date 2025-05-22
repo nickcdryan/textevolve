@@ -2,171 +2,6 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach.
-    This approach focuses on breaking down the problem into question type identification, 
-    focused passage extraction, and direct answer generation with verification.
-    """
-    try:
-        # Step 1: Identify question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer
-        verified_answer = verify_answer(question, answer, relevant_passage)
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-    
-    Example 4:
-    Question: How many more water boards were there roughly in 1850 than in 2011?
-    Analysis: {{"type": "calculation", "keywords": ["water boards", "1850", "2011"]}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the following text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    
-    Example 4:
-    Question: How many more water boards were there roughly in 1850 than in 2011?
-    Keywords: {{"type": "calculation", "keywords": ["water boards", "1850", "2011"]}}
-    Text: PASSAGE: By 1850 there were about 3,500 water boards in the country. In modern times water boards merged as they dealt with joint  interests. Mergers eventually reduced the number to 25 water boards in 2011.
-    Passage: By 1850 there were about 3,500 water boards in the country. In modern times water boards merged as they dealt with joint  interests. Mergers eventually reduced the number to 25 water boards in 2011.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text. If a calculation is required, perform it and state the answer. Include units if they are provided in the passage."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question type. If the question type is 'calculation', extract the numbers from the passage, perform the calculation, and provide the result. Include units if present in the passage.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-    
-    Example 4:
-    Question: How many more water boards were there roughly in 1850 than in 2011?
-    Passage: By 1850 there were about 3,500 water boards in the country. In modern times water boards merged as they dealt with joint  interests. Mergers eventually reduced the number to 25 water boards in 2011.
-    Answer: 3500 - 25 = 3475
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage):
-    """Verifies the generated answer. Includes multiple examples."""
-    system_instruction = "You are an expert at verifying answers to questions. If the provided answer is incorrect, provide the correct answer based on the passage. Always include units if the question or passage mentions them."
-    prompt = f"""
-    Verify the following answer to the question based on the relevant passage. Return the answer if it is correct. Return the correct answer if it is incorrect. Always include units if the question or passage mentions them.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Verification: 2
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Verification: Josh Scobee
-    
-    Example 4:
-    Question: How many more water boards were there roughly in 1850 than in 2011?
-    Answer: 3470
-    Passage: By 1850 there were about 3,500 water boards in the country. In modern times water boards merged as they dealt with joint  interests. Mergers eventually reduced the number to 25 water boards in 2011.
-    Verification: 3475
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
-
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
@@ -195,3 +30,92 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question, max_attempts=3):
+    """Solve factual questions using a new approach: Question Decomposition + Focused Fact Extraction and Ranking + Direct Answer Synthesis"""
+
+    # Hypothesis: Decomposing the question into sub-questions, extracting *multiple* candidate facts with relevance ranking, and directly synthesizing the answer from top-ranked facts will improve accuracy. This contrasts with previous single-extraction approaches and emphasizes gathering multiple pieces of evidence before synthesizing. The goal is to test this hypothesis.
+    # New approach from previous: This approach will change and make multiple extraction runs to get fact candidates and rank those candidates.
+
+    # Step 1: Question Decomposition (with examples)
+    decomposition_prompt = f"""
+    Break down the original question into simpler, more specific sub-questions.
+
+    Example 1:
+    Original Question: What is the capital of Australia and its population?
+    Sub-questions:
+    1. What is the capital of Australia?
+    2. What is the population of Canberra?
+
+    Example 2:
+    Original Question: In what year did Jamini Roy receive the Padma Bhushan, and what art style did he use?
+    Sub-questions:
+    1. In what year did Jamini Roy receive the Padma Bhushan?
+    2. What art style did Jamini Roy use?
+
+    Original Question: {question}
+    Sub-questions:
+    """
+    sub_questions = call_llm(decomposition_prompt, system_instruction="You are an expert at breaking down questions.").split("\n")
+    print(f"Sub-questions: {sub_questions}")
+
+    # Step 2: Fact Extraction and Ranking (with examples) - Extract multiple candidate facts for each sub-question, and rank them by relevance.
+    candidate_facts = {}
+    for sub_question in sub_questions:
+        extraction_prompt = f"""
+        Extract 3 candidate facts for the following sub-question, and rank their relevance (1-10). Be concise.
+
+        Example:
+        Sub-question: What is the capital of Australia?
+        1. Canberra is the capital (Relevance: 10)
+        2. Sydney is a city in Australia (Relevance: 2)
+        3. Australia is an island nation. (Relevance: 1)
+
+        Sub-question: {sub_question}
+        Candidate Facts:
+        """
+        facts = call_llm(extraction_prompt, system_instruction="You are an expert in extracting facts and their relevance.")
+        candidate_facts[sub_question] = facts
+    print(f"Extracted Candidate Facts: {candidate_facts}")
+
+    # Step 3: Direct Answer Synthesis (with examples). Synthesize the facts directly into an answer.
+    synthesis_prompt = f"""
+    Synthesize a direct answer to the original question from the candidate facts.
+
+    Example:
+    Original Question: What is the capital of Australia and its population?
+    Candidate Facts:
+    Sub-question: What is the capital of Australia?
+    1. Canberra is the capital (Relevance: 10)
+    2. Sydney is a city in Australia (Relevance: 2)
+    Sub-question: What is the population of Canberra?
+    1. Canberra has a population of 450,000 (Relevance: 10)
+    2. Australia has a population of 25 million (Relevance: 3)
+    Answer: Canberra has a population of 450,000
+
+    Original Question: {question}
+    Candidate Facts: {candidate_facts}
+    Answer:
+    """
+    answer = call_llm(synthesis_prompt, system_instruction="You are an expert at synthesizing accurate answers.")
+    print(f"Synthesized Answer: {answer}")
+
+    # Step 4: Verification (with example). Validating the answer directly.
+    verification_prompt = f"""
+    Verify that the extracted answer accurately answers the original question.
+
+    Example:
+    Original Question: What is the capital of Australia and its population?
+    Answer: Canberra has a population of 450,000
+    Verification: The answer is correct.
+
+    Original Question: {question}
+    Answer: {answer}
+    Verification:
+    """
+    validation = call_llm(verification_prompt, system_instruction="You are a validator of answer accuracy.")
+
+    if "correct" in validation.lower():
+        return answer
+    else:
+        return "Could not be validated."

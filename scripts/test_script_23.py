@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 23,
-        "sample_id": "7cfe1e28-4a04-40f3-8989-fa73ca281f47",
-        "question": "PASSAGE: After the Dissolution of the Soviet Union, Kazakhstan became an independent nation in December 1991. France and Kazakhstan established diplomatic relations on 25 January 1992, with France becoming the first European nation to recognize Kazakhstan. In September 1993, French President François Mitterrand paid an official visit to Kazakhstan. In June 2008, both nations signed a strategic partnership agreement and in 2010, both nations created a joint presidential commission establishing yearly visits by both heads of state and for yearly consultations between ministers of foreign affairs of both nations beginning in 2011. In 2008, France transferred its embassy from the former capital of Almaty to the country's new capital of Astana. Kazakhstan and France boosted their relations by signing a strategic partnership in June 2008. In 2010, the two countries created a Franco-Kazakh Presidential Commission, which takes the form of an annual meeting between the two Heads of State. The Alliance Française operates two centers in Kazakhstan, in Astana and in Almaty. In 2017, both nations celebrated 25 years of diplomatic relations.  That same year, France participated in the Expo 2017 being held in Astana.\n\nQUESTION: When did they last celebrate relations anniversary?"
+        "sample_id": "example_76",
+        "question": 'What is the maximum depth of the Mediterranean Sea in meters?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 23,
-            "sample_id": "7cfe1e28-4a04-40f3-8989-fa73ca281f47",
+            "sample_id": "example_76",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: After the Dissolution of the Soviet Union, Kazakhstan became an independent nation in December 1991. France and Kazakhstan established diplomatic relations on 25 January 1992, with France becoming the first European nation to recognize Kazakhstan. In September 1993, French President François Mitterrand paid an official visit to Kazakhstan. In June 2008, both nations signed a strategic partnership agreement and in 2010, both nations created a joint presidential commission establishing yearly visits by both heads of state and for yearly consultations between ministers of foreign affairs of both nations beginning in 2011. In 2008, France transferred its embassy from the former capital of Almaty to the country's new capital of Astana. Kazakhstan and France boosted their relations by signing a strategic partnership in June 2008. In 2010, the two countries created a Franco-Kazakh Presidential Commission, which takes the form of an annual meeting between the two Heads of State. The Alliance Française operates two centers in Kazakhstan, in Astana and in Almaty. In 2017, both nations celebrated 25 years of diplomatic relations.  That same year, France participated in the Expo 2017 being held in Astana.\n\nQUESTION: When did they last celebrate relations anniversary?"
+    question = 'What is the maximum depth of the Mediterranean Sea in meters?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 23,
-            "sample_id": "7cfe1e28-4a04-40f3-8989-fa73ca281f47",
+            "sample_id": "example_76",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 23,
-            "sample_id": "7cfe1e28-4a04-40f3-8989-fa73ca281f47",
+            "sample_id": "example_76",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

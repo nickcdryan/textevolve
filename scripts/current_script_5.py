@@ -2,156 +2,6 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach with enhanced reasoning and verification.
-    """
-    try:
-        # Step 1: Identify question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis, question) # Pass original question
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer and correct if needed
-        verified_answer = verify_answer(question, answer, relevant_passage)
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "requires_calculation": "no"}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "requires_calculation": "yes"}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"], "requires_calculation": "no"}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question_analysis, question, original_question): # Pass original question
-    """Extracts the relevant passage. Now includes more context and more examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the text based on the question, keywords and the original question.
-
-    Example 1:
-    Question Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "requires_calculation": "no"}}
-    Question: Who caught the final touchdown of the game?
-    Original Question: Who caught the final touchdown of the game?
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "requires_calculation": "yes"}}
-    Question: How many running backs ran for a touchdown?
-    Original Question: How many running backs ran for a touchdown?
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"], "requires_calculation": "no"}}
-    Question: Which player kicked the only field goal of the game?
-    Original Question: Which player kicked the only field goal of the game?
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-
-    Question Analysis: {question_analysis}
-    Question: {question}
-    Original Question: {original_question}
-    Text: {original_question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer. Includes examples and consideration for calculations."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text. Focus on direct answers."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question analysis.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"], "requires_calculation": "no"}}
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "requires_calculation": "yes"}}
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"], "requires_calculation": "no"}}
-    Answer: Josh Scobee
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Analysis: {question_analysis}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage):
-    """Verifies the answer and provides a corrected answer if necessary. Includes multiple examples."""
-    system_instruction = "You are an expert at verifying answers to questions. Be precise."
-    prompt = f"""
-    Verify the following answer to the question based on the relevant passage. Return the correct answer.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Verification: 2
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Verification: Josh Scobee
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
-
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
@@ -180,3 +30,100 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question, max_attempts=3):
+    """Solve factual questions using an iterative question refinement and information extraction approach."""
+
+    # Hypothesis: Refining the question itself based on initial retrieval failures, and using this refined question to get more specific information, will improve accuracy.
+    # This addresses the passive behavior and insufficient context detection issues from previous iterations.
+
+    # Step 1: Generate an initial search query based on the question (with examples)
+    initial_search_query_prompt = f"""
+    Given a factual question, generate a concise and effective initial search query.
+
+    Example 1:
+    Question: What was the first name of the wife of the American chemist Ralph E. Oesper?
+    Search Query: Ralph E. Oesper wife
+
+    Example 2:
+    Question: Who formed the Dubai-based band Sho? in June 2009?
+    Search Query: Dubai band Sho formed 2009
+    
+    Question: {question}
+    Search Query:
+    """
+    initial_search_query = call_llm(initial_search_query_prompt, "You are a search query generator.")
+
+    # Step 2: Simulate information retrieval with a limited context (with an example)
+    retrieved_info = f"Simulated web search results for: {initial_search_query}. Limited context available."  # Replace with actual search API call
+    
+    # Step 3: Determine if the retrieved info is sufficient to answer the question (with example and validation)
+    sufficiency_check_prompt = f"""
+    Given a question and retrieved information, determine if the information is sufficient to answer the question.
+
+    Example:
+    Question: What was the first name of the wife of the American chemist Ralph E. Oesper?
+    Retrieved Information: Ralph E. Oesper's wife was a chemist.
+    Sufficient: No. The first name is missing.
+
+    Question: {question}
+    Retrieved Information: {retrieved_info}
+    Sufficient:
+    """
+    sufficiency_result = call_llm(sufficiency_check_prompt, "You are a helpful expert at assessing information sufficiency.")
+
+    # Step 4: If not sufficient, refine the question (with examples)
+    if "No" in sufficiency_result:
+        refine_question_prompt = f"""
+        Given a question and the reason why the initial information was insufficient, refine the question to get a more specific answer.
+        
+        Example:
+        Original Question: What was the first name of the wife of the American chemist Ralph E. Oesper?
+        Reason: The first name is missing.
+        Refined Question: What was the *first name* of Ralph E. Oesper's wife?
+
+        Question: {question}
+        Reason: {sufficiency_result}
+        Refined Question:
+        """
+        refined_question = call_llm(refine_question_prompt, "You are an expert at refining questions.")
+
+        # Step 5: Retrieve information using refined question.
+        refined_search_query_prompt = f"""
+        Given a refined question, generate a search query.
+        Question: {refined_question}
+        Search Query:
+        """
+        refined_search_query = call_llm(refined_search_query_prompt, "You are an search query generator.")
+
+        retrieved_info = f"Simulated web search results for: {refined_search_query}. Specific information available."
+    else:
+        refined_question = question # If the sufficiency test passed
+
+    # Step 6: Extract the answer from retrieved information (with examples)
+    answer_extraction_prompt = f"""
+    Given a question and retrieved information, extract the answer.
+    Example:
+    Question: What was the *first name* of Ralph E. Oesper's wife?
+    Relevant Information: Helen Oesper was the wife of Ralph E. Oesper.
+    Answer: Helen
+
+    Question: {refined_question}
+    Relevant Information: {retrieved_info}
+    Answer:
+    """
+    extracted_answer = call_llm(answer_extraction_prompt, "You are an expert question answering system.")
+    
+    # Step 7: Verify answer with original question
+    verification_prompt = f"""
+    Verify that the following answer accurately addresses the *original* question:
+    Original question: {question}
+    Extracted Answer: {extracted_answer}
+    Verification (Correct/Incorrect):
+    """
+    verification_result = call_llm(verification_prompt, "You are a validation expert")
+
+    if "Correct" in verification_result:
+        return extracted_answer
+    else:
+        return "Could not be validated."

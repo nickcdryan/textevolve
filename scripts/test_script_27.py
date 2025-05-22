@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 27,
-        "sample_id": "e2c245f8-53f1-47ea-b131-32f7212b3883",
-        "question": "PASSAGE: In week 15, the Lions hosted the defending the NFC Champion Arizona Cardinals. The first half was all Arizona. First was a Larry Fitzgerald 1-yard catch from Kurt Warner. Next in the second quarter a 48-yard field goal by Mike Nugent. Then near halftime a 1-yard rush by Tim Hightower. After his unproductive first half (6 for 12 and only 64 yards passing and an interception) Lions backup quarterback Daunte Culpepper was replaced by third stringer Drew Stanton who breathed some life into the offense. First though came an interception and 100 yard Lions TD run by Louis Delmas, a tie for the third longest interception TD in team history. A few minutes later Detroit's Maurice Morris ran in a career-high 64 yard TD.  In the 4th quarter, the Cardinals responded with an 18-yard Chris Wells TD run. The Lions tied it back up when Stanton ran in his first career rushing TD from 1 yard out. The Cardinals sealed their victory though with just under 2 minutes left when Anquan Boldin caught a 5-yard TD pass. The Lions attempted to tie it back up soon after but were stopped on 4th and 1.\n\nQUESTION: Which player scored the last touchdown of the game?"
+        "sample_id": "example_88",
+        "question": 'What was the day, month, and year when Mario-Rafael Ionian, an Austrian former competitive figure skater, was born?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 27,
-            "sample_id": "e2c245f8-53f1-47ea-b131-32f7212b3883",
+            "sample_id": "example_88",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: In week 15, the Lions hosted the defending the NFC Champion Arizona Cardinals. The first half was all Arizona. First was a Larry Fitzgerald 1-yard catch from Kurt Warner. Next in the second quarter a 48-yard field goal by Mike Nugent. Then near halftime a 1-yard rush by Tim Hightower. After his unproductive first half (6 for 12 and only 64 yards passing and an interception) Lions backup quarterback Daunte Culpepper was replaced by third stringer Drew Stanton who breathed some life into the offense. First though came an interception and 100 yard Lions TD run by Louis Delmas, a tie for the third longest interception TD in team history. A few minutes later Detroit's Maurice Morris ran in a career-high 64 yard TD.  In the 4th quarter, the Cardinals responded with an 18-yard Chris Wells TD run. The Lions tied it back up when Stanton ran in his first career rushing TD from 1 yard out. The Cardinals sealed their victory though with just under 2 minutes left when Anquan Boldin caught a 5-yard TD pass. The Lions attempted to tie it back up soon after but were stopped on 4th and 1.\n\nQUESTION: Which player scored the last touchdown of the game?"
+    question = 'What was the day, month, and year when Mario-Rafael Ionian, an Austrian former competitive figure skater, was born?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 27,
-            "sample_id": "e2c245f8-53f1-47ea-b131-32f7212b3883",
+            "sample_id": "example_88",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 27,
-            "sample_id": "e2c245f8-53f1-47ea-b131-32f7212b3883",
+            "sample_id": "example_88",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

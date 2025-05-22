@@ -2,168 +2,12 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach.
-    Enhanced with robust error handling and embedded examples.
-    """
-    try:
-        # Step 1: Analyze question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question: " + question_analysis
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage: " + relevant_passage
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer: " + answer
-
-        # Step 4: Verify answer
-        verified_answer = verify_answer(question, answer, relevant_passage)
-        if "Error" in verified_answer:
-            return "Error verifying answer: " + verified_answer
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Now with multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught", "game"]}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown", "ran"]}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal", "kicked"]}}
-
-    Example 4:
-    Question: How many total passing touchdown yards did Dalton have?
-    Analysis: {{"type": "calculation", "keywords": ["total", "passing", "touchdown", "yards", "Dalton"]}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords. Now with more examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the most relevant passage from the following text to answer the question, based on its type and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game? PASSAGE: ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught", "game"]}}
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown? PASSAGE: ... Chris Johnson got a 6-yard TD run... LenDale White getting a 6-yard and a 2-yard TD run.
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown", "ran"]}}
-    Passage: Chris Johnson got a 6-yard TD run. LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game? PASSAGE: ...Josh Scobee nailed a 47-yard field goal.
-    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal", "kicked"]}}
-    Passage: Josh Scobee nailed a 47-yard field goal.
-
-    Example 4:
-    Question: How many total passing touchdown yards did Dalton have? PASSAGE: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns... First, Dalton hit Tyler Eifert for a 32-yard TD, and Stafford followed shortly after with a 27-yard TD toss to Calvin Johnson
-    Keywords: {{"type": "calculation", "keywords": ["total", "passing", "touchdown", "yards", "Dalton"]}}
-    Passage: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns. First, Dalton hit Tyler Eifert for a 32-yard TD
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Now with multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text. Provide ONLY the direct answer. Do not include any extraneous reasoning or text."
-    prompt = f"""
-    Generate a direct answer to the question, using ONLY information from the relevant passage and question type.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-
-    Example 4:
-    Question: How many total passing touchdown yards did Dalton have?
-    Passage: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns. First, Dalton hit Tyler Eifert for a 32-yard TD
-    Answer: 372
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage):
-    """Verifies the generated answer and ensures format. Now with examples and more checks."""
-    system_instruction = "You are an expert at verifying answers to questions. Return the correct answer EXACTLY as it appears in the relevant passage, if possible. If the answer requires a calculation, perform the calculation and return the result."
-    prompt = f"""
-    Carefully verify the provided answer against the relevant passage.  If the answer is directly stated in the passage, return it exactly as it appears. If the answer requires a calculation based on the passage, perform the calculation and return the result. Ensure the answer is complete and in the correct format.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Verification: 2
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Verification: Josh Scobee
-
-    Example 4:
-    Question: How many total passing touchdown yards did Dalton have?
-    Answer: 372
-    Passage: Andy Dalton was 24-of-34 for 372 yards and 3 touchdowns.
-    Verification: 372
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
+# New Approach: Knowledge Graph Traversal with LLM-Guided Relation Extraction and Focused Answer Validation
+# Hypothesis: Constructing a simplified in-memory knowledge graph from the question and LLM-simulated search results, then traversing it with LLM guidance to extract the answer, will improve accuracy by enabling structured reasoning.
+# This approach combines information extraction and structured reasoning. It tests whether a structured intermediate representation improves performance.
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template."""
+    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
         from google import genai
         from google.genai import types
@@ -190,3 +34,68 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question, max_attempts=3):
+    """Solve factual questions using Knowledge Graph Traversal with LLM-Guided Relation Extraction."""
+
+    # Step 1: Simulated Search and Initial Information Extraction
+    search_query = call_llm(f"Generate a concise search query for the question: {question}", system_instruction="You are an expert search query generator.")
+    search_results = call_llm(f"Simulated web search results for: {search_query}. Focus on concise and relevant results.", "You are a helpful search engine.")
+
+    # Step 2: Knowledge Graph Construction (Simplified, In-Memory)
+    kg_construction_prompt = f"""
+    Extract entities and relationships from the question and search results to build a simplified knowledge graph.
+
+    Example:
+    Question: What is the capital of Australia?
+    Search Results: Canberra is the capital of Australia.
+    Knowledge Graph:
+    {{
+        "Australia": {{"relation": "capital", "target": "Canberra"}}
+    }}
+
+    Question: {question}
+    Search Results: {search_results}
+    Knowledge Graph:
+    """
+    knowledge_graph_str = call_llm(kg_construction_prompt, system_instruction="You are an expert knowledge graph builder.")
+    print(f"Initial Knowledge Graph:{knowledge_graph_str}")
+
+    # Step 3: Knowledge Graph Traversal (LLM-Guided)
+    traversal_prompt = f"""
+    Traverse the knowledge graph to find the answer to the question. Follow relationships to reach the target information.
+
+    Example:
+    Question: What is the capital of Australia?
+    Knowledge Graph:
+    {{
+        "Australia": {{"relation": "capital", "target": "Canberra"}}
+    }}
+    Answer: Canberra
+
+    Question: {question}
+    Knowledge Graph: {knowledge_graph_str}
+    Answer:
+    """
+    answer = call_llm(traversal_prompt, system_instruction="You are an expert knowledge graph traversal agent.")
+    print(f"Answer after Traversal:{answer}")
+
+    # Step 4: Focused Answer Validation
+    validation_prompt = f"""
+    Validate if the answer is a correct and complete response to the question, given the knowledge graph and original information.
+
+    Example:
+    Question: What is the capital of Australia?
+    Answer: Canberra
+    Validation: VALID - Canberra is the capital of Australia.
+
+    Question: {question}
+    Answer: {answer}
+    Validation:
+    """
+    validation_result = call_llm(validation_prompt, system_instruction="You are a strict answer validator.")
+
+    if "VALID" in validation_result:
+        return answer
+    else:
+        return "Could not be validated."

@@ -2,148 +2,6 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach with improved reasoning and error handling.
-    """
-    try:
-        # Step 1: Analyze question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return f"Error analyzing question: {question_analysis}"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return f"Error extracting passage: {relevant_passage}"
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return f"Error generating answer: {answer}"
-
-        # Step 4: Verify answer
-        verified_answer = verify_answer(question, answer, relevant_passage)
-        if "Error" in verified_answer:
-            return f"Error verifying answer: {verified_answer}"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game and how long was it?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal", "how long"]}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the following text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game and how long was it?
-    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal", "how long"]}}
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question type.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game and how long was it?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee kicked the only field goal of the game and it was 47 yards.
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage):
-    """Verifies the generated answer. Includes multiple examples."""
-    system_instruction = "You are an expert at verifying answers to questions. If the answer is incorrect based on the passage, provide the correct answer."
-    prompt = f"""
-    Verify the following answer to the question based on the relevant passage. Return the answer if it is correct. If the answer is incorrect, provide the correct answer based on the passage.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Verification: 2
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game and how long was it?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Verification: Josh Scobee kicked the only field goal of the game and it was 47 yards.
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
-
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
@@ -171,4 +29,135 @@ def call_llm(prompt, system_instruction=None):
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
+
+def extract_information(question):
+    """Extract key information from the question, including entities and constraints."""
+    system_instruction = "You are an expert information extractor."
+    prompt = f"""
+    Extract the key entities and constraints from the following question.
+
+    Example 1:
+    Question: What is the capital of the country where the Great Barrier Reef is located?
+    Entities: Great Barrier Reef, Australia (country)
+    Constraints: Location is a country, seeking its capital
+
+    Example 2:
+    Question: How many corners did Barcelona take in the Champions League semi-final match between Barcelona and Milan on April 27, 2006?
+    Entities: Barcelona, Champions League, Milan, April 27, 2006
+    Constraints: Corners taken by Barcelona, in that specific match
+
+    Question: {question}
+    Entities and Constraints:
+    """
+    return call_llm(prompt, system_instruction)
+
+def generate_search_query(question, extracted_info):
+    """Generate a search query based on the question and extracted information."""
+    system_instruction = "You are a search query generator."
+    prompt = f"""
+    Generate a search query to answer the question, using the extracted information.
+
+    Example 1:
+    Question: What is the capital of Australia?
+    Extracted Info: Australia, capital
+    Search Query: "capital of Australia"
+
+    Example 2:
+    Question: How many corners did Barcelona take in the Champions League semi-final match between Barcelona and Milan on April 27, 2006?
+    Extracted Info: Barcelona, Champions League, Milan, April 27, 2006, corners
+    Search Query: "Barcelona Milan Champions League April 27 2006 corner kicks statistics"
+
+    Question: {question}
+    Extracted Info: {extracted_info}
+    Search Query:
+    """
+    return call_llm(prompt, system_instruction)
+
+def extract_answer(question, search_results):
+    """Extract the answer from the search results and provide a confidence score."""
+    system_instruction = "You are an answer extraction expert."
+    prompt = f"""
+    Extract the answer to the question from the search results and provide a confidence score (1-10).
+    Provide the answer even if you are not 100% sure - the validator will check.
+
+    Example 1:
+    Question: What is the capital of Australia?
+    Search Results: Canberra is the capital city of Australia.
+    Answer: Canberra (Confidence: 9)
+
+    Example 2:
+    Question: How many corners did Barcelona take in the Champions League semi-final match between Barcelona and Milan on April 27, 2006?
+    Search Results: Barcelona took 3 corners in the match.
+    Answer: 3 (Confidence: 8)
+
+    Question: {question}
+    Search Results: {search_results}
+    Answer:
+    """
+    return call_llm(prompt, system_instruction)
+
+def validate_answer(question, answer, search_results):
+    """Validate if the extracted answer is correct and satisfies the question's requirements."""
+    system_instruction = "You are an answer validator. Be strict. Use the search results to validate your answer."
+    prompt = f"""
+    Validate if the extracted answer is correct and satisfies the question's requirements, using the search results.
+    Provide a detailed explanation of your validation process.
+
+    Example 1:
+    Question: What is the capital of Australia?
+    Answer: Canberra
+    Search Results: Canberra is the capital city of Australia.
+    Validation: VALID - The answer Canberra is correct according to the search results.
+
+    Example 2:
+    Question: How many corners did Barcelona take in the Champions League semi-final match between Barcelona and Milan on April 27, 2006?
+    Answer: 3
+    Search Results: Barcelona took 3 corners in the match.
+    Validation: VALID - The answer 3 is correct according to the search results.
+
+    Question: {question}
+    Answer: {answer}
+    Search Results: {search_results}
+    Validation:
+    """
+    return call_llm(prompt, system_instruction)
+
+def main(question):
+    """Main function to answer the question."""
+    try:
+        # Step 1: Extract information
+        extracted_info = extract_information(question)
+        print(f"Extracted Info: {extracted_info}")
+
+        # Step 2: Generate search query
+        search_query = generate_search_query(question, extracted_info)
+        print(f"Search Query: {search_query}")
+
+        # Step 3: Simulate information retrieval
+        search_results = call_llm(search_query, "You are a helpful search engine that provides concise, factual information.")
+        print(f"Search Results: {search_results}")
+
+        # Step 4: Extract answer
+        extracted_answer_raw = extract_answer(question, search_results)
+        print(f"Extracted Answer (raw): {extracted_answer_raw}")
+        
+        #Split out answer and confidence score
+        try:
+            extracted_answer = extracted_answer_raw.split('(Confidence:')[0].strip()
+            confidence = int(extracted_answer_raw.split('(Confidence:')[1].replace(')','').strip())
+        except:
+            extracted_answer = extracted_answer_raw
+            confidence = 5 #low confidence score to force validation to work
+
+        # Step 5: Validate answer
+        validation_result = validate_answer(question, extracted_answer, search_results)
+        print(f"Validation Result: {validation_result}")
+
+        if "VALID" in validation_result:
+            return extracted_answer
+        else:
+            return "Could not be validated."
+    except Exception as e:
+        print(f"Error: {str(e)}")
         return f"Error: {str(e)}"

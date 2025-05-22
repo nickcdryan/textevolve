@@ -1,781 +1,203 @@
 {
   "iteration": 3,
-  "timestamp": "2025-05-19T14:33:26.754782",
-  "strategy": "Exploitation",
-  "explore_rate": 40,
-  "exploit_rate": 60,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach. Enhanced for ordinality and error handling.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage, enhance to find *all* relevant info\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer\n        verified_answer = verify_answer(question, answer, relevant_passage)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question, identifying type and keywords. Now handles ordinal questions.\"\"\"\n    system_instruction = \"You are an expert question analyzer.\"\n    prompt = f\"\"\"\n    Analyze the question to identify its type and keywords. Identify if it is ordinal.\n    Example 1: Question: Who caught the final touchdown? Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\"], \"ordinal\": true}}\n    Example 2: Question: How many RBs ran for a TD? Analysis: {{\"type\": \"counting\", \"keywords\": [\"RB\", \"touchdown\"], \"ordinal\": false}}\n    Example 3: Question: Which player kicked the only FG? Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"FG\"], \"ordinal\": false}}\n    Question: {question} Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage. Now extracts *all* potentially relevant sentences.\"\"\"\n    system_instruction = \"You are an expert at passage extraction.\"\n    prompt = f\"\"\"\n    Extract all sentences that *might* be relevant to the question.\n    Example 1: Question: Who caught the final TD? Passage: \"The final TD was caught by X.\"\n    Example 2: Question: How many RBs scored? Passage: \"RB A scored. RB B also scored.\"\n    Example 3: Question: Which player kicked the only FG? Passage: \"Player C kicked the only FG.\"\n    Question: {question} Text: {question} Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer. Enhanced to handle ordinality and complex reasoning.\"\"\"\n    system_instruction = \"You are an expert answer generator.\"\n    prompt = f\"\"\"\n    Generate the answer from the passage, using the question type.\n    Example 1: Question: Who caught the final TD? Passage: \"The final TD was caught by X.\" Answer: X\n    Example 2: Question: How many RBs scored? Passage: \"RB A scored. RB B also scored.\" Answer: 2\n    Example 3: Question: Which player kicked the only FG? Passage: \"Player C kicked the only FG.\" Answer: Player C\n    Question: {question} Passage: {relevant_passage} Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage):\n    \"\"\"Verifies the generated answer. Enhanced for feedback if incorrect.\"\"\"\n    system_instruction = \"You are an expert answer verifier.\"\n    prompt = f\"\"\"\n    Verify if the answer is correct based on the passage. If incorrect, provide the correct answer.\n    Example 1: Question: Who caught the final TD? Answer: X. Passage: \"The final TD was caught by X.\" Verification: X\n    Example 2: Question: How many RBs scored? Answer: 3. Passage: \"RB A scored. RB B also scored.\" Verification: 2\n    Question: {question} Answer: {answer} Passage: {relevant_passage} Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a multi-stage LLM approach to answer questions by decomposing the problem into question analysis, relevant passage extraction, answer generation, and answer verification. Each stage leverages an LLM with a specific role (e.g., question analyzer, passage extractor) to perform its task. The functions used are `main`, `analyze_question`, `extract_relevant_passage`, `generate_answer`, `verify_answer`, and `call_llm`; `main` orchestrates the process, calling the other functions sequentially to analyze the question, extract relevant information, generate an answer, and verify its correctness, using `call_llm` to interact with the Gemini model at each stage. The overall workflow involves analyzing the question, retrieving relevant information, forming an initial answer, and then verifying the answer for accuracy.",
-  "sample_count": 10,
+  "timestamp": "2025-05-22T05:32:07.870263",
+  "strategy": "Exploration",
+  "explore_rate": 62,
+  "exploit_rate": 38,
+  "batch_size": 3,
+  "script": "import os\nimport re\nimport math\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question):\n    \"\"\"Solve factual questions using a new approach: RAG with explicit source identification and verification.\"\"\"\n\n    # Hypothesis: Providing the LLM with specific context from a simulated knowledge base, and then asking it to explicitly cite the source for its answer, will improve accuracy.\n    # This addresses the previous issues of inaccurate knowledge retrieval and overly strict validation by giving the LLM more focused information and requiring transparency.\n\n    # Step 1: Generate a query to retrieve relevant context from a simulated knowledge base (with examples)\n    context_query_prompt = f\"\"\"\n    Generate a concise query to retrieve relevant context from a knowledge base to answer the following question.\n\n    Example 1:\n    Question: Who was the lead programmer of Project Firebreak who helped create CYAN in Horizon Zero Dawn: The Frozen Wilds?\n    Context Query: Project Firebreak lead programmer Horizon Zero Dawn CYAN\n\n    Example 2:\n    Question: In which month and year did Apple add the ability for users to speak \"Hey Siri\" to enable the assistant without the requirement of physically handling the device?\n    Context Query: Apple Hey Siri release date\n\n    Question: {question}\n    Context Query:\n    \"\"\"\n    context_query = call_llm(context_query_prompt, system_instruction=\"You are an expert at generating context queries.\")\n\n    # Step 2: Simulate retrieval of context from a knowledge base (replace with actual retrieval mechanism if available)\n    simulated_knowledge_base = {\n        \"Project Firebreak lead programmer Horizon Zero Dawn CYAN\": \"Anita Sandoval was the lead programmer of Project Firebreak, which helped create CYAN in Horizon Zero Dawn: The Frozen Wilds.\",\n        \"Apple Hey Siri release date\": \"Apple added the 'Hey Siri' feature in September 2014.\",\n        \"ISCB Accomplishment by a Senior Scientist Award 2019 recipient\": \"Bonnie Berger was the recipient of the ISCB Accomplishment by a Senior Scientist Award in 2019.\"\n    }\n    retrieved_context = simulated_knowledge_base.get(context_query, \"No relevant context found.\")\n\n    # Step 3: Extract the answer from the context, *explicitly citing the source* (with examples)\n    answer_extraction_prompt = f\"\"\"\n    Given the question and the retrieved context, extract the answer and explicitly cite the source from which the answer was derived.\n\n    Example 1:\n    Question: Who was the lead programmer of Project Firebreak who helped create CYAN in Horizon Zero Dawn: The Frozen Wilds?\n    Retrieved Context: Anita Sandoval was the lead programmer of Project Firebreak, which helped create CYAN in Horizon Zero Dawn: The Frozen Wilds.\n    Answer: Anita Sandoval (Source: Anita Sandoval was the lead programmer of Project Firebreak, which helped create CYAN in Horizon Zero Dawn: The Frozen Wilds.)\n\n    Example 2:\n    Question: In which month and year did Apple add the ability for users to speak \"Hey Siri\" to enable the assistant without the requirement of physically handling the device?\n    Retrieved Context: Apple added the 'Hey Siri' feature in September 2014.\n    Answer: September 2014 (Source: Apple added the 'Hey Siri' feature in September 2014.)\n\n    Question: {question}\n    Retrieved Context: {retrieved_context}\n    Answer:\n    \"\"\"\n    answer_extraction_response = call_llm(answer_extraction_prompt, system_instruction=\"You are an expert at extracting answers from context and citing the source.\")\n\n    # Step 4: Verify that the extracted answer is supported by the cited source.\n    verification_prompt = f\"\"\"\n    Verify if the extracted answer is supported by the cited source.\n\n    Example 1:\n    Question: Who was the lead programmer of Project Firebreak who helped create CYAN in Horizon Zero Dawn: The Frozen Wilds?\n    Extracted Answer: Anita Sandoval (Source: Anita Sandoval was the lead programmer of Project Firebreak, which helped create CYAN in Horizon Zero Dawn: The Frozen Wilds.)\n    Verification: The answer is supported by the source. VALID.\n\n    Example 2:\n    Question: In which month and year did Apple add the ability for users to speak \"Hey Siri\" to enable the assistant without the requirement of physically handling the device?\n    Extracted Answer: September 2014 (Source: Apple added the 'Hey Siri' feature in September 2014.)\n    Verification: The answer is supported by the source. VALID.\n\n    Question: {question}\n    Extracted Answer: {answer_extraction_response}\n    Verification:\n    \"\"\"\n    verification_result = call_llm(verification_prompt, system_instruction=\"You are an expert at verifying answers based on provided sources.\")\n\n    if \"VALID\" in verification_result:\n        return answer_extraction_response.split('(Source:')[0].strip()\n    else:\n        return \"Could not be validated.\"",
+  "approach_summary": "The script implements a RAG approach with explicit source identification and verification, using the Gemini LLM to answer factual questions. The problem is decomposed into generating a context query, retrieving context from a simulated knowledge base, extracting the answer with source citation, and verifying the extracted answer against the cited source. Three agent roles are involved: one for generating context queries, one for extracting answers, and one for verifying answers. The `call_llm` function is used to interact with the Gemini model, `main` orchestrates the overall workflow, calling `call_llm` to generate a query, extract an answer, and verify the answer based on a knowledge base.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE: Coming off their win over the Bengals, the Steelers stayed at home for a Week 15 intraconference duel with the New York Jets.  Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.  The Steelers answered in the second quarter with quarterback Ben Roethlisberger finding tight end Matt Spaeth on a 9-yard touchdown.  New York struck back with kicker Nick Folk making a 25-yard field goal, yet Pittsburgh tied the game with a 42-yard field goal from kicker Shaun Suisham. The Steelers took the lead in the third quarter with a 2-yard touchdown run from running back Rashard Mendenhall, but the Jets replied with quarterback Mark Sanchez getting a 7-yard touchdown run.  New York took back their lead in the fourth quarter with Folk booting a 34-yard field goal, followed by linebacker Jason Taylor tackling running back Mewelde Moore in the endzone for a safety.  Pittsburgh tried to rally, but the Jets defense would hold on to preserve the win.\n\nQUESTION: How many points did the Steelers score in the first quarter?",
-      "answer": "0",
+      "question": "What is the name of the individual who was awarded the Paul Karrer Gold Medal in 2004?",
+      "answer": "Ada Yonath",
+      "id": "example_14",
+      "meta": {
+        "source": "SimpleQA",
+        "line_number": 682,
+        "original_data": {
+          "metadata": "{'topic': 'Science and technology', 'answer_type': 'Person', 'urls': ['https://en.wikipedia.org/wiki/Paul_Karrer_Gold_Medal', 'https://en.wikipedia.org/wiki/Paul_Karrer_Gold_Medal', 'https://www.pas.va/en/academicians/ordinary/yonath.html', 'https://www.nobelprize.org/events/nobel-prize-summit/2021/panellists/ada-yonath/']}",
+          "problem": "What is the name of the individual who was awarded the Paul Karrer Gold Medal in 2004?",
+          "answer": "Ada Yonath",
+          "id": "example_682"
+        }
+      }
+    },
+    {
+      "question": "What is the name of the university where Ana Figueroa, a political activist and government official, studies and graduates from?",
+      "answer": "University of Chile ",
+      "id": "example_15",
+      "meta": {
+        "source": "SimpleQA",
+        "line_number": 501,
+        "original_data": {
+          "metadata": "{'topic': 'Politics', 'answer_type': 'Place', 'urls': ['https://en.wikipedia.org/wiki/Ana_Figuero', 'https://globalcenters.columbia.edu/news/columbia-university-and-legacy-chilean-feminists', 'https://www.encyclopedia.com/humanities/encyclopedias-almanacs-transcripts-and-maps/figueroa-gajardo-ana-1907-1970', 'https://en.wikipedia.org/wiki/Ana_Figuero']}",
+          "problem": "What is the name of the university where Ana Figueroa, a political activist and government official, studies and graduates from?",
+          "answer": "University of Chile ",
+          "id": "example_501"
+        }
+      }
+    },
+    {
+      "question": "Which genus was the ruby-throated bulbul moved to from *Turdus* before finally being classified in the genus *Rubigula*?",
+      "answer": "Genus Pycnonotus",
       "id": "example_16",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their win over the Bengals, the Steelers stayed at home for a Week 15 intraconference duel with the New York Jets.  Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.  The Steelers answered in the second quarter with quarterback Ben Roethlisberger finding tight end Matt Spaeth on a 9-yard touchdown.  New York struck back with kicker Nick Folk making a 25-yard field goal, yet Pittsburgh tied the game with a 42-yard field goal from kicker Shaun Suisham. The Steelers took the lead in the third quarter with a 2-yard touchdown run from running back Rashard Mendenhall, but the Jets replied with quarterback Mark Sanchez getting a 7-yard touchdown run.  New York took back their lead in the fourth quarter with Folk booting a 34-yard field goal, followed by linebacker Jason Taylor tackling running back Mewelde Moore in the endzone for a safety.  Pittsburgh tried to rally, but the Jets defense would hold on to preserve the win.",
-        "original_question": "How many points did the Steelers score in the first quarter?",
-        "original_answer_data": {
-          "spans": [
-            "0"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 965
-      }
-    },
-    {
-      "question": "PASSAGE: In 1616 the Venetians besieged Farra and Gradisca, and the archduke attacked from Gorizia and Lucinico. With three large culverins, four guns and three small culverins, Farra  repulsed the enemy artillery with heavy losses. The Venetians launched another futile assault before Giustiniani lifted the siege and retreated to Mariano. In September, Johan Ernst van Nassau-Siegen agreed to raise 3,000 men from the Dutch Republic for Venetian service. They arrived in May 1617, followed six months later by another 2,000 . Spanish support was blocked at sea by a flotilla of 12 Dutch and 10 English warships and on land by the war in Mantua. Although Archduke Ferdinand had only 4,000 soldiers to defend Gradisca, he received military, political and financial support from the Spanish as part of a larger agreement: Philip agreed to fight the Venetians and support Ferdinand as the next Holy Roman Emperor in return for the cession of Alsace, Finale Ligure and Piombino. This led to a negotiated settlement between Ferdinand and the Venetians in which many Uskok pirates were executed or exiled, and a permanent Austrian garrison was installed in Senj.\n\nQUESTION: How many Dutch and English warships were blocking Spanish support?",
-      "answer": "22",
-      "id": "example_17",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In 1616 the Venetians besieged Farra and Gradisca, and the archduke attacked from Gorizia and Lucinico. With three large culverins, four guns and three small culverins, Farra  repulsed the enemy artillery with heavy losses. The Venetians launched another futile assault before Giustiniani lifted the siege and retreated to Mariano. In September, Johan Ernst van Nassau-Siegen agreed to raise 3,000 men from the Dutch Republic for Venetian service. They arrived in May 1617, followed six months later by another 2,000 . Spanish support was blocked at sea by a flotilla of 12 Dutch and 10 English warships and on land by the war in Mantua. Although Archduke Ferdinand had only 4,000 soldiers to defend Gradisca, he received military, political and financial support from the Spanish as part of a larger agreement: Philip agreed to fight the Venetians and support Ferdinand as the next Holy Roman Emperor in return for the cession of Alsace, Finale Ligure and Piombino. This led to a negotiated settlement between Ferdinand and the Venetians in which many Uskok pirates were executed or exiled, and a permanent Austrian garrison was installed in Senj.",
-        "original_question": "How many Dutch and English warships were blocking Spanish support?",
-        "original_answer_data": {
-          "spans": [
-            "22"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 18
-      }
-    },
-    {
-      "question": "PASSAGE: On a windy, rainy Sunday the Seahawks hosted the Rams looking to take an effective 3 game lead in the division with a win. The Seahawks drove the ball easily on their first possession, moving to the Ram 1-yard line. After a false start penalty, Seneca Wallace was sacked and fumbled, and the Rams returned the ball 89 yards for a touchdown. The Seahawks drove down the field again, this time maintaining possession to the endzone as Darrell Jackson caught a 3-yard TD pass. The lead would change hands 6 more times in the game. With the Rams holding a 16-14 lead in the fourth quarter, Rams coach Scott Linehan chose to challenge a call, nullifying a field goal. The challenge was upheld, but the Rams still faced a fourth down play. Instead of kicking another field goal to increase the lead, Linehan chose to go for a first down. The raucous Qwest Field rose to the occasion, and Rams FB Paul Smith could not hear the play call. Rather than run a pass route he stayed in the backfield to block, and Ram QB Marc Bulger's pass to double covered TE Klopfenstein fell incomplete. Nate Burleson returned a punt 90 yards for a touchdown and a 21-16 lead. After a Rams TD with 2:37 remaining, a series of penalties against St. Louis changed momentum. A holding penalty nullified a successful 2 point convert. The second attempt failed. A 15-yard personal foul was assessed on the subsequent kickoff, and Josh Scobey returned the ball to the Ram 49-yard line. With a short field and time on the clock, Seneca Wallace and Maurice Morris drove the Seahawks to the Ram 20-yard line, where Josh Brown kicked a game-winning field goal with 9 seconds remaining. Brown kicked game-winning field goals in both games against the Rams that year. With their 4th straight win over the Rams, the Seahawks improved to 6-3.\n\nQUESTION: How many yard passes did Jackson catch?",
-      "answer": "3",
-      "id": "example_18",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "On a windy, rainy Sunday the Seahawks hosted the Rams looking to take an effective 3 game lead in the division with a win. The Seahawks drove the ball easily on their first possession, moving to the Ram 1-yard line. After a false start penalty, Seneca Wallace was sacked and fumbled, and the Rams returned the ball 89 yards for a touchdown. The Seahawks drove down the field again, this time maintaining possession to the endzone as Darrell Jackson caught a 3-yard TD pass. The lead would change hands 6 more times in the game. With the Rams holding a 16-14 lead in the fourth quarter, Rams coach Scott Linehan chose to challenge a call, nullifying a field goal. The challenge was upheld, but the Rams still faced a fourth down play. Instead of kicking another field goal to increase the lead, Linehan chose to go for a first down. The raucous Qwest Field rose to the occasion, and Rams FB Paul Smith could not hear the play call. Rather than run a pass route he stayed in the backfield to block, and Ram QB Marc Bulger's pass to double covered TE Klopfenstein fell incomplete. Nate Burleson returned a punt 90 yards for a touchdown and a 21-16 lead. After a Rams TD with 2:37 remaining, a series of penalties against St. Louis changed momentum. A holding penalty nullified a successful 2 point convert. The second attempt failed. A 15-yard personal foul was assessed on the subsequent kickoff, and Josh Scobey returned the ball to the Ram 49-yard line. With a short field and time on the clock, Seneca Wallace and Maurice Morris drove the Seahawks to the Ram 20-yard line, where Josh Brown kicked a game-winning field goal with 9 seconds remaining. Brown kicked game-winning field goals in both games against the Rams that year. With their 4th straight win over the Rams, the Seahawks improved to 6-3.",
-        "original_question": "How many yard passes did Jackson catch?",
-        "original_answer_data": {
-          "spans": [
-            "3"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 189
-      }
-    },
-    {
-      "question": "PASSAGE: After falling to the Colts at home, the Texans visited Pittsburgh for the first time since 2008, doing battle on Monday night with the Pittsburgh Steelers. While the Texans defense held off the Steelers' offense, the offense managed to gain much-needed momentum in the 1st quarter, a place they had previously struggled. The Texans scored first with 5:55 left after Blue caught a pass from Fitzpatrick to lead 7-0. In the second quarter Ben Roethlisberger was sacked by Watt and fumbled the ball near midfield. Houston capitalized on the turnover with a Bullock 39 yard field goal to lead 10-0 with 13:39 left in the 2nd. Houston continued their trend of scoring on each possession with another Bullock field goal (38 yards) to extend their lead to 13-0 with 7:20 left; part of the same drive included the Texans converting on a 4th down and inches. The Steelers finally managed to get on the board with a 44-yard field goal from Shaun Suisham to trail 3-13 with 3:13 left. After forcing a 3 and out for the Texans, the Steelers struck back with a 35-yard touchdown pass from Roerhlisberger to Bryant to trail 10-13 with 1:27 left. After a Houston fumble at their 4-yard line, Pittsburgh took their first lead of the night to lead 17-13 with 1:03 remaining. The Steelers scored off of another Texans turnover after a Fitzpatrick pass was deflected to extend their lead with 0:14 left in the half. Following a series of Houston turnovers in arguably the worst-played three minutes in NFL history, Pittsburgh lead 24-13 at the half. After Suisham made two fourth quarter field goals, from 30 yards (27-16) and 40 yards (30-16), respectively, The Texans tried to rally for the remainder of the game with a Foster TD catch to make it 30-23, and almost pulled off an onside kick recovery, but Pittsburgh managed to avoid a disaster. This was the first game since week 2 against the Raiders that the Texans scored in the 1st quarter. However, with their 3rd straight loss, the Texans fell to 3-4.\n\nQUESTION: How many field goals to Suisham make in the fourth quarter?",
-      "answer": "2",
-      "id": "example_19",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "After falling to the Colts at home, the Texans visited Pittsburgh for the first time since 2008, doing battle on Monday night with the Pittsburgh Steelers. While the Texans defense held off the Steelers' offense, the offense managed to gain much-needed momentum in the 1st quarter, a place they had previously struggled. The Texans scored first with 5:55 left after Blue caught a pass from Fitzpatrick to lead 7-0. In the second quarter Ben Roethlisberger was sacked by Watt and fumbled the ball near midfield. Houston capitalized on the turnover with a Bullock 39 yard field goal to lead 10-0 with 13:39 left in the 2nd. Houston continued their trend of scoring on each possession with another Bullock field goal (38 yards) to extend their lead to 13-0 with 7:20 left; part of the same drive included the Texans converting on a 4th down and inches. The Steelers finally managed to get on the board with a 44-yard field goal from Shaun Suisham to trail 3-13 with 3:13 left. After forcing a 3 and out for the Texans, the Steelers struck back with a 35-yard touchdown pass from Roerhlisberger to Bryant to trail 10-13 with 1:27 left. After a Houston fumble at their 4-yard line, Pittsburgh took their first lead of the night to lead 17-13 with 1:03 remaining. The Steelers scored off of another Texans turnover after a Fitzpatrick pass was deflected to extend their lead with 0:14 left in the half. Following a series of Houston turnovers in arguably the worst-played three minutes in NFL history, Pittsburgh lead 24-13 at the half. After Suisham made two fourth quarter field goals, from 30 yards (27-16) and 40 yards (30-16), respectively, The Texans tried to rally for the remainder of the game with a Foster TD catch to make it 30-23, and almost pulled off an onside kick recovery, but Pittsburgh managed to avoid a disaster. This was the first game since week 2 against the Raiders that the Texans scored in the 1st quarter. However, with their 3rd straight loss, the Texans fell to 3-4.",
-        "original_question": "How many field goals to Suisham make in the fourth quarter?",
-        "original_answer_data": {
-          "spans": [
-            "2"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 414
-      }
-    },
-    {
-      "question": "PASSAGE: The Livonian War  was fought for control of Old Livonia , when the Tsardom of Russia faced a varying coalition of Denmark-Norway, the Kingdom of Sweden, and the Union  of the Grand Duchy of Lithuania and the Kingdom of Poland. During the period 1558-1578, Russia dominated the region with early military successes at Dorpat  and Narva. Russian dissolution of the Livonian Confederation brought Poland-Lithuania into the conflict, while Sweden and Denmark both intervened between 1559 and 1561. Swedish Estonia was established despite constant invasion from Russia, and Frederick II of Denmark bought the old Bishopric of \u00d6sel-Wiek, which he placed under the control of his brother Magnus of Holstein. Magnus attempted to expand his Livonian holdings to establish the Russian vassal state Kingdom of Livonia, which nominally existed until his defection in 1576. In 1576, Stefan Batory became King of Poland as well as Grand Duke of Lithuania and turned the tide of the war with his successes between 1578 and 1581, including the joint Swedish-Polish-Lithuanian offensive at the Battle of Wenden. This was followed by an extended campaign through Russia culminating in the long and difficult siege of Pskov. Under the 1582 Truce of Jam Zapolski, which ended the war between Russia and Poland-Lithuania, Russia lost all its former holdings in Livonia and Polotsk to Poland-Lithuania. The following year, Sweden and Russia signed the Truce of Plussa with Sweden gaining most of Ingria and northern Livonia while retaining the Duchy of Estonia.\n\nQUESTION: What event happened first, Magnus's defection, or the Truce of Jam Zapolski?",
-      "answer": "until his defection in 1576., Magnus attempted to expand",
-      "id": "example_20",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Livonian War  was fought for control of Old Livonia , when the Tsardom of Russia faced a varying coalition of Denmark-Norway, the Kingdom of Sweden, and the Union  of the Grand Duchy of Lithuania and the Kingdom of Poland. During the period 1558-1578, Russia dominated the region with early military successes at Dorpat  and Narva. Russian dissolution of the Livonian Confederation brought Poland-Lithuania into the conflict, while Sweden and Denmark both intervened between 1559 and 1561. Swedish Estonia was established despite constant invasion from Russia, and Frederick II of Denmark bought the old Bishopric of \u00d6sel-Wiek, which he placed under the control of his brother Magnus of Holstein. Magnus attempted to expand his Livonian holdings to establish the Russian vassal state Kingdom of Livonia, which nominally existed until his defection in 1576. In 1576, Stefan Batory became King of Poland as well as Grand Duke of Lithuania and turned the tide of the war with his successes between 1578 and 1581, including the joint Swedish-Polish-Lithuanian offensive at the Battle of Wenden. This was followed by an extended campaign through Russia culminating in the long and difficult siege of Pskov. Under the 1582 Truce of Jam Zapolski, which ended the war between Russia and Poland-Lithuania, Russia lost all its former holdings in Livonia and Polotsk to Poland-Lithuania. The following year, Sweden and Russia signed the Truce of Plussa with Sweden gaining most of Ingria and northern Livonia while retaining the Duchy of Estonia.",
-        "original_question": "What event happened first, Magnus's defection, or the Truce of Jam Zapolski?",
-        "original_answer_data": {
-          "spans": [
-            "until his defection in 1576.",
-            "Magnus attempted to expand"
-          ],
-          "types": [
-            "span",
-            "span"
-          ]
-        },
-        "line_number": 589
-      }
-    },
-    {
-      "question": "PASSAGE: The Economy of the Czech Republic is a developed export-oriented social market economy based on services, manufacturing and innovation, that maintains a high-income welfare state and the \"continental\" type of the European social model. The Czech Republic participates in the European Single Market as a member of the European Union, and is therefore a part of the economy of the European Union, but uses its own currency, the Czech koruna, instead of the euro. It is a member of the OECD. As of 2017, the Czech GDP per capita at purchasing power parity is $35,223  and $20,152 at nominal value. As of March 2018, the unemployment rate in the Czech Republic was the lowest in the EU at 2.2%, and the poverty rate is the second lowest of OECD members only behind Denmark. Czech Republic ranks 24th in both the Index of Economic Freedom  and the Global Innovation Index , 31st in the Global Competitiveness Report 30th in the ease of doing business index and 25th in the Global Enabling Trade Report . The largest trading partner for both export and import is Germany and the EU in general. The Czech Republic has a highly diverse economy that ranks 7th in the 2016 Economic Complexity Index. The industry sector accounts for 37.5% of the economy, while services for 60% and agriculture for 2.5%. The principal industries are high tech engineering, electronics, automotive, and machine-building, steel production, transportation equipment, chemical production and pharmaceuticals. The major services are research and development, ICT and software development, nanotechnology and life sciences among others. Its main agricultural products are cereals, vegetable oils and hops.\n\nQUESTION: What accounts for over half of the Czech economy?",
-      "answer": "services",
-      "id": "example_21",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The Economy of the Czech Republic is a developed export-oriented social market economy based on services, manufacturing and innovation, that maintains a high-income welfare state and the \"continental\" type of the European social model. The Czech Republic participates in the European Single Market as a member of the European Union, and is therefore a part of the economy of the European Union, but uses its own currency, the Czech koruna, instead of the euro. It is a member of the OECD. As of 2017, the Czech GDP per capita at purchasing power parity is $35,223  and $20,152 at nominal value. As of March 2018, the unemployment rate in the Czech Republic was the lowest in the EU at 2.2%, and the poverty rate is the second lowest of OECD members only behind Denmark. Czech Republic ranks 24th in both the Index of Economic Freedom  and the Global Innovation Index , 31st in the Global Competitiveness Report 30th in the ease of doing business index and 25th in the Global Enabling Trade Report . The largest trading partner for both export and import is Germany and the EU in general. The Czech Republic has a highly diverse economy that ranks 7th in the 2016 Economic Complexity Index. The industry sector accounts for 37.5% of the economy, while services for 60% and agriculture for 2.5%. The principal industries are high tech engineering, electronics, automotive, and machine-building, steel production, transportation equipment, chemical production and pharmaceuticals. The major services are research and development, ICT and software development, nanotechnology and life sciences among others. Its main agricultural products are cereals, vegetable oils and hops.",
-        "original_question": "What accounts for over half of the Czech economy?",
-        "original_answer_data": {
-          "spans": [
-            "services"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 666
-      }
-    },
-    {
-      "question": "PASSAGE: A truce was signed at Pons on 1 August. A more lasting peace was concluded at Paris on 4 December 1259 amidst the threat of a second Baron's war in England. Initially, Henry refused to give up the rights the territory of his ancestors in France, however, Louis restored Guyenne to Henry, thinking that this noble gesture would assure him an extended time of peace with England because he was mostly concerned with going on the Seventh Crusade in 1248 and wanted to rally support for the cause within his own realm. By signing the treaty, Louis and Henry put an end to the century-old conflict between Capetians and Plantagenets concerning the lands inherited by Henry II of England conquered by Philip Augustus of France. By this text, Henry III renounces his claims concerning Normandy, Anjou, Touraine, Maine, and Poitou and Louis IX gave him the necessary sum to maintain 500 knights for two years and the revenues of the Agenais and his domains in the dioceses of Limoges, Cahors, and P\u00e9rigueux. On February 10 1259, the treaty is first ratified by Richard of Cornwall. On February 17, it was ratified in Westminster by prosecutors in the name of the king, and, by December 4, Simon V de Montfort and Eleanor of England also ratified the treaty. Finally, Henry arrived in France on December 4 1259 to pay homage to Louis, thus symbolically ending the rivalry. Afterwards, an unexpected and lively friendship arised between the two kings to the point that, sometime later, Louis offered Henry an elephant which had been given to him by the Sultan of Egypt and ratified a papal bull, as the feudal overlord of Henry, that annulled the Provisions of Oxford and declared himself as a firm supporter of the Royal prerogative in England.\n\nQUESTION: Which areas did Louis IX give to Henry III?",
-      "answer": "Limoges, Cahors, and P\u00e9rigueux",
-      "id": "example_22",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "A truce was signed at Pons on 1 August. A more lasting peace was concluded at Paris on 4 December 1259 amidst the threat of a second Baron's war in England. Initially, Henry refused to give up the rights the territory of his ancestors in France, however, Louis restored Guyenne to Henry, thinking that this noble gesture would assure him an extended time of peace with England because he was mostly concerned with going on the Seventh Crusade in 1248 and wanted to rally support for the cause within his own realm. By signing the treaty, Louis and Henry put an end to the century-old conflict between Capetians and Plantagenets concerning the lands inherited by Henry II of England conquered by Philip Augustus of France. By this text, Henry III renounces his claims concerning Normandy, Anjou, Touraine, Maine, and Poitou and Louis IX gave him the necessary sum to maintain 500 knights for two years and the revenues of the Agenais and his domains in the dioceses of Limoges, Cahors, and P\u00e9rigueux. On February 10 1259, the treaty is first ratified by Richard of Cornwall. On February 17, it was ratified in Westminster by prosecutors in the name of the king, and, by December 4, Simon V de Montfort and Eleanor of England also ratified the treaty. Finally, Henry arrived in France on December 4 1259 to pay homage to Louis, thus symbolically ending the rivalry. Afterwards, an unexpected and lively friendship arised between the two kings to the point that, sometime later, Louis offered Henry an elephant which had been given to him by the Sultan of Egypt and ratified a papal bull, as the feudal overlord of Henry, that annulled the Provisions of Oxford and declared himself as a firm supporter of the Royal prerogative in England.",
-        "original_question": "Which areas did Louis IX give to Henry III?",
-        "original_answer_data": {
-          "spans": [
-            "Limoges, Cahors, and P\u00e9rigueux"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 763
-      }
-    },
-    {
-      "question": "PASSAGE: The 2010 United States Census reported that Marin County had a population of 252,409. The racial makeup of Marin County was 201,963 (80.0%) White (U.S. Census), 6,987 (2.8%) African American (U.S. Census), 1,523 (0.6%) Native American (U.S. Census), 13,761 (5.5%) Asian (U.S. Census), 509 (0.2%) Pacific Islander (U.S. Census), 16,973 (6.7%) from Race (United States Census), and 10,693 (4.2%) from two or more races.  Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 39,069 persons (15.5%).\n\nQUESTION: How many in percent from the census weren't African American?",
-      "answer": "97.2",
-      "id": "example_23",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The 2010 United States Census reported that Marin County had a population of 252,409. The racial makeup of Marin County was 201,963 (80.0%) White (U.S. Census), 6,987 (2.8%) African American (U.S. Census), 1,523 (0.6%) Native American (U.S. Census), 13,761 (5.5%) Asian (U.S. Census), 509 (0.2%) Pacific Islander (U.S. Census), 16,973 (6.7%) from Race (United States Census), and 10,693 (4.2%) from two or more races.  Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 39,069 persons (15.5%).",
-        "original_question": "How many in percent from the census weren't African American?",
-        "original_answer_data": {
-          "spans": [
-            "97.2"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 221
-      }
-    },
-    {
-      "question": "PASSAGE: In the county, the population was distributed as 25.80% under the age of 18, 9.50% from 18 to 24, 28.80% from 25 to 44, 22.10% from 45 to 64, and 13.80% who were 65 years of age or older.  The median age was 36 years. For every 100 females, there were 91.70 males.  For every 100 females age 18 and over, there were 87.70 males.\n\nQUESTION: Which age group is larger: under the age of 18 or 18 to 24?",
-      "answer": "under the age of 18",
-      "id": "example_24",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In the county, the population was distributed as 25.80% under the age of 18, 9.50% from 18 to 24, 28.80% from 25 to 44, 22.10% from 45 to 64, and 13.80% who were 65 years of age or older.  The median age was 36 years. For every 100 females, there were 91.70 males.  For every 100 females age 18 and over, there were 87.70 males.",
-        "original_question": "Which age group is larger: under the age of 18 or 18 to 24?",
-        "original_answer_data": {
-          "spans": [
-            "under the age of 18"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 586
-      }
-    },
-    {
-      "question": "PASSAGE: By the end of 1501, the rebellion was put down. The Muslims were no longer given their rights provided by the Treaty of Granada, and were given the choice of:  remain and accept baptism,  reject baptism and be enslaved or killed, or  be exiled. Given the expensive fee exacted for passage out of Spain, conversion was the only realistic option for them. Therefore, only a decade after the fall of the Emirate of Granada, the entire Muslim population of Granada had nominally become Christian. A proclamation in 1502 extended these forced conversions to the rest of the lands of Castile, even though those outside Granada had nothing to do with the rebellion. The newly converted Muslims were known as nuevos cristianos  or moriscos . Although they converted to Christianity, they maintained their existing customs, including their language, distinct names, food, dress and even some ceremonies. Many secretly practiced Islam, even as they publicly professed and practiced Christianity. In return, the Catholic rulers adopted increasingly intolerant and harsh policies in order to eradicate these characteristics. This culminated in Philip II's Pragmatica of 1 January 1567 which ordered the Moriscos to abandon their customs, clothing and language. The pragmatica triggered the Morisco revolts in 1568-1571.\n\nQUESTION: How many years did the Morisco revolts last?",
-      "answer": "3",
-      "id": "example_25",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "By the end of 1501, the rebellion was put down. The Muslims were no longer given their rights provided by the Treaty of Granada, and were given the choice of:  remain and accept baptism,  reject baptism and be enslaved or killed, or  be exiled. Given the expensive fee exacted for passage out of Spain, conversion was the only realistic option for them. Therefore, only a decade after the fall of the Emirate of Granada, the entire Muslim population of Granada had nominally become Christian. A proclamation in 1502 extended these forced conversions to the rest of the lands of Castile, even though those outside Granada had nothing to do with the rebellion. The newly converted Muslims were known as nuevos cristianos  or moriscos . Although they converted to Christianity, they maintained their existing customs, including their language, distinct names, food, dress and even some ceremonies. Many secretly practiced Islam, even as they publicly professed and practiced Christianity. In return, the Catholic rulers adopted increasingly intolerant and harsh policies in order to eradicate these characteristics. This culminated in Philip II's Pragmatica of 1 January 1567 which ordered the Moriscos to abandon their customs, clothing and language. The pragmatica triggered the Morisco revolts in 1568-1571.",
-        "original_question": "How many years did the Morisco revolts last?",
-        "original_answer_data": {
-          "spans": [
-            "3"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 581
+        "source": "SimpleQA",
+        "line_number": 760,
+        "original_data": {
+          "metadata": "{'topic': 'Science and technology', 'answer_type': 'Other', 'urls': ['https://en.wikipedia.org/wiki/Ruby-throated_bulbul', 'https://en.wikipedia.org/wiki/Ruby-throated_bulbul', 'http://datazone.birdlife.org/species/factsheet/ruby-throated-bulbul-rubigula-dispar/details']}",
+          "problem": "Which genus was the ruby-throated bulbul moved to from *Turdus* before finally being classified in the genus *Rubigula*?",
+          "answer": "Genus Pycnonotus",
+          "id": "example_760"
+        }
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their win over the Bengals, the Steelers stayed at home for a Week 15 intraconference duel with the New York Jets.  Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.  The Steelers answered in the second quarter with quarterback Ben Roethlisberger finding tight end Matt Spaeth on a 9-yard touchdown.  New York struck back with kicker Nick Folk making a 25-yard field goal, yet Pittsburgh tied the game with a 42-yard field goal from kicker Shaun Suisham. The Steelers took the lead in the third quarter with a 2-yard touchdown run from running back Rashard Mendenhall, but the Jets replied with quarterback Mark Sanchez getting a 7-yard touchdown run.  New York took back their lead in the fourth quarter with Folk booting a 34-yard field goal, followed by linebacker Jason Taylor tackling running back Mewelde Moore in the endzone for a safety.  Pittsburgh tried to rally, but the Jets defense would hold on to preserve the win.",
-      "original_question": "How many points did the Steelers score in the first quarter?",
-      "original_answer_data": {
-        "spans": [
-          "0"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 965
+      "source": "SimpleQA",
+      "line_number": 682,
+      "original_data": {
+        "metadata": "{'topic': 'Science and technology', 'answer_type': 'Person', 'urls': ['https://en.wikipedia.org/wiki/Paul_Karrer_Gold_Medal', 'https://en.wikipedia.org/wiki/Paul_Karrer_Gold_Medal', 'https://www.pas.va/en/academicians/ordinary/yonath.html', 'https://www.nobelprize.org/events/nobel-prize-summit/2021/panellists/ada-yonath/']}",
+        "problem": "What is the name of the individual who was awarded the Paul Karrer Gold Medal in 2004?",
+        "answer": "Ada Yonath",
+        "id": "example_682"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "In 1616 the Venetians besieged Farra and Gradisca, and the archduke attacked from Gorizia and Lucinico. With three large culverins, four guns and three small culverins, Farra  repulsed the enemy artillery with heavy losses. The Venetians launched another futile assault before Giustiniani lifted the siege and retreated to Mariano. In September, Johan Ernst van Nassau-Siegen agreed to raise 3,000 men from the Dutch Republic for Venetian service. They arrived in May 1617, followed six months later by another 2,000 . Spanish support was blocked at sea by a flotilla of 12 Dutch and 10 English warships and on land by the war in Mantua. Although Archduke Ferdinand had only 4,000 soldiers to defend Gradisca, he received military, political and financial support from the Spanish as part of a larger agreement: Philip agreed to fight the Venetians and support Ferdinand as the next Holy Roman Emperor in return for the cession of Alsace, Finale Ligure and Piombino. This led to a negotiated settlement between Ferdinand and the Venetians in which many Uskok pirates were executed or exiled, and a permanent Austrian garrison was installed in Senj.",
-      "original_question": "How many Dutch and English warships were blocking Spanish support?",
-      "original_answer_data": {
-        "spans": [
-          "22"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 18
+      "source": "SimpleQA",
+      "line_number": 501,
+      "original_data": {
+        "metadata": "{'topic': 'Politics', 'answer_type': 'Place', 'urls': ['https://en.wikipedia.org/wiki/Ana_Figuero', 'https://globalcenters.columbia.edu/news/columbia-university-and-legacy-chilean-feminists', 'https://www.encyclopedia.com/humanities/encyclopedias-almanacs-transcripts-and-maps/figueroa-gajardo-ana-1907-1970', 'https://en.wikipedia.org/wiki/Ana_Figuero']}",
+        "problem": "What is the name of the university where Ana Figueroa, a political activist and government official, studies and graduates from?",
+        "answer": "University of Chile ",
+        "id": "example_501"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "On a windy, rainy Sunday the Seahawks hosted the Rams looking to take an effective 3 game lead in the division with a win. The Seahawks drove the ball easily on their first possession, moving to the Ram 1-yard line. After a false start penalty, Seneca Wallace was sacked and fumbled, and the Rams returned the ball 89 yards for a touchdown. The Seahawks drove down the field again, this time maintaining possession to the endzone as Darrell Jackson caught a 3-yard TD pass. The lead would change hands 6 more times in the game. With the Rams holding a 16-14 lead in the fourth quarter, Rams coach Scott Linehan chose to challenge a call, nullifying a field goal. The challenge was upheld, but the Rams still faced a fourth down play. Instead of kicking another field goal to increase the lead, Linehan chose to go for a first down. The raucous Qwest Field rose to the occasion, and Rams FB Paul Smith could not hear the play call. Rather than run a pass route he stayed in the backfield to block, and Ram QB Marc Bulger's pass to double covered TE Klopfenstein fell incomplete. Nate Burleson returned a punt 90 yards for a touchdown and a 21-16 lead. After a Rams TD with 2:37 remaining, a series of penalties against St. Louis changed momentum. A holding penalty nullified a successful 2 point convert. The second attempt failed. A 15-yard personal foul was assessed on the subsequent kickoff, and Josh Scobey returned the ball to the Ram 49-yard line. With a short field and time on the clock, Seneca Wallace and Maurice Morris drove the Seahawks to the Ram 20-yard line, where Josh Brown kicked a game-winning field goal with 9 seconds remaining. Brown kicked game-winning field goals in both games against the Rams that year. With their 4th straight win over the Rams, the Seahawks improved to 6-3.",
-      "original_question": "How many yard passes did Jackson catch?",
-      "original_answer_data": {
-        "spans": [
-          "3"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 189
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "After falling to the Colts at home, the Texans visited Pittsburgh for the first time since 2008, doing battle on Monday night with the Pittsburgh Steelers. While the Texans defense held off the Steelers' offense, the offense managed to gain much-needed momentum in the 1st quarter, a place they had previously struggled. The Texans scored first with 5:55 left after Blue caught a pass from Fitzpatrick to lead 7-0. In the second quarter Ben Roethlisberger was sacked by Watt and fumbled the ball near midfield. Houston capitalized on the turnover with a Bullock 39 yard field goal to lead 10-0 with 13:39 left in the 2nd. Houston continued their trend of scoring on each possession with another Bullock field goal (38 yards) to extend their lead to 13-0 with 7:20 left; part of the same drive included the Texans converting on a 4th down and inches. The Steelers finally managed to get on the board with a 44-yard field goal from Shaun Suisham to trail 3-13 with 3:13 left. After forcing a 3 and out for the Texans, the Steelers struck back with a 35-yard touchdown pass from Roerhlisberger to Bryant to trail 10-13 with 1:27 left. After a Houston fumble at their 4-yard line, Pittsburgh took their first lead of the night to lead 17-13 with 1:03 remaining. The Steelers scored off of another Texans turnover after a Fitzpatrick pass was deflected to extend their lead with 0:14 left in the half. Following a series of Houston turnovers in arguably the worst-played three minutes in NFL history, Pittsburgh lead 24-13 at the half. After Suisham made two fourth quarter field goals, from 30 yards (27-16) and 40 yards (30-16), respectively, The Texans tried to rally for the remainder of the game with a Foster TD catch to make it 30-23, and almost pulled off an onside kick recovery, but Pittsburgh managed to avoid a disaster. This was the first game since week 2 against the Raiders that the Texans scored in the 1st quarter. However, with their 3rd straight loss, the Texans fell to 3-4.",
-      "original_question": "How many field goals to Suisham make in the fourth quarter?",
-      "original_answer_data": {
-        "spans": [
-          "2"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 414
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Livonian War  was fought for control of Old Livonia , when the Tsardom of Russia faced a varying coalition of Denmark-Norway, the Kingdom of Sweden, and the Union  of the Grand Duchy of Lithuania and the Kingdom of Poland. During the period 1558-1578, Russia dominated the region with early military successes at Dorpat  and Narva. Russian dissolution of the Livonian Confederation brought Poland-Lithuania into the conflict, while Sweden and Denmark both intervened between 1559 and 1561. Swedish Estonia was established despite constant invasion from Russia, and Frederick II of Denmark bought the old Bishopric of \u00d6sel-Wiek, which he placed under the control of his brother Magnus of Holstein. Magnus attempted to expand his Livonian holdings to establish the Russian vassal state Kingdom of Livonia, which nominally existed until his defection in 1576. In 1576, Stefan Batory became King of Poland as well as Grand Duke of Lithuania and turned the tide of the war with his successes between 1578 and 1581, including the joint Swedish-Polish-Lithuanian offensive at the Battle of Wenden. This was followed by an extended campaign through Russia culminating in the long and difficult siege of Pskov. Under the 1582 Truce of Jam Zapolski, which ended the war between Russia and Poland-Lithuania, Russia lost all its former holdings in Livonia and Polotsk to Poland-Lithuania. The following year, Sweden and Russia signed the Truce of Plussa with Sweden gaining most of Ingria and northern Livonia while retaining the Duchy of Estonia.",
-      "original_question": "What event happened first, Magnus's defection, or the Truce of Jam Zapolski?",
-      "original_answer_data": {
-        "spans": [
-          "until his defection in 1576.",
-          "Magnus attempted to expand"
-        ],
-        "types": [
-          "span",
-          "span"
-        ]
-      },
-      "line_number": 589
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The Economy of the Czech Republic is a developed export-oriented social market economy based on services, manufacturing and innovation, that maintains a high-income welfare state and the \"continental\" type of the European social model. The Czech Republic participates in the European Single Market as a member of the European Union, and is therefore a part of the economy of the European Union, but uses its own currency, the Czech koruna, instead of the euro. It is a member of the OECD. As of 2017, the Czech GDP per capita at purchasing power parity is $35,223  and $20,152 at nominal value. As of March 2018, the unemployment rate in the Czech Republic was the lowest in the EU at 2.2%, and the poverty rate is the second lowest of OECD members only behind Denmark. Czech Republic ranks 24th in both the Index of Economic Freedom  and the Global Innovation Index , 31st in the Global Competitiveness Report 30th in the ease of doing business index and 25th in the Global Enabling Trade Report . The largest trading partner for both export and import is Germany and the EU in general. The Czech Republic has a highly diverse economy that ranks 7th in the 2016 Economic Complexity Index. The industry sector accounts for 37.5% of the economy, while services for 60% and agriculture for 2.5%. The principal industries are high tech engineering, electronics, automotive, and machine-building, steel production, transportation equipment, chemical production and pharmaceuticals. The major services are research and development, ICT and software development, nanotechnology and life sciences among others. Its main agricultural products are cereals, vegetable oils and hops.",
-      "original_question": "What accounts for over half of the Czech economy?",
-      "original_answer_data": {
-        "spans": [
-          "services"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 666
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "A truce was signed at Pons on 1 August. A more lasting peace was concluded at Paris on 4 December 1259 amidst the threat of a second Baron's war in England. Initially, Henry refused to give up the rights the territory of his ancestors in France, however, Louis restored Guyenne to Henry, thinking that this noble gesture would assure him an extended time of peace with England because he was mostly concerned with going on the Seventh Crusade in 1248 and wanted to rally support for the cause within his own realm. By signing the treaty, Louis and Henry put an end to the century-old conflict between Capetians and Plantagenets concerning the lands inherited by Henry II of England conquered by Philip Augustus of France. By this text, Henry III renounces his claims concerning Normandy, Anjou, Touraine, Maine, and Poitou and Louis IX gave him the necessary sum to maintain 500 knights for two years and the revenues of the Agenais and his domains in the dioceses of Limoges, Cahors, and P\u00e9rigueux. On February 10 1259, the treaty is first ratified by Richard of Cornwall. On February 17, it was ratified in Westminster by prosecutors in the name of the king, and, by December 4, Simon V de Montfort and Eleanor of England also ratified the treaty. Finally, Henry arrived in France on December 4 1259 to pay homage to Louis, thus symbolically ending the rivalry. Afterwards, an unexpected and lively friendship arised between the two kings to the point that, sometime later, Louis offered Henry an elephant which had been given to him by the Sultan of Egypt and ratified a papal bull, as the feudal overlord of Henry, that annulled the Provisions of Oxford and declared himself as a firm supporter of the Royal prerogative in England.",
-      "original_question": "Which areas did Louis IX give to Henry III?",
-      "original_answer_data": {
-        "spans": [
-          "Limoges, Cahors, and P\u00e9rigueux"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 763
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "The 2010 United States Census reported that Marin County had a population of 252,409. The racial makeup of Marin County was 201,963 (80.0%) White (U.S. Census), 6,987 (2.8%) African American (U.S. Census), 1,523 (0.6%) Native American (U.S. Census), 13,761 (5.5%) Asian (U.S. Census), 509 (0.2%) Pacific Islander (U.S. Census), 16,973 (6.7%) from Race (United States Census), and 10,693 (4.2%) from two or more races.  Hispanic (U.S. Census) or Latino (U.S. Census) of any race were 39,069 persons (15.5%).",
-      "original_question": "How many in percent from the census weren't African American?",
-      "original_answer_data": {
-        "spans": [
-          "97.2"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 221
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In the county, the population was distributed as 25.80% under the age of 18, 9.50% from 18 to 24, 28.80% from 25 to 44, 22.10% from 45 to 64, and 13.80% who were 65 years of age or older.  The median age was 36 years. For every 100 females, there were 91.70 males.  For every 100 females age 18 and over, there were 87.70 males.",
-      "original_question": "Which age group is larger: under the age of 18 or 18 to 24?",
-      "original_answer_data": {
-        "spans": [
-          "under the age of 18"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 586
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "By the end of 1501, the rebellion was put down. The Muslims were no longer given their rights provided by the Treaty of Granada, and were given the choice of:  remain and accept baptism,  reject baptism and be enslaved or killed, or  be exiled. Given the expensive fee exacted for passage out of Spain, conversion was the only realistic option for them. Therefore, only a decade after the fall of the Emirate of Granada, the entire Muslim population of Granada had nominally become Christian. A proclamation in 1502 extended these forced conversions to the rest of the lands of Castile, even though those outside Granada had nothing to do with the rebellion. The newly converted Muslims were known as nuevos cristianos  or moriscos . Although they converted to Christianity, they maintained their existing customs, including their language, distinct names, food, dress and even some ceremonies. Many secretly practiced Islam, even as they publicly professed and practiced Christianity. In return, the Catholic rulers adopted increasingly intolerant and harsh policies in order to eradicate these characteristics. This culminated in Philip II's Pragmatica of 1 January 1567 which ordered the Moriscos to abandon their customs, clothing and language. The pragmatica triggered the Morisco revolts in 1568-1571.",
-      "original_question": "How many years did the Morisco revolts last?",
-      "original_answer_data": {
-        "spans": [
-          "3"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 581
+      "source": "SimpleQA",
+      "line_number": 760,
+      "original_data": {
+        "metadata": "{'topic': 'Science and technology', 'answer_type': 'Other', 'urls': ['https://en.wikipedia.org/wiki/Ruby-throated_bulbul', 'https://en.wikipedia.org/wiki/Ruby-throated_bulbul', 'http://datazone.birdlife.org/species/factsheet/ruby-throated-bulbul-rubigula-dispar/details']}",
+        "problem": "Which genus was the ruby-throated bulbul moved to from *Turdus* before finally being classified in the genus *Rubigula*?",
+        "answer": "Genus Pycnonotus",
+        "id": "example_760"
+      }
     }
   ],
   "example_indices": [
-    16,
-    17,
-    18,
-    19,
-    20,
-    21,
-    22,
-    23,
-    24,
-    25
+    14,
+    15,
+    16
   ],
   "results": [
     {
       "success": true,
-      "answer": "Correct.",
-      "output": "ANSWER_START\nCorrect.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer \"Correct\" implicitly conveys the same information as the golden answer \"0\", as \"Correct\" in this context implies a correct answer, which numerically is 0."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "12 Dutch and 10 English",
-      "output": "ANSWER_START\n12 Dutch and 10 English\n\nANSWER_END\n",
+      "answer": "No answer can be extracted from the given context.",
+      "output": "ANSWER_START\nNo answer can be extracted from the given context.\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_3.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The golden answer provides the total number of items (22), while the system answer breaks down the total into two distinct groups (12 Dutch and 10 English). These do not convey the same information as the golden answer gives only the total and the system answer gives the breakdown."
+        "explanation": "The system answer indicates that no answer can be extracted, while the golden answer provides the name 'Ada Yonath'. These are clearly different and do not convey the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "3",
-      "output": "ANSWER_START\n3\n\nANSWER_END\n",
+      "answer": "No answer can be provided from the given context.",
+      "output": "ANSWER_START\nNo answer can be provided from the given context.\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_3.jsonl",
       "evaluation": {
-        "match": true,
+        "match": false,
         "confidence": 1,
-        "explanation": "Both answers are the same numerical value, '3'."
+        "explanation": "The system answer states that no answer can be provided from the context, whereas the golden answer provides a specific answer (University of Chile). These answers are contradictory and do not convey the same information."
       },
-      "match": true
+      "match": false
     },
     {
       "success": true,
-      "answer": "2",
-      "output": "ANSWER_START\n2\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Magnus's defection",
-      "output": "ANSWER_START\nMagnus's defection\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 0.8,
-        "explanation": "The golden answer refers to Magnus's defection in 1576. The system answer simply states Magnus's defection, which is part of the information conveyed in the golden answer. Although it doesn't specify the year, the core event is the same."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Correct.",
-      "output": "ANSWER_START\nCorrect.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer 'Correct' indicates the question was answered correctly. Given the golden answer is 'services', the system's implicit answer is 'services', thus the two answers are semantically equivalent."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The answer is correct.",
-      "output": "ANSWER_START\nThe answer is correct.\n\nANSWER_END\n",
+      "answer": "No answer can be extracted from the provided context.",
+      "output": "ANSWER_START\nNo answer can be extracted from the provided context.\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_3.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 0.0,
-        "explanation": "The system answer states that the answer is correct without providing the actual answer (Limoges, Cahors, and P\u00e9rigueux). Therefore, they do not convey the same information."
+        "explanation": "The system answer indicates that no answer could be extracted, while the golden answer provides a specific genus name. These are contradictory."
       },
       "match": false
-    },
-    {
-      "success": true,
-      "answer": "2.  8%",
-      "output": "ANSWER_START\n2.  8%\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The golden answer is 97.2 while the system answer is 2.8%. These values are not equivalent."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "Under the age of 18",
-      "output": "ANSWER_START\nUnder the age of 18\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The answers are identical."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "3",
-      "output": "ANSWER_START\n3\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value (3)."
-      },
-      "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.7,
-    "correct_count": 7,
-    "total_count": 10,
+    "accuracy": 0.0,
+    "correct_count": 0,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "Correct.",
-        "golden_answer": "0",
-        "output": "ANSWER_START\nCorrect.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer \"Correct\" implicitly conveys the same information as the golden answer \"0\", as \"Correct\" in this context implies a correct answer, which numerically is 0."
-        }
-      },
-      {
-        "sample_id": 1,
-        "success": true,
-        "system_answer": "12 Dutch and 10 English",
-        "golden_answer": "22",
-        "output": "ANSWER_START\n12 Dutch and 10 English\n\nANSWER_END\n",
+        "system_answer": "No answer can be extracted from the given context.",
+        "golden_answer": "Ada Yonath",
+        "output": "ANSWER_START\nNo answer can be extracted from the given context.\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The golden answer provides the total number of items (22), while the system answer breaks down the total into two distinct groups (12 Dutch and 10 English). These do not convey the same information as the golden answer gives only the total and the system answer gives the breakdown."
+          "explanation": "The system answer indicates that no answer can be extracted, while the golden answer provides the name 'Ada Yonath'. These are clearly different and do not convey the same information."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "No answer can be provided from the given context.",
+        "golden_answer": "University of Chile",
+        "output": "ANSWER_START\nNo answer can be provided from the given context.\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer states that no answer can be provided from the context, whereas the golden answer provides a specific answer (University of Chile). These answers are contradictory and do not convey the same information."
         },
         "capability_failures": []
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "3",
-        "golden_answer": "3",
-        "output": "ANSWER_START\n3\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value, '3'."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "2",
-        "golden_answer": "2",
-        "output": "ANSWER_START\n2\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "Magnus's defection",
-        "golden_answer": "until his defection in 1576., Magnus attempted to expand",
-        "output": "ANSWER_START\nMagnus's defection\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 0.8,
-          "explanation": "The golden answer refers to Magnus's defection in 1576. The system answer simply states Magnus's defection, which is part of the information conveyed in the golden answer. Although it doesn't specify the year, the core event is the same."
-        }
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "Correct.",
-        "golden_answer": "services",
-        "output": "ANSWER_START\nCorrect.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer 'Correct' indicates the question was answered correctly. Given the golden answer is 'services', the system's implicit answer is 'services', thus the two answers are semantically equivalent."
-        }
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "The answer is correct.",
-        "golden_answer": "Limoges, Cahors, and P\u00e9rigueux",
-        "output": "ANSWER_START\nThe answer is correct.\n\nANSWER_END\n",
+        "system_answer": "No answer can be extracted from the provided context.",
+        "golden_answer": "Genus Pycnonotus",
+        "output": "ANSWER_START\nNo answer can be extracted from the provided context.\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 0.0,
-          "explanation": "The system answer states that the answer is correct without providing the actual answer (Limoges, Cahors, and P\u00e9rigueux). Therefore, they do not convey the same information."
+          "explanation": "The system answer indicates that no answer could be extracted, while the golden answer provides a specific genus name. These are contradictory."
         },
         "capability_failures": []
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "2.  8%",
-        "golden_answer": "97.2",
-        "output": "ANSWER_START\n2.  8%\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The golden answer is 97.2 while the system answer is 2.8%. These values are not equivalent."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "Under the age of 18",
-        "golden_answer": "under the age of 18",
-        "output": "ANSWER_START\nUnder the age of 18\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The answers are identical."
-        }
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "3",
-        "golden_answer": "3",
-        "output": "ANSWER_START\n3\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value (3)."
-        }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nThere are no runtime errors reported in the provided error cases.\n\n## STRENGTHS\n1.  **Information Extraction:** The system generally seems capable of extracting relevant information from the provided passages, as evidenced by the success cases where it correctly identifies and answers questions based on the text.\n2.  **Numerical Value Identification:** The system can often correctly identify and extract numerical values from the text when needed for answering the questions, as seen in successful cases.\n3. **Simple Reasoning:** In several success cases, the system demonstrates basic reasoning abilities by correctly interpreting context and implicitly conveying the same information as the golden answer.\n\n## WEAKNESSES\n1.  **Lack of Aggregation/Calculation:** The system struggles with questions requiring basic arithmetic or aggregation of extracted information. In sample\\_id 1, it extracts the individual numbers of warships but fails to sum them to provide the total.\n2.  **Inability to Provide Explicit Answers:** The system sometimes answers \"Correct\" instead of providing the explicit answer extracted from the passage, such as in sample\\_id 6 and 5. This is not always an error if the question is a simple \"yes/no\" question, but it's an error if a specific piece of information is requested.\n3.  **Percentage Calculations:** In sample_id 7, the system incorrectly identifies the value of the percentage, revealing a potential misunderstanding of how to correctly calculate percentages or identify which value is being asked for.\n\n## CRITICAL BOTTLENECKS\n1.  **Missing Aggregation/Calculation Step:** The most critical bottleneck is the system's failure to perform simple calculations (addition, subtraction, percentage calculation) when required to derive the final answer from extracted information.\n2.  **Implicit vs. Explicit Answers:** The system relies on implicit answers (\"Correct\") instead of explicitly providing the requested information.\n\n## ERROR PATTERNS\n1.  **Aggregation Failures:** A recurring pattern is the inability to aggregate or combine extracted numerical information.\n2.  **Incomplete Answers:** Providing implicit or partial answers instead of the full explicit answer requested by the question.\n\n## PRIMARY ISSUE\nThe primary issue is the system's lack of a reliable mechanism for recognizing when a calculation (specifically aggregation or percentage calculation) is required and then executing that calculation to produce the final answer. Additionally the system often provides \"Correct\" as answers even when more specific information is expected.\n\n## IMPROVEMENT AREAS\n1.  **Arithmetic Reasoning:** Enhance the system's ability to identify and perform simple arithmetic operations.\n2.  **Answer Generation:** Ensure the system always provides the most explicit and complete answer possible, not just an implicit \"Correct.\"\n3.  **Percentage Calculation:** Improve the logic for recognizing when percentage calculations are needed and correctly identifying the inputs.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Introduce a Calculation Module:** Implement a dedicated module that is triggered when the question suggests a need for arithmetic operations. This module should be able to identify the necessary values, perform the calculation, and format the result into the answer.\n2.  **Post-Processing of Extracted Information:** After extracting information, add a post-processing step to check for keywords or question structures that indicate the need for aggregation or other calculations.\n3.  **Explicit Answer Prioritization:** Modify the answer generation logic to prioritize providing explicit answers extracted or derived from the text over simple confirmations like \"Correct.\" Implement a rule that the system must attempt to provide a specific answer before resorting to \"Correct,\" and only allow \"Correct\" for questions that require a true/false or yes/no answer.\n4.  **Enhance Percentage Logic:** Re-evaluate the system's approach to percentages. Implement explicit steps that look for keywords like \"percent,\" \"percentage,\" or \"out of\" and then perform the appropriate calculations.\n\n## CAPABILITY MAPPING\n*   **Sample ID 1:** information_extraction (partially failed: extracted individual values but didn't aggregate), solution_generation (failed), solution_verification (failed).\n*   **Sample ID 6:** solution_generation (failed), solution_verification (failed).\n*   **Sample ID 7:** information_extraction (failed), solution_generation (failed), solution_verification (failed).\n",
+      "text_report": "## RUNTIME ERRORS\n\nNo runtime errors (e.g., JSONDecodeError, TypeError) are present in the provided error cases. The system consistently outputs \"No answer can be extracted from the given context.\" or a similar phrase, indicating a failure in extracting the answer rather than a runtime exception.\n\n## STRENGTHS\n\nGiven the lack of successful cases, it's challenging to definitively identify strengths. However, we can infer potential strengths based on the nature of the errors:\n\n1.  **Robustness to Runtime Errors:** The system appears stable in that it doesn't crash or throw exceptions even when it cannot find an answer. It consistently returns a \"no answer\" message.\n2.  **Clear Error Signaling:** The system explicitly states when it cannot find an answer in the context, which is helpful for debugging.\n\n## WEAKNESSES\n\n1.  **Information Extraction Failure:** The system consistently fails to extract the correct answer from the context, even when the answer is explicitly stated in the provided golden answer. This is the primary and most significant weakness.\n2.  **Lack of Contextual Understanding:** The system seems unable to understand the question's intent and relate it to the available information to locate the correct answer. It appears to struggle with identifying the entities and relationships required to answer the question.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Information Extraction:** The inability to reliably extract information relevant to the question is the most critical bottleneck. Without accurate information extraction, the subsequent steps become irrelevant.\n\n## ERROR PATTERNS\n\nThe recurring pattern across all error cases is the system's inability to extract the answer from the context. The system consistently responds with a \"no answer\" message, indicating a systematic failure in the information extraction process. It suggests that the information extraction component is not effectively identifying the relevant information needed to answer the questions.\n\n## PRIMARY ISSUE\n\nThe single most critical problem to fix is the **ineffective information extraction**. The system's current approach is not successfully identifying and retrieving the answer from the context provided, leading to a consistent \"no answer\" response.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Extraction:** This area requires significant improvement. The system needs to be able to identify key entities and relationships in the question and then locate the corresponding information in the context.\n2.  **Question Understanding:** The system needs to be able to understand the question's intent, including any specific constraints or requirements.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement More Sophisticated Information Extraction Techniques:** Explore techniques like named entity recognition (NER), relationship extraction, and dependency parsing to better identify relevant information in the context.\n2.  **Fine-tune Pre-trained Language Models:** Fine-tune pre-trained language models (e.g., BERT, RoBERTa) on question answering datasets to improve the system's ability to understand questions and extract answers.\n3.  **Implement a Retrieval Mechanism:** Develop a retrieval mechanism to identify the most relevant passages in the context based on the question. This can help focus the information extraction process.\n4.  **Introduce Chain-of-Thought Prompting:** Use chain-of-thought prompting to encourage the model to explicitly reason through the steps required to answer the question. This can help improve the model's ability to understand the question and identify the relevant information.\n5.  **Add Intermediate Outputs for Debugging:** Include print statements to display intermediate variables and outputs, especially from the information extraction components. This will facilitate debugging and help understand why the system is failing to extract the correct answers. For example, print the initial context, the entities identified, and the extracted relationships.\n\n## CAPABILITY MAPPING\n\n**Sample ID 0:**\n\n*   information\\_extraction: Failed\n*   solution\\_generation: Failed (due to information extraction failure)\n*   solution\\_verification: N/A (no solution generated)\n*   decision\\_making: N/A (no solution to decide upon)\n\n**Sample ID 1:**\n\n*   information\\_extraction: Failed\n*   solution\\_generation: Failed (due to information extraction failure)\n*   solution\\_verification: N/A (no solution generated)\n*   decision\\_making: N/A (no solution to decide upon)\n\n**Sample ID 2:**\n\n*   information\\_extraction: Failed\n*   solution\\_generation: Failed (due to information extraction failure)\n*   solution\\_verification: N/A (no solution generated)\n*   decision\\_making: N/A (no solution to decide upon)\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The primary issue is the system's lack of a reliable mechanism for recognizing when a calculation (specifically aggregation or percentage calculation) is required and then executing that calculation to produce the final answer. Additionally the system often provides \"Correct\" as answers even when more specific information is expected.",
+      "primary_issue": "The single most critical problem to fix is the **ineffective information extraction**. The system's current approach is not successfully identifying and retrieving the answer from the context provided, leading to a consistent \"no answer\" response.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, sample execution outputs, and your instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**SYSTEM:** AI System (Unnamed)\n\n**VERSION:** [Insert Version Number Here]\n\n**DATE:** October 26, 2023\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.70 (7/10)\n*   Error samples: 3/10\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs confirm several key issues identified in the error analysis:\n\n*   **Implicit Answers (\"Correct\"):** The first output (\"Correct.\") directly illustrates the issue of providing implicit answers when a more specific answer is expected. Based on the other analysis, it's likely this corresponds to a question where the system *should* have extracted a specific piece of information from the text.\n*   **Partial Extraction:** The second output (\"12 Dutch and 10 English\") *appears* correct in isolation but needs to be considered within the context of the full error analysis (Sample ID 1). The weakness reported is that the system extracts these values but fails to sum them. This demonstrates a capability for extracting numerical values.\n*   **Numerical extraction:** The third output (\"3\") appears correct and corresponds with the system's strength regarding Numerical Value Identification.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates moderate capability in information extraction and basic reasoning. It can identify and extract key pieces of information from the text, including numerical values. However, its overall effectiveness is significantly hampered by its inability to perform necessary calculations and its tendency to provide implicit rather than explicit answers. The system also struggles with percentage-related questions.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** Reliably extracts factual information directly present in the input text.\n*   **Numerical Value Identification:** Accurately identifies and extracts numerical data.\n*   **Simple Reasoning:** Capable of basic contextual understanding and implicit conveyance of information.\n\n### KEY WEAKNESSES\n\n*   **Arithmetic Reasoning (Aggregation, Percentage Calculation):** Fails to perform necessary arithmetic operations to derive answers. This is a critical performance bottleneck.\n*   **Explicit Answer Generation:** Frequently provides \"Correct\" as an answer when the question demands specific, extracted information.\n*   **Inconsistent Question Understanding:** Shows a deficiency in recognizing all numerical information related to answering the question.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Arithmetic Reasoning, particularly aggregation and percentage calculation**, combined with a robust mechanism for providing **explicit answers.**  Addressing these weaknesses will have the most significant impact on overall accuracy and usability.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Calculation Trigger and Module:**\n    *   **Detailed Action:** Develop a module dedicated to performing calculations. This module should be triggered by specific keywords or question structures (e.g., \"total,\" \"sum,\" \"what is the sum,\" \"percentage,\" \"how many in total,\" etc.). The trigger should be intelligent enough to distinguish between situations where a simple lookup is sufficient versus when a calculation is required.\n    *   **Implementation Details:**\n        *   The trigger could be implemented as a set of regular expressions or a rule-based system.\n        *   The calculation module should support addition, subtraction, multiplication, division, and percentage calculations.\n        *   Implement unit tests to ensure the calculation module functions correctly for all supported operations.\n\n2.  **Prioritize Explicit Answers in Answer Generation:**\n    *   **Detailed Action:** Refactor the answer generation logic to *always* prioritize providing extracted or derived information over a simple \"Correct.\" Introduce a check to see if the question anticipates a factual response, and if so, *force* the system to search for a relevant passage/answer.\n    *   **Implementation Details:**\n        *   Implement a scoring mechanism that penalizes implicit answers.\n        *   Create a whitelist of questions that are genuinely boolean (yes/no) and allow \"Correct\" only for those questions.\n        *   If an explicit answer *cannot* be found after a thorough search, *then* consider providing an implicit answer, but flag this as a potential error for review.\n\n3.  **Enhance Percentage Detection and Calculation:**\n    *   **Detailed Action:**  Improve the system's ability to identify questions requiring percentage calculations. Implement specific logic to identify keywords like \"percent,\" \"percentage,\" \"out of,\" and understand the relationship between the values involved.\n    *   **Implementation Details:**\n        *   Develop a separate function specifically for handling percentage calculations, including identifying the base value and the percentage to be calculated.\n        *   Add extensive unit tests to cover different percentage-related scenarios.\n        *   Incorporate error handling to prevent division by zero or other invalid calculations.\n\n4.  **Capability Mapping Review:**\n    *   **Detailed Action:** Thoroughly review the capability mapping process and ensure it accurately reflects the system's strengths and weaknesses. Refine the mapping to provide more granular insights into specific areas of success and failure.\n\n### CAPABILITY TREND\n\nBased on the performance and error analysis, the system's capabilities are currently **stable** with room for improvement. While the system exhibits core strengths in information extraction, the identified weaknesses prevent it from consistently achieving high accuracy. Implementing the recommendations above will likely lead to an **improving** capability trend.\n",
+      "text_report": "## CAPABILITY ASSESSMENT REPORT\n\n### PERFORMANCE SUMMARY:\n- Accuracy: 0.00 (0/3)\n- Error samples: 3/3\n\n### ERROR ANALYSIS REPORT:\n(As provided in the original prompt)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs are consistently \"No answer can be extracted from the given context.\" or similar variations. This confirms the Error Analysis Report's assessment of a systematic failure in information extraction. There are no variations in the error message format, indicating consistent error handling but also a lack of nuance in the error reporting. The system is consistently unable to identify and extract the correct answer, even when the answer is explicitly present in the context.  This points to a fundamental flaw in the core extraction logic or the understanding of the query and context.\n\n## CAPABILITY ASSESSMENT\n\nThe current AI system demonstrates extremely limited question answering capabilities. While it exhibits robustness to runtime errors and clear error signaling, its inability to extract relevant information from provided contexts renders it effectively non-functional for its intended purpose. The system lacks the ability to understand the question's intent and relate it to the context to retrieve the correct answer.\n\n## KEY STRENGTHS\n\n*   **Robustness to Runtime Errors:** The system consistently avoids crashing or throwing exceptions. This is a good foundation for building upon.\n*   **Clear Error Signaling:** The system explicitly states when it cannot find an answer. This is useful for debugging and user experience (though perhaps a more informative error message could be considered).\n\n## KEY WEAKNESSES\n\n*   **Information Extraction Failure:** The complete and consistent failure to extract the correct answer from the context is the most critical weakness.\n*   **Lack of Contextual Understanding:** The system demonstrates a significant inability to understand the intent of the question and relate it to the information within the context.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Extraction**. The ability to reliably identify and retrieve the answer from the context is essential for the system to function.  Without this, all other components are rendered useless.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Hybrid Information Extraction Approach:**\n    *   **Rule-Based System:** Begin with a simple rule-based system that uses keywords and pattern matching to identify potential answers. This provides a baseline and a controlled environment for testing. For example, look for sentences containing keywords from the question or numerical values mentioned in the question.\n    *   **NER/Relationship Extraction:** Integrate Named Entity Recognition (NER) and Relationship Extraction models (even simple ones) to identify key entities and relationships in both the question and the context.  Tools like spaCy or Hugging Face Transformers can be leveraged for this.  Focus on identifying entities relevant to the expected answer type.\n2.  **Implement a Retrieval-Augmented Generation (RAG) approach:**\n    *   **Context Chunking and Embedding:** Break the context into smaller chunks and embed each chunk using a sentence transformer model (e.g., Sentence-BERT).\n    *   **Semantic Similarity Search:** Embed the question using the same sentence transformer model and perform a similarity search over the context embeddings to identify the most relevant context chunks.\n    *   **Answer Generation:** Feed the retrieved context chunks and the question to a large language model (LLM) fine-tuned for question answering to generate the answer.\n3.  **Improve Question Understanding with Query Rewriting:**\n    *   Use a smaller model or rule-based approach to rewrite the question to be more explicit and contain more keywords that are likely to appear in the answer. For example, if the question is \"What is X?\", rewrite it as \"The value of X is\".\n4.  **Introduce Monitoring and Logging for Information Extraction:**\n    *   Log the output of each information extraction component (e.g., entities identified, relationships extracted, relevant context chunks identified).\n    *   Track the confidence scores associated with these outputs.\n    *   Use this data to identify patterns and areas for improvement in the information extraction process.  For instance, track which entity types are most often missed.\n5.  **Develop Unit Tests for Information Extraction:**\n    *   Create a suite of unit tests that specifically target the information extraction components.\n    *   These tests should cover a variety of question types and context scenarios.\n    *   Use these tests to verify that the information extraction components are correctly identifying and extracting the relevant information.\n\n## CAPABILITY TREND\n\nBased on the current performance (0% accuracy), the capability trend is currently **stable, but at a non-functional level**. Without significant improvements to the information extraction capabilities, the trend will remain stagnant. The implementation of the Actionable Recommendations is expected to lead to an **improving** trend in the next iteration.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nThere are no runtime errors reported in the provided error cases.\n\n## STRENGTHS\n1.  **Information Extraction:** The system generally seems capable of extracting relevant information from the provided passages, as evidenced by the success cases where it correctly identifies and answers questions based on the text.\n2.  **Numerical Value Identification:** The system can often correctly identify and extract numerical values from the text when needed for answering the questions, as seen in successful cases.\n3. **Simple Reasoning:** In several success cases, the system demonstrates basic reasoning abilities by correctly interpreting context and implicitly conveying the same information as the golden answer.\n\n## WEAKNESSES\n1.  **Lack of Aggregation/Calculation:** The system struggles with questions requiring basic arithmetic or aggregation of extracted information. In sample\\_id 1, it extracts the individual numbers of warships but fails to sum them to provide the total.\n2.  **Inability to Provide Explicit Answers:** The system sometimes answers \"Correct\" instead of providing the explicit answer extracted from the passage, such as in sample\\_id 6 and 5. This is not always an error if the question is a simple \"yes/no\" question, but it's an error if a specific piece of information is requested.\n3.  **Percentage Calculations:** In sample_id 7, the system incorrectly identifies the value of the percentage, revealing a potential misunderstanding of how to correctly calculate percentages or identify which value is being asked for.\n\n## CRITICAL BOTTLENECKS\n1.  **Missing Aggregation/Calculation Step:** The most critical bottleneck is the system's failure to perform simple calculations (addition, subtraction, percentage calculation) when required to derive the final answer from extracted information.\n2.  **Implicit vs. Explicit Answers:** The system relies on implicit answers (\"Correct\") instead of explicitly providing the requested information.\n\n## ERROR PATTERNS\n1.  **Aggregation Failures:** A recurring pattern is the inability to aggregate or combine extracted numerical information.\n2.  **Incomplete Answers:** Providing implicit or partial answers instead of the full explicit answer requested by the question.\n\n## PRIMARY ISSUE\nThe primary issue is the system's lack of a reliable mechanism for recognizing when a calculation (specifically aggregation or percentage calculation) is required and then executing that calculation to produce the final answer. Additionally the system often provides \"Correct\" as answers even when more specific information is expected.\n\n## IMPROVEMENT AREAS\n1.  **Arithmetic Reasoning:** Enhance the system's ability to identify and perform simple arithmetic operations.\n2.  **Answer Generation:** Ensure the system always provides the most explicit and complete answer possible, not just an implicit \"Correct.\"\n3.  **Percentage Calculation:** Improve the logic for recognizing when percentage calculations are needed and correctly identifying the inputs.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Introduce a Calculation Module:** Implement a dedicated module that is triggered when the question suggests a need for arithmetic operations. This module should be able to identify the necessary values, perform the calculation, and format the result into the answer.\n2.  **Post-Processing of Extracted Information:** After extracting information, add a post-processing step to check for keywords or question structures that indicate the need for aggregation or other calculations.\n3.  **Explicit Answer Prioritization:** Modify the answer generation logic to prioritize providing explicit answers extracted or derived from the text over simple confirmations like \"Correct.\" Implement a rule that the system must attempt to provide a specific answer before resorting to \"Correct,\" and only allow \"Correct\" for questions that require a true/false or yes/no answer.\n4.  **Enhance Percentage Logic:** Re-evaluate the system's approach to percentages. Implement explicit steps that look for keywords like \"percent,\" \"percentage,\" or \"out of\" and then perform the appropriate calculations.\n\n## CAPABILITY MAPPING\n*   **Sample ID 1:** information_extraction (partially failed: extracted individual values but didn't aggregate), solution_generation (failed), solution_verification (failed).\n*   **Sample ID 6:** solution_generation (failed), solution_verification (failed).\n*   **Sample ID 7:** information_extraction (failed), solution_generation (failed), solution_verification (failed).\n",
-    "capability_report_text": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, sample execution outputs, and your instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**SYSTEM:** AI System (Unnamed)\n\n**VERSION:** [Insert Version Number Here]\n\n**DATE:** October 26, 2023\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.70 (7/10)\n*   Error samples: 3/10\n\n### EXECUTION ANALYSIS\n\nThe sample execution outputs confirm several key issues identified in the error analysis:\n\n*   **Implicit Answers (\"Correct\"):** The first output (\"Correct.\") directly illustrates the issue of providing implicit answers when a more specific answer is expected. Based on the other analysis, it's likely this corresponds to a question where the system *should* have extracted a specific piece of information from the text.\n*   **Partial Extraction:** The second output (\"12 Dutch and 10 English\") *appears* correct in isolation but needs to be considered within the context of the full error analysis (Sample ID 1). The weakness reported is that the system extracts these values but fails to sum them. This demonstrates a capability for extracting numerical values.\n*   **Numerical extraction:** The third output (\"3\") appears correct and corresponds with the system's strength regarding Numerical Value Identification.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates moderate capability in information extraction and basic reasoning. It can identify and extract key pieces of information from the text, including numerical values. However, its overall effectiveness is significantly hampered by its inability to perform necessary calculations and its tendency to provide implicit rather than explicit answers. The system also struggles with percentage-related questions.\n\n### KEY STRENGTHS\n\n*   **Information Extraction:** Reliably extracts factual information directly present in the input text.\n*   **Numerical Value Identification:** Accurately identifies and extracts numerical data.\n*   **Simple Reasoning:** Capable of basic contextual understanding and implicit conveyance of information.\n\n### KEY WEAKNESSES\n\n*   **Arithmetic Reasoning (Aggregation, Percentage Calculation):** Fails to perform necessary arithmetic operations to derive answers. This is a critical performance bottleneck.\n*   **Explicit Answer Generation:** Frequently provides \"Correct\" as an answer when the question demands specific, extracted information.\n*   **Inconsistent Question Understanding:** Shows a deficiency in recognizing all numerical information related to answering the question.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Arithmetic Reasoning, particularly aggregation and percentage calculation**, combined with a robust mechanism for providing **explicit answers.**  Addressing these weaknesses will have the most significant impact on overall accuracy and usability.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Calculation Trigger and Module:**\n    *   **Detailed Action:** Develop a module dedicated to performing calculations. This module should be triggered by specific keywords or question structures (e.g., \"total,\" \"sum,\" \"what is the sum,\" \"percentage,\" \"how many in total,\" etc.). The trigger should be intelligent enough to distinguish between situations where a simple lookup is sufficient versus when a calculation is required.\n    *   **Implementation Details:**\n        *   The trigger could be implemented as a set of regular expressions or a rule-based system.\n        *   The calculation module should support addition, subtraction, multiplication, division, and percentage calculations.\n        *   Implement unit tests to ensure the calculation module functions correctly for all supported operations.\n\n2.  **Prioritize Explicit Answers in Answer Generation:**\n    *   **Detailed Action:** Refactor the answer generation logic to *always* prioritize providing extracted or derived information over a simple \"Correct.\" Introduce a check to see if the question anticipates a factual response, and if so, *force* the system to search for a relevant passage/answer.\n    *   **Implementation Details:**\n        *   Implement a scoring mechanism that penalizes implicit answers.\n        *   Create a whitelist of questions that are genuinely boolean (yes/no) and allow \"Correct\" only for those questions.\n        *   If an explicit answer *cannot* be found after a thorough search, *then* consider providing an implicit answer, but flag this as a potential error for review.\n\n3.  **Enhance Percentage Detection and Calculation:**\n    *   **Detailed Action:**  Improve the system's ability to identify questions requiring percentage calculations. Implement specific logic to identify keywords like \"percent,\" \"percentage,\" \"out of,\" and understand the relationship between the values involved.\n    *   **Implementation Details:**\n        *   Develop a separate function specifically for handling percentage calculations, including identifying the base value and the percentage to be calculated.\n        *   Add extensive unit tests to cover different percentage-related scenarios.\n        *   Incorporate error handling to prevent division by zero or other invalid calculations.\n\n4.  **Capability Mapping Review:**\n    *   **Detailed Action:** Thoroughly review the capability mapping process and ensure it accurately reflects the system's strengths and weaknesses. Refine the mapping to provide more granular insights into specific areas of success and failure.\n\n### CAPABILITY TREND\n\nBased on the performance and error analysis, the system's capabilities are currently **stable** with room for improvement. While the system exhibits core strengths in information extraction, the identified weaknesses prevent it from consistently achieving high accuracy. Implementing the recommendations above will likely lead to an **improving** capability trend.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\n\nNo runtime errors (e.g., JSONDecodeError, TypeError) are present in the provided error cases. The system consistently outputs \"No answer can be extracted from the given context.\" or a similar phrase, indicating a failure in extracting the answer rather than a runtime exception.\n\n## STRENGTHS\n\nGiven the lack of successful cases, it's challenging to definitively identify strengths. However, we can infer potential strengths based on the nature of the errors:\n\n1.  **Robustness to Runtime Errors:** The system appears stable in that it doesn't crash or throw exceptions even when it cannot find an answer. It consistently returns a \"no answer\" message.\n2.  **Clear Error Signaling:** The system explicitly states when it cannot find an answer in the context, which is helpful for debugging.\n\n## WEAKNESSES\n\n1.  **Information Extraction Failure:** The system consistently fails to extract the correct answer from the context, even when the answer is explicitly stated in the provided golden answer. This is the primary and most significant weakness.\n2.  **Lack of Contextual Understanding:** The system seems unable to understand the question's intent and relate it to the available information to locate the correct answer. It appears to struggle with identifying the entities and relationships required to answer the question.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Information Extraction:** The inability to reliably extract information relevant to the question is the most critical bottleneck. Without accurate information extraction, the subsequent steps become irrelevant.\n\n## ERROR PATTERNS\n\nThe recurring pattern across all error cases is the system's inability to extract the answer from the context. The system consistently responds with a \"no answer\" message, indicating a systematic failure in the information extraction process. It suggests that the information extraction component is not effectively identifying the relevant information needed to answer the questions.\n\n## PRIMARY ISSUE\n\nThe single most critical problem to fix is the **ineffective information extraction**. The system's current approach is not successfully identifying and retrieving the answer from the context provided, leading to a consistent \"no answer\" response.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Extraction:** This area requires significant improvement. The system needs to be able to identify key entities and relationships in the question and then locate the corresponding information in the context.\n2.  **Question Understanding:** The system needs to be able to understand the question's intent, including any specific constraints or requirements.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement More Sophisticated Information Extraction Techniques:** Explore techniques like named entity recognition (NER), relationship extraction, and dependency parsing to better identify relevant information in the context.\n2.  **Fine-tune Pre-trained Language Models:** Fine-tune pre-trained language models (e.g., BERT, RoBERTa) on question answering datasets to improve the system's ability to understand questions and extract answers.\n3.  **Implement a Retrieval Mechanism:** Develop a retrieval mechanism to identify the most relevant passages in the context based on the question. This can help focus the information extraction process.\n4.  **Introduce Chain-of-Thought Prompting:** Use chain-of-thought prompting to encourage the model to explicitly reason through the steps required to answer the question. This can help improve the model's ability to understand the question and identify the relevant information.\n5.  **Add Intermediate Outputs for Debugging:** Include print statements to display intermediate variables and outputs, especially from the information extraction components. This will facilitate debugging and help understand why the system is failing to extract the correct answers. For example, print the initial context, the entities identified, and the extracted relationships.\n\n## CAPABILITY MAPPING\n\n**Sample ID 0:**\n\n*   information\\_extraction: Failed\n*   solution\\_generation: Failed (due to information extraction failure)\n*   solution\\_verification: N/A (no solution generated)\n*   decision\\_making: N/A (no solution to decide upon)\n\n**Sample ID 1:**\n\n*   information\\_extraction: Failed\n*   solution\\_generation: Failed (due to information extraction failure)\n*   solution\\_verification: N/A (no solution generated)\n*   decision\\_making: N/A (no solution to decide upon)\n\n**Sample ID 2:**\n\n*   information\\_extraction: Failed\n*   solution\\_generation: Failed (due to information extraction failure)\n*   solution\\_verification: N/A (no solution generated)\n*   decision\\_making: N/A (no solution to decide upon)\n",
+    "capability_report_text": "## CAPABILITY ASSESSMENT REPORT\n\n### PERFORMANCE SUMMARY:\n- Accuracy: 0.00 (0/3)\n- Error samples: 3/3\n\n### ERROR ANALYSIS REPORT:\n(As provided in the original prompt)\n\n## EXECUTION ANALYSIS\n\nThe execution outputs are consistently \"No answer can be extracted from the given context.\" or similar variations. This confirms the Error Analysis Report's assessment of a systematic failure in information extraction. There are no variations in the error message format, indicating consistent error handling but also a lack of nuance in the error reporting. The system is consistently unable to identify and extract the correct answer, even when the answer is explicitly present in the context.  This points to a fundamental flaw in the core extraction logic or the understanding of the query and context.\n\n## CAPABILITY ASSESSMENT\n\nThe current AI system demonstrates extremely limited question answering capabilities. While it exhibits robustness to runtime errors and clear error signaling, its inability to extract relevant information from provided contexts renders it effectively non-functional for its intended purpose. The system lacks the ability to understand the question's intent and relate it to the context to retrieve the correct answer.\n\n## KEY STRENGTHS\n\n*   **Robustness to Runtime Errors:** The system consistently avoids crashing or throwing exceptions. This is a good foundation for building upon.\n*   **Clear Error Signaling:** The system explicitly states when it cannot find an answer. This is useful for debugging and user experience (though perhaps a more informative error message could be considered).\n\n## KEY WEAKNESSES\n\n*   **Information Extraction Failure:** The complete and consistent failure to extract the correct answer from the context is the most critical weakness.\n*   **Lack of Contextual Understanding:** The system demonstrates a significant inability to understand the intent of the question and relate it to the information within the context.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Extraction**. The ability to reliably identify and retrieve the answer from the context is essential for the system to function.  Without this, all other components are rendered useless.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Hybrid Information Extraction Approach:**\n    *   **Rule-Based System:** Begin with a simple rule-based system that uses keywords and pattern matching to identify potential answers. This provides a baseline and a controlled environment for testing. For example, look for sentences containing keywords from the question or numerical values mentioned in the question.\n    *   **NER/Relationship Extraction:** Integrate Named Entity Recognition (NER) and Relationship Extraction models (even simple ones) to identify key entities and relationships in both the question and the context.  Tools like spaCy or Hugging Face Transformers can be leveraged for this.  Focus on identifying entities relevant to the expected answer type.\n2.  **Implement a Retrieval-Augmented Generation (RAG) approach:**\n    *   **Context Chunking and Embedding:** Break the context into smaller chunks and embed each chunk using a sentence transformer model (e.g., Sentence-BERT).\n    *   **Semantic Similarity Search:** Embed the question using the same sentence transformer model and perform a similarity search over the context embeddings to identify the most relevant context chunks.\n    *   **Answer Generation:** Feed the retrieved context chunks and the question to a large language model (LLM) fine-tuned for question answering to generate the answer.\n3.  **Improve Question Understanding with Query Rewriting:**\n    *   Use a smaller model or rule-based approach to rewrite the question to be more explicit and contain more keywords that are likely to appear in the answer. For example, if the question is \"What is X?\", rewrite it as \"The value of X is\".\n4.  **Introduce Monitoring and Logging for Information Extraction:**\n    *   Log the output of each information extraction component (e.g., entities identified, relationships extracted, relevant context chunks identified).\n    *   Track the confidence scores associated with these outputs.\n    *   Use this data to identify patterns and areas for improvement in the information extraction process.  For instance, track which entity types are most often missed.\n5.  **Develop Unit Tests for Information Extraction:**\n    *   Create a suite of unit tests that specifically target the information extraction components.\n    *   These tests should cover a variety of question types and context scenarios.\n    *   Use these tests to verify that the information extraction components are correctly identifying and extracting the relevant information.\n\n## CAPABILITY TREND\n\nBased on the current performance (0% accuracy), the capability trend is currently **stable, but at a non-functional level**. Without significant improvements to the information extraction capabilities, the trend will remain stagnant. The implementation of the Actionable Recommendations is expected to lead to an **improving** trend in the next iteration.\n"
   },
-  "progressive_testing": {
-    "total_examples": 10,
-    "successful_runs": 10,
-    "matches": 7,
-    "accuracy": 0.7,
-    "results": [
-      {
-        "success": true,
-        "answer": "6",
-        "output": "ANSWER_START\n6\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "6",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 6."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Begin by calculating the points scored by each team.\n\nBroncos:\n- Demaryius Thomas touchdown: 6 points\n- Emmanuel Sanders touchdown: 6 points\n- Brock Osweiler touchdown: 6 points\n- Demaryius Thomas touchdown: 6 points\nTotal Touchdown points = 24\n- Extra point (one missed): 3 points\n\nTotal points for Broncos = 27\n\nSteelers:\n- DeAngelo Williams touchdown: 6 points\n- Chris Boswell field goal: 3 points\n- Chris Boswell field goal: 3 points\n- Antonio Brown touchdown: 6 points\n- Markus Wheaton touchdown: 6 points\n- Antonio Brown touchdown: 6 points\nTotal touchdown points = 27\nTotal field goal points = 6\nTotal extra points: 4 * 1 = 4 points\n\nTotal points for Steelers = 37\n\nTherefore, the Steelers scored more points than the Broncos.",
-        "output": "ANSWER_START\nBegin by calculating the points scored by each team.\n\nBroncos:\n- Demaryius Thomas touchdown: 6 points\n- Emmanuel Sanders touchdown: 6 points\n- Brock Osweiler touchdown: 6 points\n- Demaryius Thomas touchdown: 6 points\nTotal Touchdown points = 24\n- Extra point (one missed): 3 points\n\nTotal points for Broncos = 27\n\nSteelers:\n- DeAngelo Williams touchdown: 6 points\n- Chris Boswell field goal: 3 points\n- Chris Boswell field goal: 3 points\n- Antonio Brown touchdown: 6 points\n- Markus Wheaton touchdown: 6 points\n- Antonio Brown touchdown: 6 points\nTotal touchdown points = 27\nTotal field goal points = 6\nTotal extra points: 4 * 1 = 4 points\n\nTotal points for Steelers = 37\n\nTherefore, the Steelers scored more points than the Broncos.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "Steelers",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer correctly calculates the scores for both teams and concludes that the Steelers scored more points than the Broncos, which is equivalent to the golden answer 'Steelers'."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Verification: Isabella II",
-        "output": "ANSWER_START\nVerification: Isabella II\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "Isabella II",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers identify the same individual, Isabella II."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "13",
-        "output": "ANSWER_START\n13\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "13",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value, 13."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "married couples living together",
-        "output": "ANSWER_START\nmarried couples living together\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "married couples living together",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers state 'married couples living together' with identical meaning."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "14",
-        "output": "ANSWER_START\n14\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "15",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer 14 and the golden answer 15 are different numerical values, thus not equivalent."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "0",
-        "output": "ANSWER_START\n0\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer is 0 while the golden answer is 1. These are distinct numerical values and do not convey the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "Households",
-        "output": "ANSWER_START\nHouseholds\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "households",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The answers are the same, differing only in capitalization."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "23",
-        "output": "ANSWER_START\n23\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "23",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value, 23."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Correct.",
-        "output": "ANSWER_START\nCorrect.\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_3.jsonl",
-        "golden_answer": "Queen Joan",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer 'Correct' does not provide the name 'Queen Joan', therefore the answers do not match."
-        },
-        "match": false
-      }
-    ]
-  },
-  "execution_time": 110.75344061851501,
+  "progressive_testing": null,
+  "execution_time": 34.262264251708984,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

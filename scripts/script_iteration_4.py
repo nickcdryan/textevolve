@@ -2,171 +2,6 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach.
-    This approach focuses on breaking down the problem into question type identification, 
-    focused passage extraction, and direct answer generation with verification.
-    """
-    try:
-        # Step 1: Identify question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer
-        verified_answer = verify_answer(question, answer, relevant_passage)
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-
-    Example 4:
-    Question: How many points did the Steelers score in the first quarter?
-    Analysis: {{"type": "counting", "keywords": ["points", "Steelers", "first quarter"]}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the following text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-
-    Example 4:
-    Question: How many points did the Steelers score in the first quarter?
-    Keywords: {{"type": "counting", "keywords": ["points", "Steelers", "first quarter"]}}
-    Text: PASSAGE: Coming off their win over the Bengals, the Steelers stayed at home for a Week 15 intraconference duel with the New York Jets.  Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.
-    Passage: Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question type. If a calculation is needed, perform it.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-
-    Example 4:
-    Question: How many points did the Steelers score in the first quarter?
-    Passage: Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.
-    Answer: 0
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage):
-    """Verifies the generated answer. Includes multiple examples."""
-    system_instruction = "You are an expert at verifying answers to questions. If the answer requires a calculation or includes multiple parts, make sure all are performed and present."
-    prompt = f"""
-    Verify the following answer to the question based on the relevant passage.  Return the answer if it is correct.  Return the correct answer if it is incorrect.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Verification: 2
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Verification: Josh Scobee
-    
-    Example 4:
-    Question: How many points did the Steelers score in the first quarter?
-    Answer: 0
-    Passage: Pittsburgh immediately trailed in the first quarter with Jets wide receiver/quarterback Brad Smith returning the game's opening kickoff 97&#160;yards for a touchdown.
-    Verification: 0
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
-
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
     try:
@@ -195,3 +30,75 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question, max_attempts=3):
+    """Solve factual questions using a fact verification with multi-source integration approach."""
+
+    # Hypothesis: Explicitly searching for validating sources and integrating information from multiple sources before answering will increase accuracy. This addresses the previous issues of inaccurate knowledge retrieval and ineffective information extraction.
+
+    # Step 1: Generate multiple search queries (n=3) to find validating sources.
+    search_query_prompt = f"""
+    Generate three diverse search queries to find independent validating sources for the following question.
+
+    Example 1:
+    Question: What is the name of the individual who was awarded the Paul Karrer Gold Medal in 2004?
+    Queries:
+    1. "Paul Karrer Gold Medal 2004 recipient"
+    2. "Who won Paul Karrer Gold Medal 2004"
+    3. "Awardees of Paul Karrer Gold Medal in 2004"
+
+    Question: {question}
+    Queries:
+    """
+    search_queries = call_llm(search_query_prompt, system_instruction="You are an expert at generating diverse search queries.").split("\n")
+
+    # Step 2: Simulate retrieval of context from the web for each query and VERIFY that a source exists
+    retrieved_contexts = []
+    for query in search_queries:
+        context = f"Simulated web search results for: {query}. Placeholder for real search functionality."
+        # Verify that results are not empty
+        verification_prompt = f"""Question: {question} Search query: {query}. Retrieved context: {context}. Is the context useful to answering the question? Answer 'yes' or 'no'."""
+        verification_result = call_llm(verification_prompt, "Validating retrieved context")
+        retrieved_contexts.append(context if "yes" in verification_result.lower() else "No relevant context found.")
+    
+    # Step 3: Extract answers from *each* context, and then synthesize them.
+    answer_extraction_prompt = f"""
+    Given the question and retrieved contexts from multiple sources, extract an answer from each. Then, synthesize a final answer, considering the consistency and reliability of the sources.
+    Question: {question}
+
+    Context 1: {retrieved_contexts[0]}
+    Context 2: {retrieved_contexts[1]}
+    Context 3: {retrieved_contexts[2]}
+
+    Example 1:
+    Question: What is the capital of Australia?
+    Context 1: Canberra is the capital city of Australia.
+    Context 2: Australia's capital is Canberra.
+    Context 3: Canberra serves as the capital of the Commonwealth of Australia.
+    Answer: Canberra, based on multiple consistent sources.
+
+    Answer:
+    """
+    final_answer = call_llm(answer_extraction_prompt, system_instruction="You are an expert at extracting and synthesizing answers from multiple sources.")
+
+    # Step 4: Final validation that the synthesized answer answers the question
+    validation_prompt = f"""
+    Validate that the following extracted and synthesized answer correctly answers the question.
+
+    Question: {question}
+    Answer: {final_answer}
+
+    Example:
+    Question: What is the capital of Australia?
+    Answer: Canberra, based on multiple consistent sources.
+    Validation: Correct; Canberra is the capital of Australia.
+
+    Validation:
+    """
+
+    validation_result = call_llm(validation_prompt, system_instruction="You are an expert answer validator.")
+
+    if "Correct" in validation_result:
+        return final_answer
+    else:
+        return "Could not be validated."

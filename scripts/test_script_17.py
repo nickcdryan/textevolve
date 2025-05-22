@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 17,
-        "sample_id": "af1e3a01-ac7c-4ded-aebd-1c718c06f7be",
-        "question": 'PASSAGE: After securing their first win of the season, the Browns went on the road to take on their archrival Pittsburgh Steelers. The Browns came into the game having lost their last 11 games against the Steelers. The Steelers struck first with two touchdown passes from Ben Roethlisberger in the 2nd quarter. Josh Cribbs ran a kickoff back 98 yards for a touchdown, and got the Browns within 7. However, the Browns could never close the gap, and fell to the Steelers, 27-14.\n\nQUESTION: Which team scored the most points?'
+        "sample_id": "example_58",
+        "question": 'In which year did the Royal Society of Arts launch the Adelphi Charter, aimed at creating an international policy statement to frame how governments should make balanced intellectual property law?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 17,
-            "sample_id": "af1e3a01-ac7c-4ded-aebd-1c718c06f7be",
+            "sample_id": "example_58",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: After securing their first win of the season, the Browns went on the road to take on their archrival Pittsburgh Steelers. The Browns came into the game having lost their last 11 games against the Steelers. The Steelers struck first with two touchdown passes from Ben Roethlisberger in the 2nd quarter. Josh Cribbs ran a kickoff back 98 yards for a touchdown, and got the Browns within 7. However, the Browns could never close the gap, and fell to the Steelers, 27-14.\n\nQUESTION: Which team scored the most points?'
+    question = 'In which year did the Royal Society of Arts launch the Adelphi Charter, aimed at creating an international policy statement to frame how governments should make balanced intellectual property law?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 17,
-            "sample_id": "af1e3a01-ac7c-4ded-aebd-1c718c06f7be",
+            "sample_id": "example_58",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 17,
-            "sample_id": "af1e3a01-ac7c-4ded-aebd-1c718c06f7be",
+            "sample_id": "example_58",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

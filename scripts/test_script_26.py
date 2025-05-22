@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 26,
-        "sample_id": "259fe12b-d661-4009-992d-88755ab6f6ab",
-        "question": 'PASSAGE: Changing populations have happened in timber and mining towns in the American West as a result of boom and bust economic cycles. Some towns decrease in population following a bust, while some, like Arcata, experience a change in demographics. In the case of Arcata, the peak and the bust were close due to Arcata’s relatively late entry into the timber industry, and its domination by mechanization. The population of the city of Arcata was 3,729 during its peak 1950, when lumber was exported throughout the country and abroad. For the County of Humboldt, After the bust, in 1955, the population of Arcata in 1960 was 5,235. In Arcata the population under the age of 15 was 28.1%. Those age 15-24 made up 22.8% of Arcata’s population. Those age 25-39 made up 19.4% of the population. Those age 40-54 made up 16% of Arcata’s population. Those age 55-64 made up 6.7% of Arcata’s population. Those age 65 and over made up 6.9% of Arcata’s population.\n\nQUESTION: How many percent were not under the age of 15?'
+        "sample_id": "example_85",
+        "question": 'What month, day, and year was the Köln Frankfurter Straße station opened?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 26,
-            "sample_id": "259fe12b-d661-4009-992d-88755ab6f6ab",
+            "sample_id": "example_85",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Changing populations have happened in timber and mining towns in the American West as a result of boom and bust economic cycles. Some towns decrease in population following a bust, while some, like Arcata, experience a change in demographics. In the case of Arcata, the peak and the bust were close due to Arcata’s relatively late entry into the timber industry, and its domination by mechanization. The population of the city of Arcata was 3,729 during its peak 1950, when lumber was exported throughout the country and abroad. For the County of Humboldt, After the bust, in 1955, the population of Arcata in 1960 was 5,235. In Arcata the population under the age of 15 was 28.1%. Those age 15-24 made up 22.8% of Arcata’s population. Those age 25-39 made up 19.4% of the population. Those age 40-54 made up 16% of Arcata’s population. Those age 55-64 made up 6.7% of Arcata’s population. Those age 65 and over made up 6.9% of Arcata’s population.\n\nQUESTION: How many percent were not under the age of 15?'
+    question = 'What month, day, and year was the Köln Frankfurter Straße station opened?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 26,
-            "sample_id": "259fe12b-d661-4009-992d-88755ab6f6ab",
+            "sample_id": "example_85",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 26,
-            "sample_id": "259fe12b-d661-4009-992d-88755ab6f6ab",
+            "sample_id": "example_85",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

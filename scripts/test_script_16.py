@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 16,
-        "sample_id": "a66db53d-97f0-452d-bdde-17b674f91d71",
-        "question": 'PASSAGE: Coming off their win over the Seahawks the Chiefs played on home ground for an AFC West rivalry rematch against the Broncos. The Chiefs took the early lead as QB Matt Cassel got a 2-yard TD pass to TE Leonard Pope. The Broncos replied with kicker Matt Prater getting a 25-yard field goal, but the Chiefs increased their lead with kicker Ryan Succop nailing a 47-yard field goal. The lead was narrowed when Prater nailed a 41-yard field goal.\n\nQUESTION: How many more field goals were there than touchdowns?'
+        "sample_id": "example_55",
+        "question": 'Which college in Srinagar was accredited as the College for Potential Excellence by the University Grants Commission (India) in April 2010?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 16,
-            "sample_id": "a66db53d-97f0-452d-bdde-17b674f91d71",
+            "sample_id": "example_55",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Coming off their win over the Seahawks the Chiefs played on home ground for an AFC West rivalry rematch against the Broncos. The Chiefs took the early lead as QB Matt Cassel got a 2-yard TD pass to TE Leonard Pope. The Broncos replied with kicker Matt Prater getting a 25-yard field goal, but the Chiefs increased their lead with kicker Ryan Succop nailing a 47-yard field goal. The lead was narrowed when Prater nailed a 41-yard field goal.\n\nQUESTION: How many more field goals were there than touchdowns?'
+    question = 'Which college in Srinagar was accredited as the College for Potential Excellence by the University Grants Commission (India) in April 2010?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 16,
-            "sample_id": "a66db53d-97f0-452d-bdde-17b674f91d71",
+            "sample_id": "example_55",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 16,
-            "sample_id": "a66db53d-97f0-452d-bdde-17b674f91d71",
+            "sample_id": "example_55",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

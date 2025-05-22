@@ -2,157 +2,9 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach with enhanced error handling and reasoning.
-    """
-    try:
-        # Step 1: Identify question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return f"Error analyzing question: {question_analysis}"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return f"Error extracting passage: {relevant_passage}"
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return f"Error generating answer: {answer}"
-
-        # Step 4: Verify answer
-        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)
-        if "Error" in verified_answer:
-            return f"Error verifying answer: {verified_answer}"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"], "requires_calculation": "yes"}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the following text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {question_analysis}
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {question_analysis}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Keywords: {question_analysis}
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question type.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage, question_analysis):
-    """Verifies the generated answer. Includes multiple examples. Now with calculation abilities."""
-    system_instruction = "You are an expert at verifying answers to questions, including performing calculations when needed."
-    requires_calculation = "yes" in question_analysis.lower()
-
-    if requires_calculation:
-      # If calculation is needed, prompt LLM to perform calculation
-      prompt = f"""
-      The question requires a calculation. Please perform the calculation based on the provided passage and return the result.
-
-      Example 1:
-      Question: How many points did the Packers score?
-      Answer: There was a TD by Rodgers, a TD by Boykin and a field goal. TDs are 7 points and the field goal is 3.
-      Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-      Calculation: 7 + 7 + 3 = 17
-      Verification: 17
-      
-      Question: {question}
-      Answer: {answer}
-      Passage: {relevant_passage}
-      Calculation:
-      """
-      return call_llm(prompt, system_instruction)
-    else:
-      # If no calculation is needed, just return the original answer
-      prompt = f"""
-      Verify the following answer to the question based on the relevant passage. Return the answer if it is correct. Return the correct answer if it is incorrect.
-
-      Example 1:
-      Question: Who caught the final touchdown of the game?
-      Answer: Jarrett Boykin
-      Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-      Verification: Jarrett Boykin
-      
-      Question: {question}
-      Answer: {answer}
-      Passage: {relevant_passage}
-      Verification:
-      """
-      return call_llm(prompt, system_instruction)
+# New Approach: Question Transformation and Knowledge Base Retrieval with Verification Loop
+# Hypothesis: Transforming the question into a more specific query and using a verification loop after knowledge base retrieval will improve accuracy.
+# This approach tests whether more specific questions and verification steps improves performance.
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response."""
@@ -182,3 +34,62 @@ def call_llm(prompt, system_instruction=None):
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
+
+def main(question, max_attempts=3):
+    """Solve factual questions using Question Transformation and Knowledge Base Retrieval with Verification Loop."""
+
+    # Step 1: Question Transformation (with examples)
+    transformation_prompt = f"""
+    Transform the question into a more specific and targeted query for a knowledge base.
+
+    Example 1:
+    Original Question: What is the capital of Australia?
+    Transformed Query: Return the capital city of the country Australia.
+
+    Example 2:
+    Original Question: Who choreographed Issey Miyake's produced “Aomori University Men’s Rhythmic Gymnastics Team” performance?
+    Transformed Query: Give the name of the choreographer for the "Aomori University Men’s Rhythmic Gymnastics Team" performance produced by Issey Miyake.
+
+    Original Question: {question}
+    Transformed Query:
+    """
+    transformed_query = call_llm(transformation_prompt, system_instruction="You are an expert at question transformation.").strip()
+
+    # Step 2: Knowledge Base Retrieval (simulated)
+    knowledge_base_prompt = f"""
+    Simulate retrieving information from a knowledge base based on the transformed query.
+
+    Example:
+    Query: Return the capital city of the country Australia.
+    Knowledge Base Results: Canberra is the capital city of Australia.
+
+    Query: {transformed_query}
+    Knowledge Base Results:
+    """
+    knowledge_base_results = call_llm(knowledge_base_prompt, system_instruction="You are a helpful knowledge base.").strip()
+
+    # Step 3: Verification Loop (with examples)
+    answer = "Could not be validated." # Initialize
+    for attempt in range(max_attempts):
+        verification_prompt = f"""
+        Verify if the knowledge base results provide a direct and accurate answer to the original question. If the extracted data contains the information sought in the original question, respond with the correct answer from the knowlege base results. If there isn't enough information, respond with 'insufficient information'.
+
+        Example 1:
+        Original Question: What is the capital of Australia?
+        Knowledge Base Results: Canberra is the capital city of Australia.
+        Answer: Canberra
+
+        Example 2:
+        Original Question: What is the wingspan of Eugnosta misella in millimeters?
+        Knowledge Base Results: The wingspan of Eugnosta misella is 9-11 mm.
+        Answer: 9-11 mm
+
+        Original Question: {question}
+        Knowledge Base Results: {knowledge_base_results}
+        Answer:
+        """
+        answer = call_llm(verification_prompt, system_instruction="You are an expert validator.").strip()
+        if answer != "insufficient information":
+            break
+
+    return answer

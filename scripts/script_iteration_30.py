@@ -2,176 +2,12 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach.
-    This approach focuses on breaking down the problem into question type identification, 
-    focused passage extraction, and direct answer generation with verification.
-    """
-    try:
-        # Step 1: Identify question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question"
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage"
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer"
-
-        # Step 4: Verify answer
-        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis) # Pass question_analysis to verify_answer
-        if "Error" in verified_answer:
-            return "Error verifying answer"
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-
-    Example 4:
-    Question: How many more people were in Crimea in 2001 than in 1989?
-    Analysis: {{"type": "calculation", "keywords": ["more people", "Crimea", "2001", "1989"]}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the following text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-
-    Example 4:
-    Question: How many more people were in Crimea in 2001 than in 1989?
-    Keywords: {{"type": "calculation", "keywords": ["more people", "Crimea", "2001", "1989"]}}
-    Text: PASSAGE: However, this was due to the influx of approximately 200,000 Crimean Tatars &ndash; a number equivalent to approximately 10% of Crimeas 1989 population \u2013 who arrived in Crimea after 1989 and whose population in that region increased by a factor of 6.4 from 38,000 to 243,400 between 1989 and 2001.
-    Passage: However, this was due to the influx of approximately 200,000 Crimean Tatars &ndash; a number equivalent to approximately 10% of Crimeas 1989 population \u2013 who arrived in Crimea after 1989 and whose population in that region increased by a factor of 6.4 from 38,000 to 243,400 between 1989 and 2001.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text. If the question type is calculation, perform the calculation."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question type.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-
-    Example 4:
-    Question: How many more people were in Crimea in 2001 than in 1989?
-    Passage: However, this was due to the influx of approximately 200,000 Crimean Tatars &ndash; a number equivalent to approximately 10% of Crimeas 1989 population \u2013 who arrived in Crimea after 1989 and whose population in that region increased by a factor of 6.4 from 38,000 to 243,400 between 1989 and 2001.
-    Answer: 205400
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Question Analysis: {question_analysis}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage, question_analysis):
-    """Verifies the generated answer. Includes multiple examples."""
-    system_instruction = "You are an expert at verifying answers to questions. If the question type is calculation, verify the calculation is correct based on the passage and return the correct answer if it is wrong. If correct return the original answer."
-    prompt = f"""
-    Verify the following answer to the question based on the relevant passage.  Return the answer if it is correct.  Return the correct answer if it is incorrect.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Verification: 2
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Verification: Josh Scobee
-    
-    Example 4:
-    Question: How many more people were in Crimea in 2001 than in 1989?
-    Answer: 205400
-    Passage: However, this was due to the influx of approximately 200,000 Crimean Tatars &ndash; a number equivalent to approximately 10% of Crimeas 1989 population \u2013 who arrived in Crimea after 1989 and whose population in that region increased by a factor of 6.4 from 38,000 to 243,400 between 1989 and 2001.
-    Question Analysis: {{"type": "calculation", "keywords": ["more people", "Crimea", "2001", "1989"]}}
-    Verification: 205400
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Question Analysis: {question_analysis}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
+# Hypothesis: Implementing a "Chain of Knowledge" approach with Iterative Fact Verification and Adaptive Source Selection
+# This script introduces a "Chain of Knowledge" approach, where information is iteratively refined through a chain of LLM calls,
+# focusing on Adaptive Source Selection. Source is selected based on previous reliability.
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response. """
     try:
         from google import genai
         from google.genai import types
@@ -182,7 +18,7 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction
                 ),
@@ -197,4 +33,109 @@ def call_llm(prompt, system_instruction=None):
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
+
+def select_source(question, previous_sources=None):
+    """Select the best source based on the question and past reliability."""
+    system_instruction = "You are an expert source selector, choosing the most reliable information source."
+    prompt = f"""
+    Select the best source for answering the question, considering past source reliability.
+
+    Example 1:
+    Question: What is the capital of Australia?
+    Past Sources: None
+    Best Source: Wikipedia (General Knowledge, High Reliability)
+
+    Example 2:
+    Question: In what year was the praying mantis species Eremiaphila bifasciata described?
+    Past Sources: Wikipedia (Reliability: High)
+    Best Source: Zoological Record (Zoology, High Reliability)
+
+    Question: {question}
+    Past Sources: {previous_sources or "None"}
+    Best Source:
+    """
+    return call_llm(prompt, system_instruction)
+
+def retrieve_information(question, source):
+    """Retrieve information from the selected source."""
+    system_instruction = f"You are an information retriever, extracting relevant data from {source}."
+    prompt = f"""
+    Retrieve the most relevant information from {source} to answer the question.
+
+    Example:
+    Question: What is the capital of Australia?
+    Source: Wikipedia
+    Retrieved Information: Canberra is the capital of Australia.
+
+    Question: {question}
+    Source: {source}
+    Retrieved Information:
+    """
+    return call_llm(prompt, system_instruction)
+
+def verify_information(question, retrieved_info, source):
+    """Verify the accuracy of the retrieved information."""
+    system_instruction = "You are a fact verifier, ensuring the accuracy of information from {source}."
+    prompt = f"""
+    Verify if the information from {source} accurately answers the question.
+
+    Example:
+    Question: What is the capital of Australia?
+    Retrieved Information: Canberra is the capital of Australia.
+    Source: Wikipedia
+    Verification: VALID - Canberra is indeed the capital of Australia.
+
+    Question: {question}
+    Retrieved Information: {retrieved_info}
+    Source: {source}
+    Verification:
+    """
+    verification_result = call_llm(prompt, system_instruction)
+    return verification_result
+
+def extract_answer(question, verified_info):
+    """Extract a concise answer from the verified information."""
+    system_instruction = "You are a concise answer extractor, focusing on precision."
+    prompt = f"""
+    Extract a concise answer from the verified information.
+
+    Example:
+    Question: What is the capital of Australia?
+    Verified Information: VALID - Canberra is indeed the capital of Australia.
+    Answer: Canberra
+
+    Question: {question}
+    Verified Information: {verified_info}
+    Answer:
+    """
+    return call_llm(prompt, system_instruction)
+
+def main(question):
+    """Solve questions using the Chain of Knowledge approach."""
+    try:
+        # Initialize variables
+        previous_sources = None
+        source = None
+
+        # Select the best initial source
+        source = select_source(question, previous_sources)
+        print(f"Source: {source}")  # Debug print
+
+        # Retrieve information from the selected source
+        retrieved_info = retrieve_information(question, source)
+        print(f"Retrieved info: {retrieved_info}") # Debug print
+
+        # Verify the retrieved information
+        verification_result = verify_information(question, retrieved_info, source)
+        print(f"Verification: {verification_result}") # Debug print
+
+        # Extract a concise answer
+        answer = extract_answer(question, verification_result)
+        print(f"Answer: {answer}") # Debug print
+
+        # Return the answer
+        return answer
+
+    except Exception as e:
         return f"Error: {str(e)}"

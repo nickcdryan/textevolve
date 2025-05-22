@@ -1,480 +1,338 @@
 {
   "iteration": 22,
-  "timestamp": "2025-05-20T21:15:23.456098",
-  "strategy": "Exploitation",
-  "explore_rate": 20,
-  "exploit_rate": 80,
-  "batch_size": 5,
-  "script": "import os\nimport re\nimport math\n\ndef main(question):\n    \"\"\"\n    Solve the question using a multi-stage LLM approach.\n    This approach focuses on breaking down the problem into question type identification, \n    focused passage extraction, and direct answer generation with verification,\n    with enhanced numerical reasoning and error handling.\n    \"\"\"\n    try:\n        # Step 1: Identify question type and keywords\n        question_analysis = analyze_question(question)\n        if \"Error\" in question_analysis:\n            return \"Error analyzing question\"\n\n        # Step 2: Extract relevant passage using identified keywords\n        relevant_passage = extract_relevant_passage(question, question_analysis)\n        if \"Error\" in relevant_passage:\n            return \"Error extracting passage\"\n\n        # Step 3: Generate answer using extracted passage and question type, \n        # incorporating numerical reasoning if needed.\n        answer = generate_answer(question, relevant_passage, question_analysis)\n        if \"Error\" in answer:\n            return \"Error generating answer\"\n\n        # Step 4: Verify answer, including numerical reasoning verification if needed\n        verified_answer = verify_answer(question, answer, relevant_passage, question_analysis)\n        if \"Error\" in verified_answer:\n            return \"Error verifying answer\"\n        \n        return verified_answer\n\n    except Exception as e:\n        return f\"General Error: {str(e)}\"\n\ndef analyze_question(question):\n    \"\"\"Analyzes the question to identify its type, keywords, and whether numerical reasoning is needed. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at analyzing questions to determine their type, keywords, and if numerical reasoning is needed.\"\n    prompt = f\"\"\"\n    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison), keywords, and if numerical reasoning is needed (yes/no).\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"numerical_reasoning\": \"no\"}}\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"numerical_reasoning\": \"yes\"}}\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"numerical_reasoning\": \"no\"}}\n\n    Example 4:\n    Question: How many more points did the winning team score than the losing team?\n    Analysis: {{\"type\": \"comparison\", \"keywords\": [\"points\", \"winning team\", \"losing team\"], \"numerical_reasoning\": \"yes\"}}\n\n    Question: {question}\n    Analysis:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_relevant_passage(question, question_analysis):\n    \"\"\"Extracts the relevant passage from the question based on keywords. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant passages from text.\"\n    prompt = f\"\"\"\n    Extract the relevant passage from the following text based on the question and keywords.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"]}}\n    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Keywords: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"]}}\n    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Keywords: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"]}}\n    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Question: {question}\n    Keywords: {question_analysis}\n    Text: {question}\n    Passage:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef generate_answer(question, relevant_passage, question_analysis):\n    \"\"\"Generates the answer based on the question, relevant passage, and question analysis. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at generating answers to questions based on provided text, capable of numerical reasoning when needed.\"\n    prompt = f\"\"\"\n    Generate the answer to the question based on the relevant passage and question analysis.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Answer: Jarrett Boykin\n\n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Answer: 2\n    \n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Question: {question}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef verify_answer(question, answer, relevant_passage, question_analysis):\n    \"\"\"Verifies the generated answer, including numerical reasoning if needed. Includes multiple examples.\"\"\"\n    system_instruction = \"You are an expert at verifying answers to questions, including performing numerical reasoning and calculations when necessary.\"\n    prompt = f\"\"\"\n    Verify the following answer to the question based on the relevant passage and question analysis. \n    If numerical reasoning is required (as indicated in the analysis), perform the necessary calculations to ensure the answer is correct.\n    Return the answer if it is correct. Return the correct answer if it is incorrect.\n\n    Example 1:\n    Question: Who caught the final touchdown of the game?\n    Answer: Jarrett Boykin\n    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"final touchdown\", \"caught\"], \"numerical_reasoning\": \"no\"}}\n    Verification: Jarrett Boykin\n    \n    Example 2:\n    Question: How many running backs ran for a touchdown?\n    Answer: 2\n    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.\n    Analysis: {{\"type\": \"counting\", \"keywords\": [\"running backs\", \"touchdown\"], \"numerical_reasoning\": \"yes\"}}\n    Verification: 2\n\n    Example 3:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Analysis: {{\"type\": \"fact extraction\", \"keywords\": [\"player\", \"field goal\"], \"numerical_reasoning\": \"no\"}}\n    Verification: Josh Scobee\n\n    Example 4:\n    Question: How many more points did the winning team score than the losing team?\n    Answer: 18\n    Passage: ... The Packers won 31-13.\n    Analysis: {{\"type\": \"comparison\", \"keywords\": [\"points\", \"winning team\", \"losing team\"], \"numerical_reasoning\": \"yes\"}}\n    Verification: 18\n\n    Question: {question}\n    Answer: {answer}\n    Passage: {relevant_passage}\n    Analysis: {question_analysis}\n    Verification:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"",
-  "approach_summary": "The script uses a multi-stage LLM approach with techniques like question analysis and answer verification to solve a question. The problem is decomposed into identifying question type, extracting a relevant passage, generating an answer, and verifying the answer, incorporating numerical reasoning where necessary. The agent roles include an expert in question analysis, passage extraction, answer generation, and answer verification.\n\nThe function `main` orchestrates the process. `analyze_question` identifies the question type and keywords. `extract_relevant_passage` retrieves relevant information. `generate_answer` formulates an initial answer. `verify_answer` checks the answer for correctness, performing calculations if needed. `call_llm` is used to interact with the Gemini model and execute the prompts. The overall workflow involves sequentially calling these functions, passing the output of one as input to the next, to arrive at a verified answer.",
-  "sample_count": 5,
+  "timestamp": "2025-05-22T06:02:15.297544",
+  "strategy": "Exploration",
+  "explore_rate": 80,
+  "exploit_rate": 20,
+  "batch_size": 3,
+  "script": "import os\nimport re\nimport math\n\n# Hypothesis: Fact-Checking with Multiple Simulated Search Engines and Answer Reconciliation.\n# We will use multiple simulated search engines, each with different biases and information, to find a more accurate answer.\n# The hypothesis is that by comparing the results from these \"diverse\" engines and reconciling the answers, we can improve accuracy.\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef simulate_search(query, engine_id):\n    \"\"\"Simulate different search engines.\"\"\"\n    system_instruction = f\"You are a simulated search engine with ID {engine_id} providing factual and CONCISE information. Your search results might be slightly biased or incomplete.\"\n    prompt = f\"\"\"\n    Simulate search results for the query: '{query}'.\n\n    Example 1 (Engine ID: 1):\n    Query: capital of Australia\n    Search Results: Canberra is the capital of Australia.\n\n    Example 2 (Engine ID: 2):\n    Query: capital of Australia\n    Search Results: Australia's capital is Canberra, located in the Australian Capital Territory.\n\n    Example 3 (Engine ID: 3, biased towards outdated info):\n    Query: capital of Australia\n    Search Results: Before 1927, Melbourne was the capital of Australia. Currently, it is Canberra.\n\n    Query: {query}\n    Search Results:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef extract_answer(question, search_results):\n    \"\"\"Extract potential answers from search results.\"\"\"\n    system_instruction = \"You are an answer extraction expert, focusing on precision.\"\n    prompt = f\"\"\"\n    Extract the concise answer to the question from the search results.\n\n    Example:\n    Question: What is the capital of Australia?\n    Search Results: Canberra is the capital of Australia.\n    Answer: Canberra\n\n    Question: {question}\n    Search Results: {search_results}\n    Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef reconcile_answers(question, answers):\n    \"\"\"Reconcile answers from different engines.\"\"\"\n    system_instruction = \"You are an expert at reconciling conflicting answers from different sources and determining the most accurate answer.\"\n    all_answers = \"\\n\".join([f\"Engine {i+1}: {answer}\" for i, answer in enumerate(answers)])\n    prompt = f\"\"\"\n    Reconcile these answers from different sources to answer the question.\n\n    Example:\n    Question: What is the capital of Australia?\n    Engine 1: Canberra\n    Engine 2: Canberra is the capital city.\n    Reconciled Answer: Canberra\n\n    Question: {question}\n    {all_answers}\n    Reconciled Answer:\n    \"\"\"\n    return call_llm(prompt, system_instruction)\n\ndef validate_answer(question, reconciled_answer):\n    \"\"\"Validate the reconciled answer.\"\"\"\n    system_instruction = \"You are a strict validator, focusing on factual correctness.\"\n    prompt = f\"\"\"\n    Validate if the reconciled answer is correct for the question.\n    \n    Example:\n    Question: What is the capital of Australia?\n    Answer: Canberra\n    Validation: VALID - Canberra is the capital of Australia.\n    \n    Question: {question}\n    Answer: {reconciled_answer}\n    Validation:\n    \"\"\"\n    validation_result = call_llm(prompt, system_instruction)\n    return validation_result\n\ndef main(question):\n    \"\"\"Solve questions using multiple search engines and answer reconciliation.\"\"\"\n    num_engines = 3\n    answers = []\n\n    # Simulate search with multiple engines\n    for i in range(num_engines):\n        search_results = simulate_search(question, i+1)\n        answer = extract_answer(question, search_results)\n        answers.append(answer)\n\n    # Reconcile answers\n    reconciled_answer = reconcile_answers(question, answers)\n\n    # Validate answer\n    validation_result = validate_answer(question, reconciled_answer)\n\n    if \"VALID\" in validation_result:\n        return reconciled_answer\n    else:\n        return \"Could not be validated.\"",
+  "approach_summary": "The script uses an LLM to fact-check by simulating multiple search engines with different biases, extracting answers from each, reconciling the answers, and then validating the final answer. The problem is decomposed into simulating search, extracting answers, reconciling those answers, and then validating the reconciled answer. Different system instructions assign the LLM roles of search engine, answer extractor, reconciler, and validator.\n\n*   `call_llm` is the base function that calls the LLM with a prompt and system instruction.\n*   `simulate_search` generates search results for a given query using a simulated search engine.\n*   `extract_answer` extracts answers from the simulated search results.\n*   `reconcile_answers` combines the answers from the search engines to produce one answer.\n*   `validate_answer` validates the reconciled answer to determine if it is correct.\n*   `main` orchestrates the process, calling the search, extraction, reconcile, and validation functions.\n\nThe overall workflow involves simulating multiple searches, extracting answers from each search, reconciling them into a single answer, validating the answer, and returning the reconciled answer if it is valid.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE: Between 1911 and 1915, Haiti was politically unstable: a series of political assassinations and forced exiles resulted in six presidents holding office during this period. Various revolutionary armies carried out the coups. Each was formed by cacos, or peasant militia from the mountains of the north, or who invaded along the porous Dominican border. They were enlisted by rival political factions under the promises of money, which would be paid after a successful revolution, and the opportunity to plunder. The United States was particularly apprehensive about the roles  played by Imperial Germany in the Western hemisphere. Controlling Tortuga, it had intervened in Haiti  and other Caribbean nations at several times during the previous few decades to exert its influence as a rival power. Germany was increasingly hostile to United States domination of the region under its claimed Monroe Doctrine. In the lead-up to the World War I, the strategic importance of the island of Hispaniola, with its manpower, material wealth, and port facilities, was understood by almost all navies operating in the Caribbean, including Germany and the still-neutral United States. Germany had invested in military and intelligence gathering across Hispaniola as part of a wider network of German interest in Latin America and the Caribbean during the 1890s through the 1910s. The United States' concern over Germany's ambitions was mirrored by apprehension and rivalry between American businessmen and the small German community in Haiti, which although numbering only about 200 in 1910 wielded a disproportionate amount of economic power. German nationals controlled about 80 percent of the country's international commerce. They owned and operated utilities in Cap-Ha\u00eften and Port-au-Prince, including the main wharf and a tramway in the capital, and also had built the railway serving the Plain of the Cul-de-Sac.\n\nQUESTION: what percent of Hispaniola did the germans own?",
-      "answer": "80",
-      "id": "example_181",
+      "question": "In what year was Oliviero Diliberto first elected as an MP for the Communist Refoundation Party?",
+      "answer": "1994",
+      "id": "example_71",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Between 1911 and 1915, Haiti was politically unstable: a series of political assassinations and forced exiles resulted in six presidents holding office during this period. Various revolutionary armies carried out the coups. Each was formed by cacos, or peasant militia from the mountains of the north, or who invaded along the porous Dominican border. They were enlisted by rival political factions under the promises of money, which would be paid after a successful revolution, and the opportunity to plunder. The United States was particularly apprehensive about the roles  played by Imperial Germany in the Western hemisphere. Controlling Tortuga, it had intervened in Haiti  and other Caribbean nations at several times during the previous few decades to exert its influence as a rival power. Germany was increasingly hostile to United States domination of the region under its claimed Monroe Doctrine. In the lead-up to the World War I, the strategic importance of the island of Hispaniola, with its manpower, material wealth, and port facilities, was understood by almost all navies operating in the Caribbean, including Germany and the still-neutral United States. Germany had invested in military and intelligence gathering across Hispaniola as part of a wider network of German interest in Latin America and the Caribbean during the 1890s through the 1910s. The United States' concern over Germany's ambitions was mirrored by apprehension and rivalry between American businessmen and the small German community in Haiti, which although numbering only about 200 in 1910 wielded a disproportionate amount of economic power. German nationals controlled about 80 percent of the country's international commerce. They owned and operated utilities in Cap-Ha\u00eften and Port-au-Prince, including the main wharf and a tramway in the capital, and also had built the railway serving the Plain of the Cul-de-Sac.",
-        "original_question": "what percent of Hispaniola did the germans own?",
-        "original_answer_data": {
-          "spans": [
-            "80"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 454
+        "source": "SimpleQA",
+        "line_number": 290,
+        "original_data": {
+          "metadata": "{'topic': 'Politics', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Oliviero_Diliberto#:~:text=Political%20career,-A%20former%20member&text=First%20elected%20as%20MP%20in,which%20Romano%20Prodi%20was%20defeated.', 'https://en.wikipedia.org/wiki/Oliviero_Diliberto', 'https://alchetron.com/Oliviero-Diliberto']}",
+          "problem": "In what year was Oliviero Diliberto first elected as an MP for the Communist Refoundation Party?",
+          "answer": "1994",
+          "id": "example_290"
+        }
       }
     },
     {
-      "question": "PASSAGE: Of the built up area, industrial buildings made up 1.7% of the total area while housing and buildings made up 10.7% and transportation infrastructure made up 7.3%.  Power and water infrastructure as well as other special developed areas made up 3.5% of the area while parks, green belts and sports fields made up 1.5%.  Out of the forested land, 38.8% of the total land area is heavily forested and 1.2% is covered with orchards or small clusters of trees.  Of the agricultural land, 22.0% is used for growing crops and  12.1% is pastures.  Of the water in the municipality, 0.2% is in lakes and 0.6% is in rivers and streams.\n\nQUESTION: How many percent higher were housing and buildings over industrial buildings and water and power infrastructures?",
-      "answer": "5.5",
-      "id": "example_182",
+      "question": "At what hospital did Communist politician Georgi Dimitrov die in 1949?",
+      "answer": " Barvikha sanatorium ",
+      "id": "example_72",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Of the built up area, industrial buildings made up 1.7% of the total area while housing and buildings made up 10.7% and transportation infrastructure made up 7.3%.  Power and water infrastructure as well as other special developed areas made up 3.5% of the area while parks, green belts and sports fields made up 1.5%.  Out of the forested land, 38.8% of the total land area is heavily forested and 1.2% is covered with orchards or small clusters of trees.  Of the agricultural land, 22.0% is used for growing crops and  12.1% is pastures.  Of the water in the municipality, 0.2% is in lakes and 0.6% is in rivers and streams.",
-        "original_question": "How many percent higher were housing and buildings over industrial buildings and water and power infrastructures?",
-        "original_answer_data": {
-          "spans": [
-            "5.5"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 249
+        "source": "SimpleQA",
+        "line_number": 493,
+        "original_data": {
+          "metadata": "{'topic': 'Politics', 'answer_type': 'Place', 'urls': ['https://en.wikipedia.org/wiki/Georgi_Dimitrov', 'https://en.wikipedia.org/wiki/Georgi_Dimitrov#:~:text=Death,-The%20new%2Dbuilt&text=Dimitrov%20died%20on%202%20July%201949%20in%20the%20Barvikha%20sanatorium%20near%20Moscow.', 'https://spartacus-educational.com/GERdimitrov.htm']}",
+          "problem": "At what hospital did Communist politician Georgi Dimitrov die in 1949?",
+          "answer": " Barvikha sanatorium ",
+          "id": "example_493"
+        }
       }
     },
     {
-      "question": "PASSAGE: As of the 2010 United States Census, there were 146,551 people, 51,214 households, and 38,614 families residing in the county. The population density was . There were 54,963 housing units at an average density of . The racial makeup of the county was 50.3% white, 41.0% black or African American, 3.0% Asian, 0.7% American Indian, 0.1% Pacific islander, 1.3% from other races, and 3.7% from two or more races. Those of Hispanic or Latino origin made up 4.3% of the population. In terms of ancestry, 12.6% were Germans, 10.8% were Irish people, 8.7% were English people, 6.3% were Americans, and 5.1% were Italians.\n\nQUESTION: How many percent were not english?",
-      "answer": "91.3",
-      "id": "example_183",
+      "question": "What was the name of the first elephant born in Valencia Bioparc?",
+      "answer": "Makena",
+      "id": "example_73",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "As of the 2010 United States Census, there were 146,551 people, 51,214 households, and 38,614 families residing in the county. The population density was . There were 54,963 housing units at an average density of . The racial makeup of the county was 50.3% white, 41.0% black or African American, 3.0% Asian, 0.7% American Indian, 0.1% Pacific islander, 1.3% from other races, and 3.7% from two or more races. Those of Hispanic or Latino origin made up 4.3% of the population. In terms of ancestry, 12.6% were Germans, 10.8% were Irish people, 8.7% were English people, 6.3% were Americans, and 5.1% were Italians.",
-        "original_question": "How many percent were not english?",
-        "original_answer_data": {
-          "spans": [
-            "91.3"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 846
-      }
-    },
-    {
-      "question": "PASSAGE: In the county, the population was spread out with 23.5% under the age of 18, 7.8% from 18 to 24, 28.5% from 25 to 44, 25.9% from 45 to 64, and 14.2% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 93.8 males.  For every 100 females age 18 and over, there were 90.5 males.\n\nQUESTION: How many percent were not from 45 to 64?",
-      "answer": "74.1",
-      "id": "example_184",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In the county, the population was spread out with 23.5% under the age of 18, 7.8% from 18 to 24, 28.5% from 25 to 44, 25.9% from 45 to 64, and 14.2% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 93.8 males.  For every 100 females age 18 and over, there were 90.5 males.",
-        "original_question": "How many percent were not from 45 to 64?",
-        "original_answer_data": {
-          "spans": [
-            "74.1"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 279
-      }
-    },
-    {
-      "question": "PASSAGE: Australian historian Peter Shergold confirms the findings of many scholars that the standard of living for US industrial workers was higher than in Europe.  He compares wages and the standard of living in Pittsburgh with Birmingham, England. He finds that, after taking into account the cost of living , the standard of living of unskilled workers was about the same in the two cities, while skilled workers had about twice as high a standard of living. The American advantage grew over time from 1890 to 1914, and there was a heavy steady flow of skilled workers from Britain to industrial America.  Shergold revealed that skilled Americans did earn higher wages than the British, yet unskilled workers did not, while Americans worked longer hours, with a greater chance of injury, and had fewer social services. Nationwide from 1890 to 1914 the unionized wages in manufacturing rose from $17.63 a week to $21.37, and the average work week fell from 54.4 to 48.8 hours a week. The pay for all factory workers was $11.94 and $15.84 because unions reached only the more skilled factory workers.\n\nQUESTION: How many total years did the American advantage grow over time?",
-      "answer": "24",
-      "id": "example_185",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Australian historian Peter Shergold confirms the findings of many scholars that the standard of living for US industrial workers was higher than in Europe.  He compares wages and the standard of living in Pittsburgh with Birmingham, England. He finds that, after taking into account the cost of living , the standard of living of unskilled workers was about the same in the two cities, while skilled workers had about twice as high a standard of living. The American advantage grew over time from 1890 to 1914, and there was a heavy steady flow of skilled workers from Britain to industrial America.  Shergold revealed that skilled Americans did earn higher wages than the British, yet unskilled workers did not, while Americans worked longer hours, with a greater chance of injury, and had fewer social services. Nationwide from 1890 to 1914 the unionized wages in manufacturing rose from $17.63 a week to $21.37, and the average work week fell from 54.4 to 48.8 hours a week. The pay for all factory workers was $11.94 and $15.84 because unions reached only the more skilled factory workers.",
-        "original_question": "How many total years did the American advantage grow over time?",
-        "original_answer_data": {
-          "spans": [
-            "24"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 455
+        "source": "SimpleQA",
+        "line_number": 247,
+        "original_data": {
+          "metadata": "{'topic': 'Other', 'answer_type': 'Other', 'urls': ['https://en.wikipedia.org/wiki/Valencia_Bioparc', \"https://bioparcvalencia.es/en/bebe-elefante/#:~:text=BIOPARC%20Valencia's%20elephant%20calf%20is,More%20information%20in%20this%20link.&text=This%20was%20the%20shocking%20%E2%80%9Clive%20birth%E2%80%9D.\", 'https://en.wikipedia.org/wiki/Makena_(elephant)', 'https://www.zooborns.com/zooborns/2022/12/the-bioparc-valencia-elephant-calf-is-named-makena-by-popular-decision.html#google_vignette']}",
+          "problem": "What was the name of the first elephant born in Valencia Bioparc?",
+          "answer": "Makena",
+          "id": "example_247"
+        }
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Between 1911 and 1915, Haiti was politically unstable: a series of political assassinations and forced exiles resulted in six presidents holding office during this period. Various revolutionary armies carried out the coups. Each was formed by cacos, or peasant militia from the mountains of the north, or who invaded along the porous Dominican border. They were enlisted by rival political factions under the promises of money, which would be paid after a successful revolution, and the opportunity to plunder. The United States was particularly apprehensive about the roles  played by Imperial Germany in the Western hemisphere. Controlling Tortuga, it had intervened in Haiti  and other Caribbean nations at several times during the previous few decades to exert its influence as a rival power. Germany was increasingly hostile to United States domination of the region under its claimed Monroe Doctrine. In the lead-up to the World War I, the strategic importance of the island of Hispaniola, with its manpower, material wealth, and port facilities, was understood by almost all navies operating in the Caribbean, including Germany and the still-neutral United States. Germany had invested in military and intelligence gathering across Hispaniola as part of a wider network of German interest in Latin America and the Caribbean during the 1890s through the 1910s. The United States' concern over Germany's ambitions was mirrored by apprehension and rivalry between American businessmen and the small German community in Haiti, which although numbering only about 200 in 1910 wielded a disproportionate amount of economic power. German nationals controlled about 80 percent of the country's international commerce. They owned and operated utilities in Cap-Ha\u00eften and Port-au-Prince, including the main wharf and a tramway in the capital, and also had built the railway serving the Plain of the Cul-de-Sac.",
-      "original_question": "what percent of Hispaniola did the germans own?",
-      "original_answer_data": {
-        "spans": [
-          "80"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 454
+      "source": "SimpleQA",
+      "line_number": 290,
+      "original_data": {
+        "metadata": "{'topic': 'Politics', 'answer_type': 'Date', 'urls': ['https://en.wikipedia.org/wiki/Oliviero_Diliberto#:~:text=Political%20career,-A%20former%20member&text=First%20elected%20as%20MP%20in,which%20Romano%20Prodi%20was%20defeated.', 'https://en.wikipedia.org/wiki/Oliviero_Diliberto', 'https://alchetron.com/Oliviero-Diliberto']}",
+        "problem": "In what year was Oliviero Diliberto first elected as an MP for the Communist Refoundation Party?",
+        "answer": "1994",
+        "id": "example_290"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Of the built up area, industrial buildings made up 1.7% of the total area while housing and buildings made up 10.7% and transportation infrastructure made up 7.3%.  Power and water infrastructure as well as other special developed areas made up 3.5% of the area while parks, green belts and sports fields made up 1.5%.  Out of the forested land, 38.8% of the total land area is heavily forested and 1.2% is covered with orchards or small clusters of trees.  Of the agricultural land, 22.0% is used for growing crops and  12.1% is pastures.  Of the water in the municipality, 0.2% is in lakes and 0.6% is in rivers and streams.",
-      "original_question": "How many percent higher were housing and buildings over industrial buildings and water and power infrastructures?",
-      "original_answer_data": {
-        "spans": [
-          "5.5"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 249
+      "source": "SimpleQA",
+      "line_number": 493,
+      "original_data": {
+        "metadata": "{'topic': 'Politics', 'answer_type': 'Place', 'urls': ['https://en.wikipedia.org/wiki/Georgi_Dimitrov', 'https://en.wikipedia.org/wiki/Georgi_Dimitrov#:~:text=Death,-The%20new%2Dbuilt&text=Dimitrov%20died%20on%202%20July%201949%20in%20the%20Barvikha%20sanatorium%20near%20Moscow.', 'https://spartacus-educational.com/GERdimitrov.htm']}",
+        "problem": "At what hospital did Communist politician Georgi Dimitrov die in 1949?",
+        "answer": " Barvikha sanatorium ",
+        "id": "example_493"
+      }
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "As of the 2010 United States Census, there were 146,551 people, 51,214 households, and 38,614 families residing in the county. The population density was . There were 54,963 housing units at an average density of . The racial makeup of the county was 50.3% white, 41.0% black or African American, 3.0% Asian, 0.7% American Indian, 0.1% Pacific islander, 1.3% from other races, and 3.7% from two or more races. Those of Hispanic or Latino origin made up 4.3% of the population. In terms of ancestry, 12.6% were Germans, 10.8% were Irish people, 8.7% were English people, 6.3% were Americans, and 5.1% were Italians.",
-      "original_question": "How many percent were not english?",
-      "original_answer_data": {
-        "spans": [
-          "91.3"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 846
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In the county, the population was spread out with 23.5% under the age of 18, 7.8% from 18 to 24, 28.5% from 25 to 44, 25.9% from 45 to 64, and 14.2% who were 65 years of age or older.  The median age was 40 years. For every 100 females, there were 93.8 males.  For every 100 females age 18 and over, there were 90.5 males.",
-      "original_question": "How many percent were not from 45 to 64?",
-      "original_answer_data": {
-        "spans": [
-          "74.1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 279
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Australian historian Peter Shergold confirms the findings of many scholars that the standard of living for US industrial workers was higher than in Europe.  He compares wages and the standard of living in Pittsburgh with Birmingham, England. He finds that, after taking into account the cost of living , the standard of living of unskilled workers was about the same in the two cities, while skilled workers had about twice as high a standard of living. The American advantage grew over time from 1890 to 1914, and there was a heavy steady flow of skilled workers from Britain to industrial America.  Shergold revealed that skilled Americans did earn higher wages than the British, yet unskilled workers did not, while Americans worked longer hours, with a greater chance of injury, and had fewer social services. Nationwide from 1890 to 1914 the unionized wages in manufacturing rose from $17.63 a week to $21.37, and the average work week fell from 54.4 to 48.8 hours a week. The pay for all factory workers was $11.94 and $15.84 because unions reached only the more skilled factory workers.",
-      "original_question": "How many total years did the American advantage grow over time?",
-      "original_answer_data": {
-        "spans": [
-          "24"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 455
+      "source": "SimpleQA",
+      "line_number": 247,
+      "original_data": {
+        "metadata": "{'topic': 'Other', 'answer_type': 'Other', 'urls': ['https://en.wikipedia.org/wiki/Valencia_Bioparc', \"https://bioparcvalencia.es/en/bebe-elefante/#:~:text=BIOPARC%20Valencia's%20elephant%20calf%20is,More%20information%20in%20this%20link.&text=This%20was%20the%20shocking%20%E2%80%9Clive%20birth%E2%80%9D.\", 'https://en.wikipedia.org/wiki/Makena_(elephant)', 'https://www.zooborns.com/zooborns/2022/12/the-bioparc-valencia-elephant-calf-is-named-makena-by-popular-decision.html#google_vignette']}",
+        "problem": "What was the name of the first elephant born in Valencia Bioparc?",
+        "answer": "Makena",
+        "id": "example_247"
+      }
     }
   ],
   "example_indices": [
-    181,
-    182,
-    183,
-    184,
-    185
+    71,
+    72,
+    73
   ],
   "results": [
     {
       "success": true,
-      "answer": "The provided answer is correct. The passage specifies that German nationals controlled about 80% of Haiti's international commerce, not 80% of Hispaniola.",
-      "output": "ANSWER_START\nThe provided answer is correct. The passage specifies that German nationals controlled about 80% of Haiti's international commerce, not 80% of Hispaniola.\n\nANSWER_END\n",
+      "answer": "1996",
+      "output": "ANSWER_START\n1996\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_22.jsonl",
       "evaluation": {
         "match": false,
         "confidence": 1,
-        "explanation": "The system answer explains why the golden answer would be incorrect. The system answer does not contain the golden answer within it."
+        "explanation": "The system answer (1996) and the golden answer (1994) are different numerical values. Therefore, they do not convey the same information."
       },
       "match": false
     },
     {
       "success": true,
-      "answer": "The question asks for the percentage difference between housing and buildings and the sum of industrial buildings and water and power infrastructure.\n\nHousing and buildings: 10.7%\nIndustrial buildings: 1.7%\nWater and power infrastructure: 3.5%\n\nSum of industrial buildings and water and power infrastructure: 1.7% + 3.5% = 5.2%\nDifference between housing and buildings and the sum: 10.7% - 5.2% = 5.5%\n\nThe answer is 5.5.",
-      "output": "ANSWER_START\nThe question asks for the percentage difference between housing and buildings and the sum of industrial buildings and water and power infrastructure.\n\nHousing and buildings: 10.7%\nIndustrial buildings: 1.7%\nWater and power infrastructure: 3.5%\n\nSum of industrial buildings and water and power infrastructure: 1.7% + 3.5% = 5.2%\nDifference between housing and buildings and the sum: 10.7% - 5.2% = 5.5%\n\nThe answer is 5.5.\n\nANSWER_END\n",
+      "answer": "Barvikha Sanatorium near Moscow",
+      "output": "ANSWER_START\nBarvikha Sanatorium near Moscow\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_22.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer correctly calculates the percentage difference and arrives at the same final answer as the golden answer (5.5)."
+        "explanation": "The system answer contains the golden answer, and the addition of 'near Moscow' does not change the meaning or invalidate the golden answer."
       },
       "match": true
     },
     {
       "success": true,
-      "answer": "The passage states that 8.7% of the population were English. To find the percentage of the population that was *not* English, we subtract this value from 100%.\n\n100% - 8.7% = 91.3%\n\nSo the answer is 91.3.",
-      "output": "ANSWER_START\nThe passage states that 8.7% of the population were English. To find the percentage of the population that was *not* English, we subtract this value from 100%.\n\n100% - 8.7% = 91.3%\n\nSo the answer is 91.3.\n\nANSWER_END\n",
+      "answer": "Makena",
+      "output": "ANSWER_START\nMakena\n\nANSWER_END\n",
       "trace_file": "archive/trace_iteration_22.jsonl",
       "evaluation": {
         "match": true,
         "confidence": 1,
-        "explanation": "The system answer explains the reasoning and arrives at the same numerical answer as the golden answer."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The passage states that 25.9% of the population was from 45 to 64. The question asks for the percentage of the population that was *not* from 45 to 64. To find this, we subtract 25.9% from 100%.\n\n100% - 25.9% = 74.1%\n\nThe answer is correct.",
-      "output": "ANSWER_START\nThe passage states that 25.9% of the population was from 45 to 64. The question asks for the percentage of the population that was *not* from 45 to 64. To find this, we subtract 25.9% from 100%.\n\n100% - 25.9% = 74.1%\n\nThe answer is correct.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_22.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer correctly calculates and states the final answer as 74.1%, which is semantically equivalent to the golden answer of 74.1."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The passage states the American advantage grew from 1890 to 1914.\nTo calculate the number of years, subtract the starting year from the ending year: 1914 - 1890 = 24\n\nThe answer is correct.",
-      "output": "ANSWER_START\nThe passage states the American advantage grew from 1890 to 1914.\nTo calculate the number of years, subtract the starting year from the ending year: 1914 - 1890 = 24\n\nThe answer is correct.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_22.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer provides the reasoning and calculation leading to the correct answer of 24, which is the same as the golden answer."
+        "explanation": "Both answers are the same name 'Makena'."
       },
       "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.8,
-    "correct_count": 4,
-    "total_count": 5,
+    "accuracy": 0.6666666666666666,
+    "correct_count": 2,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
         "success": true,
-        "system_answer": "The provided answer is correct. The passage specifies that German nationals controlled about 80% of Haiti's international commerce, not 80% of Hispaniola.",
-        "golden_answer": "80",
-        "output": "ANSWER_START\nThe provided answer is correct. The passage specifies that German nationals controlled about 80% of Haiti's international commerce, not 80% of Hispaniola.\n\nANSWER_END\n",
+        "system_answer": "1996",
+        "golden_answer": "1994",
+        "output": "ANSWER_START\n1996\n\nANSWER_END\n",
         "match": false,
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer explains why the golden answer would be incorrect. The system answer does not contain the golden answer within it."
+          "explanation": "The system answer (1996) and the golden answer (1994) are different numerical values. Therefore, they do not convey the same information."
         },
         "capability_failures": []
       },
       {
         "sample_id": 1,
         "success": true,
-        "system_answer": "The question asks for the percentage difference between housing and buildings and the sum of industrial buildings and water and power infrastructure.\n\nHousing and buildings: 10.7%\nIndustrial buildings: 1.7%\nWater and power infrastructure: 3.5%\n\nSum of industrial buildings and water and power infrastructure: 1.7% + 3.5% = 5.2%\nDifference between housing and buildings and the sum: 10.7% - 5.2% = 5.5%\n\nThe answer is 5.5.",
-        "golden_answer": "5.5",
-        "output": "ANSWER_START\nThe question asks for the percentage difference between housing and buildings and the sum of industrial buildings and water and power infrastructure.\n\nHousing and buildings: 10.7%\nIndustrial buildings: 1.7%\nWater and power infrastructure: 3.5%\n\nSum of industrial buildings and water and power infrastructure: 1.7% + 3.5% = 5.2%\nDifference between housing and buildings and the sum: 10.7% - 5.2% = 5.5%\n\nThe answer is 5.5.\n\nANSWER_END\n",
+        "system_answer": "Barvikha Sanatorium near Moscow",
+        "golden_answer": "Barvikha sanatorium",
+        "output": "ANSWER_START\nBarvikha Sanatorium near Moscow\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer correctly calculates the percentage difference and arrives at the same final answer as the golden answer (5.5)."
+          "explanation": "The system answer contains the golden answer, and the addition of 'near Moscow' does not change the meaning or invalidate the golden answer."
         }
       },
       {
         "sample_id": 2,
         "success": true,
-        "system_answer": "The passage states that 8.7% of the population were English. To find the percentage of the population that was *not* English, we subtract this value from 100%.\n\n100% - 8.7% = 91.3%\n\nSo the answer is 91.3.",
-        "golden_answer": "91.3",
-        "output": "ANSWER_START\nThe passage states that 8.7% of the population were English. To find the percentage of the population that was *not* English, we subtract this value from 100%.\n\n100% - 8.7% = 91.3%\n\nSo the answer is 91.3.\n\nANSWER_END\n",
+        "system_answer": "Makena",
+        "golden_answer": "Makena",
+        "output": "ANSWER_START\nMakena\n\nANSWER_END\n",
         "match": true,
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer explains the reasoning and arrives at the same numerical answer as the golden answer."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "The passage states that 25.9% of the population was from 45 to 64. The question asks for the percentage of the population that was *not* from 45 to 64. To find this, we subtract 25.9% from 100%.\n\n100% - 25.9% = 74.1%\n\nThe answer is correct.",
-        "golden_answer": "74.1",
-        "output": "ANSWER_START\nThe passage states that 25.9% of the population was from 45 to 64. The question asks for the percentage of the population that was *not* from 45 to 64. To find this, we subtract 25.9% from 100%.\n\n100% - 25.9% = 74.1%\n\nThe answer is correct.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer correctly calculates and states the final answer as 74.1%, which is semantically equivalent to the golden answer of 74.1."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "The passage states the American advantage grew from 1890 to 1914.\nTo calculate the number of years, subtract the starting year from the ending year: 1914 - 1890 = 24\n\nThe answer is correct.",
-        "golden_answer": "24",
-        "output": "ANSWER_START\nThe passage states the American advantage grew from 1890 to 1914.\nTo calculate the number of years, subtract the starting year from the ending year: 1914 - 1890 = 24\n\nThe answer is correct.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides the reasoning and calculation leading to the correct answer of 24, which is the same as the golden answer."
+          "explanation": "Both answers are the same name 'Makena'."
         }
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nThere are no runtime errors present in the provided data.\n\n## STRENGTHS\n1. **Accurate Calculation:** The system demonstrates proficiency in basic arithmetic operations (addition, subtraction) required for solving percentage-related questions.\n2. **Clear Reasoning:** The system articulates its reasoning process in a step-by-step manner, making it easy to follow the logic behind the answer.\n3. **Constraint Handling (Basic):** The system can correctly apply the constraint of subtracting from 100% when the question asks for the percentage of something *not* being a certain category.\n\n## WEAKNESSES\n1. **Lack of Semantic Understanding:** The system struggles with understanding the context of the question and passage. It can misinterpret what the question is asking about (e.g., Haiti vs. Hispaniola).\n2. **Poor Information Extraction:** The system sometimes extracts the wrong information from the passage, leading to incorrect reasoning.\n\n## CRITICAL BOTTLENECKS\n1. **Misinterpretation of Question Context:** A major bottleneck is the system's inability to accurately interpret the question's intent and the specific information requested, leading to applying computations to the wrong data.\n2. **Failure to Differentiate Similar Concepts:** The system struggles to differentiate similar concepts, like confusing a country's commerce with the whole country itself.\n\n## ERROR PATTERNS\nThe most recurring error pattern is misinterpreting the question's focus (e.g., confusing \"Haiti's international commerce\" with \"Hispaniola\"). This highlights a fundamental misunderstanding of the semantics and context of the questions.\n\n## PRIMARY ISSUE\nThe primary issue is **deficient semantic understanding** and a consequential **failure in information extraction**. The system struggles to correctly identify the target of the question within the context of the provided passage.\n\n## IMPROVEMENT AREAS\n1. **Enhance Semantic Understanding:** Focus on improving the system's ability to understand the question's context and intent.\n2. **Refine Information Extraction:** Improve the precision of information extraction by incorporating better context awareness.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Contextual Keyword Analysis:** Before performing calculations, implement a module that analyzes the question for keywords and their relationships to entities mentioned in the passage. This could involve techniques like dependency parsing or semantic role labeling.\n2. **Entity Linking and Disambiguation:** Incorporate entity linking to resolve ambiguities in entities. For example, ensure the system correctly identifies \"Haiti\" as a subset of \"Hispaniola\" and avoids mixing them up.\n3. **Question Decomposition:** Decompose complex questions into simpler sub-questions to facilitate more accurate information extraction and reasoning.\n4. **Example-Based Training:** Provide the model with more training examples that explicitly highlight the differences between semantically similar but distinct concepts.\n5. **Add Intermediate Output for Error Cases:** Specifically for error cases, add print statements to see which variables were retrieved, or used to determine the final answer.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information_extraction: Failed (extracted information about Haiti when the question asked about Hispaniola).\n    *   solution_generation: N/A (due to failed information extraction).\n",
+      "text_report": "## RUNTIME ERRORS\nThere are no explicit runtime errors like `JSONDecodeError` or `TypeError` reported in the provided error cases. However, the presence of an incorrect answer suggests a logical or information retrieval error within the system's reasoning process.\n\n## STRENGTHS\n\n1.  **Correct Answer Extraction:** In successful cases, the system demonstrates the ability to extract the correct answer from the context it is operating in, as seen in sample IDs 1 and 2.\n2.  **Similarity Identification:** The system recognizes when its answer is semantically similar to the golden answer, even with slight variations (e.g., \"Barvikha Sanatorium near Moscow\" vs. \"Barvikha sanatorium\").\n\n## WEAKNESSES\n\n1.  **Incorrect Information Retrieval:** The system retrieves incorrect information regarding the year Oliviero Diliberto was first elected as an MP.\n2.  **Lack of Verification:** The system doesn't have a robust verification mechanism to confirm the accuracy of retrieved information before presenting it as the final answer.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Information Source Reliability:** The system relies on a source of information that is either flawed or misinterpreted, leading to incorrect answers. The lack of cross-referencing or validation of the initial information source is a significant bottleneck.\n2.  **Verification Process:** The system lacks a robust verification process that would highlight potential errors in its answer compared to related/alternative facts.\n\n## ERROR PATTERNS\n\nThe main error pattern is **incorrect factual information retrieval**. The system confidently provides an answer, but it's factually wrong according to the golden answer. This suggests a problem in how the system accesses, processes, or understands the knowledge source it uses.\n\n## PRIMARY ISSUE\n\nThe primary issue is **failure in reliable fact retrieval and validation**. The system extracts information from a source but fails to verify its correctness before presenting it as the final answer. This highlights a critical weakness in the system's ability to ground its reasoning in accurate, verifiable facts.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Retrieval Accuracy:** The system needs significant improvement in the accuracy of information retrieval.\n2.  **Fact Verification:** Implement a robust fact verification mechanism to cross-reference information from multiple sources and identify potential errors.\n3.  **Source Credibility Assessment:** The system needs to be able to assess the credibility of its information sources.\n4. **Intermediate Output Logging:** Implement the ability to log intermediate outputs (e.g. retrieved snippets, reasoning steps) to facilitate debugging.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a multi-source retrieval strategy:** When answering a question, retrieve information from multiple, diverse sources.\n2.  **Implement a fact-checking module:** Use a pre-trained fact-checking model or build a custom one to verify the retrieved information against a reliable knowledge base (e.g., Wikidata).\n3.  **Implement confidence scoring:** Assign confidence scores to each piece of retrieved information based on the source's reliability, consistency across sources, and agreement with other known facts.\n4.  **Implement better tracing/logging:** Add detailed logging of intermediate steps, retrieved information, and confidence scores. This will enable easier debugging and identification of error sources.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   information_extraction: Failed to extract the correct year.\n    *   solution_verification: Failed to verify the extracted information leading to an incorrect answer.\n    *   decision_making: Made a decision based on inaccurate information.\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The primary issue is **deficient semantic understanding** and a consequential **failure in information extraction**. The system struggles to correctly identify the target of the question within the context of the provided passage.",
+      "primary_issue": "The primary issue is **failure in reliable fact retrieval and validation**. The system extracts information from a source but fails to verify its correctness before presenting it as the final answer. This highlights a critical weakness in the system's ability to ground its reasoning in accurate, verifiable facts.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a comprehensive capability report for your AI system based on the provided performance summary, error analysis, execution outputs, and other details.\n\n## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe execution outputs reveal the following:\n\n*   **Sample 0:** As highlighted in the error analysis, this example demonstrates a clear failure in semantic understanding and information extraction. The output correctly identifies the *provided answer* as incorrect because the passage refers to \"Haiti\" while the question refers to \"Hispaniola.\" However, the underlying AI system likely made that same error in its original reasoning, causing the initial misinterpretation.\n*   **Sample 1:** This execution demonstrates accurate calculation and a reasonable understanding of the question. The steps are clearly laid out. This represents a successful case where the system correctly extracts, manipulates, and combines numerical data.\n*   **Sample 2:** This execution also showcases accurate calculation and the ability to handle a simple constraint (subtracting from 100%). The system clearly states the reasoning and arrives at the correct answer.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates mixed capabilities. It possesses strengths in basic arithmetic, logical reasoning, and some constraint handling. However, its semantic understanding and information extraction capabilities are significantly lacking, leading to errors in cases requiring contextual awareness and nuanced comprehension. The ability to perform calculations accurately is negated when applied to incorrectly extracted information.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Precision:** The system is generally accurate in its calculations.\n*   **Logical Step-by-Step Reasoning:** The system can articulate its reasoning process.\n*   **Simple Constraint Application:** The system can handle basic constraints like subtracting from 100%.\n\n### KEY WEAKNESSES\n\n*   **Deficient Semantic Understanding:** The system struggles to understand the nuances and context of the questions.\n*   **Inaccurate Information Extraction:** The system often extracts the wrong information from the passage.\n*   **Confusion of Similar Concepts:** The system struggles to differentiate between similar entities or concepts.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **semantic understanding**. Without accurate semantic understanding, all other capabilities are undermined by operating on incorrect information. This is the foundation upon which successful reasoning and problem-solving are built.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Contextual Keyword Analysis with Dependency Parsing:** Enhance the keyword analysis module to include dependency parsing. This will help the system understand the *relationships* between keywords and entities.  For example, in the Haiti/Hispaniola example, dependency parsing would reveal which nouns are modifying \"commerce\" and help the system distinguish between \"Haiti's commerce\" and \"Hispaniola's commerce.\"\n2.  **Integrate an Entity Linking Module with Disambiguation:** Implement an entity linking module that connects entities mentioned in the passage to external knowledge bases (e.g., Wikipedia, Wikidata). This will allow the system to resolve ambiguities. This would allow it to link \"Haiti\" and \"Hispaniola\" and show their relationship is related to being on the same island, but being separate entities.\n3.  **Develop a Question Decomposition Module:** Break down complex questions into simpler sub-questions. This will force the system to address each component of the question individually, reducing the chances of misinterpreting the overall intent. For example, the Haiti/Hispaniola question could be broken into sub-questions: \"What is the question asking about?\" and \"What does the passage say about that?\".\n4.  **Implement a Targeted Example-Based Training Regime:** Create a dataset of examples specifically designed to address the identified weaknesses. This dataset should include:\n    *   Questions that test the system's ability to differentiate between similar entities.\n    *   Questions that require a deep understanding of the context.\n    *   Questions that are phrased in multiple ways to test the system's robustness.\n5.  **Debug Print Statements:** Insert print statements to view extracted variables, retrieved values, and the system's intermediate reasoning steps for error cases. This detailed logging will provide more insight into what went wrong and where the system failed to extract and retrieve the appropriate data.\n\n### CAPABILITY TREND\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, the error analysis reveals that the system consistently struggles with semantic understanding, suggesting that this deficiency is a stable issue. Without targeted interventions, the system's capabilities in this area are unlikely to improve significantly. Improvement in semantic understanding will likely show marked improvements to accuracy rates as the math is typically correct when given the appropriate data.\n",
+      "text_report": "Okay, here's a thorough capability assessment report based on the provided performance summary, error analysis, sample execution outputs, and improvement suggestions.\n\n## EXECUTION ANALYSIS\n\nThe execution outputs reveal a few key observations:\n\n*   **Clear Delimiters:** The `ANSWER_START` and `ANSWER_END` delimiters are correctly used in all samples, which is good for post-processing and extraction of the answer.\n*   **Direct Answer Format:** The system provides direct answers, rather than conversational responses, which is efficient, but also means there is less chance to catch and flag errors.\n*   **Sample ID 0 Issue:** The first answer \"1996\" is incorrect. This corroborates the error analysis. The system confidently returns a wrong fact, highlighting the lack of verification.\n*   **Sample ID 1 Issue:** The second answer \"Barvikha Sanatorium near Moscow\" is correct.\n*   **Sample ID 2 Issue:** The third answer \"Makena\" is correct.\n*   **Inconsistency:** There is inconsistency on how well the LLM performs. 2/3 correct is not a good ratio.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic capability for extracting information and providing answers, but its reliability is questionable due to inaccuracies in fact retrieval and validation. It can correctly identify and extract information in some cases, but lacks sufficient mechanisms to ensure the accuracy of its responses.\n\n## KEY STRENGTHS\n\n*   **Answer Extraction:** The ability to extract and present the answer in a consistent format using clear delimiters.\n*   **Semantic Understanding:** The system shows basic semantic understanding by recognizing near-matches even with slight variations in wording (as mentioned in strengths).\n\n## KEY WEAKNESSES\n\n*   **Fact Retrieval Accuracy:** The system's primary weakness is its vulnerability to retrieving and providing incorrect factual information. This undermines its overall usefulness and reliability.\n*   **Lack of Fact Verification:** The absence of a robust fact verification process is a critical flaw. The system confidently presents answers without sufficient cross-referencing or validation.\n*   **Inconsistent Performance:** The model is inconsistent. Correctly answering only 2/3 of the questions is insufficient.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Fact Retrieval Accuracy and Validation**. Improving this will directly address the core issue of providing incorrect information, which significantly impacts the system's overall utility.\n\n## ACTIONABLE RECOMMENDATIONS\n\nHere's a set of concrete actions for the next iteration, based on the provided suggestions and the execution analysis:\n\n1.  **Implement Multi-Source Retrieval (MVP):** Start with a simple implementation of multi-source retrieval for a subset of question types (e.g., those involving dates).  Log the retrieved snippets from each source, including source identifiers.  Evaluate the performance improvement and resource costs.\n2.  **Develop a Basic Fact-Checking Module (POC):** Create a proof-of-concept fact-checking module using a lightweight technique (e.g., comparing the retrieved answer against a summary of top search results for the same query from a reliable search engine, using regex for dates/numbers). Focus on speed and feasibility for this initial test.\n3.  **Implement Intermediate Output Logging:** Add comprehensive logging to capture the intermediate outputs of the system, including retrieved snippets from all sources, confidence scores (if implemented), and the fact-checking module's output. This is critical for debugging and understanding where the system is failing. The logs should have detailed timestamps so that error points can easily be identified.\n4.  **Prioritize Date Extraction:** Given the specific error in Sample ID 0, prioritize improving date extraction accuracy. Use regular expressions, named entity recognition, and consistency checks (e.g., validating date formats) to improve date parsing and retrieval.\n5.  **Implement Threshold for \"Don't Know\" Response:** If confidence levels for retrieved information are below a certain threshold, implement a mechanism for the system to respond with \"I don't know\" or \"I'm not sure.\" This is preferable to providing incorrect information.\n\n## CAPABILITY TREND\n\nBased on the limited data (one iteration), it's difficult to assess the capability trend definitively. However, a baseline is established, and future iterations should be measured against this performance (67% accuracy) using the same evaluation dataset to determine if the implemented improvements are leading to an upward trend. Regularly monitoring and tracking accuracy metrics is critical.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nThere are no runtime errors present in the provided data.\n\n## STRENGTHS\n1. **Accurate Calculation:** The system demonstrates proficiency in basic arithmetic operations (addition, subtraction) required for solving percentage-related questions.\n2. **Clear Reasoning:** The system articulates its reasoning process in a step-by-step manner, making it easy to follow the logic behind the answer.\n3. **Constraint Handling (Basic):** The system can correctly apply the constraint of subtracting from 100% when the question asks for the percentage of something *not* being a certain category.\n\n## WEAKNESSES\n1. **Lack of Semantic Understanding:** The system struggles with understanding the context of the question and passage. It can misinterpret what the question is asking about (e.g., Haiti vs. Hispaniola).\n2. **Poor Information Extraction:** The system sometimes extracts the wrong information from the passage, leading to incorrect reasoning.\n\n## CRITICAL BOTTLENECKS\n1. **Misinterpretation of Question Context:** A major bottleneck is the system's inability to accurately interpret the question's intent and the specific information requested, leading to applying computations to the wrong data.\n2. **Failure to Differentiate Similar Concepts:** The system struggles to differentiate similar concepts, like confusing a country's commerce with the whole country itself.\n\n## ERROR PATTERNS\nThe most recurring error pattern is misinterpreting the question's focus (e.g., confusing \"Haiti's international commerce\" with \"Hispaniola\"). This highlights a fundamental misunderstanding of the semantics and context of the questions.\n\n## PRIMARY ISSUE\nThe primary issue is **deficient semantic understanding** and a consequential **failure in information extraction**. The system struggles to correctly identify the target of the question within the context of the provided passage.\n\n## IMPROVEMENT AREAS\n1. **Enhance Semantic Understanding:** Focus on improving the system's ability to understand the question's context and intent.\n2. **Refine Information Extraction:** Improve the precision of information extraction by incorporating better context awareness.\n\n## IMPROVEMENT SUGGESTIONS\n1. **Contextual Keyword Analysis:** Before performing calculations, implement a module that analyzes the question for keywords and their relationships to entities mentioned in the passage. This could involve techniques like dependency parsing or semantic role labeling.\n2. **Entity Linking and Disambiguation:** Incorporate entity linking to resolve ambiguities in entities. For example, ensure the system correctly identifies \"Haiti\" as a subset of \"Hispaniola\" and avoids mixing them up.\n3. **Question Decomposition:** Decompose complex questions into simpler sub-questions to facilitate more accurate information extraction and reasoning.\n4. **Example-Based Training:** Provide the model with more training examples that explicitly highlight the differences between semantically similar but distinct concepts.\n5. **Add Intermediate Output for Error Cases:** Specifically for error cases, add print statements to see which variables were retrieved, or used to determine the final answer.\n\n## CAPABILITY MAPPING\n*   **Sample ID 0:**\n    *   information_extraction: Failed (extracted information about Haiti when the question asked about Hispaniola).\n    *   solution_generation: N/A (due to failed information extraction).\n",
-    "capability_report_text": "Okay, here's a comprehensive capability report for your AI system based on the provided performance summary, error analysis, execution outputs, and other details.\n\n## CAPABILITY REPORT\n\n### EXECUTION ANALYSIS\n\nThe execution outputs reveal the following:\n\n*   **Sample 0:** As highlighted in the error analysis, this example demonstrates a clear failure in semantic understanding and information extraction. The output correctly identifies the *provided answer* as incorrect because the passage refers to \"Haiti\" while the question refers to \"Hispaniola.\" However, the underlying AI system likely made that same error in its original reasoning, causing the initial misinterpretation.\n*   **Sample 1:** This execution demonstrates accurate calculation and a reasonable understanding of the question. The steps are clearly laid out. This represents a successful case where the system correctly extracts, manipulates, and combines numerical data.\n*   **Sample 2:** This execution also showcases accurate calculation and the ability to handle a simple constraint (subtracting from 100%). The system clearly states the reasoning and arrives at the correct answer.\n\n### CAPABILITY ASSESSMENT\n\nThe AI system demonstrates mixed capabilities. It possesses strengths in basic arithmetic, logical reasoning, and some constraint handling. However, its semantic understanding and information extraction capabilities are significantly lacking, leading to errors in cases requiring contextual awareness and nuanced comprehension. The ability to perform calculations accurately is negated when applied to incorrectly extracted information.\n\n### KEY STRENGTHS\n\n*   **Arithmetic Precision:** The system is generally accurate in its calculations.\n*   **Logical Step-by-Step Reasoning:** The system can articulate its reasoning process.\n*   **Simple Constraint Application:** The system can handle basic constraints like subtracting from 100%.\n\n### KEY WEAKNESSES\n\n*   **Deficient Semantic Understanding:** The system struggles to understand the nuances and context of the questions.\n*   **Inaccurate Information Extraction:** The system often extracts the wrong information from the passage.\n*   **Confusion of Similar Concepts:** The system struggles to differentiate between similar entities or concepts.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **semantic understanding**. Without accurate semantic understanding, all other capabilities are undermined by operating on incorrect information. This is the foundation upon which successful reasoning and problem-solving are built.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Contextual Keyword Analysis with Dependency Parsing:** Enhance the keyword analysis module to include dependency parsing. This will help the system understand the *relationships* between keywords and entities.  For example, in the Haiti/Hispaniola example, dependency parsing would reveal which nouns are modifying \"commerce\" and help the system distinguish between \"Haiti's commerce\" and \"Hispaniola's commerce.\"\n2.  **Integrate an Entity Linking Module with Disambiguation:** Implement an entity linking module that connects entities mentioned in the passage to external knowledge bases (e.g., Wikipedia, Wikidata). This will allow the system to resolve ambiguities. This would allow it to link \"Haiti\" and \"Hispaniola\" and show their relationship is related to being on the same island, but being separate entities.\n3.  **Develop a Question Decomposition Module:** Break down complex questions into simpler sub-questions. This will force the system to address each component of the question individually, reducing the chances of misinterpreting the overall intent. For example, the Haiti/Hispaniola question could be broken into sub-questions: \"What is the question asking about?\" and \"What does the passage say about that?\".\n4.  **Implement a Targeted Example-Based Training Regime:** Create a dataset of examples specifically designed to address the identified weaknesses. This dataset should include:\n    *   Questions that test the system's ability to differentiate between similar entities.\n    *   Questions that require a deep understanding of the context.\n    *   Questions that are phrased in multiple ways to test the system's robustness.\n5.  **Debug Print Statements:** Insert print statements to view extracted variables, retrieved values, and the system's intermediate reasoning steps for error cases. This detailed logging will provide more insight into what went wrong and where the system failed to extract and retrieve the appropriate data.\n\n### CAPABILITY TREND\n\nBased on the limited data, it's difficult to definitively assess the capability trend. However, the error analysis reveals that the system consistently struggles with semantic understanding, suggesting that this deficiency is a stable issue. Without targeted interventions, the system's capabilities in this area are unlikely to improve significantly. Improvement in semantic understanding will likely show marked improvements to accuracy rates as the math is typically correct when given the appropriate data.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no explicit runtime errors like `JSONDecodeError` or `TypeError` reported in the provided error cases. However, the presence of an incorrect answer suggests a logical or information retrieval error within the system's reasoning process.\n\n## STRENGTHS\n\n1.  **Correct Answer Extraction:** In successful cases, the system demonstrates the ability to extract the correct answer from the context it is operating in, as seen in sample IDs 1 and 2.\n2.  **Similarity Identification:** The system recognizes when its answer is semantically similar to the golden answer, even with slight variations (e.g., \"Barvikha Sanatorium near Moscow\" vs. \"Barvikha sanatorium\").\n\n## WEAKNESSES\n\n1.  **Incorrect Information Retrieval:** The system retrieves incorrect information regarding the year Oliviero Diliberto was first elected as an MP.\n2.  **Lack of Verification:** The system doesn't have a robust verification mechanism to confirm the accuracy of retrieved information before presenting it as the final answer.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Information Source Reliability:** The system relies on a source of information that is either flawed or misinterpreted, leading to incorrect answers. The lack of cross-referencing or validation of the initial information source is a significant bottleneck.\n2.  **Verification Process:** The system lacks a robust verification process that would highlight potential errors in its answer compared to related/alternative facts.\n\n## ERROR PATTERNS\n\nThe main error pattern is **incorrect factual information retrieval**. The system confidently provides an answer, but it's factually wrong according to the golden answer. This suggests a problem in how the system accesses, processes, or understands the knowledge source it uses.\n\n## PRIMARY ISSUE\n\nThe primary issue is **failure in reliable fact retrieval and validation**. The system extracts information from a source but fails to verify its correctness before presenting it as the final answer. This highlights a critical weakness in the system's ability to ground its reasoning in accurate, verifiable facts.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Retrieval Accuracy:** The system needs significant improvement in the accuracy of information retrieval.\n2.  **Fact Verification:** Implement a robust fact verification mechanism to cross-reference information from multiple sources and identify potential errors.\n3.  **Source Credibility Assessment:** The system needs to be able to assess the credibility of its information sources.\n4. **Intermediate Output Logging:** Implement the ability to log intermediate outputs (e.g. retrieved snippets, reasoning steps) to facilitate debugging.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a multi-source retrieval strategy:** When answering a question, retrieve information from multiple, diverse sources.\n2.  **Implement a fact-checking module:** Use a pre-trained fact-checking model or build a custom one to verify the retrieved information against a reliable knowledge base (e.g., Wikidata).\n3.  **Implement confidence scoring:** Assign confidence scores to each piece of retrieved information based on the source's reliability, consistency across sources, and agreement with other known facts.\n4.  **Implement better tracing/logging:** Add detailed logging of intermediate steps, retrieved information, and confidence scores. This will enable easier debugging and identification of error sources.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 0:**\n    *   information_extraction: Failed to extract the correct year.\n    *   solution_verification: Failed to verify the extracted information leading to an incorrect answer.\n    *   decision_making: Made a decision based on inaccurate information.\n",
+    "capability_report_text": "Okay, here's a thorough capability assessment report based on the provided performance summary, error analysis, sample execution outputs, and improvement suggestions.\n\n## EXECUTION ANALYSIS\n\nThe execution outputs reveal a few key observations:\n\n*   **Clear Delimiters:** The `ANSWER_START` and `ANSWER_END` delimiters are correctly used in all samples, which is good for post-processing and extraction of the answer.\n*   **Direct Answer Format:** The system provides direct answers, rather than conversational responses, which is efficient, but also means there is less chance to catch and flag errors.\n*   **Sample ID 0 Issue:** The first answer \"1996\" is incorrect. This corroborates the error analysis. The system confidently returns a wrong fact, highlighting the lack of verification.\n*   **Sample ID 1 Issue:** The second answer \"Barvikha Sanatorium near Moscow\" is correct.\n*   **Sample ID 2 Issue:** The third answer \"Makena\" is correct.\n*   **Inconsistency:** There is inconsistency on how well the LLM performs. 2/3 correct is not a good ratio.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates a basic capability for extracting information and providing answers, but its reliability is questionable due to inaccuracies in fact retrieval and validation. It can correctly identify and extract information in some cases, but lacks sufficient mechanisms to ensure the accuracy of its responses.\n\n## KEY STRENGTHS\n\n*   **Answer Extraction:** The ability to extract and present the answer in a consistent format using clear delimiters.\n*   **Semantic Understanding:** The system shows basic semantic understanding by recognizing near-matches even with slight variations in wording (as mentioned in strengths).\n\n## KEY WEAKNESSES\n\n*   **Fact Retrieval Accuracy:** The system's primary weakness is its vulnerability to retrieving and providing incorrect factual information. This undermines its overall usefulness and reliability.\n*   **Lack of Fact Verification:** The absence of a robust fact verification process is a critical flaw. The system confidently presents answers without sufficient cross-referencing or validation.\n*   **Inconsistent Performance:** The model is inconsistent. Correctly answering only 2/3 of the questions is insufficient.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Fact Retrieval Accuracy and Validation**. Improving this will directly address the core issue of providing incorrect information, which significantly impacts the system's overall utility.\n\n## ACTIONABLE RECOMMENDATIONS\n\nHere's a set of concrete actions for the next iteration, based on the provided suggestions and the execution analysis:\n\n1.  **Implement Multi-Source Retrieval (MVP):** Start with a simple implementation of multi-source retrieval for a subset of question types (e.g., those involving dates).  Log the retrieved snippets from each source, including source identifiers.  Evaluate the performance improvement and resource costs.\n2.  **Develop a Basic Fact-Checking Module (POC):** Create a proof-of-concept fact-checking module using a lightweight technique (e.g., comparing the retrieved answer against a summary of top search results for the same query from a reliable search engine, using regex for dates/numbers). Focus on speed and feasibility for this initial test.\n3.  **Implement Intermediate Output Logging:** Add comprehensive logging to capture the intermediate outputs of the system, including retrieved snippets from all sources, confidence scores (if implemented), and the fact-checking module's output. This is critical for debugging and understanding where the system is failing. The logs should have detailed timestamps so that error points can easily be identified.\n4.  **Prioritize Date Extraction:** Given the specific error in Sample ID 0, prioritize improving date extraction accuracy. Use regular expressions, named entity recognition, and consistency checks (e.g., validating date formats) to improve date parsing and retrieval.\n5.  **Implement Threshold for \"Don't Know\" Response:** If confidence levels for retrieved information are below a certain threshold, implement a mechanism for the system to respond with \"I don't know\" or \"I'm not sure.\" This is preferable to providing incorrect information.\n\n## CAPABILITY TREND\n\nBased on the limited data (one iteration), it's difficult to assess the capability trend definitively. However, a baseline is established, and future iterations should be measured against this performance (67% accuracy) using the same evaluation dataset to determine if the implemented improvements are leading to an upward trend. Regularly monitoring and tracking accuracy metrics is critical.\n"
   },
   "progressive_testing": {
     "total_examples": 10,
     "successful_runs": 10,
-    "matches": 9,
-    "accuracy": 0.9,
+    "matches": 2,
+    "accuracy": 0.2,
     "results": [
       {
         "success": true,
-        "answer": "31",
-        "output": "ANSWER_START\n31\n\nANSWER_END\n",
+        "answer": "November 8, 2004",
+        "output": "ANSWER_START\nNovember 8, 2004\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "31",
+        "golden_answer": "8 Nov 2004",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
+          "explanation": "Both answers represent the same date, November 8, 2004. The difference is only in the formatting of the date."
         },
         "match": true
       },
       {
         "success": true,
-        "answer": "The passage states that Tony Scheffler caught a touchdown pass and Mike Daniels ran in a fumble for a touchdown in the second quarter. Therefore, the answer is 2.",
-        "output": "ANSWER_START\nThe passage states that Tony Scheffler caught a touchdown pass and Mike Daniels ran in a fumble for a touchdown in the second quarter. Therefore, the answer is 2.\n\nANSWER_END\n",
+        "answer": "June 30, 2022",
+        "output": "ANSWER_START\nJune 30, 2022\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "2",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer states that Tony Scheffler caught a touchdown pass and Mike Daniels ran in a fumble for a touchdown in the second quarter, leading to the answer 2. The golden answer is 2. Both convey the same answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "0",
-        "output": "ANSWER_START\n0\n\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "6",
+        "golden_answer": "June 29 2022",
         "evaluation": {
           "match": false,
           "confidence": 1,
-          "explanation": "The system answer is 0, while the golden answer is 6. These are different numerical values, so they do not convey the same information."
+          "explanation": "The dates are different (June 30 vs June 29), so they do not convey the same information."
         },
         "match": false
       },
       {
         "success": true,
-        "answer": "The passage states that Steve McNair completed a 3-yard TD pass to Todd Heap. This was followed by two field goals by Stover. Therefore, Todd Heap scored the last touchdown of the game.\n\nFinal Answer: Todd Heap",
-        "output": "ANSWER_START\nThe passage states that Steve McNair completed a 3-yard TD pass to Todd Heap. This was followed by two field goals by Stover. Therefore, Todd Heap scored the last touchdown of the game.\n\nFinal Answer: Todd Heap\n\nANSWER_END\n",
+        "answer": "1972",
+        "output": "ANSWER_START\n1972\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "Todd Heap",
+        "golden_answer": "1965",
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "Both answers identify Todd Heap as the scorer of the last touchdown."
+          "explanation": "The years 1972 and 1965 are distinct and do not represent the same information."
         },
-        "match": true
+        "match": false
       },
       {
         "success": true,
-        "answer": "The siege of Meaux began on October 6, 1421, and Henry V died on August 31, 1422. This is less than one year.\n\nSo the answer is correct.",
-        "output": "ANSWER_START\nThe siege of Meaux began on October 6, 1421, and Henry V died on August 31, 1422. This is less than one year.\n\nSo the answer is correct.\n\nANSWER_END\n",
+        "answer": "February 2023",
+        "output": "ANSWER_START\nFebruary 2023\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "1",
+        "golden_answer": " April 2023",
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer correctly deduces that the siege and death occurred less than a year apart and implicitly suggests that the answer to a question about whether the siege was longer than a year is no/false/0/1 (depending on the encoding), which is what the golden answer represents."
+          "explanation": "The months are different, therefore the answers do not match."
         },
-        "match": true
+        "match": false
       },
       {
         "success": true,
-        "answer": "The passage mentions two touchdown passes: one for 1 yard and one for 7 yards. The shortest of these is 1 yard.\nTherefore, the answer is correct.",
-        "output": "ANSWER_START\nThe passage mentions two touchdown passes: one for 1 yard and one for 7 yards. The shortest of these is 1 yard.\nTherefore, the answer is correct.\n\nANSWER_END\n",
+        "answer": "1986",
+        "output": "ANSWER_START\n1986\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "1",
+        "golden_answer": "1968",
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer correctly identifies the shortest touchdown pass as 1 yard, which matches the golden answer '1'."
+          "explanation": "The answers 1986 and 1968 are different numerical values, thus they do not convey the same information."
         },
-        "match": true
+        "match": false
       },
       {
         "success": true,
-        "answer": "1815 - 1793 = 22. The French Revolution and its Napoleonic aftermath lasted 22 years.",
-        "output": "ANSWER_START\n1815 - 1793 = 22. The French Revolution and its Napoleonic aftermath lasted 22 years.\n\nANSWER_END\n",
+        "answer": "Reconciled Answer: Virginio Colombo",
+        "output": "ANSWER_START\nReconciled Answer: Virginio Colombo\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "22",
+        "golden_answer": "J. L. Ruiz Basadre",
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer provides the calculation and context leading to the number 22, which is the golden answer. Therefore, the system answer contains the golden answer."
+          "explanation": "The two answers refer to different names (Virginio Colombo vs J. L. Ruiz Basadre), indicating that they do not communicate the same information."
         },
-        "match": true
+        "match": false
       },
       {
         "success": true,
-        "answer": "The passage states Anderson was 20-for-33 passing. This means he attempted 33 passes and completed 20. To find the number of incomplete passes, subtract the number of completed passes from the number of attempted passes: 33 - 20 = 13.\nSo the answer is 13.",
-        "output": "ANSWER_START\nThe passage states Anderson was 20-for-33 passing. This means he attempted 33 passes and completed 20. To find the number of incomplete passes, subtract the number of completed passes from the number of attempted passes: 33 - 20 = 13.\nSo the answer is 13.\n\nANSWER_END\n",
+        "answer": "March and June 2022",
+        "output": "ANSWER_START\nMarch and June 2022\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "13",
+        "golden_answer": "May 2022",
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer explains the steps to arrive at the final answer (13), which matches the golden answer."
+          "explanation": "The system answer mentions March and June 2022, while the golden answer specifies May 2022. These are different months, so the answers do not convey the same information."
         },
-        "match": true
+        "match": false
       },
       {
         "success": true,
-        "answer": "The passage states \"In the second quarter, San Francisco tied the game with kicker Joe Nedney getting a 39-yard field goal.\" This means Joe Nedney kicked one field goal in the second quarter.",
-        "output": "ANSWER_START\nThe passage states \"In the second quarter, San Francisco tied the game with kicker Joe Nedney getting a 39-yard field goal.\" This means Joe Nedney kicked one field goal in the second quarter.\n\n\nANSWER_END\n",
+        "answer": "Ernst von Bergmann",
+        "output": "ANSWER_START\nErnst von Bergmann\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "1",
+        "golden_answer": "Wilhelm Fabricius von Hilden.",
         "evaluation": {
-          "match": true,
+          "match": false,
           "confidence": 1,
-          "explanation": "The system answer states that Joe Nedney kicked one field goal, which means he kicked '1' field goal."
+          "explanation": "The two answers refer to different people. Ernst von Bergmann is not the same person as Wilhelm Fabricius von Hilden."
         },
-        "match": true
+        "match": false
       },
       {
         "success": true,
-        "answer": "The passage states that the 1992-93 Hoosiers team had a record of 31-4. This means they had 31 wins and 4 losses. The difference between wins and losses is 31 - 4 = 27.\n\nTherefore, the answer is correct.",
-        "output": "ANSWER_START\nThe passage states that the 1992-93 Hoosiers team had a record of 31-4. This means they had 31 wins and 4 losses. The difference between wins and losses is 31 - 4 = 27.\n\nTherefore, the answer is correct.\n\nANSWER_END\n",
+        "answer": "Kenya Michaels",
+        "output": "ANSWER_START\nKenya Michaels\n\nANSWER_END\n",
         "trace_file": "archive/trace_iteration_22.jsonl",
-        "golden_answer": "27",
+        "golden_answer": "Dida Ritz",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers are two different names. Therefore, they do not communicate the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "57th",
+        "output": "ANSWER_START\n57th\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_22.jsonl",
+        "golden_answer": "57th place",
         "evaluation": {
           "match": true,
           "confidence": 1,
-          "explanation": "The system answer explains the reasoning and arrives at the answer 27, which is the same as the golden answer."
+          "explanation": "Both answers indicate the same ordinal position, with the golden answer simply including the word 'place' for added clarity."
         },
         "match": true
       }
     ]
   },
-  "execution_time": 85.74208307266235,
+  "execution_time": 97.70012331008911,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

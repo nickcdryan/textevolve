@@ -2,170 +2,9 @@ import os
 import re
 import math
 
-def main(question):
-    """
-    Solve the question using a multi-stage LLM approach.
-    This approach focuses on breaking down the problem into question type identification, 
-    focused passage extraction, and direct answer generation with verification. Includes enhanced error handling.
-    """
-    try:
-        # Step 1: Identify question type and keywords
-        question_analysis = analyze_question(question)
-        if "Error" in question_analysis:
-            return "Error analyzing question: " + question_analysis
-
-        # Step 2: Extract relevant passage using identified keywords
-        relevant_passage = extract_relevant_passage(question, question_analysis)
-        if "Error" in relevant_passage:
-            return "Error extracting passage: " + relevant_passage
-
-        # Step 3: Generate answer using extracted passage and question type
-        answer = generate_answer(question, relevant_passage, question_analysis)
-        if "Error" in answer:
-            return "Error generating answer: " + answer
-
-        # Step 4: Verify answer
-        verified_answer = verify_answer(question, answer, relevant_passage)
-        if "Error" in verified_answer:
-            return "Error verifying answer: " + verified_answer
-        
-        return verified_answer
-
-    except Exception as e:
-        return f"General Error: {str(e)}"
-
-def analyze_question(question):
-    """Analyzes the question to identify its type and keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at analyzing questions to determine their type and keywords."
-    prompt = f"""
-    Analyze the following question and identify its type (e.g., fact extraction, calculation, comparison) and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Analysis: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Analysis: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-    
-    Example 4:
-    Question: How many more yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Analysis: {{"type": "calculation", "keywords": ["yards", "Chris Johnson", "Jason Hanson", "combine"]}}
-
-    Question: {question}
-    Analysis:
-    """
-    return call_llm(prompt, system_instruction)
-
-def extract_relevant_passage(question, question_analysis):
-    """Extracts the relevant passage from the question based on keywords. Includes multiple examples."""
-    system_instruction = "You are an expert at extracting relevant passages from text."
-    prompt = f"""
-    Extract the relevant passage from the following text based on the question and keywords.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["final touchdown", "caught"]}}
-    Text: PASSAGE: After a tough loss at home, the Browns traveled to take on the Packers. ... The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Keywords: {{"type": "counting", "keywords": ["running backs", "touchdown"]}}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Keywords: {{"type": "fact extraction", "keywords": ["player", "field goal"]}}
-    Text: PASSAGE: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  ... In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    
-    Example 4:
-    Question: How many more yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Keywords: {{"type": "calculation", "keywords": ["yards", "Chris Johnson", "Jason Hanson", "combine"]}}
-    Text: PASSAGE: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. 
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal.
-
-    Question: {question}
-    Keywords: {question_analysis}
-    Text: {question}
-    Passage:
-    """
-    return call_llm(prompt, system_instruction)
-
-def generate_answer(question, relevant_passage, question_analysis):
-    """Generates the answer based on the question, relevant passage, and question type. Includes multiple examples."""
-    system_instruction = "You are an expert at generating answers to questions based on provided text, and you are also good at arithmetic calculations if needed. Please generate one final answer."
-    prompt = f"""
-    Generate the answer to the question based on the relevant passage and question type. If the question requires calculation, perform the calculation and provide the final number as the answer.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Answer: Jarrett Boykin
-
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. The Titans would answer with Johnson getting a 58-yard TD run, along with DE Dave Ball returning an interception 15 yards for a touchdown. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Answer: 2
-    
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-    
-    Example 4:
-    Question: How many more yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. 
-    Answer: 59
-
-    Question: {question}
-    Passage: {relevant_passage}
-    Answer:
-    """
-    return call_llm(prompt, system_instruction)
-
-def verify_answer(question, answer, relevant_passage):
-    """Verifies the generated answer. Includes multiple examples."""
-    system_instruction = "You are an expert at verifying answers to questions. If the original answer is incorrect, correct the answer and use the provided text to justify the corrected answer."
-    prompt = f"""
-    Verify the following answer to the question based on the relevant passage. Return the original answer if it is correct and give a short justification. Correct the answer if it is incorrect and explain your reasoning.
-
-    Example 1:
-    Question: Who caught the final touchdown of the game?
-    Answer: Jarrett Boykin
-    Passage: The Packers would later on seal the game when Rodgers found Jarrett Boykin on a 20-yard pass for the eventual final score 31-13.
-    Verification: Jarrett Boykin, justified by the passage.
-    
-    Example 2:
-    Question: How many running backs ran for a touchdown?
-    Answer: 2
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. In the second quarter, Tennessee increased their lead with RB LenDale White getting a 6-yard and a 2-yard TD run.
-    Verification: 2, justified by the passage.
-
-    Example 3:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Verification: Josh Scobee, justified by the passage.
-    
-    Example 4:
-    Question: How many more yards did Chris Johnson's first touchdown and Jason Hanson's first field goal combine for?
-    Answer: 50
-    Passage: In the first quarter, Tennessee drew first blood as rookie RB Chris Johnson got a 6-yard TD run. The Lions would respond with kicker Jason Hanson getting a 53-yard field goal. 
-    Verification: 59, Chris Johnson had a 6-yard TD run, and Jason Hanson had a 53-yard field goal. 6 + 53 = 59.
-
-    Question: {question}
-    Answer: {answer}
-    Passage: {relevant_passage}
-    Verification:
-    """
-    return call_llm(prompt, system_instruction)
+# Hypothesis: Answering factual questions using a LLM-driven QA system with dual knowledge base lookups (KB1 and KB2) and hierarchical answer validation where KB1 has greater influence and can override KB2.
+# We will use two simulated knowledge bases, KB1 acting as a "primary" KB with greater authority, and KB2 as a "secondary" KB. We'll implement an LLM validator that trusts KB1 more than KB2 when there's a conflict.
+# This is designed to test how hierarchical knowledge source influence impacts overall accuracy and robustness.
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -194,4 +33,87 @@ def call_llm(prompt, system_instruction=None):
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {str(e)}")
+        return f"Error: {str(e)}"
+
+def simulate_knowledge_base(query, kb_id):
+    """Simulate retrieving information from a knowledge base."""
+    system_instruction = f"You are a simulated knowledge base with ID {kb_id}. Provide factual information relevant to the query. KB1 is considered a more reliable source than KB2. Be concise."
+    prompt = f"""
+    Simulate retrieving information based on this query.
+
+    Example 1 (KB1 - Primary):
+    Query: capital of France
+    Result: Paris is the capital of France.
+
+    Example 2 (KB2 - Secondary, slightly outdated):
+    Query: capital of France
+    Result: Historically, the capital of France was Versailles, but today it is Paris.
+
+    Query: {query}
+    Result:
+    """
+    return call_llm(prompt, system_instruction)
+
+def extract_answer(question, kb1_result, kb2_result):
+    """Extract the answer from the knowledge base results, with KB1 taking precedence."""
+    system_instruction = "You are an expert at extracting answers from knowledge base results. Prioritize KB1's results over KB2's."
+    prompt = f"""
+    Extract the best answer to the question, considering the information from two knowledge bases.
+
+    Example:
+    Question: What is the capital of France?
+    KB1 Result: Paris is the capital.
+    KB2 Result: Paris is the capital city.
+    Answer: Paris
+
+    Question: {question}
+    KB1 Result: {kb1_result}
+    KB2 Result: {kb2_result}
+    Answer:
+    """
+    return call_llm(prompt, system_instruction)
+
+def validate_answer(question, answer, kb1_result, kb2_result):
+    """Validate the extracted answer, giving KB1 more weight."""
+    system_instruction = "You are a validator. Check if the answer is correct and consistent with the knowledge bases, giving KB1 higher authority. If KB1 and KB2 conflict, KB1's information is considered to be the correct answer, and its results should override KB2's results."
+    prompt = f"""
+    Validate the answer against the question and the knowledge base results.
+
+    Example:
+    Question: What is the capital of France?
+    Answer: Paris
+    KB1 Result: Paris is the capital.
+    KB2 Result: Paris is the capital city.
+    Validation: VALID. Paris is the capital of France.
+
+    Question: {question}
+    Answer: {answer}
+    KB1 Result: {kb1_result}
+    KB2 Result: {kb2_result}
+    Validation:
+    """
+    validation_result = call_llm(prompt, system_instruction)
+    return validation_result
+
+def main(question):
+    """Solve questions using dual knowledge base lookups and validation."""
+    try:
+        # Simulate retrieval from KB1
+        kb1_result = simulate_knowledge_base(question, "KB1")
+
+        # Simulate retrieval from KB2
+        kb2_result = simulate_knowledge_base(question, "KB2")
+
+        # Extract the answer
+        answer = extract_answer(question, kb1_result, kb2_result)
+
+        # Validate the answer
+        validation_result = validate_answer(question, answer, kb1_result, kb2_result)
+
+        if "VALID" in validation_result:
+            return answer
+        else:
+            return "Could not be validated."
+
+    except Exception as e:
         return f"Error: {str(e)}"

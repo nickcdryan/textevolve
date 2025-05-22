@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 30,
-        "sample_id": "8936c672-a32a-4bd9-b0ea-85136b27883d",
-        "question": "PASSAGE: Hoping to save their season, the Titans flew to Jacksonville Municipal Stadium for a Week 4 AFC South duel with the Jacksonville Jaguars.  Tennessee would trail early in the first quarter as Jaguars kicker Josh Scobee got a 22-yard field goal, followed by running back Maurice Jones-Drew's 9-yard touchdown.  The Titans would get in the game in the second quarter with kicker Rob Bironas making a 29-yard field goal.  However, Jacksonville came right back with quarterback David Garrard completing 9-yard and 15-yard touchdown passes to wide receiver Mike Sims-Walker, with Scobee's 50-yard field goal in between. The Jaguars would continue to build their lead as Scobee nailed a 33-yard field goal.  Tennessee would then begin its comeback attempt with quarterback Kerry Collins completing a 14-yard touchdown pass to wide receiver Nate Washington (with a failed 2-point conversion).  The Titans kept their rally going in the fourth quarter with Collins getting a 10-yard touchdown run, followed by running back Chris Johnson's 2-point conversion run.  However, Jacksonville would pull away with Garrard's 33-yard touchdown pass to tight end Marcedes Lewis.\n\nQUESTION: How many yards long was the mean value of all field goals scored in the game?"
+        "sample_id": "example_97",
+        "question": 'In what year was Antonio Giolitti awarded the Cavaliere di Gran Croce, the highest honor bestowed by the President of the Italian Republic?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 30,
-            "sample_id": "8936c672-a32a-4bd9-b0ea-85136b27883d",
+            "sample_id": "example_97",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Hoping to save their season, the Titans flew to Jacksonville Municipal Stadium for a Week 4 AFC South duel with the Jacksonville Jaguars.  Tennessee would trail early in the first quarter as Jaguars kicker Josh Scobee got a 22-yard field goal, followed by running back Maurice Jones-Drew's 9-yard touchdown.  The Titans would get in the game in the second quarter with kicker Rob Bironas making a 29-yard field goal.  However, Jacksonville came right back with quarterback David Garrard completing 9-yard and 15-yard touchdown passes to wide receiver Mike Sims-Walker, with Scobee's 50-yard field goal in between. The Jaguars would continue to build their lead as Scobee nailed a 33-yard field goal.  Tennessee would then begin its comeback attempt with quarterback Kerry Collins completing a 14-yard touchdown pass to wide receiver Nate Washington (with a failed 2-point conversion).  The Titans kept their rally going in the fourth quarter with Collins getting a 10-yard touchdown run, followed by running back Chris Johnson's 2-point conversion run.  However, Jacksonville would pull away with Garrard's 33-yard touchdown pass to tight end Marcedes Lewis.\n\nQUESTION: How many yards long was the mean value of all field goals scored in the game?"
+    question = 'In what year was Antonio Giolitti awarded the Cavaliere di Gran Croce, the highest honor bestowed by the President of the Italian Republic?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 30,
-            "sample_id": "8936c672-a32a-4bd9-b0ea-85136b27883d",
+            "sample_id": "example_97",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 30,
-            "sample_id": "8936c672-a32a-4bd9-b0ea-85136b27883d",
+            "sample_id": "example_97",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

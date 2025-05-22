@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 32,
-        "sample_id": "3f87554c-fed8-40f6-ab5c-bd7e907e541f",
-        "question": 'PASSAGE: The Christians lost 12,000, 23,000 or 30,000 men, while the Ottomans suffered 20,000-30,000 casualties.\n\nQUESTION: How many total casualties were there?'
+        "sample_id": "example_103",
+        "question": 'Who played Creon in Antigone at the Epidaurus Festival 2022?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 32,
-            "sample_id": "3f87554c-fed8-40f6-ab5c-bd7e907e541f",
+            "sample_id": "example_103",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: The Christians lost 12,000, 23,000 or 30,000 men, while the Ottomans suffered 20,000-30,000 casualties.\n\nQUESTION: How many total casualties were there?'
+    question = 'Who played Creon in Antigone at the Epidaurus Festival 2022?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 32,
-            "sample_id": "3f87554c-fed8-40f6-ab5c-bd7e907e541f",
+            "sample_id": "example_103",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 32,
-            "sample_id": "3f87554c-fed8-40f6-ab5c-bd7e907e541f",
+            "sample_id": "example_103",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

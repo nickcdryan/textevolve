@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 20,
-        "sample_id": "fb94d5a0-4008-4a73-8f1e-55b494a1bf95",
-        "question": "PASSAGE: Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.\n\nQUESTION: How many total points were scored in the game?"
+        "sample_id": "example_67",
+        "question": 'What player scored all the conversions for Spain in the rugby match between Spain and Romania that was part of the 2022 Rugby Europe Championship on February 27, 2022?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 20,
-            "sample_id": "fb94d5a0-4008-4a73-8f1e-55b494a1bf95",
+            "sample_id": "example_67",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.\n\nQUESTION: How many total points were scored in the game?"
+    question = 'What player scored all the conversions for Spain in the rugby match between Spain and Romania that was part of the 2022 Rugby Europe Championship on February 27, 2022?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 20,
-            "sample_id": "fb94d5a0-4008-4a73-8f1e-55b494a1bf95",
+            "sample_id": "example_67",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 20,
-            "sample_id": "fb94d5a0-4008-4a73-8f1e-55b494a1bf95",
+            "sample_id": "example_67",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

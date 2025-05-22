@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 22,
-        "sample_id": "b8746108-c8ce-440b-85a8-eaca16550fa8",
-        "question": 'PASSAGE: 1990s From 1990–91 through 1992–93 Indiana Hoosiers mens basketball team, the Hoosiers posted 87 victories, the most by any Big Ten team in a three-year span, breaking the mark of 86 set by Knights Indiana teams of 1974–76. Teams from these three seasons spent all but two of the 53 poll weeks in the top 10, and 38 of them in the top 5. They captured two Big Ten crowns in 1990–91 and 1992–93 Indiana Hoosiers mens basketball team, and during the 1991–92 Indiana Hoosiers mens basketball team season reached the 1992 NCAA Mens Division I Basketball Tournament. During the 1992–93 Indiana Hoosiers mens basketball team season, the 31–4 Hoosiers finished the season at the top of the AP Poll, but were defeated by Kansas Jayhawks mens basketball in the 1993 NCAA Mens Division I Basketball Tournament. Teams from this era included Greg Graham, Pat Knight, All-Americans Damon Bailey and Alan Henderson, and National Player of the Year Calbert Cheaney.\n\nQUESTION: How many more wins than losses did the Hoosiers have in the 1992-93 season?'
+        "sample_id": "example_393",
+        "question": "What was Croatia's ranking in the 2022 Corruption Perceptions Index?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 22,
-            "sample_id": "b8746108-c8ce-440b-85a8-eaca16550fa8",
+            "sample_id": "example_393",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: 1990s From 1990–91 through 1992–93 Indiana Hoosiers mens basketball team, the Hoosiers posted 87 victories, the most by any Big Ten team in a three-year span, breaking the mark of 86 set by Knights Indiana teams of 1974–76. Teams from these three seasons spent all but two of the 53 poll weeks in the top 10, and 38 of them in the top 5. They captured two Big Ten crowns in 1990–91 and 1992–93 Indiana Hoosiers mens basketball team, and during the 1991–92 Indiana Hoosiers mens basketball team season reached the 1992 NCAA Mens Division I Basketball Tournament. During the 1992–93 Indiana Hoosiers mens basketball team season, the 31–4 Hoosiers finished the season at the top of the AP Poll, but were defeated by Kansas Jayhawks mens basketball in the 1993 NCAA Mens Division I Basketball Tournament. Teams from this era included Greg Graham, Pat Knight, All-Americans Damon Bailey and Alan Henderson, and National Player of the Year Calbert Cheaney.\n\nQUESTION: How many more wins than losses did the Hoosiers have in the 1992-93 season?'
+    question = "What was Croatia's ranking in the 2022 Corruption Perceptions Index?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 22,
-            "sample_id": "b8746108-c8ce-440b-85a8-eaca16550fa8",
+            "sample_id": "example_393",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 22,
-            "sample_id": "b8746108-c8ce-440b-85a8-eaca16550fa8",
+            "sample_id": "example_393",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

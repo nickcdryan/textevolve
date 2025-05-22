@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 7,
-        "sample_id": "example_60",
-        "question": "PASSAGE: In 1766, Hyder Ali of Mysore captured Calicut and then Guruvayur. To refrain from the demolition of the Hindu temple at Guruvayur, Mysore demanded 10,000 fanams from the authorities, which was paid. At the request of Governor of Malabar, Shrinivasa Rao, Hyder Ali granted a devadaya  and the temple at Guruvayur was saved from destruction. Tippu Sultan again invaded the Zamorin of Calicut's province in 1789. Aware of the risk to the idol, it was hidden underground and the Utsava vigraha was taken to Ambalappuzha Sri Krishna Temple by Mallisseri Namboodiri and Kakkad Othikkan. Tippu destroyed the smaller shrines and set fire to the temple, but it was saved due to timely rain. Tippu lost to the Zamorin, Travancore and the English in 1792. Although the hidden idol and the Utsava vigraha were re-installed on 17 September 1792, the daily poojas and routines were seriously disrupted.\n\nQUESTION: How many years were between the time Hyder Ali of Mysore captured Calicut and the time Tippu lost to the Zamorin, Travancore and the English?"
+        "sample_id": "example_28",
+        "question": 'In which month and year did "Flying" magazine publish "Battling the Big Lie: John King\'s Crusade to Change Aviation\'s Culture"?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 7,
-            "sample_id": "example_60",
+            "sample_id": "example_28",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: In 1766, Hyder Ali of Mysore captured Calicut and then Guruvayur. To refrain from the demolition of the Hindu temple at Guruvayur, Mysore demanded 10,000 fanams from the authorities, which was paid. At the request of Governor of Malabar, Shrinivasa Rao, Hyder Ali granted a devadaya  and the temple at Guruvayur was saved from destruction. Tippu Sultan again invaded the Zamorin of Calicut's province in 1789. Aware of the risk to the idol, it was hidden underground and the Utsava vigraha was taken to Ambalappuzha Sri Krishna Temple by Mallisseri Namboodiri and Kakkad Othikkan. Tippu destroyed the smaller shrines and set fire to the temple, but it was saved due to timely rain. Tippu lost to the Zamorin, Travancore and the English in 1792. Although the hidden idol and the Utsava vigraha were re-installed on 17 September 1792, the daily poojas and routines were seriously disrupted.\n\nQUESTION: How many years were between the time Hyder Ali of Mysore captured Calicut and the time Tippu lost to the Zamorin, Travancore and the English?"
+    question = 'In which month and year did "Flying" magazine publish "Battling the Big Lie: John King\'s Crusade to Change Aviation\'s Culture"?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 7,
-            "sample_id": "example_60",
+            "sample_id": "example_28",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 7,
-            "sample_id": "example_60",
+            "sample_id": "example_28",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

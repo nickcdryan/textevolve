@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 29,
-        "sample_id": "eb83a1de-08ff-4280-b79a-9d36f5a37905",
-        "question": "PASSAGE: The 49ers' 8th match was an Interconference duel with the Broncos at Wembley Stadium. In the first quarter the 49ers took the lead as kicker Joe Nedney got a 34-yard field goal. They soon trailed in the third quarter when QB Tim Tebow scrambled 1 yard for a touchdown; followed in the fourth quarter by kicker Matt Prater hitting a 32-yard field goal. They soon went on a scoring rally to take the lead with QB Troy Smith scrambling a yard for a touchdown, followed by his 28-yard TD pass to WR Michael Crabtree. Then RB Frank Gore got a 3-yard TD run to put the 49ers up 24-10. The lead was narrowed when QB Kyle Orton made a 1-yard TD pass to WR Brandon Lloyd (with a failed PAT). With the win, the 49ers went into their bye week at 2-6.\n\nQUESTION: Which players scored from one yard?"
+        "sample_id": "example_94",
+        "question": 'On what day, month, and year was David Sweet, Canadian politician, born?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 29,
-            "sample_id": "eb83a1de-08ff-4280-b79a-9d36f5a37905",
+            "sample_id": "example_94",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = "PASSAGE: The 49ers' 8th match was an Interconference duel with the Broncos at Wembley Stadium. In the first quarter the 49ers took the lead as kicker Joe Nedney got a 34-yard field goal. They soon trailed in the third quarter when QB Tim Tebow scrambled 1 yard for a touchdown; followed in the fourth quarter by kicker Matt Prater hitting a 32-yard field goal. They soon went on a scoring rally to take the lead with QB Troy Smith scrambling a yard for a touchdown, followed by his 28-yard TD pass to WR Michael Crabtree. Then RB Frank Gore got a 3-yard TD run to put the 49ers up 24-10. The lead was narrowed when QB Kyle Orton made a 1-yard TD pass to WR Brandon Lloyd (with a failed PAT). With the win, the 49ers went into their bye week at 2-6.\n\nQUESTION: Which players scored from one yard?"
+    question = 'On what day, month, and year was David Sweet, Canadian politician, born?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 29,
-            "sample_id": "eb83a1de-08ff-4280-b79a-9d36f5a37905",
+            "sample_id": "example_94",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 29,
-            "sample_id": "eb83a1de-08ff-4280-b79a-9d36f5a37905",
+            "sample_id": "example_94",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

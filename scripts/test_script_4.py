@@ -23,8 +23,8 @@ with open(trace_file, 'a', encoding='utf-8') as f:
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
         "iteration": 4,
-        "sample_id": "09ca0c20-9503-49b3-994a-e937d97ada88",
-        "question": 'PASSAGE: Peck also received Oscar nominations for his roles in The Keys of the Kingdom (film) (1944), The Yearling (film) (1946), Gentlemans Agreement (1947) and Twelve OClock High (1949).  Other notable films in which he appeared include Spellbound (1945 film) (1945), The Gunfighter (1950), Roman Holiday (1953), Moby Dick (1956 film) (1956, and its Moby Dick (1998 miniseries)), The Big Country (1958), The Bravados (1958), Pork Chop Hill (1959), The Guns of Navarone (film) (1961), Cape Fear (1962 film) (1962, and its Cape Fear (1991 film)), How the West Was Won (film) (1962), The Omen (1976) and The Boys from Brazil (film) (1978).\n\nQUESTION: Was Peck in more notable films in the 1950s or the 1960s?'
+        "sample_id": "example_19",
+        "question": 'Which architect was tasked with finishing the chapel in the newly built Papal apartment when its construction remained incomplete after Pope Paul IV moved in, in October 1556?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -60,7 +60,7 @@ def trace_call_llm(func):
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
             "iteration": 4,
-            "sample_id": "09ca0c20-9503-49b3-994a-e937d97ada88",
+            "sample_id": "example_19",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -120,7 +120,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Peck also received Oscar nominations for his roles in The Keys of the Kingdom (film) (1944), The Yearling (film) (1946), Gentlemans Agreement (1947) and Twelve OClock High (1949).  Other notable films in which he appeared include Spellbound (1945 film) (1945), The Gunfighter (1950), Roman Holiday (1953), Moby Dick (1956 film) (1956, and its Moby Dick (1998 miniseries)), The Big Country (1958), The Bravados (1958), Pork Chop Hill (1959), The Guns of Navarone (film) (1961), Cape Fear (1962 film) (1962, and its Cape Fear (1991 film)), How the West Was Won (film) (1962), The Omen (1976) and The Boys from Brazil (film) (1978).\n\nQUESTION: Was Peck in more notable films in the 1950s or the 1960s?'
+    question = 'Which architect was tasked with finishing the chapel in the newly built Papal apartment when its construction remained incomplete after Pope Paul IV moved in, in October 1556?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -131,7 +131,7 @@ try:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
             "iteration": 4,
-            "sample_id": "09ca0c20-9503-49b3-994a-e937d97ada88",
+            "sample_id": "example_19",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -148,7 +148,7 @@ except Exception as e:
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
             "iteration": 4,
-            "sample_id": "09ca0c20-9503-49b3-994a-e937d97ada88",
+            "sample_id": "example_19",
             "error": str(e),
             "traceback": traceback.format_exc()
         }
