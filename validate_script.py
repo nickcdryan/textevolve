@@ -29,7 +29,7 @@ def main():
     parser.add_argument("--dataset", "-f", type=str, required=True,
                         help="Path to dataset file or directory")
     parser.add_argument("--loader", "-l", type=str, 
-                        choices=["arc", "json", "jsonl", "custom", "simpleqa"],
+                        choices=["arc", "json", "jsonl", "custom", "simpleqa", "natural_plan"],
                         default="arc",
                         help="Type of dataset loader to use (default: arc)")
 

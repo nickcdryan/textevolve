@@ -509,8 +509,6 @@ class JSONLDatasetLoader(DatasetLoader):
 simpleqa_loader.py - Custom dataset loader for SimpleQA dataset
 """
 
-import json
-from dataset_loader import DatasetLoader
 
 class SimpleQADatasetLoader(DatasetLoader):
     """Loader specifically for SimpleQA datasets with 'problem', 'answer', and 'id' fields"""
@@ -561,26 +559,88 @@ class SimpleQADatasetLoader(DatasetLoader):
             raise ValueError(f"Error loading SimpleQA dataset: {e}")
 
 
+class NaturalPlanDatasetLoader(DatasetLoader):
+    """Loader specifically for Natural Plan trip planning datasets"""
+
+    def _load_examples(self):
+        """Load examples from Natural Plan dataset file and convert to universal format"""
+        try:
+            with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            if not isinstance(data, dict):
+                raise ValueError("Natural Plan dataset JSON must be an object/dictionary")
+
+            examples = []
+            for example_key, example_data in data.items():
+                # Skip if this doesn't look like a trip planning example
+                if not isinstance(example_data, dict):
+                    continue
+
+                # Extract the question (problem statement) and answer (golden plan)
+                question = example_data.get("prompt_0shot", "")
+                answer = example_data.get("golden_plan", "")
+
+                # Skip examples that don't have both required fields
+                if not question or not answer:
+                    print(f"Warning: Skipping {example_key} - missing prompt_0shot or golden_plan")
+                    continue
+
+                # Create standardized example with universal field names
+                standardized_example = {
+                    "id": example_key,
+                    "question": question.strip(),  # Standard field: "question"
+                    "answer": answer,#.strip(),      # Standard field: "answer"
+                    "meta": {
+                        "source": "natural_plan",
+                        "filename": self.dataset_path,
+                        #"num_cities": example_data.get("num_cities", ""),
+                        #"cities": example_data.get("cities", ""),
+                        #"durations": example_data.get("durations", ""),
+                        #"has_5shot_prompt": "prompt_5shot" in example_data,
+                        #"has_prediction": "pred_5shot_pro" in example_data
+                    }
+                }
+
+                examples.append(standardized_example)
+
+            self.examples = examples
+            print(f"Loaded {len(examples)} examples from Natural Plan dataset")
+
+            if not self.examples:
+                raise ValueError("No valid examples found in Natural Plan dataset")
+
+        except Exception as e:
+            raise ValueError(f"Error loading Natural Plan dataset: {e}")
+
+
 def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
     """
     Create a dataset loader of the specified type
 
     Args:
-        loader_type: Type of loader to create ("arc", "json", "jsonl", "simpleqa", or "custom")
+        loader_type: Type of loader to create ("arc", "json", "jsonl", "simpleqa", "natural_plan", or "custom")
         **kwargs: Additional arguments to pass to the loader constructor
 
     Returns:
         DatasetLoader: An instance of the requested loader type
     """
     if loader_type.lower() == "arc":
+        from dataset_loader import ARCDatasetLoader
         return ARCDatasetLoader(**kwargs)
     elif loader_type.lower() == "json":
+        from dataset_loader import JSONDatasetLoader
         return JSONDatasetLoader(**kwargs)
     elif loader_type.lower() == "jsonl":
+        from dataset_loader import JSONLDatasetLoader
         return JSONLDatasetLoader(**kwargs)
     elif loader_type.lower() == "simpleqa":
+        from dataset_loader import SimpleQADatasetLoader
         return SimpleQADatasetLoader(**kwargs)
+    elif loader_type.lower() == "natural_plan":
+        return NaturalPlanDatasetLoader(**kwargs)
     elif loader_type.lower() == "custom":
+        from dataset_loader import CustomDatasetLoader
         return CustomDatasetLoader(**kwargs)
     else:
         raise ValueError(f"Unknown loader type: {loader_type}")
