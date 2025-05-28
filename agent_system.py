@@ -2655,7 +2655,7 @@ except Exception as e:
                     [sys.executable, str(test_path)],
                     capture_output=True,
                     text=True,
-                    timeout=60  # 60 second timeout - increased for LLM API calls
+                    timeout=120  # 60 second timeout - increased for LLM API calls
                 )
 
                 # Parse the output

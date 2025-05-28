@@ -271,6 +271,83 @@ Transform the test input according to the pattern shown in the training examples
     # and already use the standard field names "question" and "answer"
 
 
+class HotpotQADatasetLoader(DatasetLoader):
+    """Loader specifically for HotpotQA multi-hop reasoning datasets"""
+
+    def _load_examples(self):
+        """Load examples from HotpotQA JSON dataset file and convert to universal format"""
+        try:
+            with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            if not isinstance(data, list):
+                raise ValueError("HotpotQA dataset JSON must be a list of objects")
+
+            examples = []
+            for item in data:
+                # Extract basic fields
+                original_question = item.get("question", "")
+                answer = item.get("answer", "")
+                example_id = item.get("id", f"hotpotqa_{len(examples)}")
+
+                # Skip examples that don't have required fields
+                if not original_question or not answer:
+                    print(f"Warning: Skipping {example_id} - missing question or answer")
+                    continue
+
+                # Extract and format context
+                context_data = item.get("context", {})
+                titles = context_data.get("title", [])
+                sentences_lists = context_data.get("sentences", [])
+
+                if not titles or not sentences_lists:
+                    print(f"Warning: Skipping {example_id} - missing context")
+                    continue
+
+                # Format the supporting documents
+                formatted_context = ""
+                for i, (title, sentences) in enumerate(zip(titles, sentences_lists)):
+                    formatted_context += f"\n=== Document {i+1}: {title} ===\n"
+                    for j, sentence in enumerate(sentences):
+                        formatted_context += f"{sentence.strip()} "
+                    formatted_context += "\n"
+
+                # Create the structured question format
+                structured_question = f"""Multi-hop reasoning task:
+
+Question: {original_question}
+
+Supporting Documents:{formatted_context}
+
+Provide your answer based on the information in the supporting documents."""
+
+                # Create standardized example with universal field names
+                standardized_example = {
+                    "id": example_id,
+                    "question": structured_question.strip(),  # Standard field: "question"
+                    "answer": str(answer).strip(),            # Standard field: "answer"
+                    "meta": {
+                        "source": "hotpotqa",
+                        "filename": self.dataset_path,
+                        "type": item.get("type", "unknown"),
+                        "level": item.get("level", "unknown"),
+                        "original_question": original_question,  # Keep original for reference
+                        "num_documents": len(titles)
+                    }
+                }
+
+                examples.append(standardized_example)
+
+            self.examples = examples
+            print(f"Loaded {len(examples)} examples from HotpotQA dataset")
+
+            if not self.examples:
+                raise ValueError("No valid examples found in HotpotQA dataset")
+
+        except Exception as e:
+            raise ValueError(f"Error loading HotpotQA dataset: {e}")
+
+
 class JSONDatasetLoader(DatasetLoader):
     """Loader for generic JSON datasets with configurable field names using universal interface"""
 
@@ -559,6 +636,57 @@ class SimpleQADatasetLoader(DatasetLoader):
             raise ValueError(f"Error loading SimpleQA dataset: {e}")
 
 
+class MathDatasetLoader(DatasetLoader):
+    """Loader specifically for Hendrycks Math datasets with 'problem', 'answer', and 'id' fields"""
+
+    def _load_examples(self):
+        """Load examples from Math JSONL dataset file"""
+        try:
+            examples = []
+            with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f):
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        # Parse the JSON object from this line
+                        data = json.loads(line)
+
+                        # Extract the required fields
+                        problem = data.get("problem", "")
+                        answer = data.get("solution", "")
+                        example_id = data.get("id", f"math_{line_num}")
+                        problem_type = data.get("type", "")
+
+                        # Create standardized example with universal field names
+                        examples.append({
+                            "id": example_id,
+                            "question": problem,  # Standard field: "question"
+                            "answer": str(answer),  # Standard field: "answer" (ensure string)
+                            "meta": {
+                                "source": "Math",
+                                "line_number": line_num,
+                                "original_data": data,
+                                "problem_type": problem_type,
+                            }
+                        })
+
+                    except json.JSONDecodeError:
+                        print(f"Warning: Invalid JSON on line {line_num+1}, skipping")
+                    except Exception as e:
+                        print(f"Warning: Error processing line {line_num+1}: {e}")
+
+            self.examples = examples
+            print(f"Loaded {len(examples)} examples from Math dataset")
+
+            if not self.examples:
+                raise ValueError("No valid examples found in Math dataset")
+
+        except Exception as e:
+            raise ValueError(f"Error loading Math dataset: {e}")
+
+
 class NaturalPlanDatasetLoader(DatasetLoader):
     """Loader specifically for Natural Plan trip planning datasets"""
 
@@ -639,6 +767,10 @@ def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
         return SimpleQADatasetLoader(**kwargs)
     elif loader_type.lower() == "natural_plan":
         return NaturalPlanDatasetLoader(**kwargs)
+    elif loader_type.lower() == "hotpotqa":
+        return HotpotQADatasetLoader(**kwargs)
+    elif loader_type.lower() == "math":
+        return MathDatasetLoader(**kwargs)
     elif loader_type.lower() == "custom":
         from dataset_loader import CustomDatasetLoader
         return CustomDatasetLoader(**kwargs)
