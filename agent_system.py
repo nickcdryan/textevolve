@@ -1429,6 +1429,288 @@ def main(question):
         # Create few-shot examples context 
         few_shot_examples = f"EXAMPLE OF EFFECTIVE LLM USAGE PATTERNS:\n\n```python\n{extraction_example}\n```\n\n```python\n{verification_example}\n```\n\n```python\n{validation_loop_example}\n```\n\n```python\n{multi_perspective_example}\n```\n\n```python\n{best_of_n_example}\n```\n\n```python\n{react_example}\n```"
 
+
+
+        # Example 8: Dynamic Meta-Programming with Code Generation
+        meta_programming_example = '''def solve_with_meta_programming(question):
+            """
+            Advanced: Script generates and executes its own code/prompts dynamically.
+            The script acts as its own programmer and prompt engineer.
+            """
+
+            # Step 1: Analyze what approach is needed
+            strategy_prompt = f"""
+            For this problem: {question}
+
+            What's the best approach?
+            A) Generate Python code to calculate/process something
+            B) Generate specialized LLM prompts for analysis  
+            C) Use a hybrid approach with both code and LLM calls
+
+            Explain your choice and what specific code or prompts I should generate.
+            """
+
+
+                analysis_system_prompt = """ 
+                You are a problem analysis expert. You are a master of problem analysis and can 
+                determine the best approach to solve a problem, understanding the strenghts and 
+                weaknesses of LLMs for problem solving, when to delegate a more specific or problem 
+                or subproblem to an additional LLM call, and when to write code to solve a problem.
+            """
+            strategy = call_llm(strategy_prompt, analysis_system_prompt)
+
+            # Step 2: Generate and execute based on strategy
+            if "###CODE_ONLY###" in strategy.lower():
+                # Generate code dynamically
+                code_gen_prompt = f"""
+                Problem: {question}
+                Strategy: {strategy}
+
+                Write Python code to solve this problem. Include print statements for output.
+                Return ONLY the Python code:
+                """
+
+                generated_code = call_llm(code_gen_prompt, "You are a Python programmer.")
+
+                # Clean up code if wrapped in markdown
+                import re
+                code_match = re.search(r'```python\\s*\\n(.*?)\\n```', generated_code, re.DOTALL)
+                if code_match:
+                    clean_code = code_match.group(1).strip()
+                else:
+                    clean_code = generated_code.strip()
+
+                # Execute the generated code
+                execution_result = execute_code(clean_code)
+
+                # Interpret the execution result
+                interpretation_prompt = f"""
+                Original problem: {question}
+                Generated code: {clean_code}
+                Execution result: {execution_result}
+
+                What is the final answer based on these results?
+                """
+
+                final_answer = call_llm(interpretation_prompt, "You are a solution interpreter.")
+                return final_answer
+
+            elif "###PROMPT_ONLY###" in strategy.lower():
+                # Generate specialized prompts dynamically
+                prompt_design = f"""
+                For this problem: {question}
+                Strategy: {strategy}
+
+                Design the most effective prompt to solve this problem:
+                """
+
+                specialized_prompt = call_llm(prompt_design, "You are a prompt engineer.")
+
+                # Use the generated prompt
+                solution = call_llm(specialized_prompt, "You are an expert problem solver.")
+                return solution
+
+            else:  # Hybrid approach
+                # Chain code and LLM calls dynamically
+                current_result = question
+
+                for step in range(3):
+                    # Decide what to do at this step
+                    step_decision = call_llm(f"""
+                    Step {step + 1} of hybrid approach.
+                    Current state: {current_result}
+
+                    What should I do next?
+                    - Generate and execute code
+                    - Make an LLM analysis call
+                    - Provide final answer
+
+                    Choose one and explain exactly what to do.
+                    """, "You are a workflow coordinator.")
+
+                    if "final answer" in step_decision.lower():
+                        return current_result
+                    elif "code" in step_decision.lower():
+                        # Generate code for this step
+                        step_code_prompt = f"""
+                        Based on this decision: {step_decision}
+                        Current data: {current_result}
+
+                        Write Python code to process this. Return only the code:
+                        """
+                        step_code = call_llm(step_code_prompt, "You are a Python programmer.")
+                        code_result = execute_code(step_code)
+                        current_result = f"Previous: {current_result}\\nCode result: {code_result}"
+                    else:
+                        # Make LLM call for this step  
+                        step_analysis = call_llm(f"Analyze this data: {current_result}\\nBased on: {step_decision}", "You are an analyst.")
+                        current_result = f"Previous: {current_result}\\nAnalysis: {step_analysis}"
+
+                return current_result'''
+
+        # Example 9: Self-Modifying Problem Solver
+        self_modifying_example = '''def self_modifying_solver(problem):
+            """
+            A solver that rewrites its own approach based on intermediate results.
+            Advanced meta-programming where the script evolves its strategy.
+            """
+
+            strategy = "direct_analysis"
+            attempts = 0
+            max_attempts = 3
+
+            while attempts < max_attempts:
+                attempts += 1
+
+                if strategy == "direct_analysis":
+                    # Try direct LLM analysis
+                    result = call_llm(f"Solve this problem: {problem}", "You are an expert problem solver.")
+
+                    # Evaluate if this worked
+                    evaluation_prompt = f"""
+                    Problem: {problem}
+                    My attempt: {result}
+
+                    Did this solve the problem correctly? If not, what approach should I try next?
+                    Options: computational_approach, step_by_step_breakdown, code_generation
+                    """
+
+                    evaluation = call_llm(evaluation_prompt, "You are a solution evaluator.")
+
+                    if "correct" in evaluation.lower() or "solved" in evaluation.lower():
+                        return result
+                    elif "computational" in evaluation.lower():
+                        strategy = "computational_approach"
+                    elif "step_by_step" in evaluation.lower():
+                        strategy = "step_by_step_breakdown"  
+                    else:
+                        strategy = "code_generation"
+
+                elif strategy == "computational_approach":
+                    # Generate and execute computational code
+                    comp_prompt = f"""
+                    Problem: {problem}
+
+                    Write Python code to solve this computationally. Include:
+                    - Extract relevant numbers or data
+                    - Perform calculations
+                    - Print results clearly
+
+                    Return only the Python code:
+                    """
+
+                    comp_code = call_llm(comp_prompt, "You are a computational programmer.")
+                    comp_result = execute_code(comp_code)
+
+                    # Interpret computational result
+                    interpretation = call_llm(f"Problem: {problem}\\nComputation result: {comp_result}\\nFinal answer:", "You are an interpreter.")
+                    return interpretation
+
+                elif strategy == "step_by_step_breakdown":
+                    # Generate step-by-step solution code
+                    breakdown_prompt = f"""
+                    Problem: {problem}
+
+                    Write Python code that breaks this problem into steps and solves it methodically:
+                    """
+
+                    breakdown_code = call_llm(breakdown_prompt, "You are a systematic programmer.")
+                    breakdown_result = execute_code(breakdown_code)
+
+                    # Build final solution based on breakdown
+                    final_solution = call_llm(f"Problem: {problem}\\nStep-by-step result: {breakdown_result}\\nFinal answer:", "You are a problem solver.")
+                    return final_solution
+
+                else:  # code_generation strategy
+                    # Generate completely custom code for this problem
+                    custom_prompt = f"""
+                    Problem: {problem}
+
+                    Write custom Python code specifically designed to solve this exact problem type:
+                    """
+
+                    custom_code = call_llm(custom_prompt, "You are a custom code generator.")
+                    custom_result = execute_code(custom_code)
+
+                    return f"Custom solution result: {custom_result}"
+
+            return "Could not solve after multiple strategy attempts"'''
+
+        # Example 10: Adaptive Code-Chain Solver  
+        adaptive_chain_example = '''def adaptive_chain_solver(question):
+            """
+            Chains multiple code generations and LLM calls adaptively.
+            Each step decides what the next step should be.
+            """
+
+            current_data = question
+            step_count = 0
+            max_steps = 5
+
+            while step_count < max_steps:
+                step_count += 1
+
+                # Decide what to do at this step
+                decision_prompt = f"""
+                Step {step_count}: Working with: {current_data}
+
+                What should I do next to solve this problem?
+                A) Generate and execute Python code to process/calculate something
+                B) Generate a specialized LLM prompt for analysis
+                C) I have enough information - provide final answer
+
+                Choose A, B, or C and explain exactly what to do:
+                """
+
+                decision = call_llm(decision_prompt, "You are an adaptive workflow coordinator.")
+
+                if "C)" in decision or "final answer" in decision.lower():
+                    # Generate final answer
+                    final_prompt = f"""
+                    Original question: {question}
+                    Current data/results: {current_data}
+
+                    Based on all the processing done, what is the final answer?
+                    """
+                    return call_llm(final_prompt, "You are a solution synthesizer.")
+
+                elif "A)" in decision or "code" in decision.lower():
+                    # Generate and execute code
+                    code_prompt = f"""
+                    Current data: {current_data}
+                    Decision: {decision}
+
+                    Write Python code to process this data as suggested. Return only the code:
+                    """
+
+                    code = call_llm(code_prompt, "You are a Python programmer.")
+
+                    # Execute and update current data
+                    code_result = execute_code(code)
+                    current_data = f"Step {step_count} result: {code_result}"
+
+                else:  # Generate specialized LLM prompt
+                    # Create specialized prompt
+                    prompt_design = f"""
+                    Current data: {current_data}
+                    Decision: {decision}
+
+                    Design a specialized prompt for this analysis:
+                    """
+
+                    specialized_prompt = call_llm(prompt_design, "You are a prompt engineer.")
+
+                    # Use the specialized prompt
+                    analysis_result = call_llm(specialized_prompt, "You are a specialized analyst.")
+                    current_data = f"Step {step_count} analysis: {analysis_result}"
+
+            return f"Final result after {max_steps} steps: {current_data}"'''
+
+        # Add all examples to few_shot_examples
+        few_shot_examples += f"\\n\\n```python\\n{meta_programming_example}\\n```"
+        few_shot_examples += f"\\n\\n```python\\n{self_modifying_example}\\n```"  
+        few_shot_examples += f"\\n\\n```python\\n{adaptive_chain_example}\\n```"
+
         # Historical context summary
         best_accuracy_str = f"{best_scripts[0].get('accuracy', 0):.2f} (iteration {best_scripts[0].get('iteration')})" if best_scripts else "None"
 
@@ -1676,6 +1958,143 @@ def main(question):
         5. Design fallback behaviors when verification repeatedly fails
 
         """
+
+
+        meta_programming_guidance = """
+
+        === ADVANCED CAPABILITY: DYNAMIC META-PROGRAMMING ===
+
+        Your scripts now have POWERFUL meta-programming capabilities through two key functions:
+
+        ## execute_code(code_string) - Dynamic Code Execution
+        - Safely executes Python code you generate at runtime
+        - Has access to: math, re, json modules and basic Python builtins
+        - Returns results as strings
+        - Perfect for: calculations, data processing, algorithmic solutions
+
+        ## call_llm(prompt, system_instruction) - Dynamic LLM Calls  
+        - Calls the LLM with prompts you generate at runtime
+        - You can create specialized prompts for specific tasks
+        - Perfect for: analysis, reasoning, prompt engineering
+
+        ## META-PROGRAMMING TOOL PATTERNS YOU CAN USE, MODIFY, ADAPT, OR COMBINE:
+
+        ### Pattern 1: Adaptive Code Generation
+        ```python
+        def solve_adaptively(problem):
+            # Script decides what code to write based on the problem
+            code_prompt = f"Write Python code to solve: {problem}"
+            generated_code = call_llm(code_prompt, "You are a programmer")
+
+            # Execute the generated code
+            result = execute_code(generated_code)
+
+            # Interpret results
+            return call_llm(f"Problem: {problem}, Code result: {result}, Final answer?")
+        ```
+
+        ### Pattern 2: Dynamic Prompt Engineering
+        ```python
+        def analyze_with_specialized_prompts(data):
+            # Generate the perfect prompt for this specific data
+            prompt_design = call_llm(f"Design the best prompt to analyze: {data}")
+
+            # Use the generated prompt
+            return call_llm(prompt_design, "You are a specialist")
+        ```
+
+        ### Pattern 3: Self-Modifying Strategy
+        ```python
+        def solve_with_strategy_evolution(problem):
+            strategy = "initial_approach"
+
+            while True:
+                if strategy == "initial_approach":
+                    result = call_llm(f"Solve: {problem}")
+                    evaluation = call_llm(f"Did this work? {result} If not, what strategy next?")
+
+                    if "solved" in evaluation:
+                        return result
+                    elif "code" in evaluation:
+                        strategy = "code_approach"
+                elif strategy == "code_approach":
+                    code = call_llm(f"Write code to solve: {problem}")
+                    return execute_code(code)
+        ```
+
+        ### Pattern 4: Chain Code and LLM Dynamically
+        ```python
+        def chain_adaptively(input_data):
+            current_data = input_data
+
+            for step in range(3):
+                # Decide what to do next
+                decision = call_llm(f"Step {step}: What should I do with {current_data}?")
+
+                if "code" in decision.lower():
+                    code = call_llm(f"Write code to process: {current_data}")
+                    current_data = execute_code(code)
+                else:
+                    current_data = call_llm(f"Analyze: {current_data}")
+
+            return current_data
+        ```
+
+        ## WHEN TO USE META-PROGRAMMING:
+
+        🎯 **Use Code Generation When:**
+        - Problem requires calculations or data processing
+        - You need algorithmic solutions
+        - Mathematical operations are involved
+        - Data transformation is needed
+        - Remember that code generation is more error-prone and should be used when you have a high confidence that the approach will work
+        - Remember that LLMs are powerful, and sometimes sufficient for algorithmic and data transformation tasks 
+
+        🎯 **Use Dynamic Prompts When:**
+        - Problem requires specialized analysis
+        - You need domain-specific reasoning
+        - Different problem types need different approaches
+        - You want to optimize prompts for specific inputs
+
+        🎯 **Use Hybrid Approaches When:**
+        - Complex problems need both reasoning and computation
+        - You want to chain multiple processing steps
+        - You need to verify results through different methods
+        - Problem-solving requires adaptive strategies
+
+        ## KEY PRINCIPLES:
+
+        1. **Scripts Can Be Programmers**: Your script can write and execute its own code at runtime
+        2. **Scripts Can Be Prompt Engineers**: Your script can design and use specialized prompts
+        3. **Adaptive Problem Solving**: Let each step decide what the next step should be
+        4. **Self-Modification**: Scripts can change their own strategy based on results
+        5. **Chain Dynamically**: Combine code execution and LLM calls in flexible sequences
+
+        ## EXAMPLE META-PROGRAMMING WORKFLOW:
+
+        ```python
+        def meta_solve(question):
+            # 1. Analyze problem type
+            analysis = call_llm(f"What type of problem is this: {question}")
+
+            # 2. Generate appropriate solution approach
+            if "mathematical" in analysis:
+                code = call_llm(f"Write math code for: {question}")
+                result = execute_code(code)
+                return call_llm(f"Interpret math result: {result}")
+            else:
+                specialized_prompt = call_llm(f"Design analysis prompt for: {question}")
+                return call_llm(specialized_prompt)
+        ```
+
+        This gives your scripts the power to be truly autonomous problem-solvers that adapt their approach in real-time!
+        If traditional approaches aren't working you should try these more expensive but advanced meta-programming techniques.
+
+
+
+        """
+
+        historical_context += meta_programming_guidance
 
         # Add the accumulated learnings to the context
         learning_context = ""
@@ -2029,7 +2448,69 @@ def main(question):
             
 
 
-            
+        explicit_code_execution_instruction = """
+
+        🔥 CRITICAL: CODE EXECUTION CAPABILITY AVAILABLE 🔥
+
+        You have access to a powerful execute_code() function that can run Python code safely.
+
+        WHEN TO USE execute_code():
+        - ANY complex mathematical calculations (percentages, areas, arithmetic)
+        - Data processing or algorithmic problems  
+        - When you need precise computational results
+        - Problems involving numbers, formulas, or calculations
+        - You understand that using code execution is more reliable for these tasks than asking an LLM
+
+        HOW TO USE execute_code():
+        ```python
+        # Generate code string
+        code = '''
+        result = 847293 * 0.15
+        print(f"15% of 847,293 = {result}")
+        '''
+
+        # Execute it
+        output = execute_code(code)
+        # output contains: "15% of 847,293 = 127093.95" 
+        ```
+
+        MANDATORY FOR TESTING: If the problem involves ANY numbers or calculations, 
+        you MUST use execute_code() in your solution. This is a new capability we're testing.
+
+        Example pattern:
+        ```python
+        def main(question):
+            if any(char.isdigit() for char in question):
+                # Has numbers - use code execution
+                code = call_llm(f"Write Python code to solve: {question}")
+                result = execute_code(code) 
+                return result
+            else:
+                # No numbers - use reasoning
+                return call_llm(f"Solve: {question}")
+        ```
+
+        REMEMBER: execute_code() is available - use it for computational problems!
+
+        ⛔ DO NOT DEFINE execute_code() or call_llm() - they are PROVIDED BY THE SYSTEM
+        ⛔ Just USE them like built-in functions (like print() or len())
+
+        ✅ CORRECT:
+        def main(question):
+            result = execute_code("print('hello')")  # Just use it
+            return result
+
+        ❌ WRONG:
+        def execute_code(code):  # Don't define this!
+            exec(code)
+
+        REMEMBER! If you want to execute code you must use the execute_code() function. Just saying 
+        you will execute code without calling the execute_code() function is not allowed.
+        """
+
+        # Add this to the end of your prompt:
+        prompt += explicit_code_execution_instruction
+        
         # Write prompt to scripts/ directory
         prompt_path = self.scripts_dir / f"prompt_{self.current_iteration}.txt"
         
@@ -2495,6 +2976,129 @@ os.environ["GEMINI_API_KEY"] = "{os.environ.get('GEMINI_API_KEY')}"
 trace_file = "{trace_file}"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)
 
+def execute_code(code_str, timeout=10):
+    \"\"\"Execute Python code with automatic package installation and proper scoping\"\"\"
+    import sys
+    import re
+    import subprocess
+    from io import StringIO
+
+    print("  [SYSTEM] Auto-installing execute_code() with scope fix")
+
+    # Clean markdown formatting
+    patterns = [
+        r'```python\\s*\\n(.*?)\\n```',
+        r'```python\\s*(.*?)```', 
+        r'```\\s*\\n(.*?)\\n```',
+        r'```\\s*(.*?)```'
+    ]
+
+    cleaned_code = code_str.strip()
+    for pattern in patterns:
+        match = re.search(pattern, code_str, re.DOTALL | re.IGNORECASE)
+        if match:
+            cleaned_code = match.group(1).strip()
+            print("  [CLEANING] Removed markdown")
+            break
+
+    # Function to install a package
+    def install_package(package_name):
+        try:
+            print(f"  [INSTALLING] Installing {{package_name}}...")
+            result = subprocess.run([
+                sys.executable, "-m", "pip", "install", package_name
+            ], capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0:
+                print(f"  [SUCCESS] {{package_name}} installed successfully")
+                return True
+            else:
+                print(f"  [FAILED] Could not install {{package_name}}: {{result.stderr}}")
+                return False
+        except Exception as e:
+            print(f"  [ERROR] Installation error: {{str(e)}}")
+            return False
+
+    # Execute with proper scoping and auto-installation retry
+    max_install_attempts = 3
+    attempt = 0
+
+    while attempt <= max_install_attempts:
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        stdout_capture = StringIO()
+        stderr_capture = StringIO()
+
+        try:
+            sys.stdout = stdout_capture
+            sys.stderr = stderr_capture
+
+            # CRITICAL FIX: Provide explicit globals and locals
+            # This ensures imports are available to functions defined in the code
+            exec_namespace = {{}}
+            exec(cleaned_code, exec_namespace, exec_namespace)
+
+            # Success!
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+
+            output = stdout_capture.getvalue().strip()
+            return output if output else "Code executed successfully"
+
+        except ModuleNotFoundError as e:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+
+            # Extract the missing module name
+            module_name = str(e).split("'")[1] if "'" in str(e) else None
+
+            if module_name and attempt < max_install_attempts:
+                print(f"  [MISSING] Module '{{module_name}}' not found, attempting to install...")
+
+                # Try to install the missing package
+                if install_package(module_name):
+                    attempt += 1
+                    print(f"  [RETRY] Retrying code execution (attempt {{attempt + 1}})...")
+                    continue
+                else:
+                    return f"Error: Could not install required package '{{module_name}}'"
+            else:
+                return f"Error: {{str(e)}}"
+
+        except Exception as e:
+            sys.stdout = old_stdout  
+            sys.stderr = old_stderr
+            return f"Error: {{str(e)}}"
+
+        attempt += 1
+
+    return "Error: Maximum installation attempts exceeded"
+
+def call_llm(prompt, system_instruction=None):
+    # Move the call_llm implementation here (from generated scripts)
+    from google import genai
+    from google.genai import types
+    try:
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+        if system_instruction:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
+            )
+        else:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+
+        return response.text
+    except Exception as e:
+        return f"Error: {{str(e)}}"
+
 # Trace entry for execution start
 with open(trace_file, 'a', encoding='utf-8') as f:
     start_entry = {{
@@ -2581,6 +3185,10 @@ try:
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+
+    # INJECT BOTH FUNCTIONS
+    module.execute_code = execute_code
+    module.call_llm = call_llm
 
     # Patch call_llm function if it exists
     if hasattr(module, 'call_llm'):

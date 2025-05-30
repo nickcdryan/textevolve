@@ -202,6 +202,8 @@ When called upon, you will perform the following key functions:
 
 ### Example 1: Hybrid LLM-Code Approach for Mathematical Problems
 
+
+
 ```python
 def hybrid_math_solver(problem_text, max_attempts=3):
     """
