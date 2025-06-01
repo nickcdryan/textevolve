@@ -1,0 +1,388 @@
+{
+  "iteration": 1,
+  "timestamp": "2025-06-01T01:15:44.761241",
+  "strategy": "explore",
+  "explore_rate": 60,
+  "exploit_rate": 20,
+  "refine_rate": 20,
+  "batch_size": 3,
+  "script": "import os\nimport re\nimport math\nfrom google import genai\nfrom google.genai import types\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question):\n    \"\"\"\n    Leveraging multi-stage analysis with targeted information extraction and verification:\n\n    Hypothesis: By breaking the problem into stages with distinct LLM calls focused on specific aspects (extraction, reasoning, and synthesis), combined with verification steps at each stage, we can improve accuracy and conciseness. This approach tests whether a more structured reasoning process reduces errors compared to a direct, single-step solution. This exploration focuses on improved information retrieval and answer extraction.\n    \"\"\"\n\n    # Stage 1: Keyword Identification and Passage Simplification\n    keywords_prompt = f\"\"\"\n    Identify the key entities and concepts in the question and passage. Use these keywords to simplify the passage,\n    focusing on the most relevant sentences.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Passage: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  In the first quarter, Indianapolis scored first with QB Peyton Manning completing a 5-yard TD pass to TE Dallas Clark, along with a 48-yard TD pass to WR Reggie Wayne.  In the second quarter, the Jaguars got on the board with RB Maurice Jones-Drew getting a 2-yard TD run. Afterwards, the Colts replied with Manning and Clark hooking up with each other again on a 14-yard TD pass. In the third quarter, Jacksonville tried to come back as QB David Garrard completed a 2-yard TD pass to TE Mercedes Lewis for the only score of the period. In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal. However, the Colts responded with Manning completing a 1-yard TD pass to RB Luke Lawton. Afterwards, Jacksonville tried to come back as Garrard completed a 17-yard TD pass to WR Dennis Northcutt (along with getting the 2-point conversion run). Indianapolis' defense managed to seal the deal. With their season-sweep over the Jaguars, the Colts improved to 10-2. During the game, the Colts gave Garrard his first interception of the year, courtesy of Safety Antoine Bethea.\n\n    Keywords: player, field goal\n    Simplified Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Passage: Nu Phoenicis is a yellow-white main sequence star of spectral type F9V and magnitude 4.96. Lying some 49 light years distant, it is around 1.2 times as massive as our sun, and likely to be surrounded by a disk of dust. It is the closest star in the constellation that is visible with the unaided eye. Gliese 915 is a white dwarf only 26 light years away. It is of magnitude 13.05, too faint to be seen with the naked eye. White dwarfs are extremely dense stars compacted into a volume the size of the Earth. With around 85% of the mass of the Sun, Gliese 915 has a surface gravity of 108.39 \u00b1 0.01 (2.45 \u00b7 108) centimetre\u00b7second\u22122, or approximately 250,000 of Earths gravity.\n\n    Keywords: star, mass, Nu Phoenicis, Gliese 915\n    Simplified Passage: Nu Phoenicis is around 1.2 times as massive as our sun. Gliese 915 has around 85% of the mass of the Sun.\n\n    Question: {question}\n    Keywords:\n    Simplified Passage:\n    \"\"\"\n\n    try:\n        keywords_and_simplified = call_llm(keywords_prompt, \"You are an expert at simplifying passages by extracting keywords and relevant sentences.\")\n        simplified_passage = keywords_and_simplified.split(\"Simplified Passage:\")[1].strip()\n    except:\n        simplified_passage = question # If keyword extraction fails, use the original question\n\n    # Stage 2: Information Extraction and Focused Reasoning\n    extraction_prompt = f\"\"\"\n    Based on the simplified passage, answer the question concisely. Provide ONLY the answer entity (name, value, etc.) without extra words or context.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Passage: Nu Phoenicis is around 1.2 times as massive as our sun. Gliese 915 has around 85% of the mass of the Sun.\n    Answer: Gliese 915\n\n    Question: {question}\n    Passage: {simplified_passage}\n    Answer:\n    \"\"\"\n\n    try:\n        answer = call_llm(extraction_prompt, \"You are an information extraction expert. Give the single most relevant entity as the answer.\")\n        answer = answer.strip()\n    except:\n        answer = \"Could not extract answer.\"\n\n    # Stage 3: Verification\n    verification_prompt = f\"\"\"\n    Verify that the extracted answer directly and concisely answers the question based on the original passage.\n    If the answer is incorrect or incomplete, provide the correct answer without any extra information.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Extracted Answer: Josh Scobee\n    Correct: True\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Extracted Answer: Gliese 915\n    Correct: True\n\n    Question: {question}\n    Extracted Answer: {answer}\n    Correct:\n    \"\"\"\n    try:\n        correctness = call_llm(verification_prompt, \"You are a precise answer checker.\").strip()\n        if \"False\" in correctness:\n            answer = call_llm(f\"Based on the question {question} and the original passage, what is the CORRECT answer without any extra information or verbosity?\", \"You are a precise information retriever.\")\n    except:\n        pass\n\n    return answer",
+  "approach_summary": "The script implements a multi-stage LLM-driven approach to answer a question based on a given passage. It decomposes the problem into keyword identification and passage simplification, information extraction, and answer verification stages. Three LLM agent roles are employed: a passage simplifier, an information extraction expert, and an answer checker. The `call_llm` function is used to interact with the Gemini model. The `main` function orchestrates the workflow: `call_llm` is used to extract keywords and simplify the passage, then used to extract the answer, and finally used again to verify the extracted answer's correctness.",
+  "sample_count": 3,
+  "samples": [
+    {
+      "question": "PASSAGE: Hoping to rebound from their first loss of the season, the Broncos returned home for an AFC West divisional rematch with the Kansas City Chiefs. After Peyton Manning became the NFL's all-time leader in regular season passing yardage, the game turned sour for the Broncos. Following a Manning interception, the Chiefs capitalized, with a 4-yard touchdown run by running back Charcandrick West. The Broncos' offense went three-and-out on their next two possessions, and the Chiefs increased their lead to 10-0, with a 48-yard field goal by placekicker Cairo Santos. The Chiefs increased their lead to 19-0 at halftime, with three more field goals by Santos &#8212; from 49, 34 and 33 yards out. By halftime, Manning had thrown three interceptions and the Broncos' offense had earned only one first down. The Broncos went three-and-out on their first possession of the second half, and a 50-yarder field goal by Santos increased the Chiefs' lead to 22-0. After Manning threw his fourth interception of the game on the Broncos' next possession, he was pulled and replaced by backup quarterback Brock Osweiler for the remainder of the game. Osweiler drove the Broncos' into the red zone early in the fourth quarter, but was intercepted by Chiefs' safety Eric Berry. Two plays later, the Chiefs increased their lead to 29-0, when quarterback Alex Smith connected with West on an 80-yard touchdown pass. The Broncos' finally got on the scoreboard with 5:31 remaining in the game, with running back Ronnie Hillman rushing for a 1-yard touchdown (two-point conversion attempt unsuccessful), followed by a 7-yard touchdown pass from Osweiler to wide receiver Andre Caldwell, but the Chiefs' lead was too much for the Broncos to overcome. Peyton Manning finished the day with the first 0.0 passer rating of his career.\n\nQUESTION: How many yards longer was the longest touchdown pass than the longest field goal?",
+      "answer": "30",
+      "id": "example_15",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their first loss of the season, the Broncos returned home for an AFC West divisional rematch with the Kansas City Chiefs. After Peyton Manning became the NFL's all-time leader in regular season passing yardage, the game turned sour for the Broncos. Following a Manning interception, the Chiefs capitalized, with a 4-yard touchdown run by running back Charcandrick West. The Broncos' offense went three-and-out on their next two possessions, and the Chiefs increased their lead to 10-0, with a 48-yard field goal by placekicker Cairo Santos. The Chiefs increased their lead to 19-0 at halftime, with three more field goals by Santos &#8212; from 49, 34 and 33 yards out. By halftime, Manning had thrown three interceptions and the Broncos' offense had earned only one first down. The Broncos went three-and-out on their first possession of the second half, and a 50-yarder field goal by Santos increased the Chiefs' lead to 22-0. After Manning threw his fourth interception of the game on the Broncos' next possession, he was pulled and replaced by backup quarterback Brock Osweiler for the remainder of the game. Osweiler drove the Broncos' into the red zone early in the fourth quarter, but was intercepted by Chiefs' safety Eric Berry. Two plays later, the Chiefs increased their lead to 29-0, when quarterback Alex Smith connected with West on an 80-yard touchdown pass. The Broncos' finally got on the scoreboard with 5:31 remaining in the game, with running back Ronnie Hillman rushing for a 1-yard touchdown (two-point conversion attempt unsuccessful), followed by a 7-yard touchdown pass from Osweiler to wide receiver Andre Caldwell, but the Chiefs' lead was too much for the Broncos to overcome. Peyton Manning finished the day with the first 0.0 passer rating of his career.",
+        "original_question": "How many yards longer was the longest touchdown pass than the longest field goal?",
+        "original_answer_data": {
+          "spans": [
+            "30"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 630
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their road win over the 49ers, the Titans went home, donned their Houston Oilers throwbacks, and played a Week 10 AFL Legacy game with the Buffalo Bills.  Tennessee would trail early in the first quarter as Bills running back Fred Jackson threw a 27-yard touchdown pass to wide receiver Lee Evans.  The Titans would respond as running back Chris Johnson got a 28-yard touchdown run, followed by quarterback Vince Young hooking up with wide receiver Nate Washington on a 14-yard touchdown pass.  In the second quarter, Tennessee would increase their lead as kicker Rob Bironas booted a 38-yard field goal.  Buffalo would end the half with quarterback Trent Edwards finding Evans on an 8-yard touchdown pass. The Bills would tie the game in the third quarter with kicker Rian Lindell booting a 25-yard field goal, yet the Titans would explode with points in the fourth quarter.  It began with Johnson's 1-yard touchdown run, followed by Bironas' 51-yard field goal.  It would follow up with safety Vincent Fuller returning an interception 26 yards for a touchdown and cornerback Rod Hood returning an interception 31 yards for a touchdown. Chris Johnson (26 carries, 132 yards, 2 TDs and 9 catches, 100 yards) would join Billy Cannon as the only players in franchise history to rush and receive for 100 yards in one game.  He would also join Earl Campbell in 1980 as the only players in franchise history to have two rushing touchdowns in three-straight games. At the end of the game, owner Bud Adams raised his middle fingers to Buffalo players from his box and was subsequently fined $250,000 by Roger Goodell, who was in attendance at the game.\n\nQUESTION: How many receiving yards did Chris Johnson have?",
+      "answer": "100",
+      "id": "example_16",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their road win over the 49ers, the Titans went home, donned their Houston Oilers throwbacks, and played a Week 10 AFL Legacy game with the Buffalo Bills.  Tennessee would trail early in the first quarter as Bills running back Fred Jackson threw a 27-yard touchdown pass to wide receiver Lee Evans.  The Titans would respond as running back Chris Johnson got a 28-yard touchdown run, followed by quarterback Vince Young hooking up with wide receiver Nate Washington on a 14-yard touchdown pass.  In the second quarter, Tennessee would increase their lead as kicker Rob Bironas booted a 38-yard field goal.  Buffalo would end the half with quarterback Trent Edwards finding Evans on an 8-yard touchdown pass. The Bills would tie the game in the third quarter with kicker Rian Lindell booting a 25-yard field goal, yet the Titans would explode with points in the fourth quarter.  It began with Johnson's 1-yard touchdown run, followed by Bironas' 51-yard field goal.  It would follow up with safety Vincent Fuller returning an interception 26 yards for a touchdown and cornerback Rod Hood returning an interception 31 yards for a touchdown. Chris Johnson (26 carries, 132 yards, 2 TDs and 9 catches, 100 yards) would join Billy Cannon as the only players in franchise history to rush and receive for 100 yards in one game.  He would also join Earl Campbell in 1980 as the only players in franchise history to have two rushing touchdowns in three-straight games. At the end of the game, owner Bud Adams raised his middle fingers to Buffalo players from his box and was subsequently fined $250,000 by Roger Goodell, who was in attendance at the game.",
+        "original_question": "How many receiving yards did Chris Johnson have?",
+        "original_answer_data": {
+          "spans": [
+            "100"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 940
+      }
+    },
+    {
+      "question": "PASSAGE: New Caledonia is a major source for nickel and contains roughly 10% of the worlds known nickel supply. The islands contain about 7,100,000 tonnes of nickel. With the annual production of about 107,000 tonnes in 2009, New Caledonia was the Nickel mining in New Caledonia after Russia (266,000), Indonesia (189,000), Canada (181,000) and Australia (167,000). In recent years, the economy has suffered because of depressed international demand for nickel, due to the ongoing financial crisis of 2007\u20132008. Only a negligible amount of the land is suitable for cultivation, and food accounts for about 20% of imports. In addition to nickel, the substantial financial support from France and tourism are keys to the health of the economy. In the 2000s, large additions were made to nickel mining capacity. The Goro, New Caledonia is expected to be one of the largest nickel producing plants on Earth. When full-scale production begins in 2013 this plant will produce an estimated 20% of the global nickel supply. However, the need to respond to environmental concerns over the countrys globally recognized ecological heritage, may increasingly need to be factored into capitalization of mining operations.\n\nQUESTION: Which country produced more tonnes of nickel in 2009, Canada or Australia?",
+      "answer": "Canada",
+      "id": "example_17",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "New Caledonia is a major source for nickel and contains roughly 10% of the worlds known nickel supply. The islands contain about 7,100,000 tonnes of nickel. With the annual production of about 107,000 tonnes in 2009, New Caledonia was the Nickel mining in New Caledonia after Russia (266,000), Indonesia (189,000), Canada (181,000) and Australia (167,000). In recent years, the economy has suffered because of depressed international demand for nickel, due to the ongoing financial crisis of 2007\u20132008. Only a negligible amount of the land is suitable for cultivation, and food accounts for about 20% of imports. In addition to nickel, the substantial financial support from France and tourism are keys to the health of the economy. In the 2000s, large additions were made to nickel mining capacity. The Goro, New Caledonia is expected to be one of the largest nickel producing plants on Earth. When full-scale production begins in 2013 this plant will produce an estimated 20% of the global nickel supply. However, the need to respond to environmental concerns over the countrys globally recognized ecological heritage, may increasingly need to be factored into capitalization of mining operations.",
+        "original_question": "Which country produced more tonnes of nickel in 2009, Canada or Australia?",
+        "original_answer_data": {
+          "spans": [
+            "Canada"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 797
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their first loss of the season, the Broncos returned home for an AFC West divisional rematch with the Kansas City Chiefs. After Peyton Manning became the NFL's all-time leader in regular season passing yardage, the game turned sour for the Broncos. Following a Manning interception, the Chiefs capitalized, with a 4-yard touchdown run by running back Charcandrick West. The Broncos' offense went three-and-out on their next two possessions, and the Chiefs increased their lead to 10-0, with a 48-yard field goal by placekicker Cairo Santos. The Chiefs increased their lead to 19-0 at halftime, with three more field goals by Santos &#8212; from 49, 34 and 33 yards out. By halftime, Manning had thrown three interceptions and the Broncos' offense had earned only one first down. The Broncos went three-and-out on their first possession of the second half, and a 50-yarder field goal by Santos increased the Chiefs' lead to 22-0. After Manning threw his fourth interception of the game on the Broncos' next possession, he was pulled and replaced by backup quarterback Brock Osweiler for the remainder of the game. Osweiler drove the Broncos' into the red zone early in the fourth quarter, but was intercepted by Chiefs' safety Eric Berry. Two plays later, the Chiefs increased their lead to 29-0, when quarterback Alex Smith connected with West on an 80-yard touchdown pass. The Broncos' finally got on the scoreboard with 5:31 remaining in the game, with running back Ronnie Hillman rushing for a 1-yard touchdown (two-point conversion attempt unsuccessful), followed by a 7-yard touchdown pass from Osweiler to wide receiver Andre Caldwell, but the Chiefs' lead was too much for the Broncos to overcome. Peyton Manning finished the day with the first 0.0 passer rating of his career.",
+      "original_question": "How many yards longer was the longest touchdown pass than the longest field goal?",
+      "original_answer_data": {
+        "spans": [
+          "30"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 630
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their road win over the 49ers, the Titans went home, donned their Houston Oilers throwbacks, and played a Week 10 AFL Legacy game with the Buffalo Bills.  Tennessee would trail early in the first quarter as Bills running back Fred Jackson threw a 27-yard touchdown pass to wide receiver Lee Evans.  The Titans would respond as running back Chris Johnson got a 28-yard touchdown run, followed by quarterback Vince Young hooking up with wide receiver Nate Washington on a 14-yard touchdown pass.  In the second quarter, Tennessee would increase their lead as kicker Rob Bironas booted a 38-yard field goal.  Buffalo would end the half with quarterback Trent Edwards finding Evans on an 8-yard touchdown pass. The Bills would tie the game in the third quarter with kicker Rian Lindell booting a 25-yard field goal, yet the Titans would explode with points in the fourth quarter.  It began with Johnson's 1-yard touchdown run, followed by Bironas' 51-yard field goal.  It would follow up with safety Vincent Fuller returning an interception 26 yards for a touchdown and cornerback Rod Hood returning an interception 31 yards for a touchdown. Chris Johnson (26 carries, 132 yards, 2 TDs and 9 catches, 100 yards) would join Billy Cannon as the only players in franchise history to rush and receive for 100 yards in one game.  He would also join Earl Campbell in 1980 as the only players in franchise history to have two rushing touchdowns in three-straight games. At the end of the game, owner Bud Adams raised his middle fingers to Buffalo players from his box and was subsequently fined $250,000 by Roger Goodell, who was in attendance at the game.",
+      "original_question": "How many receiving yards did Chris Johnson have?",
+      "original_answer_data": {
+        "spans": [
+          "100"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 940
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "New Caledonia is a major source for nickel and contains roughly 10% of the worlds known nickel supply. The islands contain about 7,100,000 tonnes of nickel. With the annual production of about 107,000 tonnes in 2009, New Caledonia was the Nickel mining in New Caledonia after Russia (266,000), Indonesia (189,000), Canada (181,000) and Australia (167,000). In recent years, the economy has suffered because of depressed international demand for nickel, due to the ongoing financial crisis of 2007\u20132008. Only a negligible amount of the land is suitable for cultivation, and food accounts for about 20% of imports. In addition to nickel, the substantial financial support from France and tourism are keys to the health of the economy. In the 2000s, large additions were made to nickel mining capacity. The Goro, New Caledonia is expected to be one of the largest nickel producing plants on Earth. When full-scale production begins in 2013 this plant will produce an estimated 20% of the global nickel supply. However, the need to respond to environmental concerns over the countrys globally recognized ecological heritage, may increasingly need to be factored into capitalization of mining operations.",
+      "original_question": "Which country produced more tonnes of nickel in 2009, Canada or Australia?",
+      "original_answer_data": {
+        "spans": [
+          "Canada"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 797
+    }
+  ],
+  "example_indices": [
+    15,
+    16,
+    17
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "32 yards",
+      "output": "ANSWER_START\n32 yards\n\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_1.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The answers are different numerical values. 32 and 30 are not the same."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "100",
+      "output": "ANSWER_START\n100\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_1.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value: 100."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Canada",
+      "output": "ANSWER_START\nCanada\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_1.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same country name."
+      },
+      "match": true
+    }
+  ],
+  "performance": {
+    "accuracy": 0.6666666666666666,
+    "correct_count": 2,
+    "total_count": 3,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "32 yards",
+        "golden_answer": "30",
+        "output": "ANSWER_START\n32 yards\n\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The answers are different numerical values. 32 and 30 are not the same."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "100",
+        "golden_answer": "100",
+        "output": "ANSWER_START\n100\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 100."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "Canada",
+        "golden_answer": "Canada",
+        "output": "ANSWER_START\nCanada\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same country name."
+        }
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\nNone observed in the provided data.\n\n## STRENGTHS\n*   The system can correctly extract numerical information from the text and perform simple reasoning when it understands the context. (Success case 1 and 2 demonstrates extraction and selection capabilities.)\n*   The system can handle question types related to comparison (success case 2).\n\n## WEAKNESSES\n*   **Arithmetic Errors**: The system struggles with basic arithmetic operations like subtraction when multiple numerical values need to be extracted and processed (Error case 0).\n*   **Lack of Contextual Understanding**: The system struggles to accurately identify the relevant numerical values for the longest touchdown pass and the longest field goal from a passage containing multiple such mentions, leading to wrong subtraction.\n\n## CRITICAL BOTTLENECKS\n*   **Precise Information Extraction and Contextual Awareness for Arithmetic Operations**: The system's inability to correctly pinpoint the exact numerical values required for calculations, particularly when multiple options are present in the text, and then perform the necessary arithmetic accurately.\n\n## ERROR PATTERNS\n*   **Off-by-small-margin Numerical Errors**: In the error case, the answer is close to the correct value (32 vs 30), indicating an issue with precisely selecting the correct numbers or with performing the arithmetic.\n\n## PRIMARY ISSUE\nThe system misidentified at least one of the numerical values (longest touchdown pass or longest field goal) needed to perform the subtraction in error case 0, leading to an incorrect calculation. The system does not seem to be choosing the correct numbers based on contextual understanding.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction**: Improve the system's ability to identify and extract the *correct* numerical values based on context. It needs to be able to reliably identify the \"longest touchdown pass\" and the \"longest field goal\" from the passage, even when multiple touchdown passes and field goals are mentioned.\n*   **Arithmetic Operations**: Ensure accurate performance of arithmetic calculations after extracting the relevant information.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Enhanced Information Extraction with Contextual Filtering**: When extracting numerical values, implement a filtering mechanism that uses the question's context to identify the most relevant values. For example, for \"longest touchdown pass\", filter for values associated with \"touchdown pass\" and select the maximum.\n*   **Double-Check Arithmetic**: After performing arithmetic operations, add a step to verify the calculation by re-executing it with a different method or library. If the outputs are different, flag the answer for manual review.\n*   **Add Intermediate Output Logging**: Implement detailed logging of the information extraction and calculation steps. This should include the extracted numerical values, the reasoning for selecting them, and the result of each calculation. This will allow for easier debugging and identification of errors in future cases. Print out extracted values and the rationales for extracting the values.\n\n## CAPABILITY MAPPING\n*   **Sample 0:** information_extraction, constraint_handling, solution_generation\n",
+      "strengths": [
+        "The system can correctly extract numerical information from the text and perform simple reasoning when it understands the context. (Success case 1 and 2 demonstrates extraction and selection capabilities.)",
+        "The system can handle question types related to comparison (success case 2)."
+      ],
+      "weaknesses": [
+        "Arithmetic Errors**: The system struggles with basic arithmetic operations like subtraction when multiple numerical values need to be extracted and processed (Error case 0).",
+        "Lack of Contextual Understanding**: The system struggles to accurately identify the relevant numerical values for the longest touchdown pass and the longest field goal from a passage containing multiple such mentions, leading to wrong subtraction."
+      ],
+      "primary_issue": "The system misidentified at least one of the numerical values (longest touchdown pass or longest field goal) needed to perform the subtraction in error case 0, leading to an incorrect calculation. The system does not seem to be choosing the correct numbers based on contextual understanding.",
+      "improvement_suggestions": [
+        "Enhanced Information Extraction with Contextual Filtering**: When extracting numerical values, implement a filtering mechanism that uses the question's context to identify the most relevant values. For example, for \"longest touchdown pass\", filter for values associated with \"touchdown pass\" and select the maximum.",
+        "Double-Check Arithmetic**: After performing arithmetic operations, add a step to verify the calculation by re-executing it with a different method or library. If the outputs are different, flag the answer for manual review.",
+        "Add Intermediate Output Logging**: Implement detailed logging of the information extraction and calculation steps. This should include the extracted numerical values, the reasoning for selecting them, and the result of each calculation. This will allow for easier debugging and identification of errors in future cases. Print out extracted values and the rationales for extracting the values."
+      ],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.67 (2/3)\n*   Error samples: 1/3\n\n**ERROR ANALYSIS REPORT:**\n\n*   See provided Error Analysis Report\n\n**SAMPLE EXECUTION OUTPUTS:**\n\n```json\n[\n  \"ANSWER_START\\n32 yards\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\n100\\nANSWER_END\\n\",\n  \"ANSWER_START\\nCanada\\nANSWER_END\\n\"\n]\n```\n\n### EXECUTION ANALYSIS\n\nThe execution outputs show the system provides answers delimited by `ANSWER_START` and `ANSWER_END` tags, which is good for parsing and extracting the core answer. The errors, based on the error analysis report, aren't directly visible in these snippets, but we can infer the following:\n\n*   **Error Case (Inferred):** The output \"32 yards\" likely represents the incorrect answer to the subtraction problem (longest touchdown - longest field goal). This corroborates the \"Off-by-small-margin Numerical Errors\" observation in the error analysis. The proximity of 32 to the correct answer of 30 strongly suggests an issue with identifying the correct numbers *before* the subtraction occurs.\n*   **Success Cases:** The other two outputs (\"100\" and \"Canada\") indicate the system can correctly identify and extract specific pieces of information when the context is clear.\n*   **Output Format:** The consistent output format is a positive attribute, making post-processing and automated evaluation easier.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates a moderate level of capability. It can perform basic information extraction and handle simple reasoning tasks in straightforward scenarios. However, it struggles when faced with complex contexts requiring precise numerical identification and arithmetic operations. Contextual understanding is a significant limiting factor.\n\n### KEY STRENGTHS\n\n*   **Numerical Information Extraction:** The system can extract numbers from the text.\n*   **Simple Reasoning:** The system can handle comparison-based questions.\n*   **Consistent Output Format:** The `ANSWER_START` and `ANSWER_END` delimiters improve parsability.\n\n### KEY WEAKNESSES\n\n*   **Arithmetic Errors:** Inaccurate calculations due to incorrect initial values.\n*   **Lack of Contextual Understanding:** Difficulty identifying relevant information when multiple similar data points exist.\n*   **Precise Information Extraction:** Struggles to select the *correct* numerical values based on context.\n\n### IMPROVEMENT FOCUS\n\nThe primary focus should be on **improving precise information extraction with enhanced contextual understanding.** Addressing this will have the most significant impact on overall accuracy, as the arithmetic errors stem from incorrect initial values.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Contextual Filtering for Numerical Extraction:**\n    *   When a question involves numerical operations, implement a filtering stage after initial numerical extraction.\n    *   This stage should use keywords and contextual information from the question to narrow down the extracted numbers to the most relevant ones.\n    *   For the error case scenario (longest TD - longest FG), filter the numbers based on the phrases \"touchdown pass\" and \"field goal\" respectively, and *then* select the maximum from each filtered list.\n2.  **Add Detailed Logging of Extraction Rationale:**\n    *   Log *why* the system selected specific numerical values.\n    *   Include the contextual keywords used, the filtering steps applied, and the reasoning behind choosing a particular value as the \"longest\" or \"shortest\".\n    *   This detailed logging is critical for debugging future errors and understanding the system's decision-making process.\n3. **Implement Input Validation:**\n    *   Prior to any extraction and arithmetic steps, validate the input question by checking if the type of question can be answered and if the input contains the information.\n    *   If the input validation fails, return an error.\n4.  **Unit Tests for Information Extraction:**\n    * Create unit tests specifically focused on the information extraction module.\n    * Design tests to cover edge cases, ambiguous language, and scenarios with multiple similar values.\n    * Track the accuracy of the information extraction module independently to assess the impact of improvements.\n\n### CAPABILITY TREND\n\nBased on the current data, it's difficult to assess a trend. However, the clear weaknesses indicate a need for improvement. After implementing the recommendations and retraining, the trend should be monitored to determine if capabilities are improving. More data points after retraining are critical to determine the direction of capability change.\n",
+      "strengths": [
+        "The system can correctly extract numerical information from the text and perform simple reasoning when it understands the context. (Success case 1 and 2 demonstrates extraction and selection capabilities.)",
+        "The system can handle question types related to comparison (success case 2)."
+      ],
+      "weaknesses": [
+        "Arithmetic Errors**: The system struggles with basic arithmetic operations like subtraction when multiple numerical values need to be extracted and processed (Error case 0).",
+        "Lack of Contextual Understanding**: The system struggles to accurately identify the relevant numerical values for the longest touchdown pass and the longest field goal from a passage containing multiple such mentions, leading to wrong subtraction."
+      ],
+      "improvement_suggestions": [
+        "Enhanced Information Extraction with Contextual Filtering**: When extracting numerical values, implement a filtering mechanism that uses the question's context to identify the most relevant values. For example, for \"longest touchdown pass\", filter for values associated with \"touchdown pass\" and select the maximum.",
+        "Double-Check Arithmetic**: After performing arithmetic operations, add a step to verify the calculation by re-executing it with a different method or library. If the outputs are different, flag the answer for manual review.",
+        "Add Intermediate Output Logging**: Implement detailed logging of the information extraction and calculation steps. This should include the extracted numerical values, the reasoning for selecting them, and the result of each calculation. This will allow for easier debugging and identification of errors in future cases. Print out extracted values and the rationales for extracting the values."
+      ],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\nNone observed in the provided data.\n\n## STRENGTHS\n*   The system can correctly extract numerical information from the text and perform simple reasoning when it understands the context. (Success case 1 and 2 demonstrates extraction and selection capabilities.)\n*   The system can handle question types related to comparison (success case 2).\n\n## WEAKNESSES\n*   **Arithmetic Errors**: The system struggles with basic arithmetic operations like subtraction when multiple numerical values need to be extracted and processed (Error case 0).\n*   **Lack of Contextual Understanding**: The system struggles to accurately identify the relevant numerical values for the longest touchdown pass and the longest field goal from a passage containing multiple such mentions, leading to wrong subtraction.\n\n## CRITICAL BOTTLENECKS\n*   **Precise Information Extraction and Contextual Awareness for Arithmetic Operations**: The system's inability to correctly pinpoint the exact numerical values required for calculations, particularly when multiple options are present in the text, and then perform the necessary arithmetic accurately.\n\n## ERROR PATTERNS\n*   **Off-by-small-margin Numerical Errors**: In the error case, the answer is close to the correct value (32 vs 30), indicating an issue with precisely selecting the correct numbers or with performing the arithmetic.\n\n## PRIMARY ISSUE\nThe system misidentified at least one of the numerical values (longest touchdown pass or longest field goal) needed to perform the subtraction in error case 0, leading to an incorrect calculation. The system does not seem to be choosing the correct numbers based on contextual understanding.\n\n## IMPROVEMENT AREAS\n*   **Information Extraction**: Improve the system's ability to identify and extract the *correct* numerical values based on context. It needs to be able to reliably identify the \"longest touchdown pass\" and the \"longest field goal\" from the passage, even when multiple touchdown passes and field goals are mentioned.\n*   **Arithmetic Operations**: Ensure accurate performance of arithmetic calculations after extracting the relevant information.\n\n## IMPROVEMENT SUGGESTIONS\n*   **Enhanced Information Extraction with Contextual Filtering**: When extracting numerical values, implement a filtering mechanism that uses the question's context to identify the most relevant values. For example, for \"longest touchdown pass\", filter for values associated with \"touchdown pass\" and select the maximum.\n*   **Double-Check Arithmetic**: After performing arithmetic operations, add a step to verify the calculation by re-executing it with a different method or library. If the outputs are different, flag the answer for manual review.\n*   **Add Intermediate Output Logging**: Implement detailed logging of the information extraction and calculation steps. This should include the extracted numerical values, the reasoning for selecting them, and the result of each calculation. This will allow for easier debugging and identification of errors in future cases. Print out extracted values and the rationales for extracting the values.\n\n## CAPABILITY MAPPING\n*   **Sample 0:** information_extraction, constraint_handling, solution_generation\n",
+    "capability_report_text": "## AI System Capability Report\n\n**PERFORMANCE SUMMARY:**\n\n*   Accuracy: 0.67 (2/3)\n*   Error samples: 1/3\n\n**ERROR ANALYSIS REPORT:**\n\n*   See provided Error Analysis Report\n\n**SAMPLE EXECUTION OUTPUTS:**\n\n```json\n[\n  \"ANSWER_START\\n32 yards\\n\\nANSWER_END\\n\",\n  \"ANSWER_START\\n100\\nANSWER_END\\n\",\n  \"ANSWER_START\\nCanada\\nANSWER_END\\n\"\n]\n```\n\n### EXECUTION ANALYSIS\n\nThe execution outputs show the system provides answers delimited by `ANSWER_START` and `ANSWER_END` tags, which is good for parsing and extracting the core answer. The errors, based on the error analysis report, aren't directly visible in these snippets, but we can infer the following:\n\n*   **Error Case (Inferred):** The output \"32 yards\" likely represents the incorrect answer to the subtraction problem (longest touchdown - longest field goal). This corroborates the \"Off-by-small-margin Numerical Errors\" observation in the error analysis. The proximity of 32 to the correct answer of 30 strongly suggests an issue with identifying the correct numbers *before* the subtraction occurs.\n*   **Success Cases:** The other two outputs (\"100\" and \"Canada\") indicate the system can correctly identify and extract specific pieces of information when the context is clear.\n*   **Output Format:** The consistent output format is a positive attribute, making post-processing and automated evaluation easier.\n\n### CAPABILITY ASSESSMENT\n\nThe system demonstrates a moderate level of capability. It can perform basic information extraction and handle simple reasoning tasks in straightforward scenarios. However, it struggles when faced with complex contexts requiring precise numerical identification and arithmetic operations. Contextual understanding is a significant limiting factor.\n\n### KEY STRENGTHS\n\n*   **Numerical Information Extraction:** The system can extract numbers from the text.\n*   **Simple Reasoning:** The system can handle comparison-based questions.\n*   **Consistent Output Format:** The `ANSWER_START` and `ANSWER_END` delimiters improve parsability.\n\n### KEY WEAKNESSES\n\n*   **Arithmetic Errors:** Inaccurate calculations due to incorrect initial values.\n*   **Lack of Contextual Understanding:** Difficulty identifying relevant information when multiple similar data points exist.\n*   **Precise Information Extraction:** Struggles to select the *correct* numerical values based on context.\n\n### IMPROVEMENT FOCUS\n\nThe primary focus should be on **improving precise information extraction with enhanced contextual understanding.** Addressing this will have the most significant impact on overall accuracy, as the arithmetic errors stem from incorrect initial values.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement Contextual Filtering for Numerical Extraction:**\n    *   When a question involves numerical operations, implement a filtering stage after initial numerical extraction.\n    *   This stage should use keywords and contextual information from the question to narrow down the extracted numbers to the most relevant ones.\n    *   For the error case scenario (longest TD - longest FG), filter the numbers based on the phrases \"touchdown pass\" and \"field goal\" respectively, and *then* select the maximum from each filtered list.\n2.  **Add Detailed Logging of Extraction Rationale:**\n    *   Log *why* the system selected specific numerical values.\n    *   Include the contextual keywords used, the filtering steps applied, and the reasoning behind choosing a particular value as the \"longest\" or \"shortest\".\n    *   This detailed logging is critical for debugging future errors and understanding the system's decision-making process.\n3. **Implement Input Validation:**\n    *   Prior to any extraction and arithmetic steps, validate the input question by checking if the type of question can be answered and if the input contains the information.\n    *   If the input validation fails, return an error.\n4.  **Unit Tests for Information Extraction:**\n    * Create unit tests specifically focused on the information extraction module.\n    * Design tests to cover edge cases, ambiguous language, and scenarios with multiple similar values.\n    * Track the accuracy of the information extraction module independently to assess the impact of improvements.\n\n### CAPABILITY TREND\n\nBased on the current data, it's difficult to assess a trend. However, the clear weaknesses indicate a need for improvement. After implementing the recommendations and retraining, the trend should be monitored to determine if capabilities are improving. More data points after retraining are critical to determine the direction of capability change.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 8,
+    "accuracy": 0.8,
+    "results": [
+      {
+        "success": true,
+        "answer": "14",
+        "output": "ANSWER_START\n14\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "14",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (14)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "9",
+        "output": "ANSWER_START\n9\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "5",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer is 9, while the golden answer is 5. These are different numerical values and do not convey the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "10",
+        "output": "ANSWER_START\n10\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "10",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "125",
+        "output": "ANSWER_START\n125\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "125",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (125)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "3",
+        "output": "ANSWER_START\n3\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "3",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 3."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "According to the passage, the massacre at the village Zagorichani happened in 1905, and the period for the 4000 political murders was from 1897 to 1912.\n\nTherefore, the massacre at the village Zagorichani happened first.",
+        "output": "ANSWER_START\nAccording to the passage, the massacre at the village Zagorichani happened in 1905, and the period for the 4000 political murders was from 1897 to 1912.\n\nTherefore, the massacre at the village Zagorichani happened first.\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "4000 political murders",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The golden answer focuses on the number of political murders. The system answer is about the timeline of events, not directly addressing the 4000 political murders."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "Land Shark Stadium",
+        "output": "ANSWER_START\nLand Shark Stadium\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "Land Shark Stadium",
+        "evaluation": {
+          "match": true,
+          "confidence": 1.0,
+          "explanation": "Both answers are exactly the same."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Dan Carpenter",
+        "output": "ANSWER_START\nDan Carpenter\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "Dan Carpenter",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical, stating 'Dan Carpenter'."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "1-yard",
+        "output": "ANSWER_START\n1-yard\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": true,
+          "confidence": 0.8,
+          "explanation": "While \"1-yard\" technically specifies a unit, in the context of a numerical answer where the unit is implied or already understood, \"1\" conveys the same numerical value. Therefore, they are semantically equivalent in this context, although the system answer is more complete."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2 yards",
+        "output": "ANSWER_START\n2 yards\n\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_1.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 0.8,
+          "explanation": "The golden answer provides the numerical value 2. The system answer provides \"2 yards\". While \"yards\" provides a unit, the core numerical value of 2 is present in both answers. The difference in the units presented should not cause a problem in most scenarios."
+        },
+        "match": true
+      }
+    ]
+  },
+  "execution_time": 72.81190156936646,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

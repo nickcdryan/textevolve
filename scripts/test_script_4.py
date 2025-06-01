@@ -17,7 +17,7 @@ sys.path.append("scripts")
 os.environ["GEMINI_API_KEY"] = "AIzaSyD_DWppm-TR9CN7xTTVmrW5ngTax7xsLDA"
 
 # Configure tracing
-trace_file = "archive/trace_iteration_0.jsonl"
+trace_file = "archive/trace_iteration_4.jsonl"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)
 
 
@@ -156,9 +156,9 @@ with open(trace_file, 'a', encoding='utf-8') as f:
     start_entry = {
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
-        "iteration": 0,
-        "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
-        "question": 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+        "iteration": 4,
+        "sample_id": "8e089e57-f91b-4dae-9bd4-33b7fe4aa60b",
+        "question": "PASSAGE: The Panthers started off their season by making their first return to Levi's Stadium since losing to the Denver Broncos in Super Bowl 50. Late in the first quarter Cam Newton threw a 40-yard touchdown to Russell Sheppard followed by a Graham Gano field goal. The Panthers scored six more points in the second quarter with two field goals. In the third Jonathan Stewart scored a touchdown, followed by another Gano field goal. With 3:14 left to go in the third quarter, Gano made his third field goal of the day making the score 23-0. Robbie Gould's kick with thirteen seconds to go gave the 49ers their first points of the game. Neither the Panthers or 49ers scored in the fourth quarter, resulting in Carolina defeating San Francisco 23-3. They improved to 1-0.\n\nQUESTION: How many field goals did Gano kick in the first half?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -171,7 +171,7 @@ def get_real_caller():
         # Get the frame's module
         frame_module = frame_info.frame.f_globals.get('__name__', '')
         # If this frame is from our module (not from system libraries)
-        if frame_module == 'current_script_0':
+        if frame_module == 'current_script_4':
             # Check if it's not the call_llm function itself
             if frame_info.function != 'call_llm' and 'wrapper' not in frame_info.function:
                 return {
@@ -193,8 +193,8 @@ def trace_call_llm(func):
         trace_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 4,
+            "sample_id": "8e089e57-f91b-4dae-9bd4-33b7fe4aa60b",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -232,8 +232,8 @@ def trace_call_llm(func):
 try:
     # Import the script as a module
     spec = importlib.util.spec_from_file_location(
-        "current_script_0", 
-        "scripts/current_script_0.py"
+        "current_script_4", 
+        "scripts/current_script_4.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -258,7 +258,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+    question = "PASSAGE: The Panthers started off their season by making their first return to Levi's Stadium since losing to the Denver Broncos in Super Bowl 50. Late in the first quarter Cam Newton threw a 40-yard touchdown to Russell Sheppard followed by a Graham Gano field goal. The Panthers scored six more points in the second quarter with two field goals. In the third Jonathan Stewart scored a touchdown, followed by another Gano field goal. With 3:14 left to go in the third quarter, Gano made his third field goal of the day making the score 23-0. Robbie Gould's kick with thirteen seconds to go gave the 49ers their first points of the game. Neither the Panthers or 49ers scored in the fourth quarter, resulting in Carolina defeating San Francisco 23-3. They improved to 1-0.\n\nQUESTION: How many field goals did Gano kick in the first half?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -268,8 +268,8 @@ try:
         end_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 4,
+            "sample_id": "8e089e57-f91b-4dae-9bd4-33b7fe4aa60b",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -285,8 +285,8 @@ except Exception as e:
         error_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 4,
+            "sample_id": "8e089e57-f91b-4dae-9bd4-33b7fe4aa60b",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

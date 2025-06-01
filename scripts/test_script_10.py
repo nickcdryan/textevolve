@@ -17,7 +17,7 @@ sys.path.append("scripts")
 os.environ["GEMINI_API_KEY"] = "AIzaSyD_DWppm-TR9CN7xTTVmrW5ngTax7xsLDA"
 
 # Configure tracing
-trace_file = "archive/trace_iteration_0.jsonl"
+trace_file = "archive/trace_iteration_10.jsonl"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)
 
 
@@ -156,9 +156,9 @@ with open(trace_file, 'a', encoding='utf-8') as f:
     start_entry = {
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
-        "iteration": 0,
-        "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
-        "question": 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+        "iteration": 10,
+        "sample_id": "0132182f-a78e-49a0-ac98-5389e0b9aa79",
+        "question": 'PASSAGE: One of the most famous religious revolts is the Pule Revolt, more formally known as the Religious Revolt of Hermano Pule. Undertaken between June 1840 and November 1841, this revolt was led by Apolinario de la Cruz, otherwise known as "Hermano Pule".  De la Cruz started his own religious order, the Confraternity of Saint Joseph  in Lucban, located in the present-day province of Quezon , in June 1840. However, there were two types of priests in the Philippines then: secular priests, or parish priests, which were usually Indio, and religious priests, or convent priests, which were usually Spanish. Due to the concentration of Spanish religious power and authority in the already-established religious orders  and the concept that Filipino priests should only stay in the church and not the convent and vice versa , the Spanish government banned the new order, especially due to its deviation from original Catholic rituals and teachings, such as prayers and rituals suited for Filipinos.However, thousands of people in Tayabas, Batangas, Laguna and even Manila already joined. Because of this, the Spanish government sent in troops to forcibly break up the order, forcing De la Cruz and his followers to rise in armed revolt in self-defense. Many bloody battles were fought with the order\'s last stand in Mount San Cristobal, near Mount Banahaw, in October 1841. The Spaniards eventually won, and Apolinario de la Cruz was executed on November 4, 1841 in the then-provincial capital, Tayabas.\n\nQUESTION: How many years did the Pule Revolt last?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -171,7 +171,7 @@ def get_real_caller():
         # Get the frame's module
         frame_module = frame_info.frame.f_globals.get('__name__', '')
         # If this frame is from our module (not from system libraries)
-        if frame_module == 'current_script_0':
+        if frame_module == 'current_script_10':
             # Check if it's not the call_llm function itself
             if frame_info.function != 'call_llm' and 'wrapper' not in frame_info.function:
                 return {
@@ -193,8 +193,8 @@ def trace_call_llm(func):
         trace_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 10,
+            "sample_id": "0132182f-a78e-49a0-ac98-5389e0b9aa79",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -232,8 +232,8 @@ def trace_call_llm(func):
 try:
     # Import the script as a module
     spec = importlib.util.spec_from_file_location(
-        "current_script_0", 
-        "scripts/current_script_0.py"
+        "current_script_10", 
+        "scripts/current_script_10.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -258,7 +258,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+    question = 'PASSAGE: One of the most famous religious revolts is the Pule Revolt, more formally known as the Religious Revolt of Hermano Pule. Undertaken between June 1840 and November 1841, this revolt was led by Apolinario de la Cruz, otherwise known as "Hermano Pule".  De la Cruz started his own religious order, the Confraternity of Saint Joseph  in Lucban, located in the present-day province of Quezon , in June 1840. However, there were two types of priests in the Philippines then: secular priests, or parish priests, which were usually Indio, and religious priests, or convent priests, which were usually Spanish. Due to the concentration of Spanish religious power and authority in the already-established religious orders  and the concept that Filipino priests should only stay in the church and not the convent and vice versa , the Spanish government banned the new order, especially due to its deviation from original Catholic rituals and teachings, such as prayers and rituals suited for Filipinos.However, thousands of people in Tayabas, Batangas, Laguna and even Manila already joined. Because of this, the Spanish government sent in troops to forcibly break up the order, forcing De la Cruz and his followers to rise in armed revolt in self-defense. Many bloody battles were fought with the order\'s last stand in Mount San Cristobal, near Mount Banahaw, in October 1841. The Spaniards eventually won, and Apolinario de la Cruz was executed on November 4, 1841 in the then-provincial capital, Tayabas.\n\nQUESTION: How many years did the Pule Revolt last?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -268,8 +268,8 @@ try:
         end_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 10,
+            "sample_id": "0132182f-a78e-49a0-ac98-5389e0b9aa79",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -285,8 +285,8 @@ except Exception as e:
         error_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 10,
+            "sample_id": "0132182f-a78e-49a0-ac98-5389e0b9aa79",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

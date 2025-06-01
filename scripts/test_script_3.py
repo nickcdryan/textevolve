@@ -17,7 +17,7 @@ sys.path.append("scripts")
 os.environ["GEMINI_API_KEY"] = "AIzaSyD_DWppm-TR9CN7xTTVmrW5ngTax7xsLDA"
 
 # Configure tracing
-trace_file = "archive/trace_iteration_0.jsonl"
+trace_file = "archive/trace_iteration_3.jsonl"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)
 
 
@@ -156,9 +156,9 @@ with open(trace_file, 'a', encoding='utf-8') as f:
     start_entry = {
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
-        "iteration": 0,
-        "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
-        "question": 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+        "iteration": 3,
+        "sample_id": "example_32",
+        "question": 'PASSAGE: Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.\n\nQUESTION: Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?'
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -171,7 +171,7 @@ def get_real_caller():
         # Get the frame's module
         frame_module = frame_info.frame.f_globals.get('__name__', '')
         # If this frame is from our module (not from system libraries)
-        if frame_module == 'current_script_0':
+        if frame_module == 'current_script_3':
             # Check if it's not the call_llm function itself
             if frame_info.function != 'call_llm' and 'wrapper' not in frame_info.function:
                 return {
@@ -193,8 +193,8 @@ def trace_call_llm(func):
         trace_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 3,
+            "sample_id": "example_32",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -232,8 +232,8 @@ def trace_call_llm(func):
 try:
     # Import the script as a module
     spec = importlib.util.spec_from_file_location(
-        "current_script_0", 
-        "scripts/current_script_0.py"
+        "current_script_3", 
+        "scripts/current_script_3.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -258,7 +258,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+    question = 'PASSAGE: Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.\n\nQUESTION: Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?'
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -268,8 +268,8 @@ try:
         end_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 3,
+            "sample_id": "example_32",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -285,8 +285,8 @@ except Exception as e:
         error_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 3,
+            "sample_id": "example_32",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

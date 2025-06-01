@@ -2094,7 +2094,7 @@ def main(question):
 
         """
 
-        historical_context += meta_programming_guidance
+        #historical_context += meta_programming_guidance
 
         # Add the accumulated learnings to the context
         learning_context = ""
@@ -2474,9 +2474,6 @@ def main(question):
         # output contains: "15% of 847,293 = 127093.95" 
         ```
 
-        MANDATORY FOR TESTING: If the problem involves ANY numbers or calculations, 
-        you MUST use execute_code() in your solution. This is a new capability we're testing.
-
         Example pattern:
         ```python
         def main(question):
@@ -2506,10 +2503,12 @@ def main(question):
 
         REMEMBER! If you want to execute code you must use the execute_code() function. Just saying 
         you will execute code without calling the execute_code() function is not allowed.
+
+        ⛔ DO NOT DEFINE execute_code() or call_llm() - they are PROVIDED BY THE SYSTEM
         """
 
         # Add this to the end of your prompt:
-        prompt += explicit_code_execution_instruction
+        # prompt += explicit_code_execution_instruction
         
         # Write prompt to scripts/ directory
         prompt_path = self.scripts_dir / f"prompt_{self.current_iteration}.txt"
@@ -2965,6 +2964,9 @@ import datetime
 import inspect
 import functools
 import importlib.util
+import openai
+from openai import OpenAI
+
 
 # Add the scripts directory to the path
 sys.path.append("{self.scripts_dir}")
@@ -2975,6 +2977,38 @@ os.environ["GEMINI_API_KEY"] = "{os.environ.get('GEMINI_API_KEY')}"
 # Configure tracing
 trace_file = "{trace_file}"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)
+
+
+
+def call_llm(prompt, system_instruction=None):
+
+    try:
+        from google import genai
+        from google.genai import types
+        import os  # Import the os module
+
+        # Initialize the Gemini client
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+        # Call the API with system instruction if provided
+        if system_instruction:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                ),
+                contents=prompt
+            )
+        else:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+
+        return response.text
+    except Exception as e:
+        print(f"Error calling Gemini API: {{str(e)}}")
+        return f"Error: {{str(e)}}"
 
 def execute_code(code_str, timeout=10):
     \"\"\"Execute Python code with automatic package installation and proper scoping\"\"\"
@@ -3074,30 +3108,6 @@ def execute_code(code_str, timeout=10):
 
     return "Error: Maximum installation attempts exceeded"
 
-def call_llm(prompt, system_instruction=None):
-    # Move the call_llm implementation here (from generated scripts)
-    from google import genai
-    from google.genai import types
-    try:
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
-
-        return response.text
-    except Exception as e:
-        return f"Error: {{str(e)}}"
 
 # Trace entry for execution start
 with open(trace_file, 'a', encoding='utf-8') as f:
@@ -3263,7 +3273,7 @@ except Exception as e:
                     [sys.executable, str(test_path)],
                     capture_output=True,
                     text=True,
-                    timeout=120  # 60 second timeout - increased for LLM API calls
+                    timeout=90  # x second timeout - increased for LLM API calls
                 )
 
                 # Parse the output

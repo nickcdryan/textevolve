@@ -17,7 +17,7 @@ sys.path.append("scripts")
 os.environ["GEMINI_API_KEY"] = "AIzaSyD_DWppm-TR9CN7xTTVmrW5ngTax7xsLDA"
 
 # Configure tracing
-trace_file = "archive/trace_iteration_0.jsonl"
+trace_file = "archive/trace_iteration_2.jsonl"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)
 
 
@@ -156,9 +156,9 @@ with open(trace_file, 'a', encoding='utf-8') as f:
     start_entry = {
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
-        "iteration": 0,
-        "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
-        "question": 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+        "iteration": 2,
+        "sample_id": "371adf56-f493-41da-936e-dcdeceba6898",
+        "question": "PASSAGE: Hoping to rebound from their loss to the Raiders, the Broncos traveled to Heinz Field to face the Pittsburgh Steelers. On the Broncos' first offensive possession, running back Ronnie Hillman committed a fumble deep in their own territory, and the Steelers capitalized two plays later, with a 2-yard touchdown run by running back DeAngelo Williams. The Broncos reeled off 20 unanswered points, with quarterback Brock Osweiler throwing a pair of touchdown passes - an 18-yarder to wide receiver Demaryius Thomas and a 61-yarder to wide receiver Emmanuel Sanders, followed in the second quarter by Osweiler scrambling for a 7-yard touchdown. The latter score came after the Broncos' defense intercepted Steelers' quarterback Ben Roethlisberger, and also had a missed extra-point attempt by placekicker Brandon McManus. The Steelers then marched down the field, but had to settle for a 24-yard field goal by placekicker Chris Boswell. The Broncos then increased their lead to 27-10, with Osweiler connecting with Thomas on a 6-yard touchdown pass at the 2-minute warning. However, it would be the Broncos' final scoring play of the game, as the offense was shut out in the second half for the third consecutive week. The Steelers pulled to within 27-13, with Boswell kicking a 41-yard field goal just before halftime. Midway through the third quarter, Roethlisberger connected with wide receiver Antonio Brown on a 9-yard touchdown. Later in the third quarter, Broncos' return specialist Jordan Norwood returned a punt 71 yards for a touchdown; however, the touchdown was nullified by an illegal substitution penalty. Following a Broncos' three-and-out, the Steelers tied the game early in the fourth quarter, with Roethlisberger throwing a 9-yard touchdown pass to wide receiver Markus Wheaton. Each team proceeded to trade punt on their next two possessions, and with just over five minutes remaining, Osweiler was intercepted by Steelers' linebacker Ryan Shazier at the Broncos' 37-yard line, and three plays later, the Steelers re-claimed the lead, with a 23-yard touchdown pass from Roethlisberger to Brown. The Broncos then marched down to the Steelers' 36-yard line with 2:17 remaining, but turned the football over on downs. Just before the two-minute warning, the Steelers were attempting to run out the clock, however, Roethlisberger chose to pass the football, and was intercepted by linebacker Brandon Marshall just before the two-minute warning, giving the Broncos one last possession. However, Osweiler threw four straight incompletions, and the Steelers ran out the clock.\n\nQUESTION: Who scored more points, the Steelers or the Broncos?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -171,7 +171,7 @@ def get_real_caller():
         # Get the frame's module
         frame_module = frame_info.frame.f_globals.get('__name__', '')
         # If this frame is from our module (not from system libraries)
-        if frame_module == 'current_script_0':
+        if frame_module == 'current_script_2':
             # Check if it's not the call_llm function itself
             if frame_info.function != 'call_llm' and 'wrapper' not in frame_info.function:
                 return {
@@ -193,8 +193,8 @@ def trace_call_llm(func):
         trace_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 2,
+            "sample_id": "371adf56-f493-41da-936e-dcdeceba6898",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -232,8 +232,8 @@ def trace_call_llm(func):
 try:
     # Import the script as a module
     spec = importlib.util.spec_from_file_location(
-        "current_script_0", 
-        "scripts/current_script_0.py"
+        "current_script_2", 
+        "scripts/current_script_2.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -258,7 +258,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+    question = "PASSAGE: Hoping to rebound from their loss to the Raiders, the Broncos traveled to Heinz Field to face the Pittsburgh Steelers. On the Broncos' first offensive possession, running back Ronnie Hillman committed a fumble deep in their own territory, and the Steelers capitalized two plays later, with a 2-yard touchdown run by running back DeAngelo Williams. The Broncos reeled off 20 unanswered points, with quarterback Brock Osweiler throwing a pair of touchdown passes - an 18-yarder to wide receiver Demaryius Thomas and a 61-yarder to wide receiver Emmanuel Sanders, followed in the second quarter by Osweiler scrambling for a 7-yard touchdown. The latter score came after the Broncos' defense intercepted Steelers' quarterback Ben Roethlisberger, and also had a missed extra-point attempt by placekicker Brandon McManus. The Steelers then marched down the field, but had to settle for a 24-yard field goal by placekicker Chris Boswell. The Broncos then increased their lead to 27-10, with Osweiler connecting with Thomas on a 6-yard touchdown pass at the 2-minute warning. However, it would be the Broncos' final scoring play of the game, as the offense was shut out in the second half for the third consecutive week. The Steelers pulled to within 27-13, with Boswell kicking a 41-yard field goal just before halftime. Midway through the third quarter, Roethlisberger connected with wide receiver Antonio Brown on a 9-yard touchdown. Later in the third quarter, Broncos' return specialist Jordan Norwood returned a punt 71 yards for a touchdown; however, the touchdown was nullified by an illegal substitution penalty. Following a Broncos' three-and-out, the Steelers tied the game early in the fourth quarter, with Roethlisberger throwing a 9-yard touchdown pass to wide receiver Markus Wheaton. Each team proceeded to trade punt on their next two possessions, and with just over five minutes remaining, Osweiler was intercepted by Steelers' linebacker Ryan Shazier at the Broncos' 37-yard line, and three plays later, the Steelers re-claimed the lead, with a 23-yard touchdown pass from Roethlisberger to Brown. The Broncos then marched down to the Steelers' 36-yard line with 2:17 remaining, but turned the football over on downs. Just before the two-minute warning, the Steelers were attempting to run out the clock, however, Roethlisberger chose to pass the football, and was intercepted by linebacker Brandon Marshall just before the two-minute warning, giving the Broncos one last possession. However, Osweiler threw four straight incompletions, and the Steelers ran out the clock.\n\nQUESTION: Who scored more points, the Steelers or the Broncos?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -268,8 +268,8 @@ try:
         end_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 2,
+            "sample_id": "371adf56-f493-41da-936e-dcdeceba6898",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -285,8 +285,8 @@ except Exception as e:
         error_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 2,
+            "sample_id": "371adf56-f493-41da-936e-dcdeceba6898",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

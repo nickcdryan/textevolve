@@ -17,7 +17,7 @@ sys.path.append("scripts")
 os.environ["GEMINI_API_KEY"] = "AIzaSyD_DWppm-TR9CN7xTTVmrW5ngTax7xsLDA"
 
 # Configure tracing
-trace_file = "archive/trace_iteration_0.jsonl"
+trace_file = "archive/trace_iteration_9.jsonl"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)
 
 
@@ -156,9 +156,9 @@ with open(trace_file, 'a', encoding='utf-8') as f:
     start_entry = {
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
-        "iteration": 0,
-        "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
-        "question": 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+        "iteration": 9,
+        "sample_id": "example_77",
+        "question": "PASSAGE: Coming off their comeback win over the Chiefs, the undefeated Broncos traveled to Ford Field to face the winless Detroit Lions on Sunday Night Football. After a scoreless first quarter, the Broncos grabbed the lead late in the second quarter, with running back Ronnie Hillman rushing for a 1-yard touchdown. With 1:07 remaining before halftime, the Lions countered, with a 1-yard touchdown run by running back Joique Bell. It was initially ruled as a fumble, but after review, it was reversed to a touchdown as a result of Bell breaking the plane of the goal line. However, Broncos' cornerback Aqib Talib blocked the extra point attempt by former Broncos (now Lions) placekicker Matt Prater, leaving the score at 7-6. In the closing seconds of the first half, the Broncos responded, with quarterback Peyton Manning connecting on a 45-yard touchdown pass to wide receiver Demaryius Thomas on a 4th-and-1. Following a questionable fumble by Thomas on the Broncos' opening possession of the second half, Lions' quarterback Matthew Stafford threw a 16-yard touchdown pass to running back Ameer Abdullah. However, the Broncos' defense denied a two-point conversion attempt by Bell that would have tied the game. Each team alternated punts through the next five possessions, until Broncos' linebacker Shaquil Barrett forced a fumble off Stafford near midfield. However, the Broncos had to settle for a 48-yard field goal by placekicker Brandon McManus at the 7:55 mark of the fourth quarter. The Lions were attempting to grab their first lead of the game, however, on the eighth play of the drive, Stafford was intercepted by Broncos' safety David Bruton. Five plays later, the Broncos expanded their lead, with Manning throwing an 11-yard touchdown pass to tight end Owen Daniels just before the two-minute warning to put the game out of reach. That was Daniels' first touchdown as a Bronco. Without any timeouts, the Lions advanced to as far as the Broncos' 15-yard line with 34 seconds remaining, but turned the football over on downs.\n\nQUESTION: How many yards was the difference between Manning's first TD pass and Stafford's first TD pass?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -171,7 +171,7 @@ def get_real_caller():
         # Get the frame's module
         frame_module = frame_info.frame.f_globals.get('__name__', '')
         # If this frame is from our module (not from system libraries)
-        if frame_module == 'current_script_0':
+        if frame_module == 'current_script_9':
             # Check if it's not the call_llm function itself
             if frame_info.function != 'call_llm' and 'wrapper' not in frame_info.function:
                 return {
@@ -193,8 +193,8 @@ def trace_call_llm(func):
         trace_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 9,
+            "sample_id": "example_77",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -232,8 +232,8 @@ def trace_call_llm(func):
 try:
     # Import the script as a module
     spec = importlib.util.spec_from_file_location(
-        "current_script_0", 
-        "scripts/current_script_0.py"
+        "current_script_9", 
+        "scripts/current_script_9.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -258,7 +258,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+    question = "PASSAGE: Coming off their comeback win over the Chiefs, the undefeated Broncos traveled to Ford Field to face the winless Detroit Lions on Sunday Night Football. After a scoreless first quarter, the Broncos grabbed the lead late in the second quarter, with running back Ronnie Hillman rushing for a 1-yard touchdown. With 1:07 remaining before halftime, the Lions countered, with a 1-yard touchdown run by running back Joique Bell. It was initially ruled as a fumble, but after review, it was reversed to a touchdown as a result of Bell breaking the plane of the goal line. However, Broncos' cornerback Aqib Talib blocked the extra point attempt by former Broncos (now Lions) placekicker Matt Prater, leaving the score at 7-6. In the closing seconds of the first half, the Broncos responded, with quarterback Peyton Manning connecting on a 45-yard touchdown pass to wide receiver Demaryius Thomas on a 4th-and-1. Following a questionable fumble by Thomas on the Broncos' opening possession of the second half, Lions' quarterback Matthew Stafford threw a 16-yard touchdown pass to running back Ameer Abdullah. However, the Broncos' defense denied a two-point conversion attempt by Bell that would have tied the game. Each team alternated punts through the next five possessions, until Broncos' linebacker Shaquil Barrett forced a fumble off Stafford near midfield. However, the Broncos had to settle for a 48-yard field goal by placekicker Brandon McManus at the 7:55 mark of the fourth quarter. The Lions were attempting to grab their first lead of the game, however, on the eighth play of the drive, Stafford was intercepted by Broncos' safety David Bruton. Five plays later, the Broncos expanded their lead, with Manning throwing an 11-yard touchdown pass to tight end Owen Daniels just before the two-minute warning to put the game out of reach. That was Daniels' first touchdown as a Bronco. Without any timeouts, the Lions advanced to as far as the Broncos' 15-yard line with 34 seconds remaining, but turned the football over on downs.\n\nQUESTION: How many yards was the difference between Manning's first TD pass and Stafford's first TD pass?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -268,8 +268,8 @@ try:
         end_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 9,
+            "sample_id": "example_77",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -285,8 +285,8 @@ except Exception as e:
         error_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 9,
+            "sample_id": "example_77",
             "error": str(e),
             "traceback": traceback.format_exc()
         }

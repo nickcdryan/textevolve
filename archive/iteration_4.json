@@ -1,0 +1,781 @@
+{
+  "iteration": 4,
+  "timestamp": "2025-06-01T01:21:06.970718",
+  "strategy": "explore",
+  "explore_rate": 50,
+  "exploit_rate": 30,
+  "refine_rate": 20,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\nfrom google import genai\nfrom google.genai import types\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question):\n    \"\"\"\n    This script uses a fact-verification with self-correction approach.\n    HYPOTHESIS: Implement a robust fact-verification stage using external knowledge and leverage self-correction capabilities to improve accuracy.\n    This approach uses a main LLM call for generating an initial answer, then uses a separate LLM call to verify facts in that answer against the passage and a broader knowledge set.\n    \"\"\"\n\n    # Step 1: Initial Answer Generation\n    initial_prompt = f\"\"\"\n    Provide a concise answer to the question based on the provided text.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: Gliese 915\n\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        initial_answer = call_llm(initial_prompt, \"You are a precise information retriever.\")\n        initial_answer = initial_answer.strip()\n    except Exception as e:\n        print(f\"Error generating initial answer: {e}\")\n        return \"Error generating initial answer.\"\n\n    # Step 2: Fact Verification and Self-Correction\n    verification_prompt = f\"\"\"\n    Analyze the answer for factual correctness against the original question and a broader knowledge base.\n    Identify any inaccuracies or inconsistencies. If the answer is incorrect, provide a corrected answer using the available information.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Proposed Answer: Tom Brady\n    Analysis: Tom Brady is a quarterback, not a kicker. A more likely answer based on the context is a kicker like Josh Scobee. The passage will also be searched to verify this information.\n    Corrected Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Proposed Answer: Gliese 915\n    Analysis: The answer is correct. Gliese 915 is a white dwarf and known to have less mass than Nu Phoenicis based on general astronomical knowledge.\n    Corrected Answer: Gliese 915\n\n    Question: {question}\n    Proposed Answer: {initial_answer}\n    Analysis:\n    \"\"\"\n    try:\n        verification_response = call_llm(verification_prompt, \"You are a fact-checker and self-correction expert.\")\n        # Attempt to extract the corrected answer; if impossible, stick with the initial answer\n        if \"Corrected Answer:\" in verification_response:\n          corrected_answer = verification_response.split(\"Corrected Answer:\")[-1].strip()\n        else:\n          corrected_answer = initial_answer\n    except Exception as e:\n        print(f\"Error during fact verification: {e}\")\n        corrected_answer = initial_answer # Fallback in case verification fails\n\n    # Step 3: Final Output Validation (Ensure it's concise)\n    final_validation_prompt = f\"\"\"\n    Validate if the final answer is concise and accurately answers the question. Return the answer or a more concise version.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Proposed Answer: Josh Scobee was the player\n    Final Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Proposed Answer: Gliese 915, the white dwarf star.\n    Final Answer: Gliese 915\n\n    Question: {question}\n    Proposed Answer: {corrected_answer}\n    Final Answer:\n    \"\"\"\n\n    try:\n        final_answer = call_llm(final_validation_prompt, \"You are a validator for concise answers.\")\n        final_answer = final_answer.strip()\n        return final_answer\n    except Exception as e:\n        print(f\"Error validating final answer: {e}\")\n        return corrected_answer # As a final safety",
+  "approach_summary": "The script employs a fact-verification with self-correction approach using the Gemini LLM to answer questions. It decomposes the problem into three stages: initial answer generation, fact verification/self-correction, and final output validation for conciseness. Three agent roles are employed: a precise information retriever, a fact-checker/self-correction expert, and a validator for concise answers.\n\nThe functions used are `call_llm` for querying the LLM, which is called within `main` to generate the initial answer, verify the answer, and validate the final output. The `main` function orchestrates the overall workflow, passing prompts to `call_llm` and processing the responses to refine the answer. The overall workflow involves generating an initial answer, verifying its correctness, correcting if necessary, and then validating/shortening the final answer.",
+  "sample_count": 10,
+  "samples": [
+    {
+      "question": "PASSAGE:  Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.\n\nQUESTION: How many yards was Mike Nugent's longest field goal in the fourth quarter?",
+      "answer": "38-yard",
+      "id": "example_33",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
+        "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
+        "original_answer_data": {
+          "spans": [
+            "38-yard"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 24
+      }
+    },
+    {
+      "question": "PASSAGE: After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.\n\nQUESTION: How many yards total did Artose Pinner run for touchdowns in the first quarter?",
+      "answer": "7",
+      "id": "example_34",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
+        "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
+        "original_answer_data": {
+          "spans": [
+            "7"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 694
+      }
+    },
+    {
+      "question": "PASSAGE: About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, \"Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows.\" In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.\n\nQUESTION: Which year had more youth unemployed, 2007 or 2012?",
+      "answer": "2012",
+      "id": "example_35",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, \"Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows.\" In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.",
+        "original_question": "Which year had more youth unemployed, 2007 or 2012?",
+        "original_answer_data": {
+          "spans": [
+            "2012"
+          ],
+          "types": [
+            "date"
+          ]
+        },
+        "line_number": 210
+      }
+    },
+    {
+      "question": "PASSAGE: According to 2011 census of India, Kumbakonam had a population of 140,156 with a sex-ratio of 1,021 females for every 1,000 males, much above the national average of 929. A total of 12,791 were under the age of six, constituting 6,495 males and 6,296 females.The average literacy of the city was 83.21%, compared to the national average of 72.99%. There were a total of 9,519 workers, comprising 32 cultivators, 83 main agricultural labourers, 1,206 in house hold industries, 7,169 other workers, 1,029 marginal workers, 24 marginal cultivators, 45 marginal agricultural labourers, 212 marginal workers in household industries and 0 other marginal workers.\n\nQUESTION: How many workers weren't marginal cultivators?",
+      "answer": "9495",
+      "id": "example_36",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "According to 2011 census of India, Kumbakonam had a population of 140,156 with a sex-ratio of 1,021 females for every 1,000 males, much above the national average of 929. A total of 12,791 were under the age of six, constituting 6,495 males and 6,296 females.The average literacy of the city was 83.21%, compared to the national average of 72.99%. There were a total of 9,519 workers, comprising 32 cultivators, 83 main agricultural labourers, 1,206 in house hold industries, 7,169 other workers, 1,029 marginal workers, 24 marginal cultivators, 45 marginal agricultural labourers, 212 marginal workers in household industries and 0 other marginal workers.",
+        "original_question": "How many workers weren't marginal cultivators?",
+        "original_answer_data": {
+          "spans": [
+            "9495"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 424
+      }
+    },
+    {
+      "question": "PASSAGE: This Week 12 showdown between the Colts and Eagles was originally scheduled for 1:00 ET, but due to the NFL's \"flexible-scheduling\" system this year, the NFL moved the game to Sunday night at 8:15 ET. This was the Colts' third primetime game this year on NBC, and the Eagles' first. There were 10 scores in this game, 5 each half. The first three scores of the game were by Colts rookie RB Joseph Addai. He had a 15-yard TD run, a 10-yard TD run, and another 15-yard TD run after that. His fourth rushing touchdown of the game came in the second half. The Eagles' first score came with about a minute to go in the half. Quarterback Jeff Garcia threw a 1-yard touchdown pass to L.J. Smith on that drive. On the Colts' next drive, combined with a couple passes and a 13-yard run by Dominic Rhodes, the Colts put K Adam Vinatieri in field goal range to get some more points before the end of the half. At the half, the Colts had a 17-point lead, 24-7. After a Reggie Wayne touchdown catch, the Colts were up big on the Eagles, 31-7. On the ensuing possession for the Eagles, Garcia found Reggie Brown in the end zone for a  3-yard score. But with less than 11 minutes left in the game, the Eagles scored once more and reduced the Colts' lead to 10 points. On the following possession, the Colts ran the ball 13 times with no passes and Joseph Addai had the last 8 carries on that drive including another 4-yard scamper, his fourth touchdown of the game. That touchdown also tied the Colts franchise record for the most rushing touchdowns in a single game. With less than four minutes to go in the game, the Eagles were desperate to score some points, but while Jeff Garcia was deep in his own territory, he dropped back to pass and was hit by both DE Robert Mathis and DE Dwight Freeney. Mathis knocked the ball out of Garcia's hand right before his arm started going forwards and CB Kelvin Hayden picked up the ball and ran it back for a touchdown. The Colts were up by 24 points after that last score. On the next possession, the Eagles put in backup QB A. J. Feeley in place of Garcia, and Feeley ended up getting the football knocked out of his hand by Robert Mathis (his second forced fumble of the game) and the Colts recovered and ended up running out the clock to conclude the game. Joseph Addai tied the NFL record for most touchdowns in a game by a rookie, with 4 touchdowns in this game. During this game, the Colts lost SS Antoine Bethea, TE Dallas Clark and OT Ryan Diem all to injuries in the first half, and they did not return.\n\nQUESTION: How many touchdowns did Joseph Addai score in the first half?",
+      "answer": "3",
+      "id": "example_37",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "This Week 12 showdown between the Colts and Eagles was originally scheduled for 1:00 ET, but due to the NFL's \"flexible-scheduling\" system this year, the NFL moved the game to Sunday night at 8:15 ET. This was the Colts' third primetime game this year on NBC, and the Eagles' first. There were 10 scores in this game, 5 each half. The first three scores of the game were by Colts rookie RB Joseph Addai. He had a 15-yard TD run, a 10-yard TD run, and another 15-yard TD run after that. His fourth rushing touchdown of the game came in the second half. The Eagles' first score came with about a minute to go in the half. Quarterback Jeff Garcia threw a 1-yard touchdown pass to L.J. Smith on that drive. On the Colts' next drive, combined with a couple passes and a 13-yard run by Dominic Rhodes, the Colts put K Adam Vinatieri in field goal range to get some more points before the end of the half. At the half, the Colts had a 17-point lead, 24-7. After a Reggie Wayne touchdown catch, the Colts were up big on the Eagles, 31-7. On the ensuing possession for the Eagles, Garcia found Reggie Brown in the end zone for a  3-yard score. But with less than 11 minutes left in the game, the Eagles scored once more and reduced the Colts' lead to 10 points. On the following possession, the Colts ran the ball 13 times with no passes and Joseph Addai had the last 8 carries on that drive including another 4-yard scamper, his fourth touchdown of the game. That touchdown also tied the Colts franchise record for the most rushing touchdowns in a single game. With less than four minutes to go in the game, the Eagles were desperate to score some points, but while Jeff Garcia was deep in his own territory, he dropped back to pass and was hit by both DE Robert Mathis and DE Dwight Freeney. Mathis knocked the ball out of Garcia's hand right before his arm started going forwards and CB Kelvin Hayden picked up the ball and ran it back for a touchdown. The Colts were up by 24 points after that last score. On the next possession, the Eagles put in backup QB A. J. Feeley in place of Garcia, and Feeley ended up getting the football knocked out of his hand by Robert Mathis (his second forced fumble of the game) and the Colts recovered and ended up running out the clock to conclude the game. Joseph Addai tied the NFL record for most touchdowns in a game by a rookie, with 4 touchdowns in this game. During this game, the Colts lost SS Antoine Bethea, TE Dallas Clark and OT Ryan Diem all to injuries in the first half, and they did not return.",
+        "original_question": "How many touchdowns did Joseph Addai score in the first half?",
+        "original_answer_data": {
+          "spans": [
+            "3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 528
+      }
+    },
+    {
+      "question": "PASSAGE: Following a shocking loss to the 3-7 Kansas City Chiefs the previous week, the Steelers traveled to M&T Bank Stadium for another divisional game. Ben Roethlisberger, who suffered a concussion in the previous week's overtime loss, was the designated 3rd (emergency) quarterback. Backup Charlie Batch also was hurt in that game, which left 2nd-year QB Dennis Dixon, who previously had one pass in his NFL career, to start. The Steelers received the opening kickoff, but went three-and-out. On the ensuing possession, the Ravens drove down the field with ease, capping off their drive with a touchdown run by Willis McGahee. In the second quarter, Dixon hit WR Santonio Holmes on a play-action pass for a 33-yard TD, tying the game. The Ravens answered on the following drive, with a 52-yard strike from Joe Flacco to Mark Clayton, setting up a 10-yard touchdown pass to Derrick Mason. In the third quarter, on the Ravens opening possession, Mark Clayton made a 9-yard reception but fumbled the ball and it was recovered by Tyrone Carter. The Steelers drove, but were held to a field goal by Jeff Reed. Later in the 4th quarter, Joe Flacco was sacked by Lawrence Timmons and fumbled the ball, recovered by the Steelers near midfield. The drive resulted in a 24-yard run on a QB option by Dixon, giving the Steelers their first lead of the night. On the Ravens next possession Joe Flacco completed a pass to Derrick Mason for 17&#160;yards, and then found Ray Rice for a 44-yard reception, setting the Ravens up inside the Steeler 10&#160;yard line with less than 2&#160;minutes left. Billy Cundiff tied the game with a 24-yard field goal. On the following Steeler possession, Dennis Dixon was nearly intercepted by Lardarius Webb. The Steelers were forced to punt, giving the ball back to the Ravens with about 1:30 left in the game. The Ravens managed to drive to the Steeler 40&#160;yard line, where their drive stalled. With the clock counting inside 10&#160;seconds left and no timeouts, the field goal team managed to get into formation, and get the kick off. The 56&#160;yard attempt by Billy Cundiff was dead center, but about 2&#160;yards short, sending the game into overtime. In overtime, the Steelers won the coin toss and got the ball, but were forced to punt. The Ravens, also forced to punt deep in their own territory, gave the ball to Pittsburgh around the Steeler 40&#160;yard line. On a 3rd and 5, Dennis Dixon threw an interception to LB Paul Kruger, who returned the ball 26&#160;yards to the Steeler 28&#160;yard line. Already in field goal range, the Ravens ran the ball down to the Pittsburgh 11&#160;yard line where Billy Cundiff made a 29-yard field goal to win the game. With their second consecutive overtime loss, the Steelers fell to 6-5.\n\nQUESTION: How many more points did the Ravens score than the Steelers?",
+      "answer": "3",
+      "id": "example_38",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Following a shocking loss to the 3-7 Kansas City Chiefs the previous week, the Steelers traveled to M&T Bank Stadium for another divisional game. Ben Roethlisberger, who suffered a concussion in the previous week's overtime loss, was the designated 3rd (emergency) quarterback. Backup Charlie Batch also was hurt in that game, which left 2nd-year QB Dennis Dixon, who previously had one pass in his NFL career, to start. The Steelers received the opening kickoff, but went three-and-out. On the ensuing possession, the Ravens drove down the field with ease, capping off their drive with a touchdown run by Willis McGahee. In the second quarter, Dixon hit WR Santonio Holmes on a play-action pass for a 33-yard TD, tying the game. The Ravens answered on the following drive, with a 52-yard strike from Joe Flacco to Mark Clayton, setting up a 10-yard touchdown pass to Derrick Mason. In the third quarter, on the Ravens opening possession, Mark Clayton made a 9-yard reception but fumbled the ball and it was recovered by Tyrone Carter. The Steelers drove, but were held to a field goal by Jeff Reed. Later in the 4th quarter, Joe Flacco was sacked by Lawrence Timmons and fumbled the ball, recovered by the Steelers near midfield. The drive resulted in a 24-yard run on a QB option by Dixon, giving the Steelers their first lead of the night. On the Ravens next possession Joe Flacco completed a pass to Derrick Mason for 17&#160;yards, and then found Ray Rice for a 44-yard reception, setting the Ravens up inside the Steeler 10&#160;yard line with less than 2&#160;minutes left. Billy Cundiff tied the game with a 24-yard field goal. On the following Steeler possession, Dennis Dixon was nearly intercepted by Lardarius Webb. The Steelers were forced to punt, giving the ball back to the Ravens with about 1:30 left in the game. The Ravens managed to drive to the Steeler 40&#160;yard line, where their drive stalled. With the clock counting inside 10&#160;seconds left and no timeouts, the field goal team managed to get into formation, and get the kick off. The 56&#160;yard attempt by Billy Cundiff was dead center, but about 2&#160;yards short, sending the game into overtime. In overtime, the Steelers won the coin toss and got the ball, but were forced to punt. The Ravens, also forced to punt deep in their own territory, gave the ball to Pittsburgh around the Steeler 40&#160;yard line. On a 3rd and 5, Dennis Dixon threw an interception to LB Paul Kruger, who returned the ball 26&#160;yards to the Steeler 28&#160;yard line. Already in field goal range, the Ravens ran the ball down to the Pittsburgh 11&#160;yard line where Billy Cundiff made a 29-yard field goal to win the game. With their second consecutive overtime loss, the Steelers fell to 6-5.",
+        "original_question": "How many more points did the Ravens score than the Steelers?",
+        "original_answer_data": {
+          "spans": [
+            "3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 34
+      }
+    },
+    {
+      "question": "PASSAGE: Following a tough road loss against the Bears, the Steelers flew to Paul Brown Stadium for a Week 3 AFC North duel with the Cincinnati Bengals.  Pittsburgh would strike first in the first quarter with kicker Jeff Reed's 19-yard field goal and quarterback Ben Roethlisberger's 27-yard touchdown pass to running back Willie Parker.  The Steelers would add onto their lead in the second quarter as Reed made a 34-yard field goal.  The Bengals would close out the half with kicker Shayne Graham's 34-yard field goal. Cincinnati would creep closer in the third quarter as cornerback Johnathan Joseph returned an interception 30&#160;yards for a touchdown (with a failed PAT), yet Pittsburgh answered with Roethlisberger's 1-yard touchdown run.  However, in the fourth quarter, the Bengals took the lead with running back Cedric Benson's 23-yard touchdown run (with a failed 2-point conversion) and quarterback Carson Palmer's 4-yard touchdown pass to wide receiver Andre Caldwell (with a successful 2-point conversion pass to running back Brian Leonard).  The Steelers tried to rally, but Roethlisberger's last-second hail mary pass was incomplete, preserving the defeat. With the loss, Pittsburgh fell to 1-2 and 3rd place in the AFC North.  This would also become the team's first 1-2 start since 2006. Wide receiver Hines Ward (4 receptions, 82&#160;yards) would become the 21st player in NFL history to surpass 800 career receptions and 10,000 receiving yards.\n\nQUESTION: Which player had the longest touchdown reception?",
+      "answer": "Willie Parker",
+      "id": "example_39",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Following a tough road loss against the Bears, the Steelers flew to Paul Brown Stadium for a Week 3 AFC North duel with the Cincinnati Bengals.  Pittsburgh would strike first in the first quarter with kicker Jeff Reed's 19-yard field goal and quarterback Ben Roethlisberger's 27-yard touchdown pass to running back Willie Parker.  The Steelers would add onto their lead in the second quarter as Reed made a 34-yard field goal.  The Bengals would close out the half with kicker Shayne Graham's 34-yard field goal. Cincinnati would creep closer in the third quarter as cornerback Johnathan Joseph returned an interception 30&#160;yards for a touchdown (with a failed PAT), yet Pittsburgh answered with Roethlisberger's 1-yard touchdown run.  However, in the fourth quarter, the Bengals took the lead with running back Cedric Benson's 23-yard touchdown run (with a failed 2-point conversion) and quarterback Carson Palmer's 4-yard touchdown pass to wide receiver Andre Caldwell (with a successful 2-point conversion pass to running back Brian Leonard).  The Steelers tried to rally, but Roethlisberger's last-second hail mary pass was incomplete, preserving the defeat. With the loss, Pittsburgh fell to 1-2 and 3rd place in the AFC North.  This would also become the team's first 1-2 start since 2006. Wide receiver Hines Ward (4 receptions, 82&#160;yards) would become the 21st player in NFL history to surpass 800 career receptions and 10,000 receiving yards.",
+        "original_question": "Which player had the longest touchdown reception?",
+        "original_answer_data": {
+          "spans": [
+            "Willie Parker"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 928
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.\n\nQUESTION: How many total points were scored in the game?",
+      "answer": "21",
+      "id": "example_40",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.",
+        "original_question": "How many total points were scored in the game?",
+        "original_answer_data": {
+          "spans": [
+            "21"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 398
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their loss to the Saints the Seahawks played on home ground where they played their former division rival, the Kansas City Chiefs. In the first quarter, the Seahawks trailed early with QB Matt Cassel getting a 7-yard TD pass to WR Dwayne Bowe. They responded after FS Earl Thomas returned a blocked punt 10 yards for a touchdown. They fell behind as Shaun Smith got a 1-yard TD run, followed by Cassel finding Bowe again on a 36-yard TD pass. The Seahawks cut the lead when kicker Olindo Mare got a 43-yard field goal, followed by QB Matt Hasselbeck getting a 13-yard TD pass to TE Chris Baker. The struggled further with RB Jamaal Charles getting a 3-yard TD run, followed by Cassel throwing to Bowe on a 9-yard TD pass. The Seahawks responded as Hasselbeck completed an 87-yard TD pass to WR Ben Obomanu, but the Chiefs increased their lead as Cassel got a 6-yard TD pass to TE Tony Moeaki.\n\nQUESTION: Which player had the first touchdown run of the game?",
+      "answer": "Shaun Smith",
+      "id": "example_41",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their loss to the Saints the Seahawks played on home ground where they played their former division rival, the Kansas City Chiefs. In the first quarter, the Seahawks trailed early with QB Matt Cassel getting a 7-yard TD pass to WR Dwayne Bowe. They responded after FS Earl Thomas returned a blocked punt 10 yards for a touchdown. They fell behind as Shaun Smith got a 1-yard TD run, followed by Cassel finding Bowe again on a 36-yard TD pass. The Seahawks cut the lead when kicker Olindo Mare got a 43-yard field goal, followed by QB Matt Hasselbeck getting a 13-yard TD pass to TE Chris Baker. The struggled further with RB Jamaal Charles getting a 3-yard TD run, followed by Cassel throwing to Bowe on a 9-yard TD pass. The Seahawks responded as Hasselbeck completed an 87-yard TD pass to WR Ben Obomanu, but the Chiefs increased their lead as Cassel got a 6-yard TD pass to TE Tony Moeaki.",
+        "original_question": "Which player had the first touchdown run of the game?",
+        "original_answer_data": {
+          "spans": [
+            "Shaun Smith"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 607
+      }
+    },
+    {
+      "question": "PASSAGE: In mid-October 1524, Francis himself crossed the Alps and advanced on Milan at the head of an army numbering more than 40,000. Bourbon and d'Avalos, their troops not yet recovered from the campaign in Provence, were in no position to offer serious resistance. The French army moved in several columns, brushing aside Imperial attempts to hold its advance, but failed to bring the main body of Imperial troops to battle. Nevertheless, Charles de Lannoy, who had concentrated some 16,000 men to resist the 33,000 French troops closing on Milan, decided that the city could not be defended and withdrew to Lodi on 26 October. Having entered Milan and installed Louis II de la Tr\u00e9moille as the governor, Francis  advanced on Pavia, where Antonio de Leyva remained with a sizable Imperial garrison.\n\nQUESTION: How many more men did the French troops 33,000 have over Charles de Lannoy 16,000 men?",
+      "answer": "17000",
+      "id": "example_42",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In mid-October 1524, Francis himself crossed the Alps and advanced on Milan at the head of an army numbering more than 40,000. Bourbon and d'Avalos, their troops not yet recovered from the campaign in Provence, were in no position to offer serious resistance. The French army moved in several columns, brushing aside Imperial attempts to hold its advance, but failed to bring the main body of Imperial troops to battle. Nevertheless, Charles de Lannoy, who had concentrated some 16,000 men to resist the 33,000 French troops closing on Milan, decided that the city could not be defended and withdrew to Lodi on 26 October. Having entered Milan and installed Louis II de la Tr\u00e9moille as the governor, Francis  advanced on Pavia, where Antonio de Leyva remained with a sizable Imperial garrison.",
+        "original_question": "How many more men did the French troops 33,000 have over Charles de Lannoy 16,000 men?",
+        "original_answer_data": {
+          "spans": [
+            "17000"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 298
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
+      "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
+      "original_answer_data": {
+        "spans": [
+          "38-yard"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 24
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
+      "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
+      "original_answer_data": {
+        "spans": [
+          "7"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 694
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, \"Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows.\" In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.",
+      "original_question": "Which year had more youth unemployed, 2007 or 2012?",
+      "original_answer_data": {
+        "spans": [
+          "2012"
+        ],
+        "types": [
+          "date"
+        ]
+      },
+      "line_number": 210
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "According to 2011 census of India, Kumbakonam had a population of 140,156 with a sex-ratio of 1,021 females for every 1,000 males, much above the national average of 929. A total of 12,791 were under the age of six, constituting 6,495 males and 6,296 females.The average literacy of the city was 83.21%, compared to the national average of 72.99%. There were a total of 9,519 workers, comprising 32 cultivators, 83 main agricultural labourers, 1,206 in house hold industries, 7,169 other workers, 1,029 marginal workers, 24 marginal cultivators, 45 marginal agricultural labourers, 212 marginal workers in household industries and 0 other marginal workers.",
+      "original_question": "How many workers weren't marginal cultivators?",
+      "original_answer_data": {
+        "spans": [
+          "9495"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 424
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "This Week 12 showdown between the Colts and Eagles was originally scheduled for 1:00 ET, but due to the NFL's \"flexible-scheduling\" system this year, the NFL moved the game to Sunday night at 8:15 ET. This was the Colts' third primetime game this year on NBC, and the Eagles' first. There were 10 scores in this game, 5 each half. The first three scores of the game were by Colts rookie RB Joseph Addai. He had a 15-yard TD run, a 10-yard TD run, and another 15-yard TD run after that. His fourth rushing touchdown of the game came in the second half. The Eagles' first score came with about a minute to go in the half. Quarterback Jeff Garcia threw a 1-yard touchdown pass to L.J. Smith on that drive. On the Colts' next drive, combined with a couple passes and a 13-yard run by Dominic Rhodes, the Colts put K Adam Vinatieri in field goal range to get some more points before the end of the half. At the half, the Colts had a 17-point lead, 24-7. After a Reggie Wayne touchdown catch, the Colts were up big on the Eagles, 31-7. On the ensuing possession for the Eagles, Garcia found Reggie Brown in the end zone for a  3-yard score. But with less than 11 minutes left in the game, the Eagles scored once more and reduced the Colts' lead to 10 points. On the following possession, the Colts ran the ball 13 times with no passes and Joseph Addai had the last 8 carries on that drive including another 4-yard scamper, his fourth touchdown of the game. That touchdown also tied the Colts franchise record for the most rushing touchdowns in a single game. With less than four minutes to go in the game, the Eagles were desperate to score some points, but while Jeff Garcia was deep in his own territory, he dropped back to pass and was hit by both DE Robert Mathis and DE Dwight Freeney. Mathis knocked the ball out of Garcia's hand right before his arm started going forwards and CB Kelvin Hayden picked up the ball and ran it back for a touchdown. The Colts were up by 24 points after that last score. On the next possession, the Eagles put in backup QB A. J. Feeley in place of Garcia, and Feeley ended up getting the football knocked out of his hand by Robert Mathis (his second forced fumble of the game) and the Colts recovered and ended up running out the clock to conclude the game. Joseph Addai tied the NFL record for most touchdowns in a game by a rookie, with 4 touchdowns in this game. During this game, the Colts lost SS Antoine Bethea, TE Dallas Clark and OT Ryan Diem all to injuries in the first half, and they did not return.",
+      "original_question": "How many touchdowns did Joseph Addai score in the first half?",
+      "original_answer_data": {
+        "spans": [
+          "3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 528
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Following a shocking loss to the 3-7 Kansas City Chiefs the previous week, the Steelers traveled to M&T Bank Stadium for another divisional game. Ben Roethlisberger, who suffered a concussion in the previous week's overtime loss, was the designated 3rd (emergency) quarterback. Backup Charlie Batch also was hurt in that game, which left 2nd-year QB Dennis Dixon, who previously had one pass in his NFL career, to start. The Steelers received the opening kickoff, but went three-and-out. On the ensuing possession, the Ravens drove down the field with ease, capping off their drive with a touchdown run by Willis McGahee. In the second quarter, Dixon hit WR Santonio Holmes on a play-action pass for a 33-yard TD, tying the game. The Ravens answered on the following drive, with a 52-yard strike from Joe Flacco to Mark Clayton, setting up a 10-yard touchdown pass to Derrick Mason. In the third quarter, on the Ravens opening possession, Mark Clayton made a 9-yard reception but fumbled the ball and it was recovered by Tyrone Carter. The Steelers drove, but were held to a field goal by Jeff Reed. Later in the 4th quarter, Joe Flacco was sacked by Lawrence Timmons and fumbled the ball, recovered by the Steelers near midfield. The drive resulted in a 24-yard run on a QB option by Dixon, giving the Steelers their first lead of the night. On the Ravens next possession Joe Flacco completed a pass to Derrick Mason for 17&#160;yards, and then found Ray Rice for a 44-yard reception, setting the Ravens up inside the Steeler 10&#160;yard line with less than 2&#160;minutes left. Billy Cundiff tied the game with a 24-yard field goal. On the following Steeler possession, Dennis Dixon was nearly intercepted by Lardarius Webb. The Steelers were forced to punt, giving the ball back to the Ravens with about 1:30 left in the game. The Ravens managed to drive to the Steeler 40&#160;yard line, where their drive stalled. With the clock counting inside 10&#160;seconds left and no timeouts, the field goal team managed to get into formation, and get the kick off. The 56&#160;yard attempt by Billy Cundiff was dead center, but about 2&#160;yards short, sending the game into overtime. In overtime, the Steelers won the coin toss and got the ball, but were forced to punt. The Ravens, also forced to punt deep in their own territory, gave the ball to Pittsburgh around the Steeler 40&#160;yard line. On a 3rd and 5, Dennis Dixon threw an interception to LB Paul Kruger, who returned the ball 26&#160;yards to the Steeler 28&#160;yard line. Already in field goal range, the Ravens ran the ball down to the Pittsburgh 11&#160;yard line where Billy Cundiff made a 29-yard field goal to win the game. With their second consecutive overtime loss, the Steelers fell to 6-5.",
+      "original_question": "How many more points did the Ravens score than the Steelers?",
+      "original_answer_data": {
+        "spans": [
+          "3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 34
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Following a tough road loss against the Bears, the Steelers flew to Paul Brown Stadium for a Week 3 AFC North duel with the Cincinnati Bengals.  Pittsburgh would strike first in the first quarter with kicker Jeff Reed's 19-yard field goal and quarterback Ben Roethlisberger's 27-yard touchdown pass to running back Willie Parker.  The Steelers would add onto their lead in the second quarter as Reed made a 34-yard field goal.  The Bengals would close out the half with kicker Shayne Graham's 34-yard field goal. Cincinnati would creep closer in the third quarter as cornerback Johnathan Joseph returned an interception 30&#160;yards for a touchdown (with a failed PAT), yet Pittsburgh answered with Roethlisberger's 1-yard touchdown run.  However, in the fourth quarter, the Bengals took the lead with running back Cedric Benson's 23-yard touchdown run (with a failed 2-point conversion) and quarterback Carson Palmer's 4-yard touchdown pass to wide receiver Andre Caldwell (with a successful 2-point conversion pass to running back Brian Leonard).  The Steelers tried to rally, but Roethlisberger's last-second hail mary pass was incomplete, preserving the defeat. With the loss, Pittsburgh fell to 1-2 and 3rd place in the AFC North.  This would also become the team's first 1-2 start since 2006. Wide receiver Hines Ward (4 receptions, 82&#160;yards) would become the 21st player in NFL history to surpass 800 career receptions and 10,000 receiving yards.",
+      "original_question": "Which player had the longest touchdown reception?",
+      "original_answer_data": {
+        "spans": [
+          "Willie Parker"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 928
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.",
+      "original_question": "How many total points were scored in the game?",
+      "original_answer_data": {
+        "spans": [
+          "21"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 398
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their loss to the Saints the Seahawks played on home ground where they played their former division rival, the Kansas City Chiefs. In the first quarter, the Seahawks trailed early with QB Matt Cassel getting a 7-yard TD pass to WR Dwayne Bowe. They responded after FS Earl Thomas returned a blocked punt 10 yards for a touchdown. They fell behind as Shaun Smith got a 1-yard TD run, followed by Cassel finding Bowe again on a 36-yard TD pass. The Seahawks cut the lead when kicker Olindo Mare got a 43-yard field goal, followed by QB Matt Hasselbeck getting a 13-yard TD pass to TE Chris Baker. The struggled further with RB Jamaal Charles getting a 3-yard TD run, followed by Cassel throwing to Bowe on a 9-yard TD pass. The Seahawks responded as Hasselbeck completed an 87-yard TD pass to WR Ben Obomanu, but the Chiefs increased their lead as Cassel got a 6-yard TD pass to TE Tony Moeaki.",
+      "original_question": "Which player had the first touchdown run of the game?",
+      "original_answer_data": {
+        "spans": [
+          "Shaun Smith"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 607
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In mid-October 1524, Francis himself crossed the Alps and advanced on Milan at the head of an army numbering more than 40,000. Bourbon and d'Avalos, their troops not yet recovered from the campaign in Provence, were in no position to offer serious resistance. The French army moved in several columns, brushing aside Imperial attempts to hold its advance, but failed to bring the main body of Imperial troops to battle. Nevertheless, Charles de Lannoy, who had concentrated some 16,000 men to resist the 33,000 French troops closing on Milan, decided that the city could not be defended and withdrew to Lodi on 26 October. Having entered Milan and installed Louis II de la Tr\u00e9moille as the governor, Francis  advanced on Pavia, where Antonio de Leyva remained with a sizable Imperial garrison.",
+      "original_question": "How many more men did the French troops 33,000 have over Charles de Lannoy 16,000 men?",
+      "original_answer_data": {
+        "spans": [
+          "17000"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 298
+    }
+  ],
+  "example_indices": [
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "38 yards",
+      "output": "ANSWER_START\n38 yards\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers refer to a distance of 38 yards, the only difference being the hyphen in the golden answer, which is grammatically correct in this context, but doesn't change the meaning."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "7",
+      "output": "ANSWER_START\n7\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value (7)."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "2012",
+      "output": "ANSWER_START\n2012\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "9,495",
+      "output": "ANSWER_START\n9,495\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers represent the same numerical value, with one including a comma as a thousands separator and the other omitting it. The numerical value is the same."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "3",
+      "output": "ANSWER_START\n3\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value '3'."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Cannot determine from passage.",
+      "output": "ANSWER_START\nCannot determine from passage.\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer indicates that the answer cannot be determined, while the golden answer provides a specific numerical value (3). These answers are not semantically equivalent."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "Willie Parker",
+      "output": "ANSWER_START\nWillie Parker\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are exactly the same string."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "21",
+      "output": "ANSWER_START\n21\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value: 21"
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Shaun Smith",
+      "output": "ANSWER_START\nShaun Smith\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same information: 'Shaun Smith'."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "17,000",
+      "output": "ANSWER_START\n17,000\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_4.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers represent the same numerical value, seventeen thousand. The presence of a comma in '17,000' is simply a formatting difference."
+      },
+      "match": true
+    }
+  ],
+  "performance": {
+    "accuracy": 0.9,
+    "correct_count": 9,
+    "total_count": 10,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "38 yards",
+        "golden_answer": "38-yard",
+        "output": "ANSWER_START\n38 yards\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers refer to a distance of 38 yards, the only difference being the hyphen in the golden answer, which is grammatically correct in this context, but doesn't change the meaning."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "7",
+        "golden_answer": "7",
+        "output": "ANSWER_START\n7\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (7)."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "2012",
+        "golden_answer": "2012",
+        "output": "ANSWER_START\n2012\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "9,495",
+        "golden_answer": "9495",
+        "output": "ANSWER_START\n9,495\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value, with one including a comma as a thousands separator and the other omitting it. The numerical value is the same."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "3",
+        "golden_answer": "3",
+        "output": "ANSWER_START\n3\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value '3'."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "Cannot determine from passage.",
+        "golden_answer": "3",
+        "output": "ANSWER_START\nCannot determine from passage.\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer indicates that the answer cannot be determined, while the golden answer provides a specific numerical value (3). These answers are not semantically equivalent."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "Willie Parker",
+        "golden_answer": "Willie Parker",
+        "output": "ANSWER_START\nWillie Parker\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are exactly the same string."
+        }
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "21",
+        "golden_answer": "21",
+        "output": "ANSWER_START\n21\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 21"
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "Shaun Smith",
+        "golden_answer": "Shaun Smith",
+        "output": "ANSWER_START\nShaun Smith\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information: 'Shaun Smith'."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "17,000",
+        "golden_answer": "17000",
+        "output": "ANSWER_START\n17,000\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value, seventeen thousand. The presence of a comma in '17,000' is simply a formatting difference."
+        }
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\nThere are no runtime errors (e.g., JSONDecodeError, TypeError) visible in the provided error cases and success cases.\n\n## STRENGTHS\n\n1.  **Numerical Extraction and Comparison:** The system correctly extracts and compares numerical information from the passage to answer questions requiring numerical calculations (e.g., Sample IDs 1, 3, 7, and 9).\n2.  **Textual Information Extraction:** The system can extract specific textual information from the passage to answer questions requiring identifying particular entities or roles (e.g., Sample IDs 6 and 8).\n3. **Basic Arithmetic:** The system demonstrates the capability to perform basic subtraction (Sample ID 9).\n\n## WEAKNESSES\n\n1.  **Complex Reasoning with Numerical Information:** The system struggles with questions that require complex reasoning involving multiple steps or combining numerical information from different parts of the passage. Calculating the difference between final scores requires correctly extracting all the scores from each team, summing them, and performing a subtraction, all of which failed in Sample ID 5.\n2.  **Semantic Understanding of \"Cannot Determine\":** The system provides \"Cannot determine from passage\" even when the answer is present but requires more complex processing to extract. This indicates a failure to apply sufficient effort in synthesizing an answer that is available.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Inability to synthesize numerical information:** The system needs improvement in combining multiple numerical values within the passage to perform more complex calculations, such as determining point differences after a game.\n2. **Insufficient Effort to Determine Answer:** The system quickly defaults to \"Cannot determine from passage\" before exhausting reasonable reasoning steps.\n\n## ERROR PATTERNS\n\n1.  **Failure to Perform Multi-Step Numerical Reasoning:** The primary recurring error is the system's inability to perform multi-step reasoning involving numerical data (specifically calculating score differences). The system defaults to \"Cannot determine from passage\" when the answer is present, but necessitates several steps to obtain.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the system's failure to perform complex numerical reasoning, including identifying all relevant numerical information and performing the required arithmetic to arrive at the correct answer.\n\n## IMPROVEMENT AREAS\n\n1.  **Numerical Reasoning:** Enhance the system's ability to identify and extract all relevant numerical data, understand the relationships between these data points, and perform necessary calculations (addition, subtraction, etc.) to derive the correct answer.\n2. **Reasoning Depth:** Increase the depth and length of the reasoning chains the system attempts before giving up and answering \"Cannot determine from passage.\"\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a dedicated numerical reasoning module:** This module should be responsible for identifying numerical values, determining their context, and performing arithmetic operations based on the question. This module should include techniques to find all the numerical values relevant to the question, and then try all plausible arithmetic operations on those values.\n2.  **Improve question parsing and intent recognition:** Enhance the system's ability to understand the intent behind numerical questions and formulate appropriate strategies for answering them. For example, if the question asks for the \"difference\" between two values, the system should automatically identify the need for subtraction.\n3.  **Introduce a more robust \"scratchpad\" or working memory:** Provide the system with a dedicated space to store extracted numerical values, intermediate results, and reasoning steps. This will allow the system to keep track of its progress and revisit previous calculations.\n4. **Increase Reasoning Steps Before Giving Up:** Before answering \"Cannot determine from passage,\" force the system to try multiple strategies and chains of reasoning. For example, use multiple extraction strategies, arithmetic operations, and value combinations.\n\n## CAPABILITY MAPPING\n\n**Sample ID 5:**\n*   information_extraction: Partial failure (failed to extract all relevant score information)\n*   solution_generation: Failure (failed to calculate the score difference correctly)\n*   solution_verification: N/A (no solution generated)\n*   decision_making: Premature decision (incorrectly concluded that the answer could not be determined).\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The single most critical problem is the system's failure to perform complex numerical reasoning, including identifying all relevant numerical information and performing the required arithmetic to arrive at the correct answer.",
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, sample execution outputs, and your instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**AI System: Capability Analysis**\n\nThis report provides a detailed assessment of the AI system's capabilities based on its performance summary, error analysis, and sample execution outputs. The focus is on identifying strengths, weaknesses, bottlenecks, and actionable recommendations for improvement.\n\n## EXECUTION ANALYSIS\n\nThe provided sample execution outputs, which include `\"ANSWER_START\"` and `\"ANSWER_END\"` markers, show that the system can extract specific text spans from a given passage. However, this extraction appears rudimentary, simply delimiting text. There is no indication of *understanding* the extracted content or performing any manipulation on it.  The lack of post-processing of the extracted text is evident. The extraction is accurate but basic. There is no format validation or content checking within the extracted text.\n\n## CAPABILITY ASSESSMENT\n\nThe system exhibits strengths in basic text extraction and numerical comparison. However, it suffers from significant limitations in complex reasoning, especially when it involves numerical information or requires multi-step problem-solving.  The system appears to have a low \"frustration tolerance,\" quickly defaulting to \"Cannot determine from passage\" even when the information is potentially available.  The system seems to be performing surface-level pattern matching rather than deeper semantic understanding and reasoning.\n\n## KEY STRENGTHS\n\n*   **Basic Information Extraction:** The system can identify and extract text spans based on simple criteria.\n*   **Numerical Comparison:** The system can compare numerical values when explicitly identified.\n*   **Basic Arithmetic:** The system can perform basic subtraction.\n\nThese strengths demonstrate a foundational capability for information retrieval and analysis, but it lacks more advanced abilities.\n\n## KEY WEAKNESSES\n\n*   **Complex Numerical Reasoning:** The system struggles with problems that require multiple steps of numerical extraction, calculation, and comparison.\n*   **Semantic Understanding & Reasoning Depth:**  The system's ability to understand the *meaning* of the extracted information is limited. It lacks the ability to synthesize information from different parts of the passage to arrive at an answer.\n*   **Premature \"Cannot Determine\":** The system defaults too readily to \"Cannot determine from passage,\" even when the answer can be derived with reasonable effort.\n\nThese weaknesses limit the system's applicability to complex real-world scenarios that demand more sophisticated reasoning abilities.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Complex Numerical Reasoning**. Addressing this weakness will have the biggest impact on the system's overall performance and usefulness.  This requires both improving numerical extraction and performing arithmetic correctly.\n\n## ACTIONABLE RECOMMENDATIONS\n\nThe following actions are recommended for the next iteration:\n\n1.  **Implement Numerical Reasoning Module (Priority: High):**  Create a dedicated module specifically designed for numerical reasoning. This module should:\n    *   Identify all numerical values in the passage.\n    *   Determine the context of each numerical value (e.g., what entity or attribute it represents).\n    *   Based on the question, identify relevant numerical values and perform appropriate arithmetic operations (addition, subtraction, etc.).\n    *   The module should use pattern matching (regex, etc.) and semantic analysis to determine the role of each numerical value.\n2.  **Increase Reasoning Depth (Priority: High):**  Modify the system's decision-making process to prevent premature \"Cannot determine\" responses. This involves:\n    *   Implementing a configurable \"reasoning depth\" parameter that controls how many attempts the system makes to find an answer before giving up.\n    *   Adding strategies for trying different extraction and reasoning approaches before declaring failure.\n    *   Increasing the depth and length of the reasoning chains the system attempts.\n3.  **Enhance Question Parsing and Intent Recognition (Priority: Medium):**  Improve the system's ability to understand the intent behind questions, especially those involving numerical information. For example:\n    *   Train the system to recognize keywords like \"difference,\" \"total,\" \"sum,\" etc., and associate them with corresponding arithmetic operations.\n    *   Use semantic analysis to understand the relationship between the entities and attributes mentioned in the question.\n4.  **Introduce a \"Scratchpad\" or Working Memory (Priority: Medium):** Provide the system with a dedicated space to store extracted information, intermediate results, and reasoning steps. This will allow the system to track its progress and revisit previous calculations. This will enable the system to track multiple candidate answers and the reasoning steps taken to arrive at each, enabling easier debugging and analysis.\n\n## CAPABILITY TREND\n\nBased on the current analysis, the system's capabilities appear to be **stable** in terms of basic information extraction. However, it is **declining** in relative terms, as the lack of progress in complex reasoning hinders its ability to solve more challenging problems. Implementing the recommendations above will be crucial to driving an **improving** trend in overall capability. The current accuracy score of 0.90 is misleading given the identified weaknesses. A more comprehensive evaluation suite should be designed to more accurately reflect the system's performance, especially regarding its ability to handle complex reasoning tasks.\n",
+      "strengths": [],
+      "weaknesses": [],
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\nThere are no runtime errors (e.g., JSONDecodeError, TypeError) visible in the provided error cases and success cases.\n\n## STRENGTHS\n\n1.  **Numerical Extraction and Comparison:** The system correctly extracts and compares numerical information from the passage to answer questions requiring numerical calculations (e.g., Sample IDs 1, 3, 7, and 9).\n2.  **Textual Information Extraction:** The system can extract specific textual information from the passage to answer questions requiring identifying particular entities or roles (e.g., Sample IDs 6 and 8).\n3. **Basic Arithmetic:** The system demonstrates the capability to perform basic subtraction (Sample ID 9).\n\n## WEAKNESSES\n\n1.  **Complex Reasoning with Numerical Information:** The system struggles with questions that require complex reasoning involving multiple steps or combining numerical information from different parts of the passage. Calculating the difference between final scores requires correctly extracting all the scores from each team, summing them, and performing a subtraction, all of which failed in Sample ID 5.\n2.  **Semantic Understanding of \"Cannot Determine\":** The system provides \"Cannot determine from passage\" even when the answer is present but requires more complex processing to extract. This indicates a failure to apply sufficient effort in synthesizing an answer that is available.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Inability to synthesize numerical information:** The system needs improvement in combining multiple numerical values within the passage to perform more complex calculations, such as determining point differences after a game.\n2. **Insufficient Effort to Determine Answer:** The system quickly defaults to \"Cannot determine from passage\" before exhausting reasonable reasoning steps.\n\n## ERROR PATTERNS\n\n1.  **Failure to Perform Multi-Step Numerical Reasoning:** The primary recurring error is the system's inability to perform multi-step reasoning involving numerical data (specifically calculating score differences). The system defaults to \"Cannot determine from passage\" when the answer is present, but necessitates several steps to obtain.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the system's failure to perform complex numerical reasoning, including identifying all relevant numerical information and performing the required arithmetic to arrive at the correct answer.\n\n## IMPROVEMENT AREAS\n\n1.  **Numerical Reasoning:** Enhance the system's ability to identify and extract all relevant numerical data, understand the relationships between these data points, and perform necessary calculations (addition, subtraction, etc.) to derive the correct answer.\n2. **Reasoning Depth:** Increase the depth and length of the reasoning chains the system attempts before giving up and answering \"Cannot determine from passage.\"\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a dedicated numerical reasoning module:** This module should be responsible for identifying numerical values, determining their context, and performing arithmetic operations based on the question. This module should include techniques to find all the numerical values relevant to the question, and then try all plausible arithmetic operations on those values.\n2.  **Improve question parsing and intent recognition:** Enhance the system's ability to understand the intent behind numerical questions and formulate appropriate strategies for answering them. For example, if the question asks for the \"difference\" between two values, the system should automatically identify the need for subtraction.\n3.  **Introduce a more robust \"scratchpad\" or working memory:** Provide the system with a dedicated space to store extracted numerical values, intermediate results, and reasoning steps. This will allow the system to keep track of its progress and revisit previous calculations.\n4. **Increase Reasoning Steps Before Giving Up:** Before answering \"Cannot determine from passage,\" force the system to try multiple strategies and chains of reasoning. For example, use multiple extraction strategies, arithmetic operations, and value combinations.\n\n## CAPABILITY MAPPING\n\n**Sample ID 5:**\n*   information_extraction: Partial failure (failed to extract all relevant score information)\n*   solution_generation: Failure (failed to calculate the score difference correctly)\n*   solution_verification: N/A (no solution generated)\n*   decision_making: Premature decision (incorrectly concluded that the answer could not be determined).\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, sample execution outputs, and your instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**AI System: Capability Analysis**\n\nThis report provides a detailed assessment of the AI system's capabilities based on its performance summary, error analysis, and sample execution outputs. The focus is on identifying strengths, weaknesses, bottlenecks, and actionable recommendations for improvement.\n\n## EXECUTION ANALYSIS\n\nThe provided sample execution outputs, which include `\"ANSWER_START\"` and `\"ANSWER_END\"` markers, show that the system can extract specific text spans from a given passage. However, this extraction appears rudimentary, simply delimiting text. There is no indication of *understanding* the extracted content or performing any manipulation on it.  The lack of post-processing of the extracted text is evident. The extraction is accurate but basic. There is no format validation or content checking within the extracted text.\n\n## CAPABILITY ASSESSMENT\n\nThe system exhibits strengths in basic text extraction and numerical comparison. However, it suffers from significant limitations in complex reasoning, especially when it involves numerical information or requires multi-step problem-solving.  The system appears to have a low \"frustration tolerance,\" quickly defaulting to \"Cannot determine from passage\" even when the information is potentially available.  The system seems to be performing surface-level pattern matching rather than deeper semantic understanding and reasoning.\n\n## KEY STRENGTHS\n\n*   **Basic Information Extraction:** The system can identify and extract text spans based on simple criteria.\n*   **Numerical Comparison:** The system can compare numerical values when explicitly identified.\n*   **Basic Arithmetic:** The system can perform basic subtraction.\n\nThese strengths demonstrate a foundational capability for information retrieval and analysis, but it lacks more advanced abilities.\n\n## KEY WEAKNESSES\n\n*   **Complex Numerical Reasoning:** The system struggles with problems that require multiple steps of numerical extraction, calculation, and comparison.\n*   **Semantic Understanding & Reasoning Depth:**  The system's ability to understand the *meaning* of the extracted information is limited. It lacks the ability to synthesize information from different parts of the passage to arrive at an answer.\n*   **Premature \"Cannot Determine\":** The system defaults too readily to \"Cannot determine from passage,\" even when the answer can be derived with reasonable effort.\n\nThese weaknesses limit the system's applicability to complex real-world scenarios that demand more sophisticated reasoning abilities.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Complex Numerical Reasoning**. Addressing this weakness will have the biggest impact on the system's overall performance and usefulness.  This requires both improving numerical extraction and performing arithmetic correctly.\n\n## ACTIONABLE RECOMMENDATIONS\n\nThe following actions are recommended for the next iteration:\n\n1.  **Implement Numerical Reasoning Module (Priority: High):**  Create a dedicated module specifically designed for numerical reasoning. This module should:\n    *   Identify all numerical values in the passage.\n    *   Determine the context of each numerical value (e.g., what entity or attribute it represents).\n    *   Based on the question, identify relevant numerical values and perform appropriate arithmetic operations (addition, subtraction, etc.).\n    *   The module should use pattern matching (regex, etc.) and semantic analysis to determine the role of each numerical value.\n2.  **Increase Reasoning Depth (Priority: High):**  Modify the system's decision-making process to prevent premature \"Cannot determine\" responses. This involves:\n    *   Implementing a configurable \"reasoning depth\" parameter that controls how many attempts the system makes to find an answer before giving up.\n    *   Adding strategies for trying different extraction and reasoning approaches before declaring failure.\n    *   Increasing the depth and length of the reasoning chains the system attempts.\n3.  **Enhance Question Parsing and Intent Recognition (Priority: Medium):**  Improve the system's ability to understand the intent behind questions, especially those involving numerical information. For example:\n    *   Train the system to recognize keywords like \"difference,\" \"total,\" \"sum,\" etc., and associate them with corresponding arithmetic operations.\n    *   Use semantic analysis to understand the relationship between the entities and attributes mentioned in the question.\n4.  **Introduce a \"Scratchpad\" or Working Memory (Priority: Medium):** Provide the system with a dedicated space to store extracted information, intermediate results, and reasoning steps. This will allow the system to track its progress and revisit previous calculations. This will enable the system to track multiple candidate answers and the reasoning steps taken to arrive at each, enabling easier debugging and analysis.\n\n## CAPABILITY TREND\n\nBased on the current analysis, the system's capabilities appear to be **stable** in terms of basic information extraction. However, it is **declining** in relative terms, as the lack of progress in complex reasoning hinders its ability to solve more challenging problems. Implementing the recommendations above will be crucial to driving an **improving** trend in overall capability. The current accuracy score of 0.90 is misleading given the identified weaknesses. A more comprehensive evaluation suite should be designed to more accurately reflect the system's performance, especially regarding its ability to handle complex reasoning tasks.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 6,
+    "accuracy": 0.6,
+    "results": [
+      {
+        "success": true,
+        "answer": "1950s",
+        "output": "ANSWER_START\n1950s\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "1950s",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "12-yard TD pass to Steven Jackson, 12-yard TD pass to Isaac Bruce, and 23-yard TD pass to Drew Bennett.",
+        "output": "ANSWER_START\n12-yard TD pass to Steven Jackson, 12-yard TD pass to Isaac Bruce, and 23-yard TD pass to Drew Bennett.\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "12-yard, 12-yard, 23-yard",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The golden answer gives the yard values, which are all present in the system answer. The system answer provides extra information, but it includes the relevant info."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "None",
+        "output": "ANSWER_START\nNone\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer is 'None', while the golden answer is '1'. These answers are not semantically equivalent."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "117",
+        "output": "ANSWER_START\n117\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "117",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2",
+        "output": "ANSWER_START\n2\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value: 2."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2",
+        "output": "ANSWER_START\n2\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, 2."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "45.7%",
+        "output": "ANSWER_START\n45.7%\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "48.3",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The numerical values 45.7% and 48.3% are different. Therefore, the answers do not communicate the same information."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "St. Louis and Green Bay",
+        "output": "ANSWER_START\nSt. Louis and Green Bay\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "Eagles, Green Bay",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer includes 'St. Louis' which is not in the golden answer ('Eagles, Green Bay'). The system answer is incorrect because it is not semantically equivalent to the golden answer."
+        },
+        "match": false
+      },
+      {
+        "success": true,
+        "answer": "90.0%",
+        "output": "ANSWER_START\n90.0%\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "90",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "90.0% and 90 are semantically equivalent when interpreted as percentages, even with the extra decimal place in the system answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Three",
+        "output": "ANSWER_START\nThree\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_4.jsonl",
+        "golden_answer": "1",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer 'Three' and the golden answer '1' do not convey the same information. 'Three' represents the number 3, while '1' represents the number 1. These are distinct numerical values."
+        },
+        "match": false
+      }
+    ]
+  },
+  "execution_time": 98.70262908935547,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

@@ -9,6 +9,7 @@ import glob
 import random
 from pathlib import Path
 from typing import List, Dict, Any, Callable, Tuple, Optional, Union
+import csv
 
 class DatasetLoader:
     """Base interface for dataset loaders with standard field names"""
@@ -742,6 +743,54 @@ class NaturalPlanDatasetLoader(DatasetLoader):
             raise ValueError(f"Error loading Natural Plan dataset: {e}")
 
 
+class GPQADatasetLoader(DatasetLoader):
+    """Loader specifically for GPQA datasets with 'Question' and 'Correct Answer' fields"""
+
+    def _load_examples(self):
+        """Load examples from GPQA CSV file"""
+        try:
+            with open(self.dataset_path, 'r', encoding='utf-8', newline='') as csvfile:
+                reader = csv.DictReader(csvfile)
+
+                # Verify GPQA fields exist
+                if 'Question' not in reader.fieldnames:
+                    raise ValueError(f"'Question' field not found in GPQA CSV. Available fields: {list(reader.fieldnames)}")
+
+                if 'Correct Answer' not in reader.fieldnames:
+                    raise ValueError(f"'Correct Answer' field not found in GPQA CSV. Available fields: {list(reader.fieldnames)}")
+
+                # Process each row
+                for row_num, row in enumerate(reader):
+                    question = row.get('Question', '').strip()
+                    answer = row.get('Correct Answer', '').strip()
+
+                    # Skip empty rows
+                    if not question or not answer:
+                        continue
+
+                    # Create standardized example
+                    example = {
+                        "id": f"gpqa_{row_num}",
+                        "question": question,  # Standard field: "question"
+                        "answer": answer,      # Standard field: "answer"
+                        "meta": {
+                            "source": "GPQA",
+                            "filename": os.path.basename(self.dataset_path),
+                            "row_number": row_num + 1
+                        }
+                    }
+
+                    self.examples.append(example)
+
+            if not self.examples:
+                raise ValueError("No valid examples found in GPQA dataset")
+
+            print(f"Loaded {len(self.examples)} examples from GPQA dataset")
+
+        except Exception as e:
+            raise ValueError(f"Error loading GPQA dataset: {e}")
+
+
 def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
     """
     Create a dataset loader of the specified type
@@ -771,6 +820,8 @@ def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
         return HotpotQADatasetLoader(**kwargs)
     elif loader_type.lower() == "math":
         return MathDatasetLoader(**kwargs)
+    elif loader_type.lower() == "gpqa":
+        return GPQADatasetLoader(**kwargs)
     elif loader_type.lower() == "custom":
         from dataset_loader import CustomDatasetLoader
         return CustomDatasetLoader(**kwargs)

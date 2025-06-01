@@ -1,0 +1,781 @@
+{
+  "iteration": 6,
+  "timestamp": "2025-06-01T01:40:26.982891",
+  "strategy": "exploit",
+  "explore_rate": 40,
+  "exploit_rate": 40,
+  "refine_rate": 20,
+  "batch_size": 10,
+  "script": "import os\nimport re\nimport math\nfrom google import genai\nfrom google.genai import types\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question):\n    \"\"\"\n    Hybrid approach: Combines elements from Iteration 2 (multi-stage with simplification, extraction, verification),\n    Iteration 4 (fact verification and self-correction), and Iteration 0 (direct approach).\n    This approach leverages the strengths of each while addressing their weaknesses.\n    \"\"\"\n\n    # --- 1. Initial Answer Generation with Contextualized Prompt (from Iteration 4 & 0) ---\n    initial_prompt = f\"\"\"\n    Provide a concise answer to the question based on the provided text. Focus on extracting the most relevant entity or value.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: Gliese 915\n\n    Example 3:\n    Question: How many yards longer was the longest touchdown pass than the longest field goal?\n    Answer: 32\n\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        initial_answer = call_llm(initial_prompt, \"You are a precise information retriever. Focus on brevity.\")\n        initial_answer = initial_answer.strip()\n    except Exception as e:\n        print(f\"Error generating initial answer: {e}\")\n        return \"Error generating initial answer.\"\n\n    # --- 2. Fact Verification and Self-Correction with Specific Examples (from Iteration 4) ---\n    verification_prompt = f\"\"\"\n    Analyze the answer for factual correctness based on the original question. If the answer is incorrect, provide a corrected answer using the available information.\n    If the answer is already concise and accurate, just repeat it.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Proposed Answer: Tom Brady\n    Corrected Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Proposed Answer: Gliese 915\n    Corrected Answer: Gliese 915\n\n    Example 3:\n    Question: How many yards longer was the longest touchdown pass than the longest field goal?\n    Proposed Answer: 30\n    Corrected Answer: 32\n\n    Question: {question}\n    Proposed Answer: {initial_answer}\n    Corrected Answer:\n    \"\"\"\n    try:\n        verification_response = call_llm(verification_prompt, \"You are a fact-checker and self-correction expert. If the answer is correct as is, repeat the exact answer given to you.\")\n        corrected_answer = verification_response.strip()\n    except Exception as e:\n        print(f\"Error during fact verification: {e}\")\n        corrected_answer = initial_answer # Fallback in case verification fails\n\n    # --- 3. Keyword Identification and Passage Simplification (from Iteration 2, enhanced with examples) ---\n    keywords_prompt = f\"\"\"\n    Identify the key entities and concepts in the question. Use these keywords to find and extract the most relevant sentence from the original text.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Passage: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  In the first quarter, Indianapolis scored first with QB Peyton Manning completing a 5-yard TD pass to TE Dallas Clark, along with a 48-yard TD pass to WR Reggie Wayne.  In the second quarter, the Jaguars got on the board with RB Maurice Jones-Drew getting a 2-yard TD run. Afterwards, the Colts replied with Manning and Clark hooking up with each other again on a 14-yard TD pass. In the third quarter, Jacksonville tried to come back as QB David Garrard completed a 2-yard TD pass to TE Mercedes Lewis for the only score of the period. In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal. However, the Colts responded with Manning completing a 1-yard TD pass to RB Luke Lawton. Afterwards, Jacksonville tried to come back as Garrard completed a 17-yard TD pass to WR Dennis Northcutt (along with getting the 2-point conversion run). Indianapolis' defense managed to seal the deal. With their season-sweep over the Jaguars, the Colts improved to 10-2. During the game, the Colts gave Garrard his first interception of the year, courtesy of Safety Antoine Bethea.\n\n    Keywords: player, field goal\n    Relevant Sentence: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Passage: Nu Phoenicis is a yellow-white main sequence star of spectral type F9V and magnitude 4.96. Lying some 49 light years distant, it is around 1.2 times as massive as our sun, and likely to be surrounded by a disk of dust. It is the closest star in the constellation that is visible with the unaided eye. Gliese 915 is a white dwarf only 26 light years away. It is of magnitude 13.05, too faint to be seen with the naked eye. White dwarfs are extremely dense stars compacted into a volume the size of the Earth. With around 85% of the mass of the Sun, Gliese 915 has a surface gravity of 108.39 \u00b1 0.01 (2.45 \u00b7 108) centimetre\u00b7second\u22122, or approximately 250,000 of Earths gravity.\n\n    Keywords: star, mass, Nu Phoenicis, Gliese 915\n    Relevant Sentence: Gliese 915 has around 85% of the mass of the Sun.\n\n    Example 3:\n    Question: How many yards longer was the longest touchdown pass than the longest field goal?\n    Passage: Hoping to rebound from their first loss of the season, the Broncos returned home for an AFC West divisional rematch with the Kansas City Chiefs. After Peyton Manning became the NFL's all-time leader in regular season passing yardage, the game turned sour for the Broncos. Following a Manning interception, the Chiefs capitalized, with a 4-yard touchdown run by running back Charcandrick West. The Broncos' offense went three-and-out on their next two possessions, and the Chiefs increased their lead to 10-0, with a 48-yard field goal by placekicker Cairo Santos. The Chiefs increased their lead to 19-0 at halftime, with three more field goals by Santos &#8212 from 49, 34 and 33 yards out. By halftime, Manning had thrown three interceptions and the Broncos' offense had earned only one first down. The Broncos went three-and-out on their first possession of the second half, and a 50-yarder field goal by Santos increased the Chiefs' lead to 22-0. After Manning threw his fourth interception of the game on the Broncos' next possession, he was pulled and replaced by backup quarterback Brock Osweiler for the remainder of the game. Osweiler drove the Broncos' into the red zone early in the fourth quarter, but was intercepted by Chiefs' safety Eric Berry. Two plays later, the Chiefs increased their lead to 29-0, when quarterback Alex Smith connected with West on an 80-yard touchdown pass. The Broncos' finally got on the scoreboard with 5:31 remaining in the game, with running back Ronnie Hillman rushing for a 1-yard touchdown (two-point conversion attempt unsuccessful), followed by a 7-yard touchdown pass from Osweiler to wide receiver Andre Caldwell, but the Chiefs' lead was too much for the Broncos to overcome. Peyton Manning finished the day with the first 0.0 passer rating of his career.\n\n    Keywords: yards, longest touchdown pass, longest field goal\n    Relevant Sentence: The Chiefs increased their lead to 29-0, when quarterback Alex Smith connected with West on an 80-yard touchdown pass. The Chiefs increased their lead to 10-0, with a 48-yard field goal by placekicker Cairo Santos.\n\n    Question: {question}\n    Passage: {corrected_answer}\n    Keywords:\n    Relevant Sentence:\n    \"\"\"\n\n    try:\n        keywords_and_sentence = call_llm(keywords_prompt, \"You are an expert at extracting keywords and relevant sentences.\")\n        relevant_sentence = keywords_and_sentence.split(\"Relevant Sentence:\")[1].strip()\n    except:\n        relevant_sentence = corrected_answer  # If keyword extraction fails, use the corrected answer\n\n    # --- 4. Final Validation with Relevant Sentence (from Iteration 2 and 4, combined) ---\n    final_validation_prompt = f\"\"\"\n    Validate that the {corrected_answer} accurately answers the {question} based on the {relevant_sentence}. If it isn't, provide the correct answer.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Corrected Answer: Josh Scobee\n    Relevant Sentence: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.\n    Final Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Corrected Answer: Gliese 915\n    Relevant Sentence: Gliese 915 has around 85% of the mass of the Sun.\n    Final Answer: Gliese 915\n\n    Example 3:\n    Question: How many yards longer was the longest touchdown pass than the longest field goal?\n    Corrected Answer: 32\n    Relevant Sentence: The Chiefs increased their lead to 29-0, when quarterback Alex Smith connected with West on an 80-yard touchdown pass. The Chiefs increased their lead to 10-0, with a 48-yard field goal by placekicker Cairo Santos.\n    Final Answer: 32\n\n    Question: {question}\n    Corrected Answer: {corrected_answer}\n    Relevant Sentence: {relevant_sentence}\n    Final Answer:\n    \"\"\"\n\n    try:\n        final_answer = call_llm(final_validation_prompt, \"You are a final validator. Ensure conciseness and accuracy.\").strip()\n        return final_answer\n    except Exception as e:\n        print(f\"Error during final validation: {e}\")\n        return corrected_answer # As a final safety",
+  "approach_summary": "The script employs a multi-stage, LLM-driven approach combining fact verification, self-correction, and relevant information extraction to answer questions. It decomposes the problem into initial answer generation, fact verification, keyword identification for sentence extraction, and final validation. The LLM acts in different roles throughout the process, including information retriever, fact-checker, keyword extractor, and final validator.\n\nThe functions used are `call_llm` (for prompting the LLM) and `main` (orchestrating the entire process). The `main` function calls `call_llm` with specific prompts designed for each stage: initial answer generation, verification, keyword extraction, and final validation. The output of one `call_llm` invocation often serves as the input for the next, creating a chain of reasoning.\n\nThe overall workflow begins with generating an initial answer using `call_llm`, verifying it, extracting a relevant sentence from the context, and then using the extracted sentence and corrected answer within a final prompt to produce the final answer with `call_llm`.",
+  "sample_count": 10,
+  "samples": [
+    {
+      "question": "PASSAGE: Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.\n\nQUESTION: How many total points were scored in the game?",
+      "answer": "21",
+      "id": "example_48",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.",
+        "original_question": "How many total points were scored in the game?",
+        "original_answer_data": {
+          "spans": [
+            "21"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 398
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their loss to the Saints the Seahawks played on home ground where they played their former division rival, the Kansas City Chiefs. In the first quarter, the Seahawks trailed early with QB Matt Cassel getting a 7-yard TD pass to WR Dwayne Bowe. They responded after FS Earl Thomas returned a blocked punt 10 yards for a touchdown. They fell behind as Shaun Smith got a 1-yard TD run, followed by Cassel finding Bowe again on a 36-yard TD pass. The Seahawks cut the lead when kicker Olindo Mare got a 43-yard field goal, followed by QB Matt Hasselbeck getting a 13-yard TD pass to TE Chris Baker. The struggled further with RB Jamaal Charles getting a 3-yard TD run, followed by Cassel throwing to Bowe on a 9-yard TD pass. The Seahawks responded as Hasselbeck completed an 87-yard TD pass to WR Ben Obomanu, but the Chiefs increased their lead as Cassel got a 6-yard TD pass to TE Tony Moeaki.\n\nQUESTION: Which player had the first touchdown run of the game?",
+      "answer": "Shaun Smith",
+      "id": "example_49",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their loss to the Saints the Seahawks played on home ground where they played their former division rival, the Kansas City Chiefs. In the first quarter, the Seahawks trailed early with QB Matt Cassel getting a 7-yard TD pass to WR Dwayne Bowe. They responded after FS Earl Thomas returned a blocked punt 10 yards for a touchdown. They fell behind as Shaun Smith got a 1-yard TD run, followed by Cassel finding Bowe again on a 36-yard TD pass. The Seahawks cut the lead when kicker Olindo Mare got a 43-yard field goal, followed by QB Matt Hasselbeck getting a 13-yard TD pass to TE Chris Baker. The struggled further with RB Jamaal Charles getting a 3-yard TD run, followed by Cassel throwing to Bowe on a 9-yard TD pass. The Seahawks responded as Hasselbeck completed an 87-yard TD pass to WR Ben Obomanu, but the Chiefs increased their lead as Cassel got a 6-yard TD pass to TE Tony Moeaki.",
+        "original_question": "Which player had the first touchdown run of the game?",
+        "original_answer_data": {
+          "spans": [
+            "Shaun Smith"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 607
+      }
+    },
+    {
+      "question": "PASSAGE: In mid-October 1524, Francis himself crossed the Alps and advanced on Milan at the head of an army numbering more than 40,000. Bourbon and d'Avalos, their troops not yet recovered from the campaign in Provence, were in no position to offer serious resistance. The French army moved in several columns, brushing aside Imperial attempts to hold its advance, but failed to bring the main body of Imperial troops to battle. Nevertheless, Charles de Lannoy, who had concentrated some 16,000 men to resist the 33,000 French troops closing on Milan, decided that the city could not be defended and withdrew to Lodi on 26 October. Having entered Milan and installed Louis II de la Tr\u00e9moille as the governor, Francis  advanced on Pavia, where Antonio de Leyva remained with a sizable Imperial garrison.\n\nQUESTION: How many more men did the French troops 33,000 have over Charles de Lannoy 16,000 men?",
+      "answer": "17000",
+      "id": "example_50",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In mid-October 1524, Francis himself crossed the Alps and advanced on Milan at the head of an army numbering more than 40,000. Bourbon and d'Avalos, their troops not yet recovered from the campaign in Provence, were in no position to offer serious resistance. The French army moved in several columns, brushing aside Imperial attempts to hold its advance, but failed to bring the main body of Imperial troops to battle. Nevertheless, Charles de Lannoy, who had concentrated some 16,000 men to resist the 33,000 French troops closing on Milan, decided that the city could not be defended and withdrew to Lodi on 26 October. Having entered Milan and installed Louis II de la Tr\u00e9moille as the governor, Francis  advanced on Pavia, where Antonio de Leyva remained with a sizable Imperial garrison.",
+        "original_question": "How many more men did the French troops 33,000 have over Charles de Lannoy 16,000 men?",
+        "original_answer_data": {
+          "spans": [
+            "17000"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 298
+      }
+    },
+    {
+      "question": "PASSAGE: Hoping to rebound from their road loss to the Eagles, the Falcons flew to the Oakland-Alameda County Coliseum for a Week 9 interconference duel with the Oakland Raiders.  In the first quarter, Atlanta took flight as rookie quarterback Matt Ryan completed a 37-yard TD pass to WR Michael Jenkins, while RB Jerious Norwood got a 12-yard TD run.  In the second quarter, the Falcons added onto their lead with Ryan hooking up with Jenkins again on a 27-yard TD pass, along with kicker Jason Elam nailing a 48-yard field goal.  From there on out, Atlanta cruised towards its easy win, as they greatly outgained the Raiders in time of possession (45:15 to 14:45) and total offensive yards (453 to 77).\n\nQUESTION: how many yards did jason elam nail?",
+      "answer": "48",
+      "id": "example_51",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Hoping to rebound from their road loss to the Eagles, the Falcons flew to the Oakland-Alameda County Coliseum for a Week 9 interconference duel with the Oakland Raiders.  In the first quarter, Atlanta took flight as rookie quarterback Matt Ryan completed a 37-yard TD pass to WR Michael Jenkins, while RB Jerious Norwood got a 12-yard TD run.  In the second quarter, the Falcons added onto their lead with Ryan hooking up with Jenkins again on a 27-yard TD pass, along with kicker Jason Elam nailing a 48-yard field goal.  From there on out, Atlanta cruised towards its easy win, as they greatly outgained the Raiders in time of possession (45:15 to 14:45) and total offensive yards (453 to 77).",
+        "original_question": "how many yards did jason elam nail?",
+        "original_answer_data": {
+          "spans": [
+            "48"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 848
+      }
+    },
+    {
+      "question": "PASSAGE: According to the United Kingdom Census 2011, 84% of the population was White people (77.9% White British, 0.9% Irish migration to Great Britain, 0.1% Gypsy (term) or Irish Travellers and 5.1% Other White); 3.6% Mixed (United Kingdom ethnicity category) (1.7% white-and-black Caribbean, 0.4% white-and-black African, 0.8% white and Asian and 0.7% other mixed); 5.5% British Asian (1.6% British Pakistanis, 1.5% British Indian, 0.9% British Chinese, 0.5% British Bangladeshi, and 1% other Asian); 6% Black British (2.8% African, 1.6% British African-Caribbean people, 1.6% Other Black), 0.3% British Arabs and 0.6% with other heritage. Bristol is unusual among major British towns and cities in its larger black than Asian population. These statistics apply to the Bristol Unitary Authority area, excluding areas of the urban area (2006 estimated population 587,400) in South Gloucestershire, Bath and North East Somerset (BANES) and North Somerset\u2014such as Kingswood, Mangotsfield, Filton and Warmley. 56.2% of the 209,995 Bristol residents who are employed commute to work using either a car, van, motorbike or taxi, 2.2% commute by rail and 9.8% by bus, while 19.6% walk.\n\nQUESTION: How many percent of the United Kingdom in 2011 are not \"other mixed\"?",
+      "answer": "99.3",
+      "id": "example_52",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "According to the United Kingdom Census 2011, 84% of the population was White people (77.9% White British, 0.9% Irish migration to Great Britain, 0.1% Gypsy (term) or Irish Travellers and 5.1% Other White); 3.6% Mixed (United Kingdom ethnicity category) (1.7% white-and-black Caribbean, 0.4% white-and-black African, 0.8% white and Asian and 0.7% other mixed); 5.5% British Asian (1.6% British Pakistanis, 1.5% British Indian, 0.9% British Chinese, 0.5% British Bangladeshi, and 1% other Asian); 6% Black British (2.8% African, 1.6% British African-Caribbean people, 1.6% Other Black), 0.3% British Arabs and 0.6% with other heritage. Bristol is unusual among major British towns and cities in its larger black than Asian population. These statistics apply to the Bristol Unitary Authority area, excluding areas of the urban area (2006 estimated population 587,400) in South Gloucestershire, Bath and North East Somerset (BANES) and North Somerset\u2014such as Kingswood, Mangotsfield, Filton and Warmley. 56.2% of the 209,995 Bristol residents who are employed commute to work using either a car, van, motorbike or taxi, 2.2% commute by rail and 9.8% by bus, while 19.6% walk.",
+        "original_question": "How many percent of the United Kingdom in 2011 are not \"other mixed\"?",
+        "original_answer_data": {
+          "spans": [
+            "99.3"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 668
+      }
+    },
+    {
+      "question": "PASSAGE: In 1608, the reformed princes merged into a so-called Union within the Empire. In Franconia, the margraves of Ansbach and Bayreuth as well as the imperial cities were part of this alliance. The Catholic side responded in 1609 with a counter-alliance, the League. The conflicts between the two camps ultimately resulted in the Thirty Years' War, which was the greatest strain on the cohesion of the Franconian Circle Initially, Franconia was not a theatre of war, although marauding armies repeatedly crossed its territory. However, in 1631, Swedish troops under Gustavus Adolphus advanced into Franconia and established a large encampment in summer 1632 around Nuremberg. However, the Swedes lost the Battle of the Alte Veste against Wallenstein's troops and eventually withdrew. Franconia was one of the poorest regions in the Empire and lost its imperial political significance. During the course of the war, about half the local population lost their lives. To compensate for these losses about 150,000\u00a0displaced Protestants settled in Protestant areas, including Austrian exiles.\n\nQUESTION: Which happened later, the forming of the League or the Battle of the Alte Veste?",
+      "answer": "Battle of the Alte Veste",
+      "id": "example_53",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In 1608, the reformed princes merged into a so-called Union within the Empire. In Franconia, the margraves of Ansbach and Bayreuth as well as the imperial cities were part of this alliance. The Catholic side responded in 1609 with a counter-alliance, the League. The conflicts between the two camps ultimately resulted in the Thirty Years' War, which was the greatest strain on the cohesion of the Franconian Circle Initially, Franconia was not a theatre of war, although marauding armies repeatedly crossed its territory. However, in 1631, Swedish troops under Gustavus Adolphus advanced into Franconia and established a large encampment in summer 1632 around Nuremberg. However, the Swedes lost the Battle of the Alte Veste against Wallenstein's troops and eventually withdrew. Franconia was one of the poorest regions in the Empire and lost its imperial political significance. During the course of the war, about half the local population lost their lives. To compensate for these losses about 150,000\u00a0displaced Protestants settled in Protestant areas, including Austrian exiles.",
+        "original_question": "Which happened later, the forming of the League or the Battle of the Alte Veste?",
+        "original_answer_data": {
+          "spans": [
+            "Battle of the Alte Veste"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 282
+      }
+    },
+    {
+      "question": "PASSAGE: After the founding of the subsequent Union of Soviet Socialist Republics (USSR or Soviet Union) in 1922, Lenin had introduced a mixed economy, commonly referred to as the New Economic Policy, which allowed for capitalist practices to resume under the Communist Party dictation in order to develop the necessary conditions for socialism to become a practical pursuit in the economically undeveloped country. In 1929, as Marshal Joseph Stalin (1878-1953, in power 1929-1953), became the leader of the party, Marxism-Leninism, a fusion of the original ideas of German Empire philosopher and economic theorist Karl Marx (1818-1883), and Lenin, became formalized as the partys guiding ideology and would remain so throughout the rest of its existence. The party pursued state socialism, under which all industries were nationalized and a planned economy was implemented. After recovering from the Second World War (1939-1945), De-Stalinization which 1965 Soviet economic reform and Khrushchev thaw under Nikita Khrushchev (1894-1971, in power 1953/1958-1964). By 1980, various factors, including the continuing Cold War (1946-1991), and ongoing nuclear arms race with the United States and other Western Europe powers and unaddressed inefficiencies in the economy, led to Era of Stagnation under Alexei Kosygin (1904-1980, in power 1964), and further with  Leonid Brezhnev (1906-1982, in power 1964-1982) and a growing disillusionment. After a younger  vigorous  Mikhail Gorbachev (b.1931), assumed leadership in 1985, (following two short-term elderly leaders who quickly died in succession), rapid steps were taken to transform the tottering Soviet economic system in the direction of a market economy once again. Gorbachev and his allies envisioned the introduction of an economy similar to Lenins earlier New Economic Policy through a program of \"perestroika\", or restructuring, but their reforms along with the institution of free multiparty elections led to a decline in the partys power, and after the Dissolution of the Soviet Union (1990-1991), the banning of the party by later last RSFSR President Boris Yeltsin (1931-2007, in power 1991-1999) and subsequent first President of an evolving democratic and free market economy of the successor Russian Federation.\n\nQUESTION: Who was in power the year that Boris Yeltsin was born?",
+      "answer": "Joseph Stalin",
+      "id": "example_54",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "After the founding of the subsequent Union of Soviet Socialist Republics (USSR or Soviet Union) in 1922, Lenin had introduced a mixed economy, commonly referred to as the New Economic Policy, which allowed for capitalist practices to resume under the Communist Party dictation in order to develop the necessary conditions for socialism to become a practical pursuit in the economically undeveloped country. In 1929, as Marshal Joseph Stalin (1878-1953, in power 1929-1953), became the leader of the party, Marxism-Leninism, a fusion of the original ideas of German Empire philosopher and economic theorist Karl Marx (1818-1883), and Lenin, became formalized as the partys guiding ideology and would remain so throughout the rest of its existence. The party pursued state socialism, under which all industries were nationalized and a planned economy was implemented. After recovering from the Second World War (1939-1945), De-Stalinization which 1965 Soviet economic reform and Khrushchev thaw under Nikita Khrushchev (1894-1971, in power 1953/1958-1964). By 1980, various factors, including the continuing Cold War (1946-1991), and ongoing nuclear arms race with the United States and other Western Europe powers and unaddressed inefficiencies in the economy, led to Era of Stagnation under Alexei Kosygin (1904-1980, in power 1964), and further with  Leonid Brezhnev (1906-1982, in power 1964-1982) and a growing disillusionment. After a younger  vigorous  Mikhail Gorbachev (b.1931), assumed leadership in 1985, (following two short-term elderly leaders who quickly died in succession), rapid steps were taken to transform the tottering Soviet economic system in the direction of a market economy once again. Gorbachev and his allies envisioned the introduction of an economy similar to Lenins earlier New Economic Policy through a program of \"perestroika\", or restructuring, but their reforms along with the institution of free multiparty elections led to a decline in the partys power, and after the Dissolution of the Soviet Union (1990-1991), the banning of the party by later last RSFSR President Boris Yeltsin (1931-2007, in power 1991-1999) and subsequent first President of an evolving democratic and free market economy of the successor Russian Federation.",
+        "original_question": "Who was in power the year that Boris Yeltsin was born?",
+        "original_answer_data": {
+          "spans": [
+            "Joseph Stalin"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 939
+      }
+    },
+    {
+      "question": "PASSAGE: Coming off their win over the Chargers the Raiders crossed the San Francisco-Oakland Bay Bridge to Candlestick Park where they played their San Francisco Bay rival, the 49ers. In the first quarter, the Raiders took the lead as kicker Sebastian Janikowski got a 27-yard field goal. Then he made a 24-yard field goal in the 2nd quarter. The 49ers replied with kicker Joe Nedney making a 25-yard field goal. The Raiders fell behind in the third quarter with QB Alex Smith making a 32-yard TD pass to WR Michael Crabtree. The Raiders cut the lead with Janikowski making a 40-yard field goal. The 49ers pulled away after Smith found TE Vernon Davis on a 17-yard TD pass.\n\nQUESTION: How many touchdowns were scored in the first half?",
+      "answer": "0",
+      "id": "example_55",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "Coming off their win over the Chargers the Raiders crossed the San Francisco-Oakland Bay Bridge to Candlestick Park where they played their San Francisco Bay rival, the 49ers. In the first quarter, the Raiders took the lead as kicker Sebastian Janikowski got a 27-yard field goal. Then he made a 24-yard field goal in the 2nd quarter. The 49ers replied with kicker Joe Nedney making a 25-yard field goal. The Raiders fell behind in the third quarter with QB Alex Smith making a 32-yard TD pass to WR Michael Crabtree. The Raiders cut the lead with Janikowski making a 40-yard field goal. The 49ers pulled away after Smith found TE Vernon Davis on a 17-yard TD pass.",
+        "original_question": "How many touchdowns were scored in the first half?",
+        "original_answer_data": {
+          "spans": [
+            "0"
+          ],
+          "types": [
+            "number"
+          ]
+        },
+        "line_number": 944
+      }
+    },
+    {
+      "question": "PASSAGE: In 1680, the newly formed French East India Company sent a ship to Thailand, bearing a trading mission led by Andr\u00e9 Deslandes-Boureau, son-in-law of the Governor General of the French settlement in Pondicherry Fran\u00e7ois Martin, which was well received by the Thais. In September 1680, a ship from the French East India Company visited Phuket and left with a full cargo of tin. The Dutch, the English, and from the 1680s the French, competed with each other for trade with the island of Phuket , which was valued as a rich source of tin. In 1681 or 1682, Siamese King Narai, who was seeking to reduce Dutch and English influence, named Governor of Phuket the French medical missionary Brother Ren\u00e9 Charbonneau, a member of the Siam mission of the Soci\u00e9t\u00e9 des Missions Etrang\u00e8res. Charbonneau held the position of Governor until 1685.\n\nQUESTION: Who married Fran\u00e7ois Martin's daughter?",
+      "answer": "Andr\u00e9 Deslandes-Boureau",
+      "id": "example_56",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "In 1680, the newly formed French East India Company sent a ship to Thailand, bearing a trading mission led by Andr\u00e9 Deslandes-Boureau, son-in-law of the Governor General of the French settlement in Pondicherry Fran\u00e7ois Martin, which was well received by the Thais. In September 1680, a ship from the French East India Company visited Phuket and left with a full cargo of tin. The Dutch, the English, and from the 1680s the French, competed with each other for trade with the island of Phuket , which was valued as a rich source of tin. In 1681 or 1682, Siamese King Narai, who was seeking to reduce Dutch and English influence, named Governor of Phuket the French medical missionary Brother Ren\u00e9 Charbonneau, a member of the Siam mission of the Soci\u00e9t\u00e9 des Missions Etrang\u00e8res. Charbonneau held the position of Governor until 1685.",
+        "original_question": "Who married Fran\u00e7ois Martin's daughter?",
+        "original_answer_data": {
+          "spans": [
+            "Andr\u00e9 Deslandes-Boureau"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 606
+      }
+    },
+    {
+      "question": "PASSAGE: The game began with little action. Denver and Cincinnati both traded possessions to begin the game. However, on the Bengals' second possession they were able to drive deep into Denver territory, reaching the 11-yard line before setting up for a short field goal. However, the field goal snap was fumbled. After the flubbed field goal, both teams entered a period of offensive ineptness - Denver had four consecutive one-and-done drives, while Cincinnati was forced to punt, then had a promising drive end with a Carson Palmer interception after Denver cornerback Champ Bailey tipped the ball into the air and Wesley Woodyard recovered the interception. Denver was finally able to put together a drive at the end of the first half that finished with a Matt Prater 48-yard field goal as time ran out. Despite being out-gained in all offensive indicators, Denver took a 3-0 lead into halftime due to Cincinnati mistakes, including the fumbled field goal, interception, and multiple dropped passes. During the third quarter, neither team was able to sustain an offensive drive - Cincinnati punted 3 times, while Denver punted 2 times. However, Denver's defense showed improvement, including one Cincinnati drive that ended after two consecutive sacks of Carson Palmer. Denver was able to put together another field goal drive at the end of the third quarter, with Matt Prater this time kicking a 50-yard field goal to put the Broncos on top 6-0. The fourth quarter continued in much the same vein. Denver made it into field goal range again before a 5-yard penalty and 7-yard sack forced them to punt it away again. However, Cincinnati was able to put together their first sustained drive of the entire game during the second half of the quarter - the Bengals gained 90 yards on 11 plays over 5:40. This culminated with a 1-yard Cedric Benson touchdown run that avoided a Bengals shutout and put them on top for the first time. Denver regained control of the ball at their own 13-yard line with 38 seconds remaining. After an incomplete pass, Kyle Orton attempted a pass to Brandon Marshall with 28 seconds remaining. The ball was tipped into the air by Bengals defensive back Leon Hall and into the hands of Denver wide receiver Brandon Stokley, who then took it untouched 87 yards to the end zone with 11 seconds remaining. Records showed that this was the longest play from scrimmage in NFL history with less than 1 minute remaining in the game. The play was referred to by some as \"The Immaculate Deflection\" after The Immaculate Reception. Denver took a 12-7 lead but failed a two-point conversion. A desperation hail mary pass by Carson Palmer was intercepted in the end zone with 5 seconds to play by Denver tight end Tony Scheffler.\n\nQUESTION: Who scored the first rushing touchdown of the game?",
+      "answer": "Cedric Benson",
+      "id": "example_57",
+      "meta": {
+        "source": "jsonl_dataset",
+        "original_passage": "The game began with little action. Denver and Cincinnati both traded possessions to begin the game. However, on the Bengals' second possession they were able to drive deep into Denver territory, reaching the 11-yard line before setting up for a short field goal. However, the field goal snap was fumbled. After the flubbed field goal, both teams entered a period of offensive ineptness - Denver had four consecutive one-and-done drives, while Cincinnati was forced to punt, then had a promising drive end with a Carson Palmer interception after Denver cornerback Champ Bailey tipped the ball into the air and Wesley Woodyard recovered the interception. Denver was finally able to put together a drive at the end of the first half that finished with a Matt Prater 48-yard field goal as time ran out. Despite being out-gained in all offensive indicators, Denver took a 3-0 lead into halftime due to Cincinnati mistakes, including the fumbled field goal, interception, and multiple dropped passes. During the third quarter, neither team was able to sustain an offensive drive - Cincinnati punted 3 times, while Denver punted 2 times. However, Denver's defense showed improvement, including one Cincinnati drive that ended after two consecutive sacks of Carson Palmer. Denver was able to put together another field goal drive at the end of the third quarter, with Matt Prater this time kicking a 50-yard field goal to put the Broncos on top 6-0. The fourth quarter continued in much the same vein. Denver made it into field goal range again before a 5-yard penalty and 7-yard sack forced them to punt it away again. However, Cincinnati was able to put together their first sustained drive of the entire game during the second half of the quarter - the Bengals gained 90 yards on 11 plays over 5:40. This culminated with a 1-yard Cedric Benson touchdown run that avoided a Bengals shutout and put them on top for the first time. Denver regained control of the ball at their own 13-yard line with 38 seconds remaining. After an incomplete pass, Kyle Orton attempted a pass to Brandon Marshall with 28 seconds remaining. The ball was tipped into the air by Bengals defensive back Leon Hall and into the hands of Denver wide receiver Brandon Stokley, who then took it untouched 87 yards to the end zone with 11 seconds remaining. Records showed that this was the longest play from scrimmage in NFL history with less than 1 minute remaining in the game. The play was referred to by some as \"The Immaculate Deflection\" after The Immaculate Reception. Denver took a 12-7 lead but failed a two-point conversion. A desperation hail mary pass by Carson Palmer was intercepted in the end zone with 5 seconds to play by Denver tight end Tony Scheffler.",
+        "original_question": "Who scored the first rushing touchdown of the game?",
+        "original_answer_data": {
+          "spans": [
+            "Cedric Benson"
+          ],
+          "types": [
+            "span"
+          ]
+        },
+        "line_number": 959
+      }
+    }
+  ],
+  "samples_metadata": [
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.",
+      "original_question": "How many total points were scored in the game?",
+      "original_answer_data": {
+        "spans": [
+          "21"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 398
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their loss to the Saints the Seahawks played on home ground where they played their former division rival, the Kansas City Chiefs. In the first quarter, the Seahawks trailed early with QB Matt Cassel getting a 7-yard TD pass to WR Dwayne Bowe. They responded after FS Earl Thomas returned a blocked punt 10 yards for a touchdown. They fell behind as Shaun Smith got a 1-yard TD run, followed by Cassel finding Bowe again on a 36-yard TD pass. The Seahawks cut the lead when kicker Olindo Mare got a 43-yard field goal, followed by QB Matt Hasselbeck getting a 13-yard TD pass to TE Chris Baker. The struggled further with RB Jamaal Charles getting a 3-yard TD run, followed by Cassel throwing to Bowe on a 9-yard TD pass. The Seahawks responded as Hasselbeck completed an 87-yard TD pass to WR Ben Obomanu, but the Chiefs increased their lead as Cassel got a 6-yard TD pass to TE Tony Moeaki.",
+      "original_question": "Which player had the first touchdown run of the game?",
+      "original_answer_data": {
+        "spans": [
+          "Shaun Smith"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 607
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In mid-October 1524, Francis himself crossed the Alps and advanced on Milan at the head of an army numbering more than 40,000. Bourbon and d'Avalos, their troops not yet recovered from the campaign in Provence, were in no position to offer serious resistance. The French army moved in several columns, brushing aside Imperial attempts to hold its advance, but failed to bring the main body of Imperial troops to battle. Nevertheless, Charles de Lannoy, who had concentrated some 16,000 men to resist the 33,000 French troops closing on Milan, decided that the city could not be defended and withdrew to Lodi on 26 October. Having entered Milan and installed Louis II de la Tr\u00e9moille as the governor, Francis  advanced on Pavia, where Antonio de Leyva remained with a sizable Imperial garrison.",
+      "original_question": "How many more men did the French troops 33,000 have over Charles de Lannoy 16,000 men?",
+      "original_answer_data": {
+        "spans": [
+          "17000"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 298
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Hoping to rebound from their road loss to the Eagles, the Falcons flew to the Oakland-Alameda County Coliseum for a Week 9 interconference duel with the Oakland Raiders.  In the first quarter, Atlanta took flight as rookie quarterback Matt Ryan completed a 37-yard TD pass to WR Michael Jenkins, while RB Jerious Norwood got a 12-yard TD run.  In the second quarter, the Falcons added onto their lead with Ryan hooking up with Jenkins again on a 27-yard TD pass, along with kicker Jason Elam nailing a 48-yard field goal.  From there on out, Atlanta cruised towards its easy win, as they greatly outgained the Raiders in time of possession (45:15 to 14:45) and total offensive yards (453 to 77).",
+      "original_question": "how many yards did jason elam nail?",
+      "original_answer_data": {
+        "spans": [
+          "48"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 848
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "According to the United Kingdom Census 2011, 84% of the population was White people (77.9% White British, 0.9% Irish migration to Great Britain, 0.1% Gypsy (term) or Irish Travellers and 5.1% Other White); 3.6% Mixed (United Kingdom ethnicity category) (1.7% white-and-black Caribbean, 0.4% white-and-black African, 0.8% white and Asian and 0.7% other mixed); 5.5% British Asian (1.6% British Pakistanis, 1.5% British Indian, 0.9% British Chinese, 0.5% British Bangladeshi, and 1% other Asian); 6% Black British (2.8% African, 1.6% British African-Caribbean people, 1.6% Other Black), 0.3% British Arabs and 0.6% with other heritage. Bristol is unusual among major British towns and cities in its larger black than Asian population. These statistics apply to the Bristol Unitary Authority area, excluding areas of the urban area (2006 estimated population 587,400) in South Gloucestershire, Bath and North East Somerset (BANES) and North Somerset\u2014such as Kingswood, Mangotsfield, Filton and Warmley. 56.2% of the 209,995 Bristol residents who are employed commute to work using either a car, van, motorbike or taxi, 2.2% commute by rail and 9.8% by bus, while 19.6% walk.",
+      "original_question": "How many percent of the United Kingdom in 2011 are not \"other mixed\"?",
+      "original_answer_data": {
+        "spans": [
+          "99.3"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 668
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In 1608, the reformed princes merged into a so-called Union within the Empire. In Franconia, the margraves of Ansbach and Bayreuth as well as the imperial cities were part of this alliance. The Catholic side responded in 1609 with a counter-alliance, the League. The conflicts between the two camps ultimately resulted in the Thirty Years' War, which was the greatest strain on the cohesion of the Franconian Circle Initially, Franconia was not a theatre of war, although marauding armies repeatedly crossed its territory. However, in 1631, Swedish troops under Gustavus Adolphus advanced into Franconia and established a large encampment in summer 1632 around Nuremberg. However, the Swedes lost the Battle of the Alte Veste against Wallenstein's troops and eventually withdrew. Franconia was one of the poorest regions in the Empire and lost its imperial political significance. During the course of the war, about half the local population lost their lives. To compensate for these losses about 150,000\u00a0displaced Protestants settled in Protestant areas, including Austrian exiles.",
+      "original_question": "Which happened later, the forming of the League or the Battle of the Alte Veste?",
+      "original_answer_data": {
+        "spans": [
+          "Battle of the Alte Veste"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 282
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "After the founding of the subsequent Union of Soviet Socialist Republics (USSR or Soviet Union) in 1922, Lenin had introduced a mixed economy, commonly referred to as the New Economic Policy, which allowed for capitalist practices to resume under the Communist Party dictation in order to develop the necessary conditions for socialism to become a practical pursuit in the economically undeveloped country. In 1929, as Marshal Joseph Stalin (1878-1953, in power 1929-1953), became the leader of the party, Marxism-Leninism, a fusion of the original ideas of German Empire philosopher and economic theorist Karl Marx (1818-1883), and Lenin, became formalized as the partys guiding ideology and would remain so throughout the rest of its existence. The party pursued state socialism, under which all industries were nationalized and a planned economy was implemented. After recovering from the Second World War (1939-1945), De-Stalinization which 1965 Soviet economic reform and Khrushchev thaw under Nikita Khrushchev (1894-1971, in power 1953/1958-1964). By 1980, various factors, including the continuing Cold War (1946-1991), and ongoing nuclear arms race with the United States and other Western Europe powers and unaddressed inefficiencies in the economy, led to Era of Stagnation under Alexei Kosygin (1904-1980, in power 1964), and further with  Leonid Brezhnev (1906-1982, in power 1964-1982) and a growing disillusionment. After a younger  vigorous  Mikhail Gorbachev (b.1931), assumed leadership in 1985, (following two short-term elderly leaders who quickly died in succession), rapid steps were taken to transform the tottering Soviet economic system in the direction of a market economy once again. Gorbachev and his allies envisioned the introduction of an economy similar to Lenins earlier New Economic Policy through a program of \"perestroika\", or restructuring, but their reforms along with the institution of free multiparty elections led to a decline in the partys power, and after the Dissolution of the Soviet Union (1990-1991), the banning of the party by later last RSFSR President Boris Yeltsin (1931-2007, in power 1991-1999) and subsequent first President of an evolving democratic and free market economy of the successor Russian Federation.",
+      "original_question": "Who was in power the year that Boris Yeltsin was born?",
+      "original_answer_data": {
+        "spans": [
+          "Joseph Stalin"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 939
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "Coming off their win over the Chargers the Raiders crossed the San Francisco-Oakland Bay Bridge to Candlestick Park where they played their San Francisco Bay rival, the 49ers. In the first quarter, the Raiders took the lead as kicker Sebastian Janikowski got a 27-yard field goal. Then he made a 24-yard field goal in the 2nd quarter. The 49ers replied with kicker Joe Nedney making a 25-yard field goal. The Raiders fell behind in the third quarter with QB Alex Smith making a 32-yard TD pass to WR Michael Crabtree. The Raiders cut the lead with Janikowski making a 40-yard field goal. The 49ers pulled away after Smith found TE Vernon Davis on a 17-yard TD pass.",
+      "original_question": "How many touchdowns were scored in the first half?",
+      "original_answer_data": {
+        "spans": [
+          "0"
+        ],
+        "types": [
+          "number"
+        ]
+      },
+      "line_number": 944
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "In 1680, the newly formed French East India Company sent a ship to Thailand, bearing a trading mission led by Andr\u00e9 Deslandes-Boureau, son-in-law of the Governor General of the French settlement in Pondicherry Fran\u00e7ois Martin, which was well received by the Thais. In September 1680, a ship from the French East India Company visited Phuket and left with a full cargo of tin. The Dutch, the English, and from the 1680s the French, competed with each other for trade with the island of Phuket , which was valued as a rich source of tin. In 1681 or 1682, Siamese King Narai, who was seeking to reduce Dutch and English influence, named Governor of Phuket the French medical missionary Brother Ren\u00e9 Charbonneau, a member of the Siam mission of the Soci\u00e9t\u00e9 des Missions Etrang\u00e8res. Charbonneau held the position of Governor until 1685.",
+      "original_question": "Who married Fran\u00e7ois Martin's daughter?",
+      "original_answer_data": {
+        "spans": [
+          "Andr\u00e9 Deslandes-Boureau"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 606
+    },
+    {
+      "source": "jsonl_dataset",
+      "original_passage": "The game began with little action. Denver and Cincinnati both traded possessions to begin the game. However, on the Bengals' second possession they were able to drive deep into Denver territory, reaching the 11-yard line before setting up for a short field goal. However, the field goal snap was fumbled. After the flubbed field goal, both teams entered a period of offensive ineptness - Denver had four consecutive one-and-done drives, while Cincinnati was forced to punt, then had a promising drive end with a Carson Palmer interception after Denver cornerback Champ Bailey tipped the ball into the air and Wesley Woodyard recovered the interception. Denver was finally able to put together a drive at the end of the first half that finished with a Matt Prater 48-yard field goal as time ran out. Despite being out-gained in all offensive indicators, Denver took a 3-0 lead into halftime due to Cincinnati mistakes, including the fumbled field goal, interception, and multiple dropped passes. During the third quarter, neither team was able to sustain an offensive drive - Cincinnati punted 3 times, while Denver punted 2 times. However, Denver's defense showed improvement, including one Cincinnati drive that ended after two consecutive sacks of Carson Palmer. Denver was able to put together another field goal drive at the end of the third quarter, with Matt Prater this time kicking a 50-yard field goal to put the Broncos on top 6-0. The fourth quarter continued in much the same vein. Denver made it into field goal range again before a 5-yard penalty and 7-yard sack forced them to punt it away again. However, Cincinnati was able to put together their first sustained drive of the entire game during the second half of the quarter - the Bengals gained 90 yards on 11 plays over 5:40. This culminated with a 1-yard Cedric Benson touchdown run that avoided a Bengals shutout and put them on top for the first time. Denver regained control of the ball at their own 13-yard line with 38 seconds remaining. After an incomplete pass, Kyle Orton attempted a pass to Brandon Marshall with 28 seconds remaining. The ball was tipped into the air by Bengals defensive back Leon Hall and into the hands of Denver wide receiver Brandon Stokley, who then took it untouched 87 yards to the end zone with 11 seconds remaining. Records showed that this was the longest play from scrimmage in NFL history with less than 1 minute remaining in the game. The play was referred to by some as \"The Immaculate Deflection\" after The Immaculate Reception. Denver took a 12-7 lead but failed a two-point conversion. A desperation hail mary pass by Carson Palmer was intercepted in the end zone with 5 seconds to play by Denver tight end Tony Scheffler.",
+      "original_question": "Who scored the first rushing touchdown of the game?",
+      "original_answer_data": {
+        "spans": [
+          "Cedric Benson"
+        ],
+        "types": [
+          "span"
+        ]
+      },
+      "line_number": 959
+    }
+  ],
+  "example_indices": [
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57
+  ],
+  "results": [
+    {
+      "success": true,
+      "answer": "21",
+      "output": "ANSWER_START\n21\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value, 21."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Shaun Smith",
+      "output": "ANSWER_START\nShaun Smith\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and convey the same information."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "17,000",
+      "output": "ANSWER_START\n17,000\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers represent the same numerical value, 17000. The system answer includes a comma separator, which is a common formatting convention, but does not change the value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "48",
+      "output": "ANSWER_START\n48\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "99.  3",
+      "output": "ANSWER_START\n99.  3\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The system answer '99. 3' is semantically equivalent to the golden answer '99.3'. The space between the decimal point and the digit 3 does not change the numerical value."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Battle of the Alte Veste",
+      "output": "ANSWER_START\nBattle of the Alte Veste\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and refer to the same event, 'Battle of the Alte Veste'."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "The passage doesn't explicitly state when Boris Yeltsin was born. Therefore, it's impossible to determine who was in power that year based solely on the provided text.",
+      "output": "ANSWER_START\nThe passage doesn't explicitly state when Boris Yeltsin was born. Therefore, it's impossible to determine who was in power that year based solely on the provided text.\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": false,
+        "confidence": 1,
+        "explanation": "The system answer says that it's impossible to determine who was in power when Boris Yeltsin was born. The correct answer is Joseph Stalin."
+      },
+      "match": false
+    },
+    {
+      "success": true,
+      "answer": "0",
+      "output": "ANSWER_START\n0\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are the same (0)."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Andr\u00e9 Deslandes-Boureau",
+      "output": "ANSWER_START\nAndr\u00e9 Deslandes-Boureau\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "The answers are identical."
+      },
+      "match": true
+    },
+    {
+      "success": true,
+      "answer": "Cedric Benson",
+      "output": "ANSWER_START\nCedric Benson\nANSWER_END\n",
+      "trace_file": "archive/trace_iteration_6.jsonl",
+      "evaluation": {
+        "match": true,
+        "confidence": 1,
+        "explanation": "Both answers are identical and refer to the same person, Cedric Benson."
+      },
+      "match": true
+    }
+  ],
+  "performance": {
+    "accuracy": 0.9,
+    "correct_count": 9,
+    "total_count": 10,
+    "evaluations": [
+      {
+        "sample_id": 0,
+        "success": true,
+        "system_answer": "21",
+        "golden_answer": "21",
+        "output": "ANSWER_START\n21\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value, 21."
+        }
+      },
+      {
+        "sample_id": 1,
+        "success": true,
+        "system_answer": "Shaun Smith",
+        "golden_answer": "Shaun Smith",
+        "output": "ANSWER_START\nShaun Smith\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        }
+      },
+      {
+        "sample_id": 2,
+        "success": true,
+        "system_answer": "17,000",
+        "golden_answer": "17000",
+        "output": "ANSWER_START\n17,000\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers represent the same numerical value, 17000. The system answer includes a comma separator, which is a common formatting convention, but does not change the value."
+        }
+      },
+      {
+        "sample_id": 3,
+        "success": true,
+        "system_answer": "48",
+        "golden_answer": "48",
+        "output": "ANSWER_START\n48\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        }
+      },
+      {
+        "sample_id": 4,
+        "success": true,
+        "system_answer": "99.  3",
+        "golden_answer": "99.3",
+        "output": "ANSWER_START\n99.  3\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The system answer '99. 3' is semantically equivalent to the golden answer '99.3'. The space between the decimal point and the digit 3 does not change the numerical value."
+        }
+      },
+      {
+        "sample_id": 5,
+        "success": true,
+        "system_answer": "Battle of the Alte Veste",
+        "golden_answer": "Battle of the Alte Veste",
+        "output": "ANSWER_START\nBattle of the Alte Veste\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same event, 'Battle of the Alte Veste'."
+        }
+      },
+      {
+        "sample_id": 6,
+        "success": true,
+        "system_answer": "The passage doesn't explicitly state when Boris Yeltsin was born. Therefore, it's impossible to determine who was in power that year based solely on the provided text.",
+        "golden_answer": "Joseph Stalin",
+        "output": "ANSWER_START\nThe passage doesn't explicitly state when Boris Yeltsin was born. Therefore, it's impossible to determine who was in power that year based solely on the provided text.\nANSWER_END\n",
+        "match": false,
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer says that it's impossible to determine who was in power when Boris Yeltsin was born. The correct answer is Joseph Stalin."
+        },
+        "capability_failures": []
+      },
+      {
+        "sample_id": 7,
+        "success": true,
+        "system_answer": "0",
+        "golden_answer": "0",
+        "output": "ANSWER_START\n0\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same (0)."
+        }
+      },
+      {
+        "sample_id": 8,
+        "success": true,
+        "system_answer": "Andr\u00e9 Deslandes-Boureau",
+        "golden_answer": "Andr\u00e9 Deslandes-Boureau",
+        "output": "ANSWER_START\nAndr\u00e9 Deslandes-Boureau\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "The answers are identical."
+        }
+      },
+      {
+        "sample_id": 9,
+        "success": true,
+        "system_answer": "Cedric Benson",
+        "golden_answer": "Cedric Benson",
+        "output": "ANSWER_START\nCedric Benson\nANSWER_END\n",
+        "match": true,
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same person, Cedric Benson."
+        }
+      }
+    ],
+    "error_analysis": {
+      "text_report": "## RUNTIME ERRORS\n\nNone identified in the provided data.\n\n## STRENGTHS\n\n1.  **Accurate Information Extraction (Successful Cases):** The system accurately extracts numerical information from the provided text to solve mathematical reasoning problems (e.g., calculating the difference between troop numbers, summing points in a football game).\n2.  **Explicit Factual Recall (Successful Cases):** The system can correctly identify and recall specific facts directly stated in the passage (e.g., identifying the player with the first touchdown run, who married Francois Martin's daughter).\n3.  **Temporal Reasoning (Successful Cases):** The system can correctly answer questions about the order of events described in the text (e.g., the forming of the League or the Battle of the Alte Veste).\n\n## WEAKNESSES\n\n1.  **Inability to perform multi-step reasoning when information is not directly stated:** The system struggles when the answer requires combining multiple pieces of information or making inferences beyond direct factual recall, especially when this involves external knowledge.\n2.  **Lack of Numerical Reasoning with external data (Error Cases):** The system cannot use external knowledge to find the answer. The question required the system to know Boris Yeltsin's birth year to be able to use the passage to find who was in power during that year.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Dependency on explicit passage information:** The system's performance is severely limited by its inability to combine information presented in the passage with external knowledge or make even basic inferences.\n2.  **Lack of integration of knowledge sources:** The inability to use external knowledge to augment the information within the passage to answer questions correctly.\n\n## ERROR PATTERNS\n\n1.  **Reliance on Exact Matches:** The system fails when the question requires information beyond what is explicitly stated in the passage.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the system's inability to integrate external knowledge (like Boris Yeltsin's birth year) with information extracted from the passage to answer the question. The system's information extraction and reasoning capabilities are too narrowly focused on direct factual recall and simple arithmetic using only text within the provided passage.\n\n## IMPROVEMENT AREAS\n\n1.  **Integration of External Knowledge:** Implement a mechanism to incorporate external knowledge sources (e.g., a knowledge graph or a search engine) to augment the information within the passage.\n2.  **Multi-hop Reasoning:** Enhance the system's reasoning capabilities to support multi-hop reasoning, where the answer requires combining information from multiple sentences or making inferences based on relationships between different entities.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a Knowledge Retrieval Component:** Integrate a module that can query an external knowledge base (e.g., Wikipedia, Wikidata) using entities and concepts extracted from the question and the passage. This module should retrieve relevant facts and relationships that could help answer the question.\n2.  **Enhance the Reasoning Engine:** Develop a reasoning engine capable of performing multi-hop reasoning. This could involve techniques like graph traversal or logical inference to combine information from the passage and the retrieved external knowledge.\n3.  **Fine-tune for Knowledge Integration:** Fine-tune the model on a dataset that requires knowledge integration and multi-hop reasoning. This will help the model learn to effectively combine information from different sources and make the necessary inferences.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 6:** information\\_extraction, constraint\\_handling, solution\\_generation, decision\\_making. The system could extract information from the passage but failed to integrate it with external knowledge needed to determine who was in power when Boris Yeltsin was born.\n",
+      "strengths": [],
+      "weaknesses": [],
+      "primary_issue": "The most critical problem is the system's inability to integrate external knowledge (like Boris Yeltsin's birth year) with information extracted from the passage to answer the question. The system's information extraction and reasoning capabilities are too narrowly focused on direct factual recall and simple arithmetic using only text within the provided passage.",
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "capability_report": {
+      "text_report": "Okay, here's a comprehensive capability report for your AI system, based on the provided performance summary, error analysis, improvement suggestions, capability mapping, and sample execution outputs.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**System Overview:** The AI system demonstrates competence in extracting information from text and performing simple reasoning tasks within the confines of the provided passage. However, it struggles when problems require integration of external knowledge or multi-step reasoning.\n\n### EXECUTION ANALYSIS\n\nThe provided sample execution outputs are somewhat limited in context, but we can still glean some insights:\n\n*   **Output Structure:**  The output format is consistent: `ANSWER_START\\n[answer]\\nANSWER_END\\n`. This consistent structure is good for automated parsing and downstream processing.\n*   **Output Quality:**  Based on the strengths identified in the initial analysis, the provided answers (\"21\", \"Shaun Smith\", \"17,000\") are likely correct extractions from the text based on the questions being asked. This reinforces the system's strength in factual recall and numerical extraction when the answers are directly present in the passage.\n*   **Lack of Error Information:**  Unfortunately, without knowing which question corresponds to each answer, we cannot directly correlate these outputs with the known error case (Sample ID 6). We need the question associated with each output to diagnose if a specific output is failing because of lack of external knowledge.\n\n### CAPABILITY ASSESSMENT\n\n**Overall:**  The system exhibits a moderate level of capability in understanding and extracting explicit information from text. Its ability to perform reasoning is limited to factual recall and simple calculations directly based on information provided in the passage. The lack of external knowledge integration and multi-hop reasoning significantly restricts its overall problem-solving abilities.\n\n### KEY STRENGTHS\n\n*   **Accurate Information Extraction from Text:**  Reliably identifies and extracts relevant information, including numerical data, from passages.\n*   **Consistent Output Format:** Provides answers in a predictable and easily parsable format.\n*   **Basic Factual Recall:** Excels at recalling facts explicitly stated in the passage.\n\n### KEY WEAKNESSES\n\n*   **Lack of External Knowledge Integration:** The system's inability to incorporate external knowledge is a major limiting factor.\n*   **Inability to multi-hop reasoning:** Struggles to combine information and make inferences beyond simple extractions.\n*   **Reliance on Exact Matches:** Requires answers to be explicitly stated in the passage.\n\n### IMPROVEMENT FOCUS\n\nThe most crucial area for improvement is **Integration of External Knowledge**.  Addressing this will unlock more advanced reasoning capabilities.\n\n### ACTIONABLE RECOMMENDATIONS\n\nBased on the improvement suggestions and focusing on the critical bottleneck, here are specific actionable recommendations for the next iteration:\n\n1.  **Prototype Knowledge Retrieval Component:** Begin with a simplified version of the knowledge retrieval component. Instead of a full knowledge graph, start by integrating a basic search API (e.g., using the Wikipedia API). The system should:\n    *   **Identify Key Entities:**  Extract entities (people, places, organizations) from both the question and the passage.\n    *   **Query the API:** Formulate search queries using these entities.\n    *   **Retrieve Snippets:** Extract relevant snippets from the API results.\n    *   **Concatenate with Passage:** Append these snippets to the original passage for the system to process.\n2.  **Focus Fine-Tuning on \"Yes/No\" Knowledge Integration Questions:** Create a small dataset of questions requiring external knowledge.  Specifically, use \"Yes/No\" questions. This simplifies the task and provides a clear signal for learning. For example:\n    *   Passage: \"Boris became president in 1991.\"\n    *   Question: \"Was Boris Yeltsin president in 1990?\"\n    *   Expected: The system needs to find Boris Yeltsin's start date to determine this.\n3.  **Implement a Simple Rule-Based \"Knowledge Integration\" Module:**  For the initial prototype, avoid complex neural network architectures for knowledge integration. Instead, implement a simple rule-based module that checks for keywords (e.g., \"was,\" \"is,\" \"during\") in the retrieved snippets and attempts to match them with information in the passage and question. This provides a baseline for comparison and allows for easier debugging.\n4.  **Improve Logging:** Log the following information for each question:\n    *   The original question.\n    *   The original passage.\n    *   The entities extracted.\n    *   The search queries generated.\n    *   The retrieved snippets.\n    *   The final answer.\n    *   A flag indicating whether external knowledge was required.\n    *   A flag indicating whether external knowledge was correctly integrated.\n    *   The execution time.\n5. **Error Sample Feedback:** Provide feedback to the system for the identified error case (Sample ID 6), the question and answer to help learn how to better integrate external knowledge.\n\n### CAPABILITY TREND\n\nCurrently, the capability trend is **Stable with Limitations**. The system performs well within its defined scope (factual recall and simple arithmetic). However, without addressing the knowledge integration issue, further improvements will be incremental. Integrating external knowledge and improving reasoning will be a large jump in capabilities.\n",
+      "strengths": [],
+      "weaknesses": [],
+      "improvement_suggestions": [],
+      "runtime_errors": []
+    },
+    "error_analysis_text": "## RUNTIME ERRORS\n\nNone identified in the provided data.\n\n## STRENGTHS\n\n1.  **Accurate Information Extraction (Successful Cases):** The system accurately extracts numerical information from the provided text to solve mathematical reasoning problems (e.g., calculating the difference between troop numbers, summing points in a football game).\n2.  **Explicit Factual Recall (Successful Cases):** The system can correctly identify and recall specific facts directly stated in the passage (e.g., identifying the player with the first touchdown run, who married Francois Martin's daughter).\n3.  **Temporal Reasoning (Successful Cases):** The system can correctly answer questions about the order of events described in the text (e.g., the forming of the League or the Battle of the Alte Veste).\n\n## WEAKNESSES\n\n1.  **Inability to perform multi-step reasoning when information is not directly stated:** The system struggles when the answer requires combining multiple pieces of information or making inferences beyond direct factual recall, especially when this involves external knowledge.\n2.  **Lack of Numerical Reasoning with external data (Error Cases):** The system cannot use external knowledge to find the answer. The question required the system to know Boris Yeltsin's birth year to be able to use the passage to find who was in power during that year.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Dependency on explicit passage information:** The system's performance is severely limited by its inability to combine information presented in the passage with external knowledge or make even basic inferences.\n2.  **Lack of integration of knowledge sources:** The inability to use external knowledge to augment the information within the passage to answer questions correctly.\n\n## ERROR PATTERNS\n\n1.  **Reliance on Exact Matches:** The system fails when the question requires information beyond what is explicitly stated in the passage.\n\n## PRIMARY ISSUE\n\nThe most critical problem is the system's inability to integrate external knowledge (like Boris Yeltsin's birth year) with information extracted from the passage to answer the question. The system's information extraction and reasoning capabilities are too narrowly focused on direct factual recall and simple arithmetic using only text within the provided passage.\n\n## IMPROVEMENT AREAS\n\n1.  **Integration of External Knowledge:** Implement a mechanism to incorporate external knowledge sources (e.g., a knowledge graph or a search engine) to augment the information within the passage.\n2.  **Multi-hop Reasoning:** Enhance the system's reasoning capabilities to support multi-hop reasoning, where the answer requires combining information from multiple sentences or making inferences based on relationships between different entities.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a Knowledge Retrieval Component:** Integrate a module that can query an external knowledge base (e.g., Wikipedia, Wikidata) using entities and concepts extracted from the question and the passage. This module should retrieve relevant facts and relationships that could help answer the question.\n2.  **Enhance the Reasoning Engine:** Develop a reasoning engine capable of performing multi-hop reasoning. This could involve techniques like graph traversal or logical inference to combine information from the passage and the retrieved external knowledge.\n3.  **Fine-tune for Knowledge Integration:** Fine-tune the model on a dataset that requires knowledge integration and multi-hop reasoning. This will help the model learn to effectively combine information from different sources and make the necessary inferences.\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 6:** information\\_extraction, constraint\\_handling, solution\\_generation, decision\\_making. The system could extract information from the passage but failed to integrate it with external knowledge needed to determine who was in power when Boris Yeltsin was born.\n",
+    "capability_report_text": "Okay, here's a comprehensive capability report for your AI system, based on the provided performance summary, error analysis, improvement suggestions, capability mapping, and sample execution outputs.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**System Overview:** The AI system demonstrates competence in extracting information from text and performing simple reasoning tasks within the confines of the provided passage. However, it struggles when problems require integration of external knowledge or multi-step reasoning.\n\n### EXECUTION ANALYSIS\n\nThe provided sample execution outputs are somewhat limited in context, but we can still glean some insights:\n\n*   **Output Structure:**  The output format is consistent: `ANSWER_START\\n[answer]\\nANSWER_END\\n`. This consistent structure is good for automated parsing and downstream processing.\n*   **Output Quality:**  Based on the strengths identified in the initial analysis, the provided answers (\"21\", \"Shaun Smith\", \"17,000\") are likely correct extractions from the text based on the questions being asked. This reinforces the system's strength in factual recall and numerical extraction when the answers are directly present in the passage.\n*   **Lack of Error Information:**  Unfortunately, without knowing which question corresponds to each answer, we cannot directly correlate these outputs with the known error case (Sample ID 6). We need the question associated with each output to diagnose if a specific output is failing because of lack of external knowledge.\n\n### CAPABILITY ASSESSMENT\n\n**Overall:**  The system exhibits a moderate level of capability in understanding and extracting explicit information from text. Its ability to perform reasoning is limited to factual recall and simple calculations directly based on information provided in the passage. The lack of external knowledge integration and multi-hop reasoning significantly restricts its overall problem-solving abilities.\n\n### KEY STRENGTHS\n\n*   **Accurate Information Extraction from Text:**  Reliably identifies and extracts relevant information, including numerical data, from passages.\n*   **Consistent Output Format:** Provides answers in a predictable and easily parsable format.\n*   **Basic Factual Recall:** Excels at recalling facts explicitly stated in the passage.\n\n### KEY WEAKNESSES\n\n*   **Lack of External Knowledge Integration:** The system's inability to incorporate external knowledge is a major limiting factor.\n*   **Inability to multi-hop reasoning:** Struggles to combine information and make inferences beyond simple extractions.\n*   **Reliance on Exact Matches:** Requires answers to be explicitly stated in the passage.\n\n### IMPROVEMENT FOCUS\n\nThe most crucial area for improvement is **Integration of External Knowledge**.  Addressing this will unlock more advanced reasoning capabilities.\n\n### ACTIONABLE RECOMMENDATIONS\n\nBased on the improvement suggestions and focusing on the critical bottleneck, here are specific actionable recommendations for the next iteration:\n\n1.  **Prototype Knowledge Retrieval Component:** Begin with a simplified version of the knowledge retrieval component. Instead of a full knowledge graph, start by integrating a basic search API (e.g., using the Wikipedia API). The system should:\n    *   **Identify Key Entities:**  Extract entities (people, places, organizations) from both the question and the passage.\n    *   **Query the API:** Formulate search queries using these entities.\n    *   **Retrieve Snippets:** Extract relevant snippets from the API results.\n    *   **Concatenate with Passage:** Append these snippets to the original passage for the system to process.\n2.  **Focus Fine-Tuning on \"Yes/No\" Knowledge Integration Questions:** Create a small dataset of questions requiring external knowledge.  Specifically, use \"Yes/No\" questions. This simplifies the task and provides a clear signal for learning. For example:\n    *   Passage: \"Boris became president in 1991.\"\n    *   Question: \"Was Boris Yeltsin president in 1990?\"\n    *   Expected: The system needs to find Boris Yeltsin's start date to determine this.\n3.  **Implement a Simple Rule-Based \"Knowledge Integration\" Module:**  For the initial prototype, avoid complex neural network architectures for knowledge integration. Instead, implement a simple rule-based module that checks for keywords (e.g., \"was,\" \"is,\" \"during\") in the retrieved snippets and attempts to match them with information in the passage and question. This provides a baseline for comparison and allows for easier debugging.\n4.  **Improve Logging:** Log the following information for each question:\n    *   The original question.\n    *   The original passage.\n    *   The entities extracted.\n    *   The search queries generated.\n    *   The retrieved snippets.\n    *   The final answer.\n    *   A flag indicating whether external knowledge was required.\n    *   A flag indicating whether external knowledge was correctly integrated.\n    *   The execution time.\n5. **Error Sample Feedback:** Provide feedback to the system for the identified error case (Sample ID 6), the question and answer to help learn how to better integrate external knowledge.\n\n### CAPABILITY TREND\n\nCurrently, the capability trend is **Stable with Limitations**. The system performs well within its defined scope (factual recall and simple arithmetic). However, without addressing the knowledge integration issue, further improvements will be incremental. Integrating external knowledge and improving reasoning will be a large jump in capabilities.\n"
+  },
+  "progressive_testing": {
+    "total_examples": 10,
+    "successful_runs": 10,
+    "matches": 9,
+    "accuracy": 0.9,
+    "results": [
+      {
+        "success": true,
+        "answer": "Marshawn Lynch, Mychal Rivera",
+        "output": "ANSWER_START\nMarshawn Lynch, Mychal Rivera\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "Mychal Rivera, Marshawn Lynch",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers contain the same two names, just in a different order. The order of the names does not affect the meaning."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Muskets",
+        "output": "ANSWER_START\nMuskets\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "muskets",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers refer to the same type of firearm, differing only in capitalization."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Andy Dalton and A.J. Green",
+        "output": "ANSWER_START\nAndy Dalton and A.J. Green\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "A.J. Green, Andy Dalton",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers list the same two people, Andy Dalton and A.J. Green, just in a different order. The order does not impact the meaning of the answer."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "3",
+        "output": "ANSWER_START\n3\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "3",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value '3'."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "2",
+        "output": "ANSWER_START\n2\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "2",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same single numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "53",
+        "output": "ANSWER_START\n53\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "53",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "Matt Leinart",
+        "output": "ANSWER_START\nMatt Leinart\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "Matt Leinart",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and convey the same information."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "West Africa's coast",
+        "output": "ANSWER_START\nWest Africa's coast\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "West Africa's coast",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are identical and refer to the same geographical location."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "26",
+        "output": "ANSWER_START\n26\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "26",
+        "evaluation": {
+          "match": true,
+          "confidence": 1,
+          "explanation": "Both answers are the same numerical value (26)."
+        },
+        "match": true
+      },
+      {
+        "success": true,
+        "answer": "43,000-60,000",
+        "output": "ANSWER_START\n43,000-60,000\nANSWER_END\n",
+        "trace_file": "archive/trace_iteration_6.jsonl",
+        "golden_answer": "60000",
+        "evaluation": {
+          "match": false,
+          "confidence": 1,
+          "explanation": "The system answer provides a range (43,000-60,000) while the golden answer gives a single number (60,000).  The range includes numbers less than the golden answer, so they are not equivalent."
+        },
+        "match": false
+      }
+    ]
+  },
+  "execution_time": 106.3078031539917,
+  "capability_report": {
+    "text_report": "No report available",
+    "strengths": [],
+    "weaknesses": [],
+    "improvement_suggestions": [],
+    "trend": "insufficient_data"
+  }
+}

@@ -17,7 +17,7 @@ sys.path.append("scripts")
 os.environ["GEMINI_API_KEY"] = "AIzaSyD_DWppm-TR9CN7xTTVmrW5ngTax7xsLDA"
 
 # Configure tracing
-trace_file = "archive/trace_iteration_0.jsonl"
+trace_file = "archive/trace_iteration_8.jsonl"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)
 
 
@@ -156,9 +156,9 @@ with open(trace_file, 'a', encoding='utf-8') as f:
     start_entry = {
         "timestamp": datetime.datetime.now().isoformat(),
         "event": "execution_start",
-        "iteration": 0,
-        "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
-        "question": 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+        "iteration": 8,
+        "sample_id": "cdf79bfa-ba57-4c8d-9622-4f34d14128ee",
+        "question": "PASSAGE: Hoping to rebound from their divisional road loss to the Giants, the Redskins played their Week 2 home opener against the New Orleans Saints.  In the first quarter, the 'Skins took the early lead when Shaun Suisham kicked a 22-yard field goal. In the second quarter, Washington increased its lead with Suisham's 36-yard field goal.  The Saints would respond with RB Pierre Thomas's 1-yard TD run and kicker Mart&#237;n Gram&#225;tica's 49-yard field goal.  This score marked the 269th consecutive game in which the Redskins allowed a point, tying the Cincinnati Bengals (1989-2006) for the lonest longest streak ever. In the third quarter, New Orleans increased its lead with QB Drew Brees completing a 19-yard TD pass to WR Robert Meachem.  Afterwards, the 'Skins responded when RB Clinton Portis scored on a 9-yard TD run (with a failed 2-point conversion).  The Saints responded with a Reggie Bush 55-yard punt return for a touchdown. The Redskins were able to mount a fourth quarter comeback by rallying for 14 points in the final stanza. The comeback started with a Clinton Portis 8-yard TD run, and was completed when QB Jason Campbell threw a 67-yard TD pass to WR Santana Moss. With the come from behind win, the Redskins improved to 1-1.\n\nQUESTION: How many yards longer was the longest touchdown pass compared with the shortest touchdown pass?"
     }
     f.write(json.dumps(start_entry) + "\n")
 
@@ -171,7 +171,7 @@ def get_real_caller():
         # Get the frame's module
         frame_module = frame_info.frame.f_globals.get('__name__', '')
         # If this frame is from our module (not from system libraries)
-        if frame_module == 'current_script_0':
+        if frame_module == 'current_script_8':
             # Check if it's not the call_llm function itself
             if frame_info.function != 'call_llm' and 'wrapper' not in frame_info.function:
                 return {
@@ -193,8 +193,8 @@ def trace_call_llm(func):
         trace_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "llm_call",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 8,
+            "sample_id": "cdf79bfa-ba57-4c8d-9622-4f34d14128ee",
             "function": "call_llm",
             "caller": caller_info,
             "input": {
@@ -232,8 +232,8 @@ def trace_call_llm(func):
 try:
     # Import the script as a module
     spec = importlib.util.spec_from_file_location(
-        "current_script_0", 
-        "scripts/current_script_0.py"
+        "current_script_8", 
+        "scripts/current_script_8.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -258,7 +258,7 @@ try:
                 pass
 
     # Execute the main function with the question string
-    question = 'PASSAGE: Game SummaryFollowing their fierce divisional road win over the Titans, the Colts flew to Reliant Stadium for an AFC South duel with the Houston Texans (who were the last team Indianapolis lost to en route to their Super Bowl championship).  In the first quarter, the Colts trailed early as Houston WR Jerome Mathis returned a kickoff 84&#160;yards for a touchdown. QB Peyton Manning completed a 2-yard TD pass to TE Dallas Clark.  In the second quarter, the Texans would retake the lead with kicker Kris Brown getting a 33-yard. RB Joseph Addai helped Indianapolis get back ahead with an amazing 4-yard TD run. In the third quarter, the Colts pulled away as kicker Adam Vinatieri got a 36-yard field goal, Addai got an 8-yard TD run, and Vinatieri kicked a 28-yard field goal.  In the fourth quarter, Houston tried to catch up with RB Samkon Gado getting a 1-yard TD run, while Indianapolis got its final score of the game with a Vinatieri kicking a 35-yard field goal.  The Texans would get close with QB Matt Schaub completing a 1-yard TD pass to RB Vonta Leach. The Colts held on to get the victory.\n\nQUESTION: How long was the longest touchdown run?'
+    question = "PASSAGE: Hoping to rebound from their divisional road loss to the Giants, the Redskins played their Week 2 home opener against the New Orleans Saints.  In the first quarter, the 'Skins took the early lead when Shaun Suisham kicked a 22-yard field goal. In the second quarter, Washington increased its lead with Suisham's 36-yard field goal.  The Saints would respond with RB Pierre Thomas's 1-yard TD run and kicker Mart&#237;n Gram&#225;tica's 49-yard field goal.  This score marked the 269th consecutive game in which the Redskins allowed a point, tying the Cincinnati Bengals (1989-2006) for the lonest longest streak ever. In the third quarter, New Orleans increased its lead with QB Drew Brees completing a 19-yard TD pass to WR Robert Meachem.  Afterwards, the 'Skins responded when RB Clinton Portis scored on a 9-yard TD run (with a failed 2-point conversion).  The Saints responded with a Reggie Bush 55-yard punt return for a touchdown. The Redskins were able to mount a fourth quarter comeback by rallying for 14 points in the final stanza. The comeback started with a Clinton Portis 8-yard TD run, and was completed when QB Jason Campbell threw a 67-yard TD pass to WR Santana Moss. With the come from behind win, the Redskins improved to 1-1.\n\nQUESTION: How many yards longer was the longest touchdown pass compared with the shortest touchdown pass?"
 
     # Call the main function and get the answer
     answer = module.main(question)
@@ -268,8 +268,8 @@ try:
         end_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_complete",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 8,
+            "sample_id": "cdf79bfa-ba57-4c8d-9622-4f34d14128ee",
             "answer": str(answer)
         }
         f.write(json.dumps(end_entry) + "\n")
@@ -285,8 +285,8 @@ except Exception as e:
         error_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "event": "execution_error",
-            "iteration": 0,
-            "sample_id": "4b015317-7393-4359-a66e-89de48d279f6",
+            "iteration": 8,
+            "sample_id": "cdf79bfa-ba57-4c8d-9622-4f34d14128ee",
             "error": str(e),
             "traceback": traceback.format_exc()
         }
