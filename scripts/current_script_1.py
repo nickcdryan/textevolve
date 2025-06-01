@@ -1,11 +1,7 @@
 import os
-import re
-import math
-from google import genai
-from google.genai import types
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
+    """Call the Gemini LLM with a prompt and return the response"""
     try:
         from google import genai
         from google.genai import types
@@ -33,92 +29,121 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def main(question):
+def main(question, supporting_documents):
     """
-    Leveraging multi-stage analysis with targeted information extraction and verification:
-
-    Hypothesis: By breaking the problem into stages with distinct LLM calls focused on specific aspects (extraction, reasoning, and synthesis), combined with verification steps at each stage, we can improve accuracy and conciseness. This approach tests whether a more structured reasoning process reduces errors compared to a direct, single-step solution. This exploration focuses on improved information retrieval and answer extraction.
+    This script attempts to address multi-hop reasoning by:
+    1. Summarizing each document independently to reduce information overload, then verifying the summarization.
+    2. Reasoning across the summaries to find the answer.
     """
 
-    # Stage 1: Keyword Identification and Passage Simplification
-    keywords_prompt = f"""
-    Identify the key entities and concepts in the question and passage. Use these keywords to simplify the passage,
-    focusing on the most relevant sentences.
+    # Hypothesis: Summarizing documents before reasoning will improve accuracy. This explores a document reduction strategy.
+    # Addressing previous errors: Information Overload, Inability to Connect Disparate Facts
+    # Verification goal: Verify the document summarization is both concise and accurate.
+    
+    summaries = []
+    for i, doc in enumerate(supporting_documents):
+        summary_result = summarize_document_with_verification(doc, i, question)
+        if summary_result.get("is_valid"):
+            summaries.append(summary_result["summary"])
+        else:
+            print(f"Error summarizing document {i}: {summary_result.get('validation_feedback')}")
+            return f"Error summarizing document {i}"
+    
+    # Now, reason across the summaries to answer the question
+    answer = reason_across_summaries(question, summaries)
+    return answer
+
+def summarize_document_with_verification(document, doc_id, question, max_attempts=3):
+    """Summarizes a document and verifies the summary."""
+    system_instruction = "You are an expert summarizer who creates concise, accurate summaries."
+    
+    #Attempt summarization, then verify
+    for attempt in range(max_attempts):
+        summary_prompt = f"""
+        Summarize this document, focusing on information relevant to this question: {question}.
+        Be concise and retain all critical information related to the question.
+        
+        Document: {document}
+        
+        Example 1:
+        Document: The capital of Australia is Canberra. Canberra is located in the Australian Capital Territory.
+        Summary: The capital of Australia is Canberra, located in the Australian Capital Territory.
+        
+        Example 2:
+        Document:  Tommy's Honour is a 2016 historical drama film depicting the lives and careers of, and the complex relationship between, the pioneering Scottish golfing champions Old Tom Morris and his son Young Tom Morris.
+        Summary: Tommy's Honour is a 2016 film about Scottish golfers Old Tom Morris and his son.
+
+        Summary:
+        """
+        
+        summary = call_llm(summary_prompt, system_instruction)
+        
+        # Verify the summary - does it retain relevant information?
+        verification_prompt = f"""
+        Verify that this summary of document {doc_id} retains all information relevant to the question: {question}.
+        If not, explain what is missing.
+        
+        Document: {document}
+        Summary: {summary}
+        
+        Respond with "VALID" if the summary is valid, or "INVALID: [reason]" if not.
+
+        Example 1:
+        Document: The Prime Minister of the UK is Rishi Sunak, who assumed office in 2022.
+        Summary: Rishi Sunak is the UK Prime Minister.
+        Verification: VALID
+        
+        Example 2:
+        Document: Tommy's Honour is a film about Old Tom Morris and his son. Jack Lowden starred in it.
+        Summary: Tommy's Honour is a film about Old Tom Morris.
+        Verification: INVALID: The summary is missing the fact that Jack Lowden starred in it.
+        """
+        
+        verification_result = call_llm(verification_prompt, system_instruction)
+        
+        if "VALID" in verification_result:
+            return {"is_valid": True, "summary": summary}
+        else:
+            print(f"Summary verification failed for doc {doc_id}, attempt {attempt+1}: {verification_result}")
+            if attempt < max_attempts-1:
+                continue
+            else:
+                return {"is_valid": False, "summary": summary, "validation_feedback": verification_result}
+    return {"is_valid": False, "summary": "", "validation_feedback": "Failed to generate a valid summary after multiple attempts."}
+
+def reason_across_summaries(question, summaries):
+    """Reasons across the summaries to answer the question."""
+    system_instruction = "You are an expert at answering questions based on summaries of documents."
+    
+    reasoning_prompt = f"""
+    Based on these summaries, answer the question: {question}. Synthesize information from multiple summaries if needed.
+    
+    Summaries:
+    {summaries}
 
     Example 1:
-    Question: Which player kicked the only field goal of the game?
-    Passage: Game SummaryComing off their Thanksgiving road win over the Falcons, the Colts went home for a Week 13 AFC South rematch with the Jacksonville Jaguars.  In the first quarter, Indianapolis scored first with QB Peyton Manning completing a 5-yard TD pass to TE Dallas Clark, along with a 48-yard TD pass to WR Reggie Wayne.  In the second quarter, the Jaguars got on the board with RB Maurice Jones-Drew getting a 2-yard TD run. Afterwards, the Colts replied with Manning and Clark hooking up with each other again on a 14-yard TD pass. In the third quarter, Jacksonville tried to come back as QB David Garrard completed a 2-yard TD pass to TE Mercedes Lewis for the only score of the period. In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal. However, the Colts responded with Manning completing a 1-yard TD pass to RB Luke Lawton. Afterwards, Jacksonville tried to come back as Garrard completed a 17-yard TD pass to WR Dennis Northcutt (along with getting the 2-point conversion run). Indianapolis' defense managed to seal the deal. With their season-sweep over the Jaguars, the Colts improved to 10-2. During the game, the Colts gave Garrard his first interception of the year, courtesy of Safety Antoine Bethea.
-
-    Keywords: player, field goal
-    Simplified Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
+    Question: What is the capital of Australia?
+    Summaries: ['The capital of Australia is Canberra.']
+    Answer: Canberra
 
     Example 2:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Passage: Nu Phoenicis is a yellow-white main sequence star of spectral type F9V and magnitude 4.96. Lying some 49 light years distant, it is around 1.2 times as massive as our sun, and likely to be surrounded by a disk of dust. It is the closest star in the constellation that is visible with the unaided eye. Gliese 915 is a white dwarf only 26 light years away. It is of magnitude 13.05, too faint to be seen with the naked eye. White dwarfs are extremely dense stars compacted into a volume the size of the Earth. With around 85% of the mass of the Sun, Gliese 915 has a surface gravity of 108.39 ± 0.01 (2.45 · 108) centimetre·second−2, or approximately 250,000 of Earths gravity.
+    Question: Tommy's Honour was a film that starred who?
+    Summaries: ["Tommy's Honour is a 2016 film about Scottish golfers Old Tom Morris and his son.", "Jack Lowden starred in War & Peace"]
+    Answer: Jack Lowden
 
-    Keywords: star, mass, Nu Phoenicis, Gliese 915
-    Simplified Passage: Nu Phoenicis is around 1.2 times as massive as our sun. Gliese 915 has around 85% of the mass of the Sun.
-
-    Question: {question}
-    Keywords:
-    Simplified Passage:
-    """
-
-    try:
-        keywords_and_simplified = call_llm(keywords_prompt, "You are an expert at simplifying passages by extracting keywords and relevant sentences.")
-        simplified_passage = keywords_and_simplified.split("Simplified Passage:")[1].strip()
-    except:
-        simplified_passage = question # If keyword extraction fails, use the original question
-
-    # Stage 2: Information Extraction and Focused Reasoning
-    extraction_prompt = f"""
-    Based on the simplified passage, answer the question concisely. Provide ONLY the answer entity (name, value, etc.) without extra words or context.
-
-    Example 1:
-    Question: Which player kicked the only field goal of the game?
-    Passage: In the fourth quarter, the Jaguars drew closer as kicker Josh Scobee nailed a 47-yard field goal.
-    Answer: Josh Scobee
-
-    Example 2:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Passage: Nu Phoenicis is around 1.2 times as massive as our sun. Gliese 915 has around 85% of the mass of the Sun.
-    Answer: Gliese 915
-
-    Question: {question}
-    Passage: {simplified_passage}
     Answer:
     """
-
-    try:
-        answer = call_llm(extraction_prompt, "You are an information extraction expert. Give the single most relevant entity as the answer.")
-        answer = answer.strip()
-    except:
-        answer = "Could not extract answer."
-
-    # Stage 3: Verification
-    verification_prompt = f"""
-    Verify that the extracted answer directly and concisely answers the question based on the original passage.
-    If the answer is incorrect or incomplete, provide the correct answer without any extra information.
-
-    Example 1:
-    Question: Which player kicked the only field goal of the game?
-    Extracted Answer: Josh Scobee
-    Correct: True
-
-    Example 2:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Extracted Answer: Gliese 915
-    Correct: True
-
-    Question: {question}
-    Extracted Answer: {answer}
-    Correct:
-    """
-    try:
-        correctness = call_llm(verification_prompt, "You are a precise answer checker.").strip()
-        if "False" in correctness:
-            answer = call_llm(f"Based on the question {question} and the original passage, what is the CORRECT answer without any extra information or verbosity?", "You are a precise information retriever.")
-    except:
-        pass
-
+    
+    answer = call_llm(reasoning_prompt, system_instruction)
     return answer
+
+# Example usage (replace with actual data and document splitting)
+if __name__ == "__main__":
+    question = "Tommy's Honour was a drama film that included the actor who found success with what 2016 BBC miniseries?"
+    supporting_documents = [
+        "Tommy's Honour is a 2016 historical drama film depicting the lives and careers of, and the complex relationship between, the pioneering Scottish golfing champions Old Tom Morris and his son Young Tom Morris. The film is directed by Jason Connery, and the father and son are portrayed by Peter Mullan and Jack Lowden. The film won Best Feature Film at the 2016 British Academy Scotland Awards.",
+        "Jack Andrew Lowden (born 2 June 1990) is a Scottish stage, television, and film actor. Following a highly successful and award-winning four-year stage career, his first major international onscreen success was in the 2016 BBC miniseries War & Peace, which led to starring roles in feature films."
+    ]
+
+    answer = main(question, supporting_documents)
+    print(f"Answer: {answer}")

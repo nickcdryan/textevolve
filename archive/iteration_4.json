@@ -1,776 +1,165 @@
 {
   "iteration": 4,
-  "timestamp": "2025-06-01T01:21:06.970718",
-  "strategy": "explore",
-  "explore_rate": 50,
-  "exploit_rate": 30,
-  "refine_rate": 20,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\nfrom google import genai\nfrom google.genai import types\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question):\n    \"\"\"\n    This script uses a fact-verification with self-correction approach.\n    HYPOTHESIS: Implement a robust fact-verification stage using external knowledge and leverage self-correction capabilities to improve accuracy.\n    This approach uses a main LLM call for generating an initial answer, then uses a separate LLM call to verify facts in that answer against the passage and a broader knowledge set.\n    \"\"\"\n\n    # Step 1: Initial Answer Generation\n    initial_prompt = f\"\"\"\n    Provide a concise answer to the question based on the provided text.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Answer: Gliese 915\n\n    Question: {question}\n    Answer:\n    \"\"\"\n    try:\n        initial_answer = call_llm(initial_prompt, \"You are a precise information retriever.\")\n        initial_answer = initial_answer.strip()\n    except Exception as e:\n        print(f\"Error generating initial answer: {e}\")\n        return \"Error generating initial answer.\"\n\n    # Step 2: Fact Verification and Self-Correction\n    verification_prompt = f\"\"\"\n    Analyze the answer for factual correctness against the original question and a broader knowledge base.\n    Identify any inaccuracies or inconsistencies. If the answer is incorrect, provide a corrected answer using the available information.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Proposed Answer: Tom Brady\n    Analysis: Tom Brady is a quarterback, not a kicker. A more likely answer based on the context is a kicker like Josh Scobee. The passage will also be searched to verify this information.\n    Corrected Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Proposed Answer: Gliese 915\n    Analysis: The answer is correct. Gliese 915 is a white dwarf and known to have less mass than Nu Phoenicis based on general astronomical knowledge.\n    Corrected Answer: Gliese 915\n\n    Question: {question}\n    Proposed Answer: {initial_answer}\n    Analysis:\n    \"\"\"\n    try:\n        verification_response = call_llm(verification_prompt, \"You are a fact-checker and self-correction expert.\")\n        # Attempt to extract the corrected answer; if impossible, stick with the initial answer\n        if \"Corrected Answer:\" in verification_response:\n          corrected_answer = verification_response.split(\"Corrected Answer:\")[-1].strip()\n        else:\n          corrected_answer = initial_answer\n    except Exception as e:\n        print(f\"Error during fact verification: {e}\")\n        corrected_answer = initial_answer # Fallback in case verification fails\n\n    # Step 3: Final Output Validation (Ensure it's concise)\n    final_validation_prompt = f\"\"\"\n    Validate if the final answer is concise and accurately answers the question. Return the answer or a more concise version.\n\n    Example 1:\n    Question: Which player kicked the only field goal of the game?\n    Proposed Answer: Josh Scobee was the player\n    Final Answer: Josh Scobee\n\n    Example 2:\n    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?\n    Proposed Answer: Gliese 915, the white dwarf star.\n    Final Answer: Gliese 915\n\n    Question: {question}\n    Proposed Answer: {corrected_answer}\n    Final Answer:\n    \"\"\"\n\n    try:\n        final_answer = call_llm(final_validation_prompt, \"You are a validator for concise answers.\")\n        final_answer = final_answer.strip()\n        return final_answer\n    except Exception as e:\n        print(f\"Error validating final answer: {e}\")\n        return corrected_answer # As a final safety",
-  "approach_summary": "The script employs a fact-verification with self-correction approach using the Gemini LLM to answer questions. It decomposes the problem into three stages: initial answer generation, fact verification/self-correction, and final output validation for conciseness. Three agent roles are employed: a precise information retriever, a fact-checker/self-correction expert, and a validator for concise answers.\n\nThe functions used are `call_llm` for querying the LLM, which is called within `main` to generate the initial answer, verify the answer, and validate the final output. The `main` function orchestrates the overall workflow, passing prompts to `call_llm` and processing the responses to refine the answer. The overall workflow involves generating an initial answer, verifying its correctness, correcting if necessary, and then validating/shortening the final answer.",
-  "sample_count": 10,
+  "timestamp": "2025-06-01T07:06:45.724307",
+  "strategy": "refine",
+  "explore_rate": 80,
+  "exploit_rate": 10,
+  "refine_rate": 10,
+  "batch_size": 3,
+  "script": "import os\nfrom google import genai\nfrom google.genai import types\n\n# REFINEMENT HYPOTHESIS: The baseline script sometimes fails to extract the correct answer because it doesn't have enough context or reasoning steps. I will improve the baseline script by adding a chain-of-thought approach, providing multiple examples of how to reason through the question, and extracting relevant information from the supporting documents before answering the question. This will improve the accuracy of the script by providing the LLM with more context and guidance.\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question, supporting_documents):\n    \"\"\"\n    Improved script: Adds a chain-of-thought approach, provides multiple examples,\n    and extracts relevant information before answering.\n    \"\"\"\n    system_instruction = \"You are a helpful assistant. Answer the question directly and concisely based on the information provided in the supporting documents. Use chain-of-thought reasoning to explain your answer.\"\n\n    # Chain-of-thought prompt with multiple examples\n    prompt = f\"\"\"\n    You are given a question and a set of supporting documents. Use the information in the documents to answer the question. Explain your reasoning step by step.\n\n    Example 1:\n    Question: What group did Carlene LeFevre and Rich LeFevre form in Brooklyn, New York City?\n    Supporting Documents:\n    === Document 1: Carlene LeFevre ===\n    Carlene LeFevre is a competitive eater from Henderson, Nevada. She and her husband, Rich LeFevre, are said to form the \"First Family of Competitive Eating\" in spite of having normal weights and ages around 60, and are both top ranked members of the International Federation of Competitive Eating.\n    === Document 2: Nathan's Hot Dog Eating Contest ===\n    The Nathan's Hot Dog Eating Contest is an annual American hot dog competitive eating competition. It is held each year on Independence Day at Nathan's Famous Corporation's original, and best-known restaurant at the corner of Surf and Stillwell Avenues in Coney Island, a neighborhood of Brooklyn, New York City.\n    Reasoning:\n    1. The question asks about a group formed by Carlene and Rich LeFevre in Brooklyn.\n    2. Document 1 mentions that Carlene and Rich LeFevre are said to form the \"First Family of Competitive Eating\".\n    3. Document 2 mentions that the Nathan's Hot Dog Eating Contest is held in Brooklyn.\n    4. Therefore, the group formed by Carlene and Rich LeFevre is likely related to competitive eating and located in Brooklyn.\n    Answer: the \"First Family of Competitive Eating\"\n\n    Example 2:\n    Question: Micha\u00ebl Llodra of France, called \"the best volleyer on tour\", defeated Juan Mart\u00edn del Potro a professional of what nationality?\n    Supporting Documents:\n    === Document 1: Juan Mart\u00edn del Potro ===\n    Juan Mart\u00edn del Potro (born 23 September 1988), also known as Delpo is an Argentinian professional tennis player\n    === Document 2: Micha\u00ebl Llodra ===\n    Micha\u00ebl Llodra (born 18 May 1980) is a French former professional tennis player. He is a successful doubles player with three Grand Slam championships and an Olympic silver medal, and has also had success in singles, winning five career titles and gaining victories over Novak Djokovic, Juan Mart\u00edn del Potro\n    Reasoning:\n    1. The question asks for the nationality of Juan Mart\u00edn del Potro.\n    2. Document 1 explicitly states that Juan Mart\u00edn del Potro is an Argentinian professional tennis player.\n    Answer: Argentinian\n\n    Example 3:\n    Question: What animated movie, starring Danny Devito, featured music written and produced by Kool Kojak?\n    Supporting Documents:\n    === Document 1: Kool Kojak ===\n    Allan P. Grigg, better known by his stage name Kool Kojak and stylized as \"KoOoLkOjAk\", is an American musician, songwriter, record producer, film director, and artist notable for co-writing and co-producing Flo Rida's #1 Billboard hit single \"Right Round\", Nicki Minaj's hit single \"Va Va Voom\" , and Ke$ha's top 10 single \"Blow\".\n    === Document 2: The Lorax (film) ===\n    The Lorax (also known as Dr. Seuss' The Lorax) is a 2012 American 3D computer-animated musical fantasy\u2013comedy film produced by Illumination Entertainment and based on Dr. Seuss's children's book of the same name. The cast includes Danny DeVito as the Lorax\n    Reasoning:\n    1. The question asks about an animated movie starring Danny DeVito with music by Kool Kojak.\n    2. Document 2 mentions that Danny DeVito stars in the animated movie \"The Lorax\".\n    3. Document 1 doesn't say Kool Kojak wrote music for that particular movie. Look for the movie in the other documents.\n    4. After searching, the only possible answer is The Lorax.\n    Answer: The Lorax\n\n    Question: {question}\n    Supporting Documents:\n    {supporting_documents}\n    Reasoning:\n    \"\"\"\n\n    # Direct call to LLM with chain-of-thought prompt\n    answer = call_llm(prompt, system_instruction)\n\n    # Verification (simple check for non-empty answer)\n    if not answer:\n        answer = \"Could not determine the answer from the provided documents.\"\n        print(\"Verification failed: LLM returned an empty response.\")  # Debug output\n    else:\n        print(\"Verification passed: LLM returned a non-empty response.\") # Debug output\n\n    return answer",
+  "approach_summary": "The script uses a chain-of-thought approach with examples to answer questions based on supporting documents using the Gemini LLM. The problem is decomposed into extracting relevant information from documents and reasoning through examples before addressing the specific question. The script doesn't explicitly define agent roles but implicitly acts as a question-answering agent.\n\nThe script utilizes two functions: `call_llm`, which interacts with the Gemini API to generate responses based on prompts and system instructions, and `main`, which constructs the prompt with chain-of-thought examples and supporting documents, calls the LLM via `call_llm`, and verifies the response. The overall workflow involves constructing a detailed prompt with examples and supporting documents, sending it to the LLM, and returning the generated answer after a basic verification step.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE:  Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.\n\nQUESTION: How many yards was Mike Nugent's longest field goal in the fourth quarter?",
-      "answer": "38-yard",
-      "id": "example_33",
+      "question": "Multi-hop reasoning task:\n\nQuestion: How many students were enrolled in American professional bowler Chris Barnes' high school in the 2010-2011 school year?\n\nSupporting Documents:\n=== Document 1: Christian Educational Consortium ===\nFounded in 2001, the Christian Educational Consortium (CEC) is a private school in Louisville, Kentucky. A collegiate style school for Christian home educated students, CEC classes are offered to grades 6-12. CEC meets twice a week on Tuesday and Wednesday at Indiana Wesleyan University - Louisville campus. For the 2010-2011 school year, approximately 350 students were enrolled, and currently, for the 2016-2017 school year, there are over 500 students. CEC offers over 60 different classes in all the core subjects (English, math, science,and history),the arts, and many different electives such as World View, Psychology, Journalism, Chess,Drama, Philosophy, Business, and Computer. There are also four foreign languages from which students can choose: Chinese, Italian, Spanish, and Latin. At this school, you may take anywhere from one to six classes. There are a total of eight 90-min to 120 min. periods, four on Tuesday and four on Wednesday. Each teacher will assign homework suitable for one week. The student then complete the homework during the course of the school week, for each class in which he/she is enrolled. \n\n=== Document 2: Nazareth Area High School ===\nNazareth High School is a public high school located in Nazareth, Pennsylvania, in the United States. It is the only high school in the Nazareth Area School District and serves grades 9 through 12. Its mascot is the Blue Eagle and school colors are blue and white. Student enrollment for the 2010-2011 school year was approximately 1,600 students. In a 2006 study conducted by the school district, 43% of households within the district's boundaries reported having one or more children in the high school. As of the 2009-2010 school year, the high school was fully accredited by the Middle States Association of Colleges and Schools. In 2012, Nazareth Area High School received the Keystone Award from the Pennsylvania Department of Education for achieving Annual Yearly Progress for two consecutive years as measured by the Pennsylvania State System of Assessment (PSSA) tests. Nazareth Area High School has also appeared on the College Boards Advanced Placement Honor Roll for the last four consecutive years, out of the five it has been awarded, one of just two Pennsylvania schools to do so. Nazareth Area High School has an AP test passing rate of 87%, above state average of 69% and global average of 61%. \n\n=== Document 3: Cleveland High School (North Carolina) ===\nCleveland High School or CvHS is located in unincorporated Johnston County, North Carolina. It lies within the Cleveland community, with a postal address of Clayton. It was established during the 2010- 2011 school year. It is a public school which is part of Johnston County Schools. Cleveland High School was originally part of Cleveland School, which was founded in 1925 as an all-grade school. Due to the growth of student population in Johnston County, the high school grade students were moved to South Johnston High School in 1969, as well as other high schools in the county. The remaining students continued to attend until the middle school was built in 1999. The current high school opened in 2010, one of two new Johnston County School District high schools to open that year, the other being Corinth Holders High School. \n\n=== Document 4: Cedar Ridge High School (Texas) ===\nCedar Ridge High School is a public secondary school in Round Rock, United States. For the 2010-2011 school year, the school includes grades nine and ten. Grade eleven was added in 2011-2012 and grade twelve in 2012-2013. The school is the largest high school in the Round Rock Independent School District (RRISD), and in Central Texas with an enrollment of more than 3,000 students. Admission is primarily based on the locations of students' homes in the district. The building of the school was approved in the 2006 Bond, and was completed just prior to the beginning of the 2010-2011 school year. \n\n=== Document 5: High Tech High North County ===\nHigh Tech High North County, also known as HTHNC, is a charter school located in San Marcos, California. It is a part of the High Tech High organization. Opening in 2007, with its initial class consisting of only 150 freshmen, the school has since expanded, with more than five hundred and fifty students attending. Each year, there had been a new class added. In the 2008-2009 school year, it was sophomores, in the 2009-2010 school year it was juniors, and in the 2010-2011 school year it became seniors. It is one of only two High Tech High schools to be built from the ground up with the other being High Tech High Chula Vista. The school follows the same type of personalized, college preparatory, project-based learning characterized at other High Tech High schools. \n\n=== Document 6: Topeka High School ===\nTopeka High School (THS) is a fully accredited high school, serving students in grades 9\u201312, located in Topeka, Kansas. It is one of four high schools within Topeka Public Schools. In the 2010-2011 school year, there were 1,840 students enrolled. \n\n=== Document 7: Northern Nevada 3A Region ===\nThe Northern Nevada 3A Region is a part of the Nevada Interscholastic Activities Association, governing the northern half of Nevada for high school athletics. The Northern 3A league is the 2nd largest school level, which has schools with enrollments of 461 to 1200. There are currently 9 member schools in the Northern 3A league for the 2010-2011 school year. Elko High School, South Tahoe High School, and Churchill County High School have moved down from the Northern 4A beginning the 2010-2011 school year. \n\n=== Document 8: West Bloomfield High School ===\nWest Bloomfield High School is a public secondary school in West Bloomfield, Michigan. The school is the only public high school in the West Bloomfield School District. The School Enrollment for the 2010-2011 school year is about 1900. West Bloomfield High School was previously located in the Abbott Middle School building, which opened on January 31, 1955 with an enrollment of 406. From fall 1968 through spring 1971, the school was temporarily located at the site of the current Orchard Lake Middle School. The current building was built in 1971. West Bloomfield High School has begun to offer the Advanced Placement International Diploma to the classes of 2011 and beyond. In addition, it established additional Advanced Placement courses starting the 2010-2011 school year. \n\n=== Document 9: Patrick Henry High School (Ashland, Virginia) ===\nPatrick Henry High School is a high school in Ashland, Virginia in Hanover County. Patrick Henry is one of four high schools in Hanover County, and the only High school in the western half of the county. In 1959, after years of deliberation, Patrick Henry High School began with the consolidation of Beaverdam, Henry Clay, Montpelier, and Rockville high schools. The western Hanover County high school enrolled students in grades eight through twelve. The name of the school, as well as the name of its literary publications, The Voice, The Spark, and The Orator, reference the history of Patrick Henry, Hanover County's most illustrious citizen. Even the school colors of red, white, and blue are a patriotic symbol of history. In 1969, Patrick Henry High and John M. Gandy High School merged to form one Integrated student body. Also in 1969, a new junior high school was built, and Patrick Henry opened that school year as a senior high school serving students in grades ten through twelve. When the junior high school was changed to a middle school in 1988, Patrick Henry became a high school enrolling students in grades nine through twelve. The school campus of West Patrick Henry Road, which consists of a complex of buildings, began as a campus style school. Additions of an auditorium, classrooms, cafeteria, new gymnasium, and renovations to the media center and administrative offices resulted in an all-enclosed facility in 1992. As the population and the needs of the school have changed, so have the dimensions of the school. A new addition/renovation was added to the facility in the fall of 2001 providing state-of-the-art career and technical education opportunities. This addition consisted of a broadcasting studio, a bio-technology lab, a communication technology center, a computer-assisted drafting lab, and three classrooms. Patrick Henry celebrated its 50th anniversary in September 2009. Patrick Henry High has an International Baccalaureate program, as well as a NJROTC program. Patrick Henry High is especially known for its NJROTC program that is consistently ranked among the top in the state of Virginia. During the 2010-2011 school year, a program called Rachel's Challenge was introduced. Patrick Henry High is also noted for its theatre program, being the best in the county, and taken most seriously. \n\n=== Document 10: Chris Barnes (bowler) ===\nChris Barnes (born February 25, 1970 in Topeka, Kansas) is an American professional bowler currently on the Professional Bowlers Association (PBA) Tour. He attended Topeka High School, and then bowled collegiately at Wichita State University, where he earned a Bachelor of Arts degree in Business Management. He was a member of Team USA for four years. \n\n\nProvide your answer based on the information in the supporting documents.",
+      "answer": "1,840 students",
+      "id": "example_26",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
-        "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
-        "original_answer_data": {
-          "spans": [
-            "38-yard"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 24
+        "source": "hotpotqa",
+        "filename": "hotpotqa/test.json",
+        "type": "bridge",
+        "level": "hard",
+        "original_question": "How many students were enrolled in American professional bowler Chris Barnes' high school in the 2010-2011 school year?",
+        "num_documents": 10
       }
     },
     {
-      "question": "PASSAGE: After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.\n\nQUESTION: How many yards total did Artose Pinner run for touchdowns in the first quarter?",
-      "answer": "7",
-      "id": "example_34",
+      "question": "Multi-hop reasoning task:\n\nQuestion: Which canal, Miami Canal or Dundee Canal, also supplies hydro-power and water for manufacturing?\n\nSupporting Documents:\n=== Document 1: History of Over-the-Rhine ===\nThe history of Over-the-Rhine is almost deep as the history of Cincinnati. Over-the-Rhine's built environment has undergone many cultural and demographic changes. The toponym \"Over-the-Rhine\" is a reference to the Miami and Erie Canal as the Rhine of Ohio. An early reference to the canal as \"the Rhine\" appears in the 1853 book \"White, Red, Black\", in which traveler Ferenc Pulszky wrote, \"The Germans live all together across the Miami Canal, which is, therefore, here jocosely called the 'Rhine.'\u00a0\" In 1875 writer Daniel J. Kenny referred to the area exclusively as \"Over the Rhine.\" He noted, \"Germans and Americans alike love to call the district 'Over the Rhine.'\u00a0\" \n\n=== Document 2: Carrier Canal ===\nCarrier Canal is an irrigation canal in Kern County, California. It originates from a common diversion at Manor Street in Bakersfield, which also supplies the Kern Island Canal and Eastside Canal. The common diversion originates from the Kern River about 1 mi south of Gordon's Ferry. There are additional diversions from the Kern River at Golden State Highway (SR 204 freeway) and Coffee Road. The canal terminates at the Kern River, near Enos Lane west of Bakersfield. For its entire length, it runs roughly parallel to the Kern River. \n\n=== Document 3: Dundee Canal ===\nThe Dundee Canal was an industrial canal in Clifton and Passaic in Passaic County, New Jersey. It was built between 1858 and 1861 and ran parallel to the Passaic River. It supplied hydropower and water for manufacturing. There was interest by some members of the business community to modify the canal to support navigational uses, but the canal was never used for that purpose. \n\n=== Document 4: Kern Island Canal ===\nKern Island Canal is an irrigation canal in Kern County, California. It primarily irrigates farmland located on the Kern Lakebed, south of Bakersfield. It originates from a common diversion at Manor Street in Bakersfield, which also supplies the Carrier Canal and Eastside Canal. The common diversion originates from the Kern River about 1 mi south of Gordon's Ferry. \n\n=== Document 5: Miami Canal ===\nThe Miami Canal, or C-6 Canal, flows from Lake Okeechobee in the U.S. state of Florida to its terminus at the Miami River, which flows through downtown Miami. The canal flows in a south and southeasterly direction for approximately 77 miles, and passes through three counties: Broward, Palm Beach, and Miami-Dade. It was constructed in the early part of the 20th century to drain the Everglades Agricultural Area (EAA). \n\n=== Document 6: Orleans Canal ===\nThe Orleans Canal is a drainage canal in New Orleans, Louisiana. The canal, along with the 17th Street Canal and the London Avenue Canal, form the New Orleans Outfall Canals. The current version of the canal is about 2\u00a0km long, running along the up-river side of City Park, through the Lakeview and Lakeshore neighborhood, and into Lake Pontchartrain. It is part of the system used to pump rain water out of the streets of the city into the Lake. The Canal has also been known as the Orleans Avenue Canal, the Orleans Outfall Canal, the Orleans Tail Race, and early on, the Girod Canal, \n\n=== Document 7: Karakum Canal ===\nThe Karakum Canal (Qaraqum Canal, Kara Kum Canal, Garagum Canal; Russian: \u041a\u0430\u0440\u0430\u043a\u0443\u043c\u0441\u043a\u0438\u0439 \u043a\u0430\u043d\u0430\u043b , \"Karakumsky Kanal\", Turkmen: Garagum kanaly , \u06af\u064e\u0631\u064e\u06af\u0648\u064f\u0645 \u0643\u064e\u0646\u064e\u0644\u06cc\u065b, \"\u0413\u0430\u0440\u0430\u0433\u0443\u043c \u043a\u0430\u043d\u0430\u043b\u044b\") in Turkmenistan is one of the largest irrigation and water supply canals in the world. Started in 1954, and completed in 1988, it is navigable over much of its 1375 km length, and carries 13 km3 of water annually from the Amu-Darya River across the Karakum Desert in Turkmenistan. The canal opened up huge new tracts of land to agriculture, especially to cotton monoculture heavily promoted by the Soviet Union, and supplying Ashgabat with a major source of water. Unfortunately, the primitive construction of the canal allows almost 50\u00a0percent of the water to escape en route, creating lakes and ponds along the canal, and a rise in groundwater leading to widespread soil salinization problems. The canal is also a major factor leading to the Aral Sea environmental disaster. \n\n=== Document 8: New River (Broward County, Florida) ===\nThe New River is a tidal estuary in South Florida, United States. The river is connected to the Everglades through a series of man made canals. After passing through Fort Lauderdale, the river connects to the Atlantic Ocean at Port Everglades cut. The river is entirely within Broward County and is composed from the junction of three main canals which originate in the Everglades, splitting off from the Miami Canal. They are the North New River Canal, which flows on the north side of State Road 84 / Interstate 595; the South New River Canal, which flows on the north side of Griffin Road and the south side of Orange Drive; and a canal which flows south of Sunrise Boulevard. \n\n=== Document 9: Golovnaya Dam ===\nThe Golovnaya Dam is an earth-fill embankment dam on the Vakhsh River just east of Sarband in Khatlon Province, Tajikistan. It serves to provide water to a system of irrigation canals and generate hydroelectric power. The first generator was commissioned in 1962 and the last in 1963. Between 1984 and 1989 three of the Kaplan turbines were upgraded from 35 MW to 45 MW. Two of the turbines in the 240 MW power station discharge water into a canal on the left bank of the river. Water from this canal serves to irrigate but also supplies the 29.9 MW Perepadnaya and 15.1 MW Centralnaya Hydroelectric Power Plants located further down. The reservoir has a design storage volume of 96000000 m3 by an estimated 80 percent of this is now silt. \n\n=== Document 10: Riverside Canal (El Paso) ===\nThe Riverside Canal is an irrigation canal in El Paso County beginning southeast of El Paso, Texas. The canal acquires water from the Riverside Diversion Dam on the Rio Grande 15 mi southeast of El Paso. The canal is managed by the US Bureau of Reclamation. The canal extends for 17.2 mi with a capacity of 900 cubic feet per second. Water from the canal irrigates about 39,000 acres (160\u00a0km\u00b2). The canal and diversion dam is the southernmost system on an irrigation project extending along the Rio Grande in New Mexico and Texas. The canal supplies a canal network extending throughout the Upper Rio Grande Valley. \n\n\nProvide your answer based on the information in the supporting documents.",
+      "answer": "Dundee Canal",
+      "id": "example_27",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
-        "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
-        "original_answer_data": {
-          "spans": [
-            "7"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 694
+        "source": "hotpotqa",
+        "filename": "hotpotqa/test.json",
+        "type": "comparison",
+        "level": "hard",
+        "original_question": "Which canal, Miami Canal or Dundee Canal, also supplies hydro-power and water for manufacturing?",
+        "num_documents": 10
       }
     },
     {
-      "question": "PASSAGE: About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, \"Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows.\" In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.\n\nQUESTION: Which year had more youth unemployed, 2007 or 2012?",
-      "answer": "2012",
-      "id": "example_35",
+      "question": "Multi-hop reasoning task:\n\nQuestion: What is the middle name of the singer who recorded Would You Like to Take a Walk? with Louis Armstrong in 1951\n\nSupporting Documents:\n=== Document 1: Louis Armstrong Hot Five and Hot Seven Sessions ===\nThe Louis Armstrong Hot Five and Hot Seven Sessions were recorded between 1925 and 1928 by Louis Armstrong with his Hot Five and Hot Seven groups. According to the National Recording Registry, \"Louis Armstrong was jazz's first great soloist and is among American music's most important and influential figures. These sessions, his solos in particular, set a standard musicians still strive to equal in their beauty and innovation.\" These recordings were added to the National Recording Registry in 2002, the first year of the institution's existence. \n\n=== Document 2: Ella Fitzgerald ===\nElla Jane Fitzgerald (April 25, 1917 \u2013 June 15, 1996) was an African - American jazz singer often referred to as the First Lady of Song, Queen of Jazz and Lady Ella. She was noted for her purity of tone, impeccable diction, phrasing and intonation, and a \"horn-like\" improvisational ability, particularly in her scat singing. \n\n=== Document 3: Louis Armstrong New Orleans International Airport ===\nLouis Armstrong New Orleans International Airport (IATA: MSY,\u00a0ICAO: KMSY,\u00a0FAA LID: MSY) is an international airport in Jefferson Parish, Louisiana, United States. It is owned by the city of New Orleans and is 11 miles west of downtown New Orleans. The airport's address is 900 Airline Drive in Kenner, Louisiana. A small portion of Runway 11/29 is in unincorporated St. Charles Parish. Armstrong International is the primary commercial airport for the New Orleans metropolitan area and southeast Louisiana. The airport was formerly known as Moisant Field, and it is also known as Louis Armstrong International Airport and New Orleans International Airport. \n\n=== Document 4: Heebie Jeebies (composition) ===\n\"Heebie Jeebies\" is a composition written by Boyd Atkins which achieved fame when it was recorded by Louis Armstrong in 1926. The recording on Okeh Records by Louis Armstrong and his Hot Five includes a famous example of scat singing by Armstrong. \n\n=== Document 5: Would You Like to Take a Walk? ===\n\"Would You Like to Take a Walk?\" is a popular song with music by Harry Warren and lyrics by Mort Dixon and Billy Rose. It appeared in the Broadway show \"Sweet and Low\" starring James Barton, Fannie Brice and George Jessel. The song was published in 1930 by Remick Music Corporation. The song has become a pop standard, recorded by many artists including Rudy Vallee in 1931, Annette Hanshaw in 1931 , and Bing Crosby. It plays in the 1939 Porky Pig cartoon \"Naughty Neighbors\" and the 1942 Daffy Duck cartoon \"The Daffy Duckaroo\". Ella Fitzgerald and Louis Armstrong recorded the song for Decca in 1951, accompanied by the Dave Barbour Orchestra. It was later included on Ella's Decca album \"Ella and Her Fellas\". \n\n=== Document 6: Louis Armstrong Plays W.C. Handy ===\nLouis Armstrong Plays W. C. Handy is a 1954 studio release by Louis Armstrong and His All Stars, described by Allmusic as \"Louis Armstrong's finest record of the 1950s\" and \"essential music for all serious jazz collections\". Columbia CD released the album on CD in 1986 in a much altered form, with alternative versions in place of many of the original songs, but restored the original with its 1997 re-issue, which also included additional tracks: a brief interview by the producer, George Avakian, with W. C. Handy; a joke told by Louis Armstrong; and several rehearsal versions of the songs. \n\n=== Document 7: Louis Armstrong and His Hot Seven ===\nLouis Armstrong and his Hot Seven was a jazz studio group organized to make a series of recordings for Okeh Records in Chicago, Illinois, in May 1927. Some of the personnel also recorded with Louis Armstrong and His Hot Five, including Johnny Dodds (clarinet), Lil Armstrong (piano), and Johnny St. Cyr (banjo and guitar). These musicians were augmented by Dodds's brother, Baby Dodds (drums), Pete Briggs (tuba), and John Thomas (trombone, replacing Armstrong's usual trombonist, Kid Ory, who was then touring with King Oliver). Briggs and Thomas were at the time working with Armstrong's performing group, the Sunset Stompers. \n\n=== Document 8: Saint Louis Blues (song) ===\n\"Saint Louis Blues\" is a popular American song composed by W. C. Handy in the blues style and published in September 1914. It remains a fundamental part of jazz musicians' repertoire. It was also one of the first blues songs to succeed as a pop song. It has been performed by numerous musicians in various styles, including Louis Armstrong, Bessie Smith, Count Basie, Glenn Miller, Guy Lombardo, and the Boston Pops Orchestra. It has been called \"the jazzman's \"Hamlet\".\" The 1925 version sung by Bessie Smith, with Louis Armstrong on cornet, was inducted into the Grammy Hall of Fame in 1993. The 1929 version by Louis Armstrong & His Orchestra (with Red Allen) was inducted in 2008. \n\n=== Document 9: Potato Head Blues ===\n\"Potato Head Blues\" is a Louis Armstrong composition regarded as one of his finest recordings. It was made by Louis Armstrong and his Hot Seven for Okeh Records in Chicago, Illinois on May 10, 1927. It was recorded during a remarkably productive week in which Armstrong's usual Hot Five was temporarily expanded to seven players by the addition of tuba and drums; over five sessions the group recorded twelve sides. \n\n=== Document 10: Danny Barcelona ===\nDanny Barcelona (July 23, 1929 \u2013 April 1, 2007) was a jazz drummer best known for his years with Louis Armstrong's All-Stars. He was a Filipino-American born in Waipahu, a community of Honolulu, Hawaii. He was also frequently introduced to audiences by Louis Armstrong as The Little Filipino Boy. Armstrong usually followed up by calling himself \"the little Arabian boy\". \n\n\nProvide your answer based on the information in the supporting documents.",
+      "answer": "Jane",
+      "id": "example_28",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, \"Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows.\" In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.",
-        "original_question": "Which year had more youth unemployed, 2007 or 2012?",
-        "original_answer_data": {
-          "spans": [
-            "2012"
-          ],
-          "types": [
-            "date"
-          ]
-        },
-        "line_number": 210
-      }
-    },
-    {
-      "question": "PASSAGE: According to 2011 census of India, Kumbakonam had a population of 140,156 with a sex-ratio of 1,021 females for every 1,000 males, much above the national average of 929. A total of 12,791 were under the age of six, constituting 6,495 males and 6,296 females.The average literacy of the city was 83.21%, compared to the national average of 72.99%. There were a total of 9,519 workers, comprising 32 cultivators, 83 main agricultural labourers, 1,206 in house hold industries, 7,169 other workers, 1,029 marginal workers, 24 marginal cultivators, 45 marginal agricultural labourers, 212 marginal workers in household industries and 0 other marginal workers.\n\nQUESTION: How many workers weren't marginal cultivators?",
-      "answer": "9495",
-      "id": "example_36",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "According to 2011 census of India, Kumbakonam had a population of 140,156 with a sex-ratio of 1,021 females for every 1,000 males, much above the national average of 929. A total of 12,791 were under the age of six, constituting 6,495 males and 6,296 females.The average literacy of the city was 83.21%, compared to the national average of 72.99%. There were a total of 9,519 workers, comprising 32 cultivators, 83 main agricultural labourers, 1,206 in house hold industries, 7,169 other workers, 1,029 marginal workers, 24 marginal cultivators, 45 marginal agricultural labourers, 212 marginal workers in household industries and 0 other marginal workers.",
-        "original_question": "How many workers weren't marginal cultivators?",
-        "original_answer_data": {
-          "spans": [
-            "9495"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 424
-      }
-    },
-    {
-      "question": "PASSAGE: This Week 12 showdown between the Colts and Eagles was originally scheduled for 1:00 ET, but due to the NFL's \"flexible-scheduling\" system this year, the NFL moved the game to Sunday night at 8:15 ET. This was the Colts' third primetime game this year on NBC, and the Eagles' first. There were 10 scores in this game, 5 each half. The first three scores of the game were by Colts rookie RB Joseph Addai. He had a 15-yard TD run, a 10-yard TD run, and another 15-yard TD run after that. His fourth rushing touchdown of the game came in the second half. The Eagles' first score came with about a minute to go in the half. Quarterback Jeff Garcia threw a 1-yard touchdown pass to L.J. Smith on that drive. On the Colts' next drive, combined with a couple passes and a 13-yard run by Dominic Rhodes, the Colts put K Adam Vinatieri in field goal range to get some more points before the end of the half. At the half, the Colts had a 17-point lead, 24-7. After a Reggie Wayne touchdown catch, the Colts were up big on the Eagles, 31-7. On the ensuing possession for the Eagles, Garcia found Reggie Brown in the end zone for a  3-yard score. But with less than 11 minutes left in the game, the Eagles scored once more and reduced the Colts' lead to 10 points. On the following possession, the Colts ran the ball 13 times with no passes and Joseph Addai had the last 8 carries on that drive including another 4-yard scamper, his fourth touchdown of the game. That touchdown also tied the Colts franchise record for the most rushing touchdowns in a single game. With less than four minutes to go in the game, the Eagles were desperate to score some points, but while Jeff Garcia was deep in his own territory, he dropped back to pass and was hit by both DE Robert Mathis and DE Dwight Freeney. Mathis knocked the ball out of Garcia's hand right before his arm started going forwards and CB Kelvin Hayden picked up the ball and ran it back for a touchdown. The Colts were up by 24 points after that last score. On the next possession, the Eagles put in backup QB A. J. Feeley in place of Garcia, and Feeley ended up getting the football knocked out of his hand by Robert Mathis (his second forced fumble of the game) and the Colts recovered and ended up running out the clock to conclude the game. Joseph Addai tied the NFL record for most touchdowns in a game by a rookie, with 4 touchdowns in this game. During this game, the Colts lost SS Antoine Bethea, TE Dallas Clark and OT Ryan Diem all to injuries in the first half, and they did not return.\n\nQUESTION: How many touchdowns did Joseph Addai score in the first half?",
-      "answer": "3",
-      "id": "example_37",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "This Week 12 showdown between the Colts and Eagles was originally scheduled for 1:00 ET, but due to the NFL's \"flexible-scheduling\" system this year, the NFL moved the game to Sunday night at 8:15 ET. This was the Colts' third primetime game this year on NBC, and the Eagles' first. There were 10 scores in this game, 5 each half. The first three scores of the game were by Colts rookie RB Joseph Addai. He had a 15-yard TD run, a 10-yard TD run, and another 15-yard TD run after that. His fourth rushing touchdown of the game came in the second half. The Eagles' first score came with about a minute to go in the half. Quarterback Jeff Garcia threw a 1-yard touchdown pass to L.J. Smith on that drive. On the Colts' next drive, combined with a couple passes and a 13-yard run by Dominic Rhodes, the Colts put K Adam Vinatieri in field goal range to get some more points before the end of the half. At the half, the Colts had a 17-point lead, 24-7. After a Reggie Wayne touchdown catch, the Colts were up big on the Eagles, 31-7. On the ensuing possession for the Eagles, Garcia found Reggie Brown in the end zone for a  3-yard score. But with less than 11 minutes left in the game, the Eagles scored once more and reduced the Colts' lead to 10 points. On the following possession, the Colts ran the ball 13 times with no passes and Joseph Addai had the last 8 carries on that drive including another 4-yard scamper, his fourth touchdown of the game. That touchdown also tied the Colts franchise record for the most rushing touchdowns in a single game. With less than four minutes to go in the game, the Eagles were desperate to score some points, but while Jeff Garcia was deep in his own territory, he dropped back to pass and was hit by both DE Robert Mathis and DE Dwight Freeney. Mathis knocked the ball out of Garcia's hand right before his arm started going forwards and CB Kelvin Hayden picked up the ball and ran it back for a touchdown. The Colts were up by 24 points after that last score. On the next possession, the Eagles put in backup QB A. J. Feeley in place of Garcia, and Feeley ended up getting the football knocked out of his hand by Robert Mathis (his second forced fumble of the game) and the Colts recovered and ended up running out the clock to conclude the game. Joseph Addai tied the NFL record for most touchdowns in a game by a rookie, with 4 touchdowns in this game. During this game, the Colts lost SS Antoine Bethea, TE Dallas Clark and OT Ryan Diem all to injuries in the first half, and they did not return.",
-        "original_question": "How many touchdowns did Joseph Addai score in the first half?",
-        "original_answer_data": {
-          "spans": [
-            "3"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 528
-      }
-    },
-    {
-      "question": "PASSAGE: Following a shocking loss to the 3-7 Kansas City Chiefs the previous week, the Steelers traveled to M&T Bank Stadium for another divisional game. Ben Roethlisberger, who suffered a concussion in the previous week's overtime loss, was the designated 3rd (emergency) quarterback. Backup Charlie Batch also was hurt in that game, which left 2nd-year QB Dennis Dixon, who previously had one pass in his NFL career, to start. The Steelers received the opening kickoff, but went three-and-out. On the ensuing possession, the Ravens drove down the field with ease, capping off their drive with a touchdown run by Willis McGahee. In the second quarter, Dixon hit WR Santonio Holmes on a play-action pass for a 33-yard TD, tying the game. The Ravens answered on the following drive, with a 52-yard strike from Joe Flacco to Mark Clayton, setting up a 10-yard touchdown pass to Derrick Mason. In the third quarter, on the Ravens opening possession, Mark Clayton made a 9-yard reception but fumbled the ball and it was recovered by Tyrone Carter. The Steelers drove, but were held to a field goal by Jeff Reed. Later in the 4th quarter, Joe Flacco was sacked by Lawrence Timmons and fumbled the ball, recovered by the Steelers near midfield. The drive resulted in a 24-yard run on a QB option by Dixon, giving the Steelers their first lead of the night. On the Ravens next possession Joe Flacco completed a pass to Derrick Mason for 17&#160;yards, and then found Ray Rice for a 44-yard reception, setting the Ravens up inside the Steeler 10&#160;yard line with less than 2&#160;minutes left. Billy Cundiff tied the game with a 24-yard field goal. On the following Steeler possession, Dennis Dixon was nearly intercepted by Lardarius Webb. The Steelers were forced to punt, giving the ball back to the Ravens with about 1:30 left in the game. The Ravens managed to drive to the Steeler 40&#160;yard line, where their drive stalled. With the clock counting inside 10&#160;seconds left and no timeouts, the field goal team managed to get into formation, and get the kick off. The 56&#160;yard attempt by Billy Cundiff was dead center, but about 2&#160;yards short, sending the game into overtime. In overtime, the Steelers won the coin toss and got the ball, but were forced to punt. The Ravens, also forced to punt deep in their own territory, gave the ball to Pittsburgh around the Steeler 40&#160;yard line. On a 3rd and 5, Dennis Dixon threw an interception to LB Paul Kruger, who returned the ball 26&#160;yards to the Steeler 28&#160;yard line. Already in field goal range, the Ravens ran the ball down to the Pittsburgh 11&#160;yard line where Billy Cundiff made a 29-yard field goal to win the game. With their second consecutive overtime loss, the Steelers fell to 6-5.\n\nQUESTION: How many more points did the Ravens score than the Steelers?",
-      "answer": "3",
-      "id": "example_38",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Following a shocking loss to the 3-7 Kansas City Chiefs the previous week, the Steelers traveled to M&T Bank Stadium for another divisional game. Ben Roethlisberger, who suffered a concussion in the previous week's overtime loss, was the designated 3rd (emergency) quarterback. Backup Charlie Batch also was hurt in that game, which left 2nd-year QB Dennis Dixon, who previously had one pass in his NFL career, to start. The Steelers received the opening kickoff, but went three-and-out. On the ensuing possession, the Ravens drove down the field with ease, capping off their drive with a touchdown run by Willis McGahee. In the second quarter, Dixon hit WR Santonio Holmes on a play-action pass for a 33-yard TD, tying the game. The Ravens answered on the following drive, with a 52-yard strike from Joe Flacco to Mark Clayton, setting up a 10-yard touchdown pass to Derrick Mason. In the third quarter, on the Ravens opening possession, Mark Clayton made a 9-yard reception but fumbled the ball and it was recovered by Tyrone Carter. The Steelers drove, but were held to a field goal by Jeff Reed. Later in the 4th quarter, Joe Flacco was sacked by Lawrence Timmons and fumbled the ball, recovered by the Steelers near midfield. The drive resulted in a 24-yard run on a QB option by Dixon, giving the Steelers their first lead of the night. On the Ravens next possession Joe Flacco completed a pass to Derrick Mason for 17&#160;yards, and then found Ray Rice for a 44-yard reception, setting the Ravens up inside the Steeler 10&#160;yard line with less than 2&#160;minutes left. Billy Cundiff tied the game with a 24-yard field goal. On the following Steeler possession, Dennis Dixon was nearly intercepted by Lardarius Webb. The Steelers were forced to punt, giving the ball back to the Ravens with about 1:30 left in the game. The Ravens managed to drive to the Steeler 40&#160;yard line, where their drive stalled. With the clock counting inside 10&#160;seconds left and no timeouts, the field goal team managed to get into formation, and get the kick off. The 56&#160;yard attempt by Billy Cundiff was dead center, but about 2&#160;yards short, sending the game into overtime. In overtime, the Steelers won the coin toss and got the ball, but were forced to punt. The Ravens, also forced to punt deep in their own territory, gave the ball to Pittsburgh around the Steeler 40&#160;yard line. On a 3rd and 5, Dennis Dixon threw an interception to LB Paul Kruger, who returned the ball 26&#160;yards to the Steeler 28&#160;yard line. Already in field goal range, the Ravens ran the ball down to the Pittsburgh 11&#160;yard line where Billy Cundiff made a 29-yard field goal to win the game. With their second consecutive overtime loss, the Steelers fell to 6-5.",
-        "original_question": "How many more points did the Ravens score than the Steelers?",
-        "original_answer_data": {
-          "spans": [
-            "3"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 34
-      }
-    },
-    {
-      "question": "PASSAGE: Following a tough road loss against the Bears, the Steelers flew to Paul Brown Stadium for a Week 3 AFC North duel with the Cincinnati Bengals.  Pittsburgh would strike first in the first quarter with kicker Jeff Reed's 19-yard field goal and quarterback Ben Roethlisberger's 27-yard touchdown pass to running back Willie Parker.  The Steelers would add onto their lead in the second quarter as Reed made a 34-yard field goal.  The Bengals would close out the half with kicker Shayne Graham's 34-yard field goal. Cincinnati would creep closer in the third quarter as cornerback Johnathan Joseph returned an interception 30&#160;yards for a touchdown (with a failed PAT), yet Pittsburgh answered with Roethlisberger's 1-yard touchdown run.  However, in the fourth quarter, the Bengals took the lead with running back Cedric Benson's 23-yard touchdown run (with a failed 2-point conversion) and quarterback Carson Palmer's 4-yard touchdown pass to wide receiver Andre Caldwell (with a successful 2-point conversion pass to running back Brian Leonard).  The Steelers tried to rally, but Roethlisberger's last-second hail mary pass was incomplete, preserving the defeat. With the loss, Pittsburgh fell to 1-2 and 3rd place in the AFC North.  This would also become the team's first 1-2 start since 2006. Wide receiver Hines Ward (4 receptions, 82&#160;yards) would become the 21st player in NFL history to surpass 800 career receptions and 10,000 receiving yards.\n\nQUESTION: Which player had the longest touchdown reception?",
-      "answer": "Willie Parker",
-      "id": "example_39",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Following a tough road loss against the Bears, the Steelers flew to Paul Brown Stadium for a Week 3 AFC North duel with the Cincinnati Bengals.  Pittsburgh would strike first in the first quarter with kicker Jeff Reed's 19-yard field goal and quarterback Ben Roethlisberger's 27-yard touchdown pass to running back Willie Parker.  The Steelers would add onto their lead in the second quarter as Reed made a 34-yard field goal.  The Bengals would close out the half with kicker Shayne Graham's 34-yard field goal. Cincinnati would creep closer in the third quarter as cornerback Johnathan Joseph returned an interception 30&#160;yards for a touchdown (with a failed PAT), yet Pittsburgh answered with Roethlisberger's 1-yard touchdown run.  However, in the fourth quarter, the Bengals took the lead with running back Cedric Benson's 23-yard touchdown run (with a failed 2-point conversion) and quarterback Carson Palmer's 4-yard touchdown pass to wide receiver Andre Caldwell (with a successful 2-point conversion pass to running back Brian Leonard).  The Steelers tried to rally, but Roethlisberger's last-second hail mary pass was incomplete, preserving the defeat. With the loss, Pittsburgh fell to 1-2 and 3rd place in the AFC North.  This would also become the team's first 1-2 start since 2006. Wide receiver Hines Ward (4 receptions, 82&#160;yards) would become the 21st player in NFL history to surpass 800 career receptions and 10,000 receiving yards.",
-        "original_question": "Which player had the longest touchdown reception?",
-        "original_answer_data": {
-          "spans": [
-            "Willie Parker"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 928
-      }
-    },
-    {
-      "question": "PASSAGE: Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.\n\nQUESTION: How many total points were scored in the game?",
-      "answer": "21",
-      "id": "example_40",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.",
-        "original_question": "How many total points were scored in the game?",
-        "original_answer_data": {
-          "spans": [
-            "21"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 398
-      }
-    },
-    {
-      "question": "PASSAGE: Hoping to rebound from their loss to the Saints the Seahawks played on home ground where they played their former division rival, the Kansas City Chiefs. In the first quarter, the Seahawks trailed early with QB Matt Cassel getting a 7-yard TD pass to WR Dwayne Bowe. They responded after FS Earl Thomas returned a blocked punt 10 yards for a touchdown. They fell behind as Shaun Smith got a 1-yard TD run, followed by Cassel finding Bowe again on a 36-yard TD pass. The Seahawks cut the lead when kicker Olindo Mare got a 43-yard field goal, followed by QB Matt Hasselbeck getting a 13-yard TD pass to TE Chris Baker. The struggled further with RB Jamaal Charles getting a 3-yard TD run, followed by Cassel throwing to Bowe on a 9-yard TD pass. The Seahawks responded as Hasselbeck completed an 87-yard TD pass to WR Ben Obomanu, but the Chiefs increased their lead as Cassel got a 6-yard TD pass to TE Tony Moeaki.\n\nQUESTION: Which player had the first touchdown run of the game?",
-      "answer": "Shaun Smith",
-      "id": "example_41",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Hoping to rebound from their loss to the Saints the Seahawks played on home ground where they played their former division rival, the Kansas City Chiefs. In the first quarter, the Seahawks trailed early with QB Matt Cassel getting a 7-yard TD pass to WR Dwayne Bowe. They responded after FS Earl Thomas returned a blocked punt 10 yards for a touchdown. They fell behind as Shaun Smith got a 1-yard TD run, followed by Cassel finding Bowe again on a 36-yard TD pass. The Seahawks cut the lead when kicker Olindo Mare got a 43-yard field goal, followed by QB Matt Hasselbeck getting a 13-yard TD pass to TE Chris Baker. The struggled further with RB Jamaal Charles getting a 3-yard TD run, followed by Cassel throwing to Bowe on a 9-yard TD pass. The Seahawks responded as Hasselbeck completed an 87-yard TD pass to WR Ben Obomanu, but the Chiefs increased their lead as Cassel got a 6-yard TD pass to TE Tony Moeaki.",
-        "original_question": "Which player had the first touchdown run of the game?",
-        "original_answer_data": {
-          "spans": [
-            "Shaun Smith"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 607
-      }
-    },
-    {
-      "question": "PASSAGE: In mid-October 1524, Francis himself crossed the Alps and advanced on Milan at the head of an army numbering more than 40,000. Bourbon and d'Avalos, their troops not yet recovered from the campaign in Provence, were in no position to offer serious resistance. The French army moved in several columns, brushing aside Imperial attempts to hold its advance, but failed to bring the main body of Imperial troops to battle. Nevertheless, Charles de Lannoy, who had concentrated some 16,000 men to resist the 33,000 French troops closing on Milan, decided that the city could not be defended and withdrew to Lodi on 26 October. Having entered Milan and installed Louis II de la Tr\u00e9moille as the governor, Francis  advanced on Pavia, where Antonio de Leyva remained with a sizable Imperial garrison.\n\nQUESTION: How many more men did the French troops 33,000 have over Charles de Lannoy 16,000 men?",
-      "answer": "17000",
-      "id": "example_42",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In mid-October 1524, Francis himself crossed the Alps and advanced on Milan at the head of an army numbering more than 40,000. Bourbon and d'Avalos, their troops not yet recovered from the campaign in Provence, were in no position to offer serious resistance. The French army moved in several columns, brushing aside Imperial attempts to hold its advance, but failed to bring the main body of Imperial troops to battle. Nevertheless, Charles de Lannoy, who had concentrated some 16,000 men to resist the 33,000 French troops closing on Milan, decided that the city could not be defended and withdrew to Lodi on 26 October. Having entered Milan and installed Louis II de la Tr\u00e9moille as the governor, Francis  advanced on Pavia, where Antonio de Leyva remained with a sizable Imperial garrison.",
-        "original_question": "How many more men did the French troops 33,000 have over Charles de Lannoy 16,000 men?",
-        "original_answer_data": {
-          "spans": [
-            "17000"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 298
+        "source": "hotpotqa",
+        "filename": "hotpotqa/test.json",
+        "type": "bridge",
+        "level": "hard",
+        "original_question": "What is the middle name of the singer who recorded Would You Like to Take a Walk? with Louis Armstrong in 1951",
+        "num_documents": 10
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": " Hoping to rebound from their loss to the Patriots the Bengals played on home ground for an AFC North rivalry match against the Ravens. In the 2nd quarter Cincinnati took the early lead as kicker Mike Nugent hit a 36 and a 30-yard field goal. In the third quarter the Ravens replied and took the lead with QB Joe Flacco completing a 31-yard TD pass to WR Derrick Mason. The Bengals replied wihen Nugent hit a 46-yard field goal. The Bengals fell behind again in the fourth quarter when kicker Billy Cundiff got a 38-yard field goal, but they pulled the win with Nugent making a 38 and a 25-yard field goal, giving the Bengals the win. With the win, the Bengals improved to 1-1 and have picked up their 8th straight division victory.",
-      "original_question": "How many yards was Mike Nugent's longest field goal in the fourth quarter?",
-      "original_answer_data": {
-        "spans": [
-          "38-yard"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 24
+      "source": "hotpotqa",
+      "filename": "hotpotqa/test.json",
+      "type": "bridge",
+      "level": "hard",
+      "original_question": "How many students were enrolled in American professional bowler Chris Barnes' high school in the 2010-2011 school year?",
+      "num_documents": 10
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "After getting swept by the Bears, the Vikings flew to Ford Field for an NFC North rematch with the Detroit Lions. In the first quarter, RB Artose Pinner (a former Lion) helped Minnesota gain an early lead with a 3-yard and a 4-yard TD run. In the second quarter, QB Brad Johnson got a 3-yard TD run, yet it was followed up with a failed 2-point conversion. Detroit would retaliate with DB Jamar Fletcher returning an interception 88 yards for a touchdown, while kicker Jason Hanson kicked a 53-yard field goal. In the third quarter, the Vikes got a 30-yard field goal from kicker Ryan Longwell, yet Detroit's Hanson nailed a 45-yard field goal. In the fourth quarter, Pinner helped wrap the game up with a 1-yard TD run. Even though Lions QB Jon Kitna would complete a 23-yard TD pass to RB Kevin Jones, Minnesota held on to sweep Detroit. With the win, the Vikings improved to 6-7.",
-      "original_question": "How many yards total did Artose Pinner run for touchdowns in the first quarter?",
-      "original_answer_data": {
-        "spans": [
-          "7"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 694
+      "source": "hotpotqa",
+      "filename": "hotpotqa/test.json",
+      "type": "comparison",
+      "level": "hard",
+      "original_question": "Which canal, Miami Canal or Dundee Canal, also supplies hydro-power and water for manufacturing?",
+      "num_documents": 10
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "About 25,000,000 people in the worlds thirty richest countries will have lost their jobs between the end of 2007 and the end of 2010 as the economic downturn pushes most countries into recession. In April 2010, the U.S. unemployment rate was 9.9%, but the governments broader U-6 unemployment rate was 17.1%. In April 2012, the unemployment rate was 4.6% in Japan. In a 2012 news story, the Financial Post reported, \"Nearly 75 million youth are unemployed around the world, an increase of more than 4 million since 2007. In the European Union, where a debt crisis followed the financial crisis, the youth unemployment rate rose to 18% last year from 12.5% in 2007, the ILO report shows.\" In March 2018, according to U.S. Unemployment Rate Statistics, the unemployment rate was 4,1%, so it is below to 4.5 to 5.0%, which is the norm, this means that there is still need of employees to work.",
-      "original_question": "Which year had more youth unemployed, 2007 or 2012?",
-      "original_answer_data": {
-        "spans": [
-          "2012"
-        ],
-        "types": [
-          "date"
-        ]
-      },
-      "line_number": 210
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "According to 2011 census of India, Kumbakonam had a population of 140,156 with a sex-ratio of 1,021 females for every 1,000 males, much above the national average of 929. A total of 12,791 were under the age of six, constituting 6,495 males and 6,296 females.The average literacy of the city was 83.21%, compared to the national average of 72.99%. There were a total of 9,519 workers, comprising 32 cultivators, 83 main agricultural labourers, 1,206 in house hold industries, 7,169 other workers, 1,029 marginal workers, 24 marginal cultivators, 45 marginal agricultural labourers, 212 marginal workers in household industries and 0 other marginal workers.",
-      "original_question": "How many workers weren't marginal cultivators?",
-      "original_answer_data": {
-        "spans": [
-          "9495"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 424
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "This Week 12 showdown between the Colts and Eagles was originally scheduled for 1:00 ET, but due to the NFL's \"flexible-scheduling\" system this year, the NFL moved the game to Sunday night at 8:15 ET. This was the Colts' third primetime game this year on NBC, and the Eagles' first. There were 10 scores in this game, 5 each half. The first three scores of the game were by Colts rookie RB Joseph Addai. He had a 15-yard TD run, a 10-yard TD run, and another 15-yard TD run after that. His fourth rushing touchdown of the game came in the second half. The Eagles' first score came with about a minute to go in the half. Quarterback Jeff Garcia threw a 1-yard touchdown pass to L.J. Smith on that drive. On the Colts' next drive, combined with a couple passes and a 13-yard run by Dominic Rhodes, the Colts put K Adam Vinatieri in field goal range to get some more points before the end of the half. At the half, the Colts had a 17-point lead, 24-7. After a Reggie Wayne touchdown catch, the Colts were up big on the Eagles, 31-7. On the ensuing possession for the Eagles, Garcia found Reggie Brown in the end zone for a  3-yard score. But with less than 11 minutes left in the game, the Eagles scored once more and reduced the Colts' lead to 10 points. On the following possession, the Colts ran the ball 13 times with no passes and Joseph Addai had the last 8 carries on that drive including another 4-yard scamper, his fourth touchdown of the game. That touchdown also tied the Colts franchise record for the most rushing touchdowns in a single game. With less than four minutes to go in the game, the Eagles were desperate to score some points, but while Jeff Garcia was deep in his own territory, he dropped back to pass and was hit by both DE Robert Mathis and DE Dwight Freeney. Mathis knocked the ball out of Garcia's hand right before his arm started going forwards and CB Kelvin Hayden picked up the ball and ran it back for a touchdown. The Colts were up by 24 points after that last score. On the next possession, the Eagles put in backup QB A. J. Feeley in place of Garcia, and Feeley ended up getting the football knocked out of his hand by Robert Mathis (his second forced fumble of the game) and the Colts recovered and ended up running out the clock to conclude the game. Joseph Addai tied the NFL record for most touchdowns in a game by a rookie, with 4 touchdowns in this game. During this game, the Colts lost SS Antoine Bethea, TE Dallas Clark and OT Ryan Diem all to injuries in the first half, and they did not return.",
-      "original_question": "How many touchdowns did Joseph Addai score in the first half?",
-      "original_answer_data": {
-        "spans": [
-          "3"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 528
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Following a shocking loss to the 3-7 Kansas City Chiefs the previous week, the Steelers traveled to M&T Bank Stadium for another divisional game. Ben Roethlisberger, who suffered a concussion in the previous week's overtime loss, was the designated 3rd (emergency) quarterback. Backup Charlie Batch also was hurt in that game, which left 2nd-year QB Dennis Dixon, who previously had one pass in his NFL career, to start. The Steelers received the opening kickoff, but went three-and-out. On the ensuing possession, the Ravens drove down the field with ease, capping off their drive with a touchdown run by Willis McGahee. In the second quarter, Dixon hit WR Santonio Holmes on a play-action pass for a 33-yard TD, tying the game. The Ravens answered on the following drive, with a 52-yard strike from Joe Flacco to Mark Clayton, setting up a 10-yard touchdown pass to Derrick Mason. In the third quarter, on the Ravens opening possession, Mark Clayton made a 9-yard reception but fumbled the ball and it was recovered by Tyrone Carter. The Steelers drove, but were held to a field goal by Jeff Reed. Later in the 4th quarter, Joe Flacco was sacked by Lawrence Timmons and fumbled the ball, recovered by the Steelers near midfield. The drive resulted in a 24-yard run on a QB option by Dixon, giving the Steelers their first lead of the night. On the Ravens next possession Joe Flacco completed a pass to Derrick Mason for 17&#160;yards, and then found Ray Rice for a 44-yard reception, setting the Ravens up inside the Steeler 10&#160;yard line with less than 2&#160;minutes left. Billy Cundiff tied the game with a 24-yard field goal. On the following Steeler possession, Dennis Dixon was nearly intercepted by Lardarius Webb. The Steelers were forced to punt, giving the ball back to the Ravens with about 1:30 left in the game. The Ravens managed to drive to the Steeler 40&#160;yard line, where their drive stalled. With the clock counting inside 10&#160;seconds left and no timeouts, the field goal team managed to get into formation, and get the kick off. The 56&#160;yard attempt by Billy Cundiff was dead center, but about 2&#160;yards short, sending the game into overtime. In overtime, the Steelers won the coin toss and got the ball, but were forced to punt. The Ravens, also forced to punt deep in their own territory, gave the ball to Pittsburgh around the Steeler 40&#160;yard line. On a 3rd and 5, Dennis Dixon threw an interception to LB Paul Kruger, who returned the ball 26&#160;yards to the Steeler 28&#160;yard line. Already in field goal range, the Ravens ran the ball down to the Pittsburgh 11&#160;yard line where Billy Cundiff made a 29-yard field goal to win the game. With their second consecutive overtime loss, the Steelers fell to 6-5.",
-      "original_question": "How many more points did the Ravens score than the Steelers?",
-      "original_answer_data": {
-        "spans": [
-          "3"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 34
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Following a tough road loss against the Bears, the Steelers flew to Paul Brown Stadium for a Week 3 AFC North duel with the Cincinnati Bengals.  Pittsburgh would strike first in the first quarter with kicker Jeff Reed's 19-yard field goal and quarterback Ben Roethlisberger's 27-yard touchdown pass to running back Willie Parker.  The Steelers would add onto their lead in the second quarter as Reed made a 34-yard field goal.  The Bengals would close out the half with kicker Shayne Graham's 34-yard field goal. Cincinnati would creep closer in the third quarter as cornerback Johnathan Joseph returned an interception 30&#160;yards for a touchdown (with a failed PAT), yet Pittsburgh answered with Roethlisberger's 1-yard touchdown run.  However, in the fourth quarter, the Bengals took the lead with running back Cedric Benson's 23-yard touchdown run (with a failed 2-point conversion) and quarterback Carson Palmer's 4-yard touchdown pass to wide receiver Andre Caldwell (with a successful 2-point conversion pass to running back Brian Leonard).  The Steelers tried to rally, but Roethlisberger's last-second hail mary pass was incomplete, preserving the defeat. With the loss, Pittsburgh fell to 1-2 and 3rd place in the AFC North.  This would also become the team's first 1-2 start since 2006. Wide receiver Hines Ward (4 receptions, 82&#160;yards) would become the 21st player in NFL history to surpass 800 career receptions and 10,000 receiving yards.",
-      "original_question": "Which player had the longest touchdown reception?",
-      "original_answer_data": {
-        "spans": [
-          "Willie Parker"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 928
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Coming off their divisional home win over the Chiefs, the Chargers flew to Heinz Field for a Week 11 duel with the Pittsburgh Steelers.  In the first quarter, the 'Bolts struck first as RB LaDainian Tomlinson got a 3-yard TD run.  In the second quarter, the Steelers slowly responded as LB James Harrison forced a fumble from QB Philip Rivers in his own endzone, which was picked up by OT Marcus McNeill, who got tackled by Harrison in the endzone for a safety.  Pittsburgh would end the half as kicker Jeff Reed got a 21-yard field goal. In the third quarter, the Steelers took the lead as Reed made a 22-yard field goal.  In the fourth quarter, San Diego regained the lead as kicker Nate Kaeding made a 22-yard field goal.  However, Pittsburgh got the lead as Reed nailed a 32-yard field goal. This marked the first time in NFL history that an NFL game ended with a final score of 11-10.",
-      "original_question": "How many total points were scored in the game?",
-      "original_answer_data": {
-        "spans": [
-          "21"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 398
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Hoping to rebound from their loss to the Saints the Seahawks played on home ground where they played their former division rival, the Kansas City Chiefs. In the first quarter, the Seahawks trailed early with QB Matt Cassel getting a 7-yard TD pass to WR Dwayne Bowe. They responded after FS Earl Thomas returned a blocked punt 10 yards for a touchdown. They fell behind as Shaun Smith got a 1-yard TD run, followed by Cassel finding Bowe again on a 36-yard TD pass. The Seahawks cut the lead when kicker Olindo Mare got a 43-yard field goal, followed by QB Matt Hasselbeck getting a 13-yard TD pass to TE Chris Baker. The struggled further with RB Jamaal Charles getting a 3-yard TD run, followed by Cassel throwing to Bowe on a 9-yard TD pass. The Seahawks responded as Hasselbeck completed an 87-yard TD pass to WR Ben Obomanu, but the Chiefs increased their lead as Cassel got a 6-yard TD pass to TE Tony Moeaki.",
-      "original_question": "Which player had the first touchdown run of the game?",
-      "original_answer_data": {
-        "spans": [
-          "Shaun Smith"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 607
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In mid-October 1524, Francis himself crossed the Alps and advanced on Milan at the head of an army numbering more than 40,000. Bourbon and d'Avalos, their troops not yet recovered from the campaign in Provence, were in no position to offer serious resistance. The French army moved in several columns, brushing aside Imperial attempts to hold its advance, but failed to bring the main body of Imperial troops to battle. Nevertheless, Charles de Lannoy, who had concentrated some 16,000 men to resist the 33,000 French troops closing on Milan, decided that the city could not be defended and withdrew to Lodi on 26 October. Having entered Milan and installed Louis II de la Tr\u00e9moille as the governor, Francis  advanced on Pavia, where Antonio de Leyva remained with a sizable Imperial garrison.",
-      "original_question": "How many more men did the French troops 33,000 have over Charles de Lannoy 16,000 men?",
-      "original_answer_data": {
-        "spans": [
-          "17000"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 298
+      "source": "hotpotqa",
+      "filename": "hotpotqa/test.json",
+      "type": "bridge",
+      "level": "hard",
+      "original_question": "What is the middle name of the singer who recorded Would You Like to Take a Walk? with Louis Armstrong in 1951",
+      "num_documents": 10
     }
   ],
   "example_indices": [
-    33,
-    34,
-    35,
-    36,
-    37,
-    38,
-    39,
-    40,
-    41,
-    42
+    26,
+    27,
+    28
   ],
   "results": [
     {
-      "success": true,
-      "answer": "38 yards",
-      "output": "ANSWER_START\n38 yards\nANSWER_END\n",
+      "success": false,
+      "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+      "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
       "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers refer to a distance of 38 yards, the only difference being the hyphen in the golden answer, which is grammatically correct in this context, but doesn't change the meaning."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "7",
-      "output": "ANSWER_START\n7\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value (7)."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "2012",
-      "output": "ANSWER_START\n2012\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "9,495",
-      "output": "ANSWER_START\n9,495\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers represent the same numerical value, with one including a comma as a thousands separator and the other omitting it. The numerical value is the same."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "3",
-      "output": "ANSWER_START\n3\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value '3'."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Cannot determine from passage.",
-      "output": "ANSWER_START\nCannot determine from passage.\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer indicates that the answer cannot be determined, while the golden answer provides a specific numerical value (3). These answers are not semantically equivalent."
-      },
       "match": false
     },
     {
-      "success": true,
-      "answer": "Willie Parker",
-      "output": "ANSWER_START\nWillie Parker\nANSWER_END\n",
+      "success": false,
+      "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+      "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
       "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are exactly the same string."
-      },
-      "match": true
+      "match": false
     },
     {
-      "success": true,
-      "answer": "21",
-      "output": "ANSWER_START\n21\nANSWER_END\n",
+      "success": false,
+      "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+      "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
       "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are the same numerical value: 21"
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Shaun Smith",
-      "output": "ANSWER_START\nShaun Smith\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers are identical and convey the same information: 'Shaun Smith'."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "17,000",
-      "output": "ANSWER_START\n17,000\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_4.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "Both answers represent the same numerical value, seventeen thousand. The presence of a comma in '17,000' is simply a formatting difference."
-      },
-      "match": true
+      "match": false
     }
   ],
   "performance": {
-    "accuracy": 0.9,
-    "correct_count": 9,
-    "total_count": 10,
+    "accuracy": 0.0,
+    "correct_count": 0,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
-        "success": true,
-        "system_answer": "38 yards",
-        "golden_answer": "38-yard",
-        "output": "ANSWER_START\n38 yards\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers refer to a distance of 38 yards, the only difference being the hyphen in the golden answer, which is grammatically correct in this context, but doesn't change the meaning."
-        }
+        "success": false,
+        "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+        "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
+        "match": false,
+        "capability_failures": [
+          "execution"
+        ]
       },
       {
         "sample_id": 1,
-        "success": true,
-        "system_answer": "7",
-        "golden_answer": "7",
-        "output": "ANSWER_START\n7\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value (7)."
-        }
+        "success": false,
+        "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+        "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
+        "match": false,
+        "capability_failures": [
+          "execution"
+        ]
       },
       {
         "sample_id": 2,
-        "success": true,
-        "system_answer": "2012",
-        "golden_answer": "2012",
-        "output": "ANSWER_START\n2012\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "9,495",
-        "golden_answer": "9495",
-        "output": "ANSWER_START\n9,495\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers represent the same numerical value, with one including a comma as a thousands separator and the other omitting it. The numerical value is the same."
-        }
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "3",
-        "golden_answer": "3",
-        "output": "ANSWER_START\n3\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value '3'."
-        }
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "Cannot determine from passage.",
-        "golden_answer": "3",
-        "output": "ANSWER_START\nCannot determine from passage.\nANSWER_END\n",
+        "success": false,
+        "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+        "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_4.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
         "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer indicates that the answer cannot be determined, while the golden answer provides a specific numerical value (3). These answers are not semantically equivalent."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "Willie Parker",
-        "golden_answer": "Willie Parker",
-        "output": "ANSWER_START\nWillie Parker\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are exactly the same string."
-        }
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "21",
-        "golden_answer": "21",
-        "output": "ANSWER_START\n21\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 21"
-        }
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "Shaun Smith",
-        "golden_answer": "Shaun Smith",
-        "output": "ANSWER_START\nShaun Smith\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information: 'Shaun Smith'."
-        }
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "17,000",
-        "golden_answer": "17000",
-        "output": "ANSWER_START\n17,000\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers represent the same numerical value, seventeen thousand. The presence of a comma in '17,000' is simply a formatting difference."
-        }
+        "capability_failures": [
+          "execution"
+        ]
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\nThere are no runtime errors (e.g., JSONDecodeError, TypeError) visible in the provided error cases and success cases.\n\n## STRENGTHS\n\n1.  **Numerical Extraction and Comparison:** The system correctly extracts and compares numerical information from the passage to answer questions requiring numerical calculations (e.g., Sample IDs 1, 3, 7, and 9).\n2.  **Textual Information Extraction:** The system can extract specific textual information from the passage to answer questions requiring identifying particular entities or roles (e.g., Sample IDs 6 and 8).\n3. **Basic Arithmetic:** The system demonstrates the capability to perform basic subtraction (Sample ID 9).\n\n## WEAKNESSES\n\n1.  **Complex Reasoning with Numerical Information:** The system struggles with questions that require complex reasoning involving multiple steps or combining numerical information from different parts of the passage. Calculating the difference between final scores requires correctly extracting all the scores from each team, summing them, and performing a subtraction, all of which failed in Sample ID 5.\n2.  **Semantic Understanding of \"Cannot Determine\":** The system provides \"Cannot determine from passage\" even when the answer is present but requires more complex processing to extract. This indicates a failure to apply sufficient effort in synthesizing an answer that is available.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Inability to synthesize numerical information:** The system needs improvement in combining multiple numerical values within the passage to perform more complex calculations, such as determining point differences after a game.\n2. **Insufficient Effort to Determine Answer:** The system quickly defaults to \"Cannot determine from passage\" before exhausting reasonable reasoning steps.\n\n## ERROR PATTERNS\n\n1.  **Failure to Perform Multi-Step Numerical Reasoning:** The primary recurring error is the system's inability to perform multi-step reasoning involving numerical data (specifically calculating score differences). The system defaults to \"Cannot determine from passage\" when the answer is present, but necessitates several steps to obtain.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the system's failure to perform complex numerical reasoning, including identifying all relevant numerical information and performing the required arithmetic to arrive at the correct answer.\n\n## IMPROVEMENT AREAS\n\n1.  **Numerical Reasoning:** Enhance the system's ability to identify and extract all relevant numerical data, understand the relationships between these data points, and perform necessary calculations (addition, subtraction, etc.) to derive the correct answer.\n2. **Reasoning Depth:** Increase the depth and length of the reasoning chains the system attempts before giving up and answering \"Cannot determine from passage.\"\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a dedicated numerical reasoning module:** This module should be responsible for identifying numerical values, determining their context, and performing arithmetic operations based on the question. This module should include techniques to find all the numerical values relevant to the question, and then try all plausible arithmetic operations on those values.\n2.  **Improve question parsing and intent recognition:** Enhance the system's ability to understand the intent behind numerical questions and formulate appropriate strategies for answering them. For example, if the question asks for the \"difference\" between two values, the system should automatically identify the need for subtraction.\n3.  **Introduce a more robust \"scratchpad\" or working memory:** Provide the system with a dedicated space to store extracted numerical values, intermediate results, and reasoning steps. This will allow the system to keep track of its progress and revisit previous calculations.\n4. **Increase Reasoning Steps Before Giving Up:** Before answering \"Cannot determine from passage,\" force the system to try multiple strategies and chains of reasoning. For example, use multiple extraction strategies, arithmetic operations, and value combinations.\n\n## CAPABILITY MAPPING\n\n**Sample ID 5:**\n*   information_extraction: Partial failure (failed to extract all relevant score information)\n*   solution_generation: Failure (failed to calculate the score difference correctly)\n*   solution_verification: N/A (no solution generated)\n*   decision_making: Premature decision (incorrectly concluded that the answer could not be determined).\n",
+      "text_report": "## RUNTIME ERRORS\n\nAll error cases exhibit the same `TypeError: main() missing 1 required positional argument: 'supporting_documents'`. This indicates a problem with how the `main()` function is being called in the test script. Specifically, the function expects both `question` and `supporting_documents` as arguments, but the test script is only passing the `question`.\n\n## STRENGTHS\n\nBased on the provided data, it's impossible to determine any strengths, as the system consistently fails due to a calling error. We need to see the system successfully process some questions to identify its strengths.\n\n## WEAKNESSES\n\n1.  **Incorrect Function Call:** The primary weakness is the incorrect calling of the `main()` function in the testing script. The function signature expects both `question` and `supporting_documents`, but the script is only passing `question`.\n2.  **Lack of Error Handling:** The `main()` function or the test script lacks proper error handling to gracefully deal with missing arguments and provide more informative error messages.\n\n## CRITICAL BOTTLENECKS\n\nThe critical bottleneck is the test script's failure to provide the required `supporting_documents` argument when calling the `main()` function. This prevents the problem-solving logic from even being executed.\n\n## ERROR PATTERNS\n\nThe error pattern is consistently the same `TypeError` related to the missing `supporting_documents` argument.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the incorrect call to the `main()` function within the test script (`test_script_4.py`). The script is missing the `supporting_documents` argument in the `main()` function call: `answer = module.main(question)`. It should be `answer = module.main(question, supporting_documents)`.\n\n## IMPROVEMENT AREAS\n\n1.  **Test Script Correction:** Correct the test script to pass both `question` and `supporting_documents` to the `main()` function.\n2.  **Function Signature Verification:** Double-check and ensure the `main()` function's definition matches how it's being called in the test script.\n3.  **Error Handling in `main()`:** Add error handling within the `main()` function to explicitly check for the presence of both `question` and `supporting_documents`. If either is missing, raise a `ValueError` with a clear error message.\n4.  **Test Script Validation:** Add assertions in the test script to ensure that both `question` and `supporting_documents` are not None or empty before calling the `main()` function.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Modify `test_script_4.py`:** Change the line `answer = module.main(question)` to `answer = module.main(question, supporting_documents)`.\n2.  **Add Error Handling to `main()`:** Inside the `main()` function, add:\n\n```python\ndef main(question, supporting_documents):\n    if not question:\n        raise ValueError(\"Question cannot be empty\")\n    if not supporting_documents:\n        raise ValueError(\"Supporting documents cannot be empty\")\n    # Rest of the function logic\n```\n\n3.  **Add Assertions to `test_script_4.py`:** Before calling `main()`, add:\n\n```python\nassert question is not None, \"Question is None\"\nassert supporting_documents is not None, \"Supporting documents is None\"\n```\n\n## CAPABILITY MAPPING\n\nFor all samples (0, 1, and 2):\n\n*   The error occurs *before* any of the core problem-solving capabilities can be tested.\n*   The failing capability is: **information_extraction** (the test harness fails to pass in the data)\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The single most critical problem is the system's failure to perform complex numerical reasoning, including identifying all relevant numerical information and performing the required arithmetic to arrive at the correct answer.",
+      "primary_issue": "The single most critical problem is the incorrect call to the `main()` function within the test script (`test_script_4.py`). The script is missing the `supporting_documents` argument in the `main()` function call: `answer = module.main(question)`. It should be `answer = module.main(question, supporting_documents)`.",
       "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, sample execution outputs, and your instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**AI System: Capability Analysis**\n\nThis report provides a detailed assessment of the AI system's capabilities based on its performance summary, error analysis, and sample execution outputs. The focus is on identifying strengths, weaknesses, bottlenecks, and actionable recommendations for improvement.\n\n## EXECUTION ANALYSIS\n\nThe provided sample execution outputs, which include `\"ANSWER_START\"` and `\"ANSWER_END\"` markers, show that the system can extract specific text spans from a given passage. However, this extraction appears rudimentary, simply delimiting text. There is no indication of *understanding* the extracted content or performing any manipulation on it.  The lack of post-processing of the extracted text is evident. The extraction is accurate but basic. There is no format validation or content checking within the extracted text.\n\n## CAPABILITY ASSESSMENT\n\nThe system exhibits strengths in basic text extraction and numerical comparison. However, it suffers from significant limitations in complex reasoning, especially when it involves numerical information or requires multi-step problem-solving.  The system appears to have a low \"frustration tolerance,\" quickly defaulting to \"Cannot determine from passage\" even when the information is potentially available.  The system seems to be performing surface-level pattern matching rather than deeper semantic understanding and reasoning.\n\n## KEY STRENGTHS\n\n*   **Basic Information Extraction:** The system can identify and extract text spans based on simple criteria.\n*   **Numerical Comparison:** The system can compare numerical values when explicitly identified.\n*   **Basic Arithmetic:** The system can perform basic subtraction.\n\nThese strengths demonstrate a foundational capability for information retrieval and analysis, but it lacks more advanced abilities.\n\n## KEY WEAKNESSES\n\n*   **Complex Numerical Reasoning:** The system struggles with problems that require multiple steps of numerical extraction, calculation, and comparison.\n*   **Semantic Understanding & Reasoning Depth:**  The system's ability to understand the *meaning* of the extracted information is limited. It lacks the ability to synthesize information from different parts of the passage to arrive at an answer.\n*   **Premature \"Cannot Determine\":** The system defaults too readily to \"Cannot determine from passage,\" even when the answer can be derived with reasonable effort.\n\nThese weaknesses limit the system's applicability to complex real-world scenarios that demand more sophisticated reasoning abilities.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Complex Numerical Reasoning**. Addressing this weakness will have the biggest impact on the system's overall performance and usefulness.  This requires both improving numerical extraction and performing arithmetic correctly.\n\n## ACTIONABLE RECOMMENDATIONS\n\nThe following actions are recommended for the next iteration:\n\n1.  **Implement Numerical Reasoning Module (Priority: High):**  Create a dedicated module specifically designed for numerical reasoning. This module should:\n    *   Identify all numerical values in the passage.\n    *   Determine the context of each numerical value (e.g., what entity or attribute it represents).\n    *   Based on the question, identify relevant numerical values and perform appropriate arithmetic operations (addition, subtraction, etc.).\n    *   The module should use pattern matching (regex, etc.) and semantic analysis to determine the role of each numerical value.\n2.  **Increase Reasoning Depth (Priority: High):**  Modify the system's decision-making process to prevent premature \"Cannot determine\" responses. This involves:\n    *   Implementing a configurable \"reasoning depth\" parameter that controls how many attempts the system makes to find an answer before giving up.\n    *   Adding strategies for trying different extraction and reasoning approaches before declaring failure.\n    *   Increasing the depth and length of the reasoning chains the system attempts.\n3.  **Enhance Question Parsing and Intent Recognition (Priority: Medium):**  Improve the system's ability to understand the intent behind questions, especially those involving numerical information. For example:\n    *   Train the system to recognize keywords like \"difference,\" \"total,\" \"sum,\" etc., and associate them with corresponding arithmetic operations.\n    *   Use semantic analysis to understand the relationship between the entities and attributes mentioned in the question.\n4.  **Introduce a \"Scratchpad\" or Working Memory (Priority: Medium):** Provide the system with a dedicated space to store extracted information, intermediate results, and reasoning steps. This will allow the system to track its progress and revisit previous calculations. This will enable the system to track multiple candidate answers and the reasoning steps taken to arrive at each, enabling easier debugging and analysis.\n\n## CAPABILITY TREND\n\nBased on the current analysis, the system's capabilities appear to be **stable** in terms of basic information extraction. However, it is **declining** in relative terms, as the lack of progress in complex reasoning hinders its ability to solve more challenging problems. Implementing the recommendations above will be crucial to driving an **improving** trend in overall capability. The current accuracy score of 0.90 is misleading given the identified weaknesses. A more comprehensive evaluation suite should be designed to more accurately reflect the system's performance, especially regarding its ability to handle complex reasoning tasks.\n",
+      "text_report": "## CAPABILITY ASSESSMENT REPORT\n\n**Overall Performance:** The AI system, as currently tested, has an accuracy of 0.00 (0/3). All test cases resulted in a `TypeError` due to a missing argument in the `main()` function call within the test script. Therefore, we cannot evaluate the AI's core problem-solving capabilities.\n\n### EXECUTION ANALYSIS\n\nThe execution outputs consistently show the same `TypeError`, which highlights a fundamental problem with how the `main()` function is being invoked. The traceback clearly indicates that the `supporting_documents` argument is missing during the function call in `test_script_4.py`. The repeated occurrence of this error across all samples indicates a systematic issue in the test setup rather than a sporadic failure.\n\n### CAPABILITY ASSESSMENT\n\nDue to the consistently failing test script, a true capability assessment is impossible. The AI system's ability to process questions and utilize supporting documents to generate answers *cannot* be evaluated. We can only assess the *test infrastructure* which is currently inadequate. The `information_extraction` capability cannot even be tested because the data isn't making it *to* the model for evaluation.\n\n### KEY STRENGTHS\n\nCurrently, there are no discernible strengths to report. The test failure prevents any positive aspects of the system's performance from being observed.\n\n### KEY WEAKNESSES\n\n1.  **Test Script Error:** The most critical weakness is the erroneous call to the `main()` function in `test_script_4.py`, failing to provide the required `supporting_documents` argument. This prevents the AI's core logic from being executed.\n2.  **Lack of Robustness in `main()`:** The `main()` function should include explicit checks to ensure that both the question and supporting documents are provided. This would allow it to fail gracefully and give better error messages.\n\n### IMPROVEMENT FOCUS\n\nThe single most important area for improvement is correcting the `test_script_4.py` to properly call the `main()` function with both the `question` and `supporting_documents` arguments. Without this correction, further testing and capability assessment are meaningless.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Modify `test_script_4.py`:** Change the line `answer = module.main(question)` to `answer = module.main(question, supporting_documents)`. Ensure that `supporting_documents` is properly defined and populated in the test script.  Review the test cases to ensure `supporting_documents` are adequate.\n2.  **Implement Error Handling in `main()`:** Add input validation within the `main()` function to check for the presence of both `question` and `supporting_documents`. If either argument is missing, raise a `ValueError` with a descriptive message. Example:\n\n    ```python\n    def main(question, supporting_documents):\n        if question is None or question == \"\":\n            raise ValueError(\"Question cannot be empty\")\n        if supporting_documents is None or supporting_documents == \"\":\n            raise ValueError(\"Supporting documents cannot be empty\")\n        # Rest of the function logic\n    ```\n3.  **Add Assertions in Test Script:**  Preemptively validate the data *before* calling `main()`.  This provides a rapid indicator of bad test data.\n\n    ```python\n    assert question is not None and question != \"\", \"Question cannot be None or empty\"\n    assert supporting_documents is not None and supporting_documents != \"\", \"Supporting documents cannot be None or empty\"\n    ```\n4.  **Automated Test Validation:** Add an automated validation step to the test suite to check for correct function signatures and argument passing in all test scripts. This can prevent similar errors in the future.\n\n### CAPABILITY TREND\n\nThe current capability trend is **stable, but at a baseline of failure.** Until the test script is corrected, it is impossible to determine whether the AI system's capabilities are improving, declining, or remaining constant. The trend will only become meaningful *after* the core issue is resolved and the system can be properly tested. We are effectively blocked.\n",
       "strengths": [],
       "weaknesses": [],
       "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\nThere are no runtime errors (e.g., JSONDecodeError, TypeError) visible in the provided error cases and success cases.\n\n## STRENGTHS\n\n1.  **Numerical Extraction and Comparison:** The system correctly extracts and compares numerical information from the passage to answer questions requiring numerical calculations (e.g., Sample IDs 1, 3, 7, and 9).\n2.  **Textual Information Extraction:** The system can extract specific textual information from the passage to answer questions requiring identifying particular entities or roles (e.g., Sample IDs 6 and 8).\n3. **Basic Arithmetic:** The system demonstrates the capability to perform basic subtraction (Sample ID 9).\n\n## WEAKNESSES\n\n1.  **Complex Reasoning with Numerical Information:** The system struggles with questions that require complex reasoning involving multiple steps or combining numerical information from different parts of the passage. Calculating the difference between final scores requires correctly extracting all the scores from each team, summing them, and performing a subtraction, all of which failed in Sample ID 5.\n2.  **Semantic Understanding of \"Cannot Determine\":** The system provides \"Cannot determine from passage\" even when the answer is present but requires more complex processing to extract. This indicates a failure to apply sufficient effort in synthesizing an answer that is available.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Inability to synthesize numerical information:** The system needs improvement in combining multiple numerical values within the passage to perform more complex calculations, such as determining point differences after a game.\n2. **Insufficient Effort to Determine Answer:** The system quickly defaults to \"Cannot determine from passage\" before exhausting reasonable reasoning steps.\n\n## ERROR PATTERNS\n\n1.  **Failure to Perform Multi-Step Numerical Reasoning:** The primary recurring error is the system's inability to perform multi-step reasoning involving numerical data (specifically calculating score differences). The system defaults to \"Cannot determine from passage\" when the answer is present, but necessitates several steps to obtain.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the system's failure to perform complex numerical reasoning, including identifying all relevant numerical information and performing the required arithmetic to arrive at the correct answer.\n\n## IMPROVEMENT AREAS\n\n1.  **Numerical Reasoning:** Enhance the system's ability to identify and extract all relevant numerical data, understand the relationships between these data points, and perform necessary calculations (addition, subtraction, etc.) to derive the correct answer.\n2. **Reasoning Depth:** Increase the depth and length of the reasoning chains the system attempts before giving up and answering \"Cannot determine from passage.\"\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Implement a dedicated numerical reasoning module:** This module should be responsible for identifying numerical values, determining their context, and performing arithmetic operations based on the question. This module should include techniques to find all the numerical values relevant to the question, and then try all plausible arithmetic operations on those values.\n2.  **Improve question parsing and intent recognition:** Enhance the system's ability to understand the intent behind numerical questions and formulate appropriate strategies for answering them. For example, if the question asks for the \"difference\" between two values, the system should automatically identify the need for subtraction.\n3.  **Introduce a more robust \"scratchpad\" or working memory:** Provide the system with a dedicated space to store extracted numerical values, intermediate results, and reasoning steps. This will allow the system to keep track of its progress and revisit previous calculations.\n4. **Increase Reasoning Steps Before Giving Up:** Before answering \"Cannot determine from passage,\" force the system to try multiple strategies and chains of reasoning. For example, use multiple extraction strategies, arithmetic operations, and value combinations.\n\n## CAPABILITY MAPPING\n\n**Sample ID 5:**\n*   information_extraction: Partial failure (failed to extract all relevant score information)\n*   solution_generation: Failure (failed to calculate the score difference correctly)\n*   solution_verification: N/A (no solution generated)\n*   decision_making: Premature decision (incorrectly concluded that the answer could not be determined).\n",
-    "capability_report_text": "Okay, here's a comprehensive capability report based on the performance summary, error analysis, sample execution outputs, and your instructions.\n\n## CAPABILITY ASSESSMENT REPORT\n\n**AI System: Capability Analysis**\n\nThis report provides a detailed assessment of the AI system's capabilities based on its performance summary, error analysis, and sample execution outputs. The focus is on identifying strengths, weaknesses, bottlenecks, and actionable recommendations for improvement.\n\n## EXECUTION ANALYSIS\n\nThe provided sample execution outputs, which include `\"ANSWER_START\"` and `\"ANSWER_END\"` markers, show that the system can extract specific text spans from a given passage. However, this extraction appears rudimentary, simply delimiting text. There is no indication of *understanding* the extracted content or performing any manipulation on it.  The lack of post-processing of the extracted text is evident. The extraction is accurate but basic. There is no format validation or content checking within the extracted text.\n\n## CAPABILITY ASSESSMENT\n\nThe system exhibits strengths in basic text extraction and numerical comparison. However, it suffers from significant limitations in complex reasoning, especially when it involves numerical information or requires multi-step problem-solving.  The system appears to have a low \"frustration tolerance,\" quickly defaulting to \"Cannot determine from passage\" even when the information is potentially available.  The system seems to be performing surface-level pattern matching rather than deeper semantic understanding and reasoning.\n\n## KEY STRENGTHS\n\n*   **Basic Information Extraction:** The system can identify and extract text spans based on simple criteria.\n*   **Numerical Comparison:** The system can compare numerical values when explicitly identified.\n*   **Basic Arithmetic:** The system can perform basic subtraction.\n\nThese strengths demonstrate a foundational capability for information retrieval and analysis, but it lacks more advanced abilities.\n\n## KEY WEAKNESSES\n\n*   **Complex Numerical Reasoning:** The system struggles with problems that require multiple steps of numerical extraction, calculation, and comparison.\n*   **Semantic Understanding & Reasoning Depth:**  The system's ability to understand the *meaning* of the extracted information is limited. It lacks the ability to synthesize information from different parts of the passage to arrive at an answer.\n*   **Premature \"Cannot Determine\":** The system defaults too readily to \"Cannot determine from passage,\" even when the answer can be derived with reasonable effort.\n\nThese weaknesses limit the system's applicability to complex real-world scenarios that demand more sophisticated reasoning abilities.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Complex Numerical Reasoning**. Addressing this weakness will have the biggest impact on the system's overall performance and usefulness.  This requires both improving numerical extraction and performing arithmetic correctly.\n\n## ACTIONABLE RECOMMENDATIONS\n\nThe following actions are recommended for the next iteration:\n\n1.  **Implement Numerical Reasoning Module (Priority: High):**  Create a dedicated module specifically designed for numerical reasoning. This module should:\n    *   Identify all numerical values in the passage.\n    *   Determine the context of each numerical value (e.g., what entity or attribute it represents).\n    *   Based on the question, identify relevant numerical values and perform appropriate arithmetic operations (addition, subtraction, etc.).\n    *   The module should use pattern matching (regex, etc.) and semantic analysis to determine the role of each numerical value.\n2.  **Increase Reasoning Depth (Priority: High):**  Modify the system's decision-making process to prevent premature \"Cannot determine\" responses. This involves:\n    *   Implementing a configurable \"reasoning depth\" parameter that controls how many attempts the system makes to find an answer before giving up.\n    *   Adding strategies for trying different extraction and reasoning approaches before declaring failure.\n    *   Increasing the depth and length of the reasoning chains the system attempts.\n3.  **Enhance Question Parsing and Intent Recognition (Priority: Medium):**  Improve the system's ability to understand the intent behind questions, especially those involving numerical information. For example:\n    *   Train the system to recognize keywords like \"difference,\" \"total,\" \"sum,\" etc., and associate them with corresponding arithmetic operations.\n    *   Use semantic analysis to understand the relationship between the entities and attributes mentioned in the question.\n4.  **Introduce a \"Scratchpad\" or Working Memory (Priority: Medium):** Provide the system with a dedicated space to store extracted information, intermediate results, and reasoning steps. This will allow the system to track its progress and revisit previous calculations. This will enable the system to track multiple candidate answers and the reasoning steps taken to arrive at each, enabling easier debugging and analysis.\n\n## CAPABILITY TREND\n\nBased on the current analysis, the system's capabilities appear to be **stable** in terms of basic information extraction. However, it is **declining** in relative terms, as the lack of progress in complex reasoning hinders its ability to solve more challenging problems. Implementing the recommendations above will be crucial to driving an **improving** trend in overall capability. The current accuracy score of 0.90 is misleading given the identified weaknesses. A more comprehensive evaluation suite should be designed to more accurately reflect the system's performance, especially regarding its ability to handle complex reasoning tasks.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\n\nAll error cases exhibit the same `TypeError: main() missing 1 required positional argument: 'supporting_documents'`. This indicates a problem with how the `main()` function is being called in the test script. Specifically, the function expects both `question` and `supporting_documents` as arguments, but the test script is only passing the `question`.\n\n## STRENGTHS\n\nBased on the provided data, it's impossible to determine any strengths, as the system consistently fails due to a calling error. We need to see the system successfully process some questions to identify its strengths.\n\n## WEAKNESSES\n\n1.  **Incorrect Function Call:** The primary weakness is the incorrect calling of the `main()` function in the testing script. The function signature expects both `question` and `supporting_documents`, but the script is only passing `question`.\n2.  **Lack of Error Handling:** The `main()` function or the test script lacks proper error handling to gracefully deal with missing arguments and provide more informative error messages.\n\n## CRITICAL BOTTLENECKS\n\nThe critical bottleneck is the test script's failure to provide the required `supporting_documents` argument when calling the `main()` function. This prevents the problem-solving logic from even being executed.\n\n## ERROR PATTERNS\n\nThe error pattern is consistently the same `TypeError` related to the missing `supporting_documents` argument.\n\n## PRIMARY ISSUE\n\nThe single most critical problem is the incorrect call to the `main()` function within the test script (`test_script_4.py`). The script is missing the `supporting_documents` argument in the `main()` function call: `answer = module.main(question)`. It should be `answer = module.main(question, supporting_documents)`.\n\n## IMPROVEMENT AREAS\n\n1.  **Test Script Correction:** Correct the test script to pass both `question` and `supporting_documents` to the `main()` function.\n2.  **Function Signature Verification:** Double-check and ensure the `main()` function's definition matches how it's being called in the test script.\n3.  **Error Handling in `main()`:** Add error handling within the `main()` function to explicitly check for the presence of both `question` and `supporting_documents`. If either is missing, raise a `ValueError` with a clear error message.\n4.  **Test Script Validation:** Add assertions in the test script to ensure that both `question` and `supporting_documents` are not None or empty before calling the `main()` function.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Modify `test_script_4.py`:** Change the line `answer = module.main(question)` to `answer = module.main(question, supporting_documents)`.\n2.  **Add Error Handling to `main()`:** Inside the `main()` function, add:\n\n```python\ndef main(question, supporting_documents):\n    if not question:\n        raise ValueError(\"Question cannot be empty\")\n    if not supporting_documents:\n        raise ValueError(\"Supporting documents cannot be empty\")\n    # Rest of the function logic\n```\n\n3.  **Add Assertions to `test_script_4.py`:** Before calling `main()`, add:\n\n```python\nassert question is not None, \"Question is None\"\nassert supporting_documents is not None, \"Supporting documents is None\"\n```\n\n## CAPABILITY MAPPING\n\nFor all samples (0, 1, and 2):\n\n*   The error occurs *before* any of the core problem-solving capabilities can be tested.\n*   The failing capability is: **information_extraction** (the test harness fails to pass in the data)\n",
+    "capability_report_text": "## CAPABILITY ASSESSMENT REPORT\n\n**Overall Performance:** The AI system, as currently tested, has an accuracy of 0.00 (0/3). All test cases resulted in a `TypeError` due to a missing argument in the `main()` function call within the test script. Therefore, we cannot evaluate the AI's core problem-solving capabilities.\n\n### EXECUTION ANALYSIS\n\nThe execution outputs consistently show the same `TypeError`, which highlights a fundamental problem with how the `main()` function is being invoked. The traceback clearly indicates that the `supporting_documents` argument is missing during the function call in `test_script_4.py`. The repeated occurrence of this error across all samples indicates a systematic issue in the test setup rather than a sporadic failure.\n\n### CAPABILITY ASSESSMENT\n\nDue to the consistently failing test script, a true capability assessment is impossible. The AI system's ability to process questions and utilize supporting documents to generate answers *cannot* be evaluated. We can only assess the *test infrastructure* which is currently inadequate. The `information_extraction` capability cannot even be tested because the data isn't making it *to* the model for evaluation.\n\n### KEY STRENGTHS\n\nCurrently, there are no discernible strengths to report. The test failure prevents any positive aspects of the system's performance from being observed.\n\n### KEY WEAKNESSES\n\n1.  **Test Script Error:** The most critical weakness is the erroneous call to the `main()` function in `test_script_4.py`, failing to provide the required `supporting_documents` argument. This prevents the AI's core logic from being executed.\n2.  **Lack of Robustness in `main()`:** The `main()` function should include explicit checks to ensure that both the question and supporting documents are provided. This would allow it to fail gracefully and give better error messages.\n\n### IMPROVEMENT FOCUS\n\nThe single most important area for improvement is correcting the `test_script_4.py` to properly call the `main()` function with both the `question` and `supporting_documents` arguments. Without this correction, further testing and capability assessment are meaningless.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Modify `test_script_4.py`:** Change the line `answer = module.main(question)` to `answer = module.main(question, supporting_documents)`. Ensure that `supporting_documents` is properly defined and populated in the test script.  Review the test cases to ensure `supporting_documents` are adequate.\n2.  **Implement Error Handling in `main()`:** Add input validation within the `main()` function to check for the presence of both `question` and `supporting_documents`. If either argument is missing, raise a `ValueError` with a descriptive message. Example:\n\n    ```python\n    def main(question, supporting_documents):\n        if question is None or question == \"\":\n            raise ValueError(\"Question cannot be empty\")\n        if supporting_documents is None or supporting_documents == \"\":\n            raise ValueError(\"Supporting documents cannot be empty\")\n        # Rest of the function logic\n    ```\n3.  **Add Assertions in Test Script:**  Preemptively validate the data *before* calling `main()`.  This provides a rapid indicator of bad test data.\n\n    ```python\n    assert question is not None and question != \"\", \"Question cannot be None or empty\"\n    assert supporting_documents is not None and supporting_documents != \"\", \"Supporting documents cannot be None or empty\"\n    ```\n4.  **Automated Test Validation:** Add an automated validation step to the test suite to check for correct function signatures and argument passing in all test scripts. This can prevent similar errors in the future.\n\n### CAPABILITY TREND\n\nThe current capability trend is **stable, but at a baseline of failure.** Until the test script is corrected, it is impossible to determine whether the AI system's capabilities are improving, declining, or remaining constant. The trend will only become meaningful *after* the core issue is resolved and the system can be properly tested. We are effectively blocked.\n"
   },
-  "progressive_testing": {
-    "total_examples": 10,
-    "successful_runs": 10,
-    "matches": 6,
-    "accuracy": 0.6,
-    "results": [
-      {
-        "success": true,
-        "answer": "1950s",
-        "output": "ANSWER_START\n1950s\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "1950s",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are identical and convey the same information."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "12-yard TD pass to Steven Jackson, 12-yard TD pass to Isaac Bruce, and 23-yard TD pass to Drew Bennett.",
-        "output": "ANSWER_START\n12-yard TD pass to Steven Jackson, 12-yard TD pass to Isaac Bruce, and 23-yard TD pass to Drew Bennett.\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "12-yard, 12-yard, 23-yard",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The golden answer gives the yard values, which are all present in the system answer. The system answer provides extra information, but it includes the relevant info."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "None",
-        "output": "ANSWER_START\nNone\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer is 'None', while the golden answer is '1'. These answers are not semantically equivalent."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "117",
-        "output": "ANSWER_START\n117\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "117",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "2",
-        "output": "ANSWER_START\n2\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "2",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value: 2."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "2",
-        "output": "ANSWER_START\n2\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "2",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "Both answers are the same numerical value, 2."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "45.7%",
-        "output": "ANSWER_START\n45.7%\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "48.3",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The numerical values 45.7% and 48.3% are different. Therefore, the answers do not communicate the same information."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "St. Louis and Green Bay",
-        "output": "ANSWER_START\nSt. Louis and Green Bay\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "Eagles, Green Bay",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer includes 'St. Louis' which is not in the golden answer ('Eagles, Green Bay'). The system answer is incorrect because it is not semantically equivalent to the golden answer."
-        },
-        "match": false
-      },
-      {
-        "success": true,
-        "answer": "90.0%",
-        "output": "ANSWER_START\n90.0%\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "90",
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "90.0% and 90 are semantically equivalent when interpreted as percentages, even with the extra decimal place in the system answer."
-        },
-        "match": true
-      },
-      {
-        "success": true,
-        "answer": "Three",
-        "output": "ANSWER_START\nThree\nANSWER_END\n",
-        "trace_file": "archive/trace_iteration_4.jsonl",
-        "golden_answer": "1",
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer 'Three' and the golden answer '1' do not convey the same information. 'Three' represents the number 3, while '1' represents the number 1. These are distinct numerical values."
-        },
-        "match": false
-      }
-    ]
-  },
-  "execution_time": 98.70262908935547,
+  "progressive_testing": null,
+  "execution_time": 59.28199005126953,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

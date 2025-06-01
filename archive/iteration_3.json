@@ -1,661 +1,165 @@
 {
   "iteration": 3,
-  "timestamp": "2025-06-01T01:19:00.088833",
+  "timestamp": "2025-06-01T07:05:25.438233",
   "strategy": "explore",
   "explore_rate": 70,
   "exploit_rate": 10,
   "refine_rate": 20,
-  "batch_size": 10,
-  "script": "import os\nimport re\nimport math\nfrom google import genai\nfrom google.genai import types\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question):\n    \"\"\"\n    EXPLORATION: This script uses a question-decomposition and answer-synthesis approach\n    to enhance reasoning and accuracy. This is a new approach compared to previous iterations.\n    This approach focuses on breaking the original question into a series of sub-questions\n    which allow the LLM to address specific elements. Finally, after the LLM has answered each\n    sub-question, it synthesizes the sub-answers into a final answer. This is fundamentally different\n    than the three-stage approach of the past few successful iterations.\n    \"\"\"\n\n    # Step 1: Decompose the original question into sub-questions\n    decomposition_prompt = f\"\"\"\n    Decompose the original question into a series of simpler, more specific sub-questions that, when answered,\n    will provide all the information needed to answer the original question.\n\n    Example 1:\n    Original Question: How many yards longer was the longest touchdown pass than the longest field goal?\n    Sub-questions:\n    1. What was the length of the longest touchdown pass?\n    2. What was the length of the longest field goal?\n    3. What is the difference between the length of the longest touchdown pass and the length of the longest field goal?\n\n    Example 2:\n    Original Question: Which player kicked the only field goal of the game?\n    Sub-questions:\n    1. Was there a field goal in the game?\n    2. Which player kicked the field goal?\n\n    Original Question: {question}\n    Sub-questions:\n    \"\"\"\n\n    try:\n        sub_questions_str = call_llm(decomposition_prompt, \"You are an expert at question decomposition.\")\n        sub_questions = [q.strip() for q in sub_questions_str.split('\\n') if q.strip()]  # Splits and cleans\n    except Exception as e:\n        print(f\"Error decomposing question: {e}\")\n        return \"Error decomposing question.\"\n\n    # Step 2: Answer each sub-question\n    sub_answers = []\n    for i, sub_question in enumerate(sub_questions):\n        answer_prompt = f\"\"\"\n        Answer the following sub-question concisely.\n\n        Sub-question: {sub_question}\n\n        Answer:\n        \"\"\"\n        try:\n            answer = call_llm(answer_prompt, \"You are an expert at answering questions concisely.\")\n            sub_answers.append(answer)\n        except Exception as e:\n            print(f\"Error answering sub-question {i+1}: {e}\")\n            sub_answers.append(f\"Error answering sub-question {i+1}.\")\n\n    # Step 3: Synthesize the sub-answers into a final answer\n    synthesis_prompt = f\"\"\"\n    Synthesize the following sub-answers into a final, comprehensive answer to the original question.\n\n    Original Question: {question}\n    Sub-questions and Answers:\n    {chr(10).join([f\"{i+1}. {q}: {a}\" for i, (q, a) in enumerate(zip(sub_questions, sub_answers))])}\n\n    Final Answer:\n    \"\"\"\n\n    try:\n        final_answer = call_llm(synthesis_prompt, \"You are an expert at synthesizing information.\")\n        return final_answer\n    except Exception as e:\n        print(f\"Error synthesizing final answer: {e}\")\n        return \"Error synthesizing final answer.\"",
-  "approach_summary": "The script implements a question-decomposition and answer-synthesis approach using the Gemini LLM to enhance reasoning. The main function, `main`, decomposes the original question into sub-questions, answers each sub-question individually, and then synthesizes these answers into a final comprehensive answer. It uses the `call_llm` function to interact with the Gemini API, utilizing different system instructions for question decomposition, answering sub-questions, and synthesizing information. The functions `call_llm` sends requests to the Gemini model, and the `main` function orchestrates the decomposition, answering, and synthesis steps to arrive at the final answer.",
-  "sample_count": 10,
+  "batch_size": 3,
+  "script": "import os\n\ndef call_llm(prompt, system_instruction=None):\n    \"\"\"Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM.\"\"\"\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get(\"GEMINI_API_KEY\"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model=\"gemini-2.0-flash\",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f\"Error calling Gemini API: {str(e)}\")\n        return f\"Error: {str(e)}\"\n\ndef main(question, supporting_documents):\n    \"\"\"\n    This script uses a focused retrieval and reasoning approach with chain of verification.\n    It attempts to overcome previous issues by focusing on direct LLM reasoning with carefully crafted prompts and iterative validation.\n    Hypothesis: Focused information extraction with multi-stage verification and direct question answering improves accuracy.\n    \"\"\"\n    try:\n        # Step 1: Identify relevant documents using LLM reasoning\n        relevant_docs = identify_relevant_documents(question, supporting_documents)\n\n        # Step 2: Extract relevant snippets from the relevant documents\n        relevant_snippets = extract_relevant_snippets(question, relevant_docs)\n\n        # Step 3: Answer the question based on the extracted snippets\n        answer = answer_question(question, relevant_snippets)\n\n        return answer\n    except Exception as e:\n        print(f\"An error occurred: {e}\")\n        return \"Error processing the question.\"\n\ndef identify_relevant_documents(question, supporting_documents):\n    \"\"\"Identifies relevant documents by reasoning over document titles and the question.\"\"\"\n    system_instruction = \"You are an expert at identifying relevant documents based on a question.\"\n    prompt = f\"\"\"\n    Given a question and a list of documents, identify the documents most relevant to answering the question.\n    \n    Example 1:\n    Question: What instrument does Duff McKagan play on Macy Gray's single, Kissed It?\n    Documents: [\"The Very Best of Macy Gray\", \"Behind the Player: Duff McKagan\", \"Kissed It\", \"Loaded (band)\"]\n    Relevant Documents: [\"Behind the Player: Duff McKagan\", \"Kissed It\"]\n    \n    Example 2:\n    Question: Which American popular music and country music singer recorded J. D. Souther song?\n    Documents: [\"Linda Ronstadt\", \"They Call the Wind Maria\", \"Eddy Arnold\", \"Albert Campbell\"]\n    Relevant Documents: [\"Linda Ronstadt\", \"J. D. Souther\"]\n    \n    Question: {question}\n    Documents: {supporting_documents}\n    Relevant Documents:\n    \"\"\"\n    relevant_docs = call_llm(prompt, system_instruction).strip().split(\"\\n\")\n    return relevant_docs\n\ndef extract_relevant_snippets(question, relevant_docs):\n    \"\"\"Extracts relevant snippets from the identified relevant documents.\"\"\"\n    system_instruction = \"You are an expert at extracting relevant snippets from documents.\"\n    prompt = f\"\"\"\n    Given a question and a list of relevant documents, extract the snippets most relevant to answering the question.\n    \n    Example 1:\n    Question: What instrument does Duff McKagan play on Macy Gray's single, Kissed It?\n    Relevant Documents: [\"Behind the Player: Duff McKagan\", \"Kissed It\"]\n    Snippets: [\"Kissed It\\\" is a song by the American soul singer Macy Gray. It is the second US single from her fifth album \\\"The Sellout\\\". The song features the musicians of Velvet Revolver and Guns N' Roses, Slash, Duff McKagan and Matt Sorum.\", \"Behind The Player: Duff McKagan is an Interactive Music Video featuring Guns N' Roses and Velvet Revolver bassist Duff McKagan\"]\n    \n    Example 2:\n    Question: Which American popular music and country music singer recorded J. D. Souther song?\n    Relevant Documents: [\"Linda Ronstadt\", \"J. D. Souther\"]\n    Snippets: [\"Linda Maria Ronstadt (born July 15, 1946) is an American popular music and country music singer.\", \"John David Souther, known professionally as J.D. Souther (born November 2, 1945) is an American singer and songwriter. He has written and co-written songs recorded by Linda Ronstadt and the Eagles.\"]\n\n    Question: {question}\n    Relevant Documents: {relevant_docs}\n    Snippets:\n    \"\"\"\n    relevant_snippets = call_llm(prompt, system_instruction).strip().split(\"\\n\")\n    return relevant_snippets\n\ndef answer_question(question, relevant_snippets):\n    \"\"\"Answers the question based on the extracted snippets.\"\"\"\n    system_instruction = \"You are an expert at answering questions based on snippets of text.\"\n    prompt = f\"\"\"\n    Given a question and a list of relevant snippets, answer the question.\n    \n    Example 1:\n    Question: What instrument does Duff McKagan play on Macy Gray's single, Kissed It?\n    Snippets: [\"Kissed It\\\" is a song by the American soul singer Macy Gray. It is the second US single from her fifth album \\\"The Sellout\\\". The song features the musicians of Velvet Revolver and Guns N' Roses, Slash, Duff McKagan and Matt Sorum.\", \"Behind The Player: Duff McKagan is an Interactive Music Video featuring Guns N' Roses and Velvet Revolver bassist Duff McKagan\"]\n    Answer: bass\n    \n    Example 2:\n    Question: Which American popular music and country music singer recorded J. D. Souther song?\n    Snippets: [\"Linda Maria Ronstadt (born July 15, 1946) is an American popular music and country music singer.\", \"John David Souther, known professionally as J.D. Souther (born November 2, 1945) is an American singer and songwriter. He has written and co-written songs recorded by Linda Ronstadt and the Eagles.\"]\n    Answer: Linda Maria Ronstadt\n\n    Question: {question}\n    Snippets: {relevant_snippets}\n    Answer:\n    \"\"\"\n    answer = call_llm(prompt, system_instruction).strip()\n    return answer",
+  "approach_summary": "The script uses a focused retrieval and reasoning approach with chain of thought to answer questions based on provided documents. It decomposes the problem into three steps: identifying relevant documents, extracting relevant snippets from those documents, and then answering the question based on the snippets. There are three agent roles that are each specialized in their respective steps.\n\nThe functions used are `identify_relevant_documents`, `extract_relevant_snippets`, `answer_question`, `call_llm`, and `main`. The `main` function orchestrates the overall workflow by first calling `identify_relevant_documents` to select the most pertinent documents, then `extract_relevant_snippets` to pull out key information, and finally uses `answer_question` to formulate a response based on the extracted snippets. Each of these functions makes calls to `call_llm` to interface with the LLM using prompts and system instructions.",
+  "sample_count": 3,
   "samples": [
     {
-      "question": "PASSAGE: Frederick had been King of Jerusalem\u2014and as such claimed suzerainty over Cyprus\u2014in right of his wife Isabella II until her death in 1228. That year he arrived first in Cyprus, where he antagonised the nobles, and then in Jerusalem, where he stayed until 1229, leaving in humiliating circumstances after having produced an anti-imperialist reaction in the people. In 1231 he sent Riccardo Filangieri as his marshal. His attempt to assert his authority was opposed by John of Ibelin, the Old Lord of Beirut, who had been regent until Frederick's arrival. On John's death in 1236 the war was taken up by his son Balian. In 1239 Philip of Montfort assumed the leadership of the opposition. Though the ecclesiastical hierarchy and the Knights Templar supported the nobility, the Teutonic Knights and Knights Hospitaller supported Filangieri. In general his rights as regent were recognised but his practical power was denied on the basis of the Assizes and the Haute Cour. His headquarters were in Tyre and he had the allegiance of Bohemond V, Prince of Antioch and Count of Tripoli. He also held the Holy City of Jerusalem itself, which had been negotiated away from the Saracens by Frederick. So long as the Ibelins controlled the opposition, Filangieri could count on the support of their enemies as well. The Italian cities were also divided between the two factions: Pisa supported Filangieri and Genoa the Ibelins. The Ibelins controlled Beirut, Arsuf, and Caesarea as well as the old capital of Acre. In 1231 the citizens of Acre formed a commune with their headquarters at the church of Saint Andrew's in order to unify their opposition to Filangieri. In 1232 John of Ibelin was elected its mayor.\n\nQUESTION: Who died first John of Ibelin or Isabella II?",
-      "answer": "Isabella II",
+      "question": "Multi-hop reasoning task:\n\nQuestion: What group did Carlene LeFevre and Rich LeFevre form in Brooklyn, New York City?\n\nSupporting Documents:\n=== Document 1: Downtown Brooklyn Cultural District ===\nThe Brooklyn Cultural District (formerly known as the BAM-Downtown Brooklyn Cultural District) is a $100 million development project that focuses on the arts, public spaces and affordable housing in Fort Greene, Brooklyn, New York. The project reflected the joint efforts of New York City's Economic Development Corporation, the Department of Cultural Affairs, the Department of Housing Preservation and Development, the Department of City Planning, and the Downtown Brooklyn Partnership to continue to develop the Brooklyn neighborhood area. Joining the area's longtime institutional stakeholders (BAM, the Brooklyn Museum and the Brooklyn Public Library) are new homes for Mark Morris Dance Group, Theatre for a New Audience (TFANA), UrbanGlass and BRIC Arts and the BAM's Fisher Building. \n\n=== Document 2: Carlene LeFevre ===\nCarlene LeFevre is a competitive eater from Henderson, Nevada. She and her husband, Rich LeFevre, are said to form the \"First Family of Competitive Eating\" in spite of having normal weights and ages around 60, and are both top ranked members of the International Federation of Competitive Eating. The childless couple has combined to take two of the top seven places in Nathan's Hot Dog Eating Contest in 2003, 2004, and 2005. She is nicknamed \"The Madam of Etiquette\" for her relative degree of decorum while consuming mass quantities of food quickly. Her trademark technique is called the \"Carlene Pop,\" in which she bounces up and down while eating to get the food to settle. \n\n=== Document 3: Brooklyn Grange ===\nBrooklyn Grange is a 2.5-acre organic urban rooftop farm in New York City, growing high quality vegetables and honey for local restaurants, markets, and community-supported agriculture. The farms span across two rooftops, one on a 43,000 sq. ft. building straddling Astoria and Long Island City, and the other atop the Brooklyn Navy Yard \u2013 the world\u2019s largest rooftop soil farm. Together, they produce over 40,000\u00a0lbs. of organically-grown vegetables each year. The Grange also operates New York City\u2019s largest apiary, with over thirty naturally-managed honey beehives, which yields approximately 1,500 pounds of honey annually. It was started in the spring of 2010 by transplanted Wisconsinite Ben Flanner, now President and Head Farmer, with the help of Anastasia Plakias, current Vice President, and Gwen Schantz, current Chief Operating Officer. The group took out loans, contributed their own money and found community investors to fund the project. The Brooklyn Navy Yard farm was financed in part by at $592,730 grant from the NYCDEP's Green Infrastructure Grant Program. In addition to growing and distributing local vegetables and herbs, Brooklyn Grange provides urban farming and green roof consulting and installation services to clients worldwide and partner with numerous non-profit organizations throughout New York to promote healthy and strong local communities. \n\n=== Document 4: Rich LeFevre ===\nRich LeFevre (nickname \"The Locust\") is a competitive eater from Henderson, Nevada. Rich and his wife, Carlene LeFevre, are said to form the \"First Family of Competitive Eating\" in spite of having normal weights and ages around 60, and are both top ranked members of the International Federation of Competitive Eating. The childless couple has combined to take two of the top seven places in Nathan's Hot Dog Eating Contest in 2003, 2004, and 2005. He competed at Wing Bowl XIV in Philadelphia, Pennsylvania in which he placed second behind Joey Chestnut, another IFOCE champion. \n\n=== Document 5: List of bus routes in Brooklyn ===\nThe Metropolitan Transportation Authority (MTA) operates a number of bus routes in Brooklyn, New York, United States; one minor route is privately operated under a city franchise. Many of them are the direct descendants of streetcar lines (see list of streetcar lines in Brooklyn); the ones that started out as bus routes were almost all operated by the Brooklyn Bus Corporation, a subsidiary of the Brooklyn\u2013Manhattan Transit Corporation, until the New York City Board of Transportation took over on June 5, 1940. Of the 55 local Brooklyn routes operated by the New York City Transit Authority, roughly 35 are the direct descendants of one or more streetcar lines, and most of the others were introduced in full or in part as new bus routes by the 1930s. Only the eastern section of the B82 (then the B50), the B83, and the B84 were created by New York City Transit from scratch, in 1978, 1966, and 2013, respectively. \n\n=== Document 6: Sports in New York (state) ===\nNew York has two Major League Baseball teams, the New York Yankees (based in the Bronx) and the New York Mets (based in Queens). New York is home to three National Hockey League franchises: the New York Rangers in Manhattan, the New York Islanders in Brooklyn and the Buffalo Sabres in Buffalo. New York has two National Basketball Association teams, the New York Knicks in Manhattan, and the Brooklyn Nets in Brooklyn. New York has one Major League Soccer team: New York City FC. Although the New York Red Bulls represent the New York metropolitan area they play in Red Bull Arena, located in Harrison, New Jersey. \n\n=== Document 7: Queens ===\nQueens is the easternmost and largest in area of the five boroughs of New York City. It is geographically adjacent to the borough of Brooklyn at the southwestern end of Long Island, and to Nassau County farther east on Long Island; in addition, Queens shares water borders with the boroughs of Manhattan and the Bronx. Coterminous with Queens County since 1899, the borough of Queens is the second-largest in population (after Brooklyn), with a census-estimated 2,333,054 residents in 2016, approximately 48% of them foreign-born. Queens County also is the second-most populous county in the U.S. state of New York, behind the neighboring borough of Brooklyn, which is coterminous with Kings County. Queens is the fourth-most densely populated county among New York City's boroughs, as well as in the United States. If each of New York City's boroughs were an independent city, Queens also would be the nation's fourth most populous, after Los Angeles, Chicago, and Brooklyn. Queens is the most ethnically diverse urban area in the world. \n\n=== Document 8: Brooklyn Heights ===\nBrooklyn Heights is an affluent residential neighborhood within the New York City borough of Brooklyn. Originally referred to as Brooklyn Village, it has been a prominent area of Brooklyn since 1834. The neighborhood is noted for its low-rise architecture and its many brownstone rowhouses, most of them built prior to the Civil War. It also has an abundance of notable churches and other religious institutions. Brooklyn's first art gallery, the Brooklyn Arts Gallery, was opened in Brooklyn Heights in 1958. In 1965, a large part of Brooklyn Heights was protected from unchecked development by the creation of the Brooklyn Heights Historic District, the first such district in New York City. The district was added to the National Register of Historic Places in 1966. \n\n=== Document 9: Fort Greene, Brooklyn ===\nFort Greene is a neighborhood in the New York City borough of Brooklyn. Part of Brooklyn Community Board 2 and served by the New York City Police Department's 88th Precinct, Fort Greene is listed on the New York State Registry and on the National Register of Historic Places, and is a New York City\u2013designated Historic District. It is located in northwest Brooklyn in the area known as South Brooklyn, just across from Lower Manhattan and north of Prospect Park. \n\n=== Document 10: Nathan's Hot Dog Eating Contest ===\nThe Nathan's Hot Dog Eating Contest is an annual American hot dog competitive eating competition. It is held each year on Independence Day at Nathan's Famous Corporation's original, and best-known restaurant at the corner of Surf and Stillwell Avenues in Coney Island, a neighborhood of Brooklyn, New York City. \n\n\nProvide your answer based on the information in the supporting documents.",
+      "answer": "the \"First Family of Competitive Eating\"",
       "id": "example_23",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Frederick had been King of Jerusalem\u2014and as such claimed suzerainty over Cyprus\u2014in right of his wife Isabella II until her death in 1228. That year he arrived first in Cyprus, where he antagonised the nobles, and then in Jerusalem, where he stayed until 1229, leaving in humiliating circumstances after having produced an anti-imperialist reaction in the people. In 1231 he sent Riccardo Filangieri as his marshal. His attempt to assert his authority was opposed by John of Ibelin, the Old Lord of Beirut, who had been regent until Frederick's arrival. On John's death in 1236 the war was taken up by his son Balian. In 1239 Philip of Montfort assumed the leadership of the opposition. Though the ecclesiastical hierarchy and the Knights Templar supported the nobility, the Teutonic Knights and Knights Hospitaller supported Filangieri. In general his rights as regent were recognised but his practical power was denied on the basis of the Assizes and the Haute Cour. His headquarters were in Tyre and he had the allegiance of Bohemond V, Prince of Antioch and Count of Tripoli. He also held the Holy City of Jerusalem itself, which had been negotiated away from the Saracens by Frederick. So long as the Ibelins controlled the opposition, Filangieri could count on the support of their enemies as well. The Italian cities were also divided between the two factions: Pisa supported Filangieri and Genoa the Ibelins. The Ibelins controlled Beirut, Arsuf, and Caesarea as well as the old capital of Acre. In 1231 the citizens of Acre formed a commune with their headquarters at the church of Saint Andrew's in order to unify their opposition to Filangieri. In 1232 John of Ibelin was elected its mayor.",
-        "original_question": "Who died first John of Ibelin or Isabella II?",
-        "original_answer_data": {
-          "spans": [
-            "Isabella II"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 911
+        "source": "hotpotqa",
+        "filename": "hotpotqa/test.json",
+        "type": "bridge",
+        "level": "hard",
+        "original_question": "What group did Carlene LeFevre and Rich LeFevre form in Brooklyn, New York City?",
+        "num_documents": 10
       }
     },
     {
-      "question": "PASSAGE: The 1991 Washington Redskins season started with a franchise-record 11 straight victories. Also during the season, \"The Hogs (American football)\", under the coaching of Redskins offensive line coach Joe Bugel, allowed a league low and franchise record nine sacks \u2013 the third lowest total in NFL history. The 1991 Redskins offense also dominated under the brilliant coaching of offensive minded head football coach Joe Gibbs scoring 485 points which was the most by any team in the 1991 NFL season. The 1991 Redskins defense was also dominant under the coaching of defensive coordinator and guru Richie Petitbon, giving up only 224 total points which was second best of any team in the NFL in 1991, while also not allowing a single point to opponents in 3 of the 16 games played that season. After posting a 14\u20132 record, the Redskins made and dominated the 1991\u201392 NFL playoffs, beating the 1991 Atlanta Falcons season and 1991 Detroit Lions season by a combined score of 64\u201317.  On January 26, 1992, the Redskins won Super Bowl XXVI by defeating the Buffalo Bills 37\u201324 with Mark Rypien winning the games Super Bowl MVP award. After the Super Bowl, the Redskins set another franchise record by sending eight players to the Pro Bowl. The 1991 Washington Redskins season are widely considered one of the best teams in NFL history.\n\nQUESTION: How many points did the Redskins win Super Bowl XXVI by?",
-      "answer": "13",
+      "question": "Multi-hop reasoning task:\n\nQuestion: Micha\u00ebl Llodra of France, called \"the best volleyer on tour\", defeated Juan Mart\u00edn del Potro a professional of what nationality?\n\nSupporting Documents:\n=== Document 1: Adrian Mannarino ===\nAdrian Mannarino (born 29 June 1988) is a French professional tennis player who is currently ranked world No. 31 in men's singles by the Association of Tennis Professionals (ATP). He has a career-high singles ranking of world No. 27 (July 2015) and was the singles runner-up in three ATP World Tour tournaments - Auckland, Bogot\u00e1 and Antalya. Mannarino has achieved victories over Stan Wawrinka, Milos Raonic, Juan Mart\u00edn del Potro, Gilles Simon, Juan M\u00f3naco, Philipp Kohlschreiber and Ga\u00ebl Monfils. \n\n=== Document 2: 2010 US Open \u2013 Men's Singles ===\nJuan Mart\u00edn del Potro was the defending champion, but chose not to participate this year, after undergoing a wrist operation in May and only starting to practice again in August. Del Potro was the third man in the Open Era not to defend his US Open title, after Ken Rosewall in 1971 (due to conflicts between the World Championship Tennis (WCT) and the International Lawn Tennis Federation (ILTF)), and Pete Sampras in 2003 (who unofficially retired after the 2002 final). For the first time in U.S. Open history, no American player was seeded in the top 8, this was reflected in the result. \n\n=== Document 3: Juan Mart\u00edn del Potro ===\nJuan Mart\u00edn del Potro (] , born 23 September 1988), also known as Delpo is an Argentinian professional tennis player who is currently ranked world No. 24 in men's singles by the Association of Tennis Professionals (ATP). His biggest achievement has been winning the 2009 US Open, defeating Rafael Nadal in the semifinal and 5-time defending champion Roger Federer in the final. He was the first to defeat both Federer and Nadal during the same major and was the only man outside the Big Four to win a major between the 2005 French Open and the 2013 US Open, a span of 35 tournaments. He is also the second Argentine and the fifth-youngest man to win the US Open in the Open Era. Other career highlights include winning the bronze medal in men's singles at the 2012 London Olympics and the silver medal at the 2016 Rio Olympics and being part of his country's successful Davis Cup team; but his career has also been hampered by a succession of wrist injuries. \n\n=== Document 4: 2009 US Open \u2013 Men's Singles ===\nRoger Federer was the five-time defending champion, but was defeated by Juan Mart\u00edn del Potro in the final, 3\u20136, 7\u20136, 4\u20136, 7\u20136, 6\u20132. This was del Potro's first major title. \n\n=== Document 5: Juan Mart\u00edn del Potro career statistics ===\nThis is a list of the main career statistics of Argentine professional tennis player, Juan Mart\u00edn del Potro. To date, Del Potro has won 19 ATP singles titles, including one Grand Slam singles title at the 2009 US Open. He was also the runner-up at the 2009 ATP World Tour Finals, a semi-finalist at the 2009 French Open and 2013 Wimbledon Championships, a quarterfinalist at the Australian Open in 2009 and 2012, a bronze medalist at the 2012 London Olympics, and a silver medalist at the 2016 Rio Olympics. On January 11, 2010, Del Potro achieved a career high singles ranking of world No. 4 for the first time. \n\n=== Document 6: 2017 Laver Cup ===\nOn 24 August 2016, Roger Federer and Rafael Nadal were the first of six players to confirm their participation for team Europe. On 15 May 2017, more than eight months later, Milos Raonic was the first of six players to confirm his participation for the World team. By 24 August 2017, all six players from each team had been chosen: Roger Federer, Rafael Nadal, Alexander Zverev, Marin \u010cili\u0107, Dominic Thiem, and Tom\u00e1\u0161 Berdych for team Europe, and Milos Raonic, John Isner, Jack Sock, Sam Querrey, Juan Mart\u00edn del Potro, and Denis Shapovalov for team World. Shortly afterwards Raonic withdrew and was replaced by Nick Kyrgios. Later Frances Tiafoe took the place of del Potro who had also withdrawn. \n\n=== Document 7: 2016 Davis Cup ===\nThe 2016 Davis Cup was the 105th edition of the Davis Cup, a tournament between national teams in men's tennis. It was sponsored by BNP Paribas. From this season's tournament the deciding set of each match would be settled by a tiebreak at 6 games all rather than playing an advantage set until a player or a team were two games clear. Argentina won their first Davis Cup title, after 4 runner-up finishes, defeating Croatia in the final. Federico Delbonis defeated Ivo Karlovi\u0107 in the final match to give Argentina its first Davis Cup title, after a huge comeback from Juan Mart\u00edn del Potro against Marin \u010cili\u0107 in the fourth match. \n\n=== Document 8: 2009 Heineken Open ===\nThe 2009 Heineken Open is a tennis tournament played on outdoor hard courts. It is the 34th edition of the Heineken Open, and part of the ATP World Tour 250 series of the 2009 ATP Tour. It took place at the ASB Tennis Centre in Auckland, New Zealand, from 12 January through 17 January 2008. First-seeded Juan Mart\u00edn del Potro won the singles title. \n\n=== Document 9: Micha\u00ebl Llodra ===\nMicha\u00ebl Llodra (] ; born 18 May 1980) is a French former professional tennis player. He is a successful doubles player with three Grand Slam championships and an Olympic silver medal, and has also had success in singles, winning five career titles and gaining victories over Novak Djokovic, Juan Mart\u00edn del Potro, Tom\u00e1\u0161 Berdych, Robin S\u00f6derling, Jo-Wilfried Tsonga, Nikolay Davydenko, Janko Tipsarevi\u0107 and John Isner. Llodra has been called \"the best volleyer on tour\". \n\n=== Document 10: 2013 ABN AMRO World Tennis Tournament ===\nThe 2013 ABN AMRO World Tennis Tournament (or Rotterdam Open) was a men's tennis tournament played on indoor hard courts. It took place at the Ahoy Rotterdam arena in the Dutch city of Rotterdam, between 11 and 17 February 2013. It was the 41st edition of the Rotterdam Open, whose official name is the ABN AMRO World Tennis Tournament. The competition was part of the ATP World Tour 500 series of the 2013 ATP World Tour. Second-seeded Juan Mart\u00edn del Potro won the singles title. \n\n\nProvide your answer based on the information in the supporting documents.",
+      "answer": "Argentinian",
       "id": "example_24",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "The 1991 Washington Redskins season started with a franchise-record 11 straight victories. Also during the season, \"The Hogs (American football)\", under the coaching of Redskins offensive line coach Joe Bugel, allowed a league low and franchise record nine sacks \u2013 the third lowest total in NFL history. The 1991 Redskins offense also dominated under the brilliant coaching of offensive minded head football coach Joe Gibbs scoring 485 points which was the most by any team in the 1991 NFL season. The 1991 Redskins defense was also dominant under the coaching of defensive coordinator and guru Richie Petitbon, giving up only 224 total points which was second best of any team in the NFL in 1991, while also not allowing a single point to opponents in 3 of the 16 games played that season. After posting a 14\u20132 record, the Redskins made and dominated the 1991\u201392 NFL playoffs, beating the 1991 Atlanta Falcons season and 1991 Detroit Lions season by a combined score of 64\u201317.  On January 26, 1992, the Redskins won Super Bowl XXVI by defeating the Buffalo Bills 37\u201324 with Mark Rypien winning the games Super Bowl MVP award. After the Super Bowl, the Redskins set another franchise record by sending eight players to the Pro Bowl. The 1991 Washington Redskins season are widely considered one of the best teams in NFL history.",
-        "original_question": "How many points did the Redskins win Super Bowl XXVI by?",
-        "original_answer_data": {
-          "spans": [
-            "13"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 792
+        "source": "hotpotqa",
+        "filename": "hotpotqa/test.json",
+        "type": "bridge",
+        "level": "hard",
+        "original_question": "Micha\u00ebl Llodra of France, called \"the best volleyer on tour\", defeated Juan Mart\u00edn del Potro a professional of what nationality?",
+        "num_documents": 10
       }
     },
     {
-      "question": "PASSAGE: In 2000 there were 512,253 households out of which 31.70% had children under the age of 18 living with them, 48.70% were married couples living together, 11.80% had a female householder with no husband present, and 33.70% were non-families. 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older. The average household size was 2.65 and the average family size was 3.17.\n\nQUESTION: which household was most common?",
-      "answer": "married couples living together",
+      "question": "Multi-hop reasoning task:\n\nQuestion: What company produced the 1978 movie based on a book written by a radio playwright and children's book author born in 1900?\n\nSupporting Documents:\n=== Document 1: An Na ===\nAn Na (born 1972) is a South Korea-born American children's book author. Starting her career as a middle school English and History teacher, Na turned to writing novels after taking a young adult literature class while enrolled in an M.F.A. program at Vermont College of Fine Arts. She gained success with her very first novel \"A Step From Heaven\", published by Front Street Press in 2001, which won the annual Michael L. Printz Award from the American Library Association recognizing the year's \"best book written for teens, based entirely on its literary merit\". It was also a finalist for the National Book Award, Young People's Literature, and later found its way onto numerous \"best book\" lists. Na still makes frequent visits to middle schools to talk about her works and encourages young Asian-American students to become artists and harness their creativity. She cites Frank McCourt's \"Angela's Ashes\" and Sandra Cisneros's \"The House on Mango Street\" among the influences on her writing and also admires the work of Madeleine L'Engle and of her first writing teacher, Jacqueline Woodson. She divides her time between Oakland, California and Warren, Vermont. \n\n=== Document 2: Charles Tazewell ===\nCharles Tazewell (June 2, 1900 \u2013 June 26, 1972) was a radio playwright and children's book author, whose work has been adapted multiple times for film. \n\n=== Document 3: Hank Zipzer's Christmas Catastrophe ===\nHank Zipzer's Christmas Catastrophe is a 2016 stand alone British Christmas movie based on the Hank Zipzer series of books by Henry Winkler and Lin Oliver and the TV series airing on CBBC. The film will be airing on CBBC on 12 December 2016. It is written by Joe Williams and is directed by Matt Bloom. The film is produced by Kindle Entertainment in association with Walker Productions and DHX Media with support from Screen Yorkshire\u2019s Yorkshire Content Fund. It is the fourth movie based on a CBBC programme after \"\", \"Shaun the Sheep Movie\" and \"\". It is the second movie based on a CBBC show, which has not been released in cinemas and only shown on TV after \"\" \n\n=== Document 4: Kraft Suspense Theatre ===\nThe Kraft Suspense Theatre is an American television anthology series that was produced and broadcast from 1963 to 1965 on NBC. Sponsored by Kraft Foods, it was seen three weeks out of every four and was pre-empted for Perry Como's \"Kraft Music Hall\" specials once monthly. Como's production company, Roncom Films, also produced \"Kraft Suspense Theatre.\" (The company name, \"Roncom Films\" stood for \"RONnie COMo,\" Perry's son, who was in his early twenties when this series premiered). Writer, editor, critic and radio playwright Anthony Boucher served as consultant on the series. \n\n=== Document 5: The Small One ===\nThe Small One is a 1978 American animated featurette produced by Walt Disney Productions and released theatrically by Buena Vista Distribution on December 16, 1978 with a Christmas 1978 re-issue of \"Pinocchio\". The story is based on a children's book of the same name by Charles Tazewell and was an experiment for the new generation of Disney animators including Don Bluth, Richard Rich, Henry Selick, Gary Goldman and John Pomeroy. \n\n=== Document 6: The Face on the Milk Carton (film) ===\nThe Face on the Milk Carton is a 1995 made for television movie based on the book written by Caroline B. Cooney. The movie stars Kellie Martin as Jennifer Sands/Janie Jessmon, a 16-year-old girl who finds her face on the back of a milk carton and puts the pieces of her past together. \n\n=== Document 7: Pichilemu Blues ===\nPichilemu Blues is a 1993 book written by Chilean politician Esteban Valenzuela. A movie based on the book was also released, starring Peggy Cordero, Ximena Nogueira and Evaristo Acevedo. \n\n=== Document 8: G\u00e1bor N\u00f3gr\u00e1di ===\nG\u00e1bor N\u00f3gr\u00e1di (born June 22, 1947, Ny\u00edregyh\u00e1za) is a Hungarian book author, screenwriter, playwright, essayist, publicist and poet who is best known for his children's novels such as the \"Pigeon granny\" and \"The story of\" \"Pie (\"original title PetePite\")\", a book which won the 2002 Children's Book of the Year award, was on the IBBY Honor List (International Board for Young People) and was ranked among the 100 most popular books in Hungary in the 2005 'Big Book' competition. \n\n=== Document 9: Randy Romero ===\nRandy Paul Romero (born December 22, 1957 in Erath, Louisiana) is a Hall of Fame jockey in the sport of Thoroughbred horse racing, Born into a family involved with horses, his father Lloyd J. Romero was a Louisiana state trooper who trained American Quarter Horses and later, after a drunk driver crashed into his police car and permanently disabled him, he began training Thoroughbreds for flat racing. The 1978 movie \"Casey's Shadow\" is based on Lloyd Romero and his family. He was elected into the Thoroughbred Racing Hall of Fame May 27, 2010. \n\n=== Document 10: Wilbooks ===\nWilbooks is a children\u2019s book educational publishing company based in West Chester, Pennsylvania. The company was founded by children\u2019s book author Bruce Larkin in 1996. The company publishes fiction, non-fiction, humor, and poetry books geared towards children from Pre-kindergarten to third grade. Wilbooks publishes leveled, educational books with a focus on teaching children how to read. In 2009 Wilbooks (through Bruce Larkin) donated over 500,000 books to schools, teachers, and literacy organizations throughout the United States. \n\n\nProvide your answer based on the information in the supporting documents.",
+      "answer": "Walt Disney Productions",
       "id": "example_25",
       "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In 2000 there were 512,253 households out of which 31.70% had children under the age of 18 living with them, 48.70% were married couples living together, 11.80% had a female householder with no husband present, and 33.70% were non-families. 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older. The average household size was 2.65 and the average family size was 3.17.",
-        "original_question": "which household was most common?",
-        "original_answer_data": {
-          "spans": [
-            "married couples living together"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 508
-      }
-    },
-    {
-      "question": "PASSAGE: On March 26, 2008, Ludia (in connection with Ubisoft) launched The Price Is Right video game for PC. A version for the Wii and Nintendo DS platforms was released in September 2008, while a version for the iOS (Apple) was released in November 2008. The shows announcer, Fields, was the host of the computer version. The virtual set in the game resembles the set used in seasons 31 to 34. Ludia announced that all three platforms will receive a new version of the video game that was previewed at the Target Bullseye Lounge during the Electronic Entertainment Expo trade show on June 2-4, 2009. The Price Is Right 2010 Edition was released on September 22, 2009. In the fall of 2010, Ludia developed a multi-player version for Facebook. A third Ludia adaptation, The Price Is Right Decades, featuring set designs, pricing games and prizes taken from the 1970s through 2000s; was initially released for the Wii in October 2011, with an Xbox 360 and iOS release following in November and December. The Price Is Right 2010 Edition and The Price Is Right Decades have also been released as downloads within the PlayStation Store for the PlayStation 3 in May 2010 and April 2012, respectively. Irwin Toys released an electronic tabletop version in 2008 featuring Contestants Row, the Big Wheel, a physical Plinko board with chips, Showcases and seven pricing games. Jakks Pacific released a Plug It in & Play TV Games version of The Price Is Right in 2009, featuring Carey and Fields.\n\nQUESTION: How many months after the initial release was The Price is Right's new version previewed at the Target Bullseye Lounge?",
-      "answer": "15",
-      "id": "example_26",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "On March 26, 2008, Ludia (in connection with Ubisoft) launched The Price Is Right video game for PC. A version for the Wii and Nintendo DS platforms was released in September 2008, while a version for the iOS (Apple) was released in November 2008. The shows announcer, Fields, was the host of the computer version. The virtual set in the game resembles the set used in seasons 31 to 34. Ludia announced that all three platforms will receive a new version of the video game that was previewed at the Target Bullseye Lounge during the Electronic Entertainment Expo trade show on June 2-4, 2009. The Price Is Right 2010 Edition was released on September 22, 2009. In the fall of 2010, Ludia developed a multi-player version for Facebook. A third Ludia adaptation, The Price Is Right Decades, featuring set designs, pricing games and prizes taken from the 1970s through 2000s; was initially released for the Wii in October 2011, with an Xbox 360 and iOS release following in November and December. The Price Is Right 2010 Edition and The Price Is Right Decades have also been released as downloads within the PlayStation Store for the PlayStation 3 in May 2010 and April 2012, respectively. Irwin Toys released an electronic tabletop version in 2008 featuring Contestants Row, the Big Wheel, a physical Plinko board with chips, Showcases and seven pricing games. Jakks Pacific released a Plug It in & Play TV Games version of The Price Is Right in 2009, featuring Carey and Fields.",
-        "original_question": "How many months after the initial release was The Price is Right's new version previewed at the Target Bullseye Lounge?",
-        "original_answer_data": {
-          "spans": [
-            "15"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 177
-      }
-    },
-    {
-      "question": "PASSAGE: Troops of Montenegro supported the revolt and captured 12 Ottoman soldiers and imprisoned them in Podgorica. The first serious attempt of the Ottoman government to suppress the revolt resulted with the Battle of De\u00e7iq. Terenzio Tocci gathered the Mirdite chieftains on 26 April 1911 in Orosh, proclaimed the independence of Albania, raised the flag of Albania  and established the provisional government. Shefqet Turgut Pasha wanted to meet this threat and returned to the region with 8.000 soldiers. As soon as he reached Shkod\u00ebr on 11 May, he issued a general proclamation which declared martial law and offered an amnesty for all rebels  if they immediately return to their homes. After Ottoman troops entered the area Tocci fled the empire abandoning his activities. On 14 May, three days after his poclamation, Shefqet Turgut Pasha ordered his troops to seize De\u010di\u0107, hill that overlooked Tuzi. Sixty Albanian chieftains rejected Turgut Pasha's proclamation on their meeting in Podgorica on 18 May. After almost a month of intense fightings rebels were trapped and their only choices were either to die fighting, to surrender or to flee to Montenegro. Most of the rebels chose to flee to Montenegro which became a base for large number of rebels determined to attack the Ottoman Empire. Ismail Kemal Bey and Tiranli Cemal bey traveled from Italy to Montenegro at the end of May and met the rebels to convince them to adopt the nationalistic agenda which they eventually did. On 12 June Porte prematurely proclaimed that the revolt had ended.\n\nQUESTION: How many months after the chieftains rejected Turgut Pasha's proclamation did Porte proclaim the revolt had ended?",
-      "answer": "1",
-      "id": "example_27",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Troops of Montenegro supported the revolt and captured 12 Ottoman soldiers and imprisoned them in Podgorica. The first serious attempt of the Ottoman government to suppress the revolt resulted with the Battle of De\u00e7iq. Terenzio Tocci gathered the Mirdite chieftains on 26 April 1911 in Orosh, proclaimed the independence of Albania, raised the flag of Albania  and established the provisional government. Shefqet Turgut Pasha wanted to meet this threat and returned to the region with 8.000 soldiers. As soon as he reached Shkod\u00ebr on 11 May, he issued a general proclamation which declared martial law and offered an amnesty for all rebels  if they immediately return to their homes. After Ottoman troops entered the area Tocci fled the empire abandoning his activities. On 14 May, three days after his poclamation, Shefqet Turgut Pasha ordered his troops to seize De\u010di\u0107, hill that overlooked Tuzi. Sixty Albanian chieftains rejected Turgut Pasha's proclamation on their meeting in Podgorica on 18 May. After almost a month of intense fightings rebels were trapped and their only choices were either to die fighting, to surrender or to flee to Montenegro. Most of the rebels chose to flee to Montenegro which became a base for large number of rebels determined to attack the Ottoman Empire. Ismail Kemal Bey and Tiranli Cemal bey traveled from Italy to Montenegro at the end of May and met the rebels to convince them to adopt the nationalistic agenda which they eventually did. On 12 June Porte prematurely proclaimed that the revolt had ended.",
-        "original_question": "How many months after the chieftains rejected Turgut Pasha's proclamation did Porte proclaim the revolt had ended?",
-        "original_answer_data": {
-          "spans": [
-            "1"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 842
-      }
-    },
-    {
-      "question": "PASSAGE: As of the census of 2000, there were 1,623,018 people, 654,445 households, and 411,645 families residing in the county. The population density was 1,346 people per square mile (520/km\u00b2). There were 741,043 housing units at an average density of 615 per square mile (237/km\u00b2). The racial makeup of the county was 70.57% Race (United States Census) (58% were Non-Hispanic), 20.54% Race (United States Census) or Race (United States Census), 0.24% Race (United States Census), 2.25% Race (United States Census), 0.06% Race (United States Census), 3.00% from Race (United States Census), and 3.35% from two or more races. 16.74% of the population were Race (United States Census) or Race (United States Census) of any race.\n\nQUESTION: which had less, housing units or households?",
-      "answer": "households",
-      "id": "example_28",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "As of the census of 2000, there were 1,623,018 people, 654,445 households, and 411,645 families residing in the county. The population density was 1,346 people per square mile (520/km\u00b2). There were 741,043 housing units at an average density of 615 per square mile (237/km\u00b2). The racial makeup of the county was 70.57% Race (United States Census) (58% were Non-Hispanic), 20.54% Race (United States Census) or Race (United States Census), 0.24% Race (United States Census), 2.25% Race (United States Census), 0.06% Race (United States Census), 3.00% from Race (United States Census), and 3.35% from two or more races. 16.74% of the population were Race (United States Census) or Race (United States Census) of any race.",
-        "original_question": "which had less, housing units or households?",
-        "original_answer_data": {
-          "spans": [
-            "households"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 200
-      }
-    },
-    {
-      "question": "PASSAGE: David Carr threw for 167 yards and ran for 48 more, and the Texans defeated the Jaguars 13-10 to snap a 12-game road losing streak. The Texans upset their AFC South rivals for the second time in four weeks and won on the road for the first time since December 2004. David Garrard, making his third consecutive start in place of Byron Leftwich, was intercepted four times. Two came after Matt Jones bobbled perfect passes. Ernest Wilford also dropped two balls, including a deep one that could have been a touchdown. Carr directed a 70-yard drive to start the game and had two key runs. Wali Lundy scored from 1 yard, then Houston took advantage of Garrard's first turnover to make it 10-0. DeMeco Ryans pressured Garrard and forced a floater over the middle. Morlon Greenwood picked it off, setting up Kris Brown's 25-yard field goal.\n\nQUESTION: How many total points were scored by the end of the game?",
-      "answer": "23",
-      "id": "example_29",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "David Carr threw for 167 yards and ran for 48 more, and the Texans defeated the Jaguars 13-10 to snap a 12-game road losing streak. The Texans upset their AFC South rivals for the second time in four weeks and won on the road for the first time since December 2004. David Garrard, making his third consecutive start in place of Byron Leftwich, was intercepted four times. Two came after Matt Jones bobbled perfect passes. Ernest Wilford also dropped two balls, including a deep one that could have been a touchdown. Carr directed a 70-yard drive to start the game and had two key runs. Wali Lundy scored from 1 yard, then Houston took advantage of Garrard's first turnover to make it 10-0. DeMeco Ryans pressured Garrard and forced a floater over the middle. Morlon Greenwood picked it off, setting up Kris Brown's 25-yard field goal.",
-        "original_question": "How many total points were scored by the end of the game?",
-        "original_answer_data": {
-          "spans": [
-            "23"
-          ],
-          "types": [
-            "number"
-          ]
-        },
-        "line_number": 765
-      }
-    },
-    {
-      "question": "PASSAGE: In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:\n\nQUESTION: King Tancred of Sicily seized power from who?",
-      "answer": "Queen Joan",
-      "id": "example_30",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:",
-        "original_question": "King Tancred of Sicily seized power from who?",
-        "original_answer_data": {
-          "spans": [
-            "Queen Joan"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 909
-      }
-    },
-    {
-      "question": "PASSAGE: In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123\n\nQUESTION: Who had more casualties, the Colonists or the Abenakis?",
-      "answer": "Abenakis",
-      "id": "example_31",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
-        "original_question": "Who had more casualties, the Colonists or the Abenakis?",
-        "original_answer_data": {
-          "spans": [
-            "Abenakis"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 293
-      }
-    },
-    {
-      "question": "PASSAGE: Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.\n\nQUESTION: Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
-      "answer": "Sydney",
-      "id": "example_32",
-      "meta": {
-        "source": "jsonl_dataset",
-        "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
-        "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
-        "original_answer_data": {
-          "spans": [
-            "Sydney"
-          ],
-          "types": [
-            "span"
-          ]
-        },
-        "line_number": 538
+        "source": "hotpotqa",
+        "filename": "hotpotqa/test.json",
+        "type": "bridge",
+        "level": "hard",
+        "original_question": "What company produced the 1978 movie based on a book written by a radio playwright and children's book author born in 1900?",
+        "num_documents": 10
       }
     }
   ],
   "samples_metadata": [
     {
-      "source": "jsonl_dataset",
-      "original_passage": "Frederick had been King of Jerusalem\u2014and as such claimed suzerainty over Cyprus\u2014in right of his wife Isabella II until her death in 1228. That year he arrived first in Cyprus, where he antagonised the nobles, and then in Jerusalem, where he stayed until 1229, leaving in humiliating circumstances after having produced an anti-imperialist reaction in the people. In 1231 he sent Riccardo Filangieri as his marshal. His attempt to assert his authority was opposed by John of Ibelin, the Old Lord of Beirut, who had been regent until Frederick's arrival. On John's death in 1236 the war was taken up by his son Balian. In 1239 Philip of Montfort assumed the leadership of the opposition. Though the ecclesiastical hierarchy and the Knights Templar supported the nobility, the Teutonic Knights and Knights Hospitaller supported Filangieri. In general his rights as regent were recognised but his practical power was denied on the basis of the Assizes and the Haute Cour. His headquarters were in Tyre and he had the allegiance of Bohemond V, Prince of Antioch and Count of Tripoli. He also held the Holy City of Jerusalem itself, which had been negotiated away from the Saracens by Frederick. So long as the Ibelins controlled the opposition, Filangieri could count on the support of their enemies as well. The Italian cities were also divided between the two factions: Pisa supported Filangieri and Genoa the Ibelins. The Ibelins controlled Beirut, Arsuf, and Caesarea as well as the old capital of Acre. In 1231 the citizens of Acre formed a commune with their headquarters at the church of Saint Andrew's in order to unify their opposition to Filangieri. In 1232 John of Ibelin was elected its mayor.",
-      "original_question": "Who died first John of Ibelin or Isabella II?",
-      "original_answer_data": {
-        "spans": [
-          "Isabella II"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 911
+      "source": "hotpotqa",
+      "filename": "hotpotqa/test.json",
+      "type": "bridge",
+      "level": "hard",
+      "original_question": "What group did Carlene LeFevre and Rich LeFevre form in Brooklyn, New York City?",
+      "num_documents": 10
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "The 1991 Washington Redskins season started with a franchise-record 11 straight victories. Also during the season, \"The Hogs (American football)\", under the coaching of Redskins offensive line coach Joe Bugel, allowed a league low and franchise record nine sacks \u2013 the third lowest total in NFL history. The 1991 Redskins offense also dominated under the brilliant coaching of offensive minded head football coach Joe Gibbs scoring 485 points which was the most by any team in the 1991 NFL season. The 1991 Redskins defense was also dominant under the coaching of defensive coordinator and guru Richie Petitbon, giving up only 224 total points which was second best of any team in the NFL in 1991, while also not allowing a single point to opponents in 3 of the 16 games played that season. After posting a 14\u20132 record, the Redskins made and dominated the 1991\u201392 NFL playoffs, beating the 1991 Atlanta Falcons season and 1991 Detroit Lions season by a combined score of 64\u201317.  On January 26, 1992, the Redskins won Super Bowl XXVI by defeating the Buffalo Bills 37\u201324 with Mark Rypien winning the games Super Bowl MVP award. After the Super Bowl, the Redskins set another franchise record by sending eight players to the Pro Bowl. The 1991 Washington Redskins season are widely considered one of the best teams in NFL history.",
-      "original_question": "How many points did the Redskins win Super Bowl XXVI by?",
-      "original_answer_data": {
-        "spans": [
-          "13"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 792
+      "source": "hotpotqa",
+      "filename": "hotpotqa/test.json",
+      "type": "bridge",
+      "level": "hard",
+      "original_question": "Micha\u00ebl Llodra of France, called \"the best volleyer on tour\", defeated Juan Mart\u00edn del Potro a professional of what nationality?",
+      "num_documents": 10
     },
     {
-      "source": "jsonl_dataset",
-      "original_passage": "In 2000 there were 512,253 households out of which 31.70% had children under the age of 18 living with them, 48.70% were married couples living together, 11.80% had a female householder with no husband present, and 33.70% were non-families. 24.50% of all households were made up of individuals and 6.70% had someone living alone who was 65 years of age or older. The average household size was 2.65 and the average family size was 3.17.",
-      "original_question": "which household was most common?",
-      "original_answer_data": {
-        "spans": [
-          "married couples living together"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 508
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "On March 26, 2008, Ludia (in connection with Ubisoft) launched The Price Is Right video game for PC. A version for the Wii and Nintendo DS platforms was released in September 2008, while a version for the iOS (Apple) was released in November 2008. The shows announcer, Fields, was the host of the computer version. The virtual set in the game resembles the set used in seasons 31 to 34. Ludia announced that all three platforms will receive a new version of the video game that was previewed at the Target Bullseye Lounge during the Electronic Entertainment Expo trade show on June 2-4, 2009. The Price Is Right 2010 Edition was released on September 22, 2009. In the fall of 2010, Ludia developed a multi-player version for Facebook. A third Ludia adaptation, The Price Is Right Decades, featuring set designs, pricing games and prizes taken from the 1970s through 2000s; was initially released for the Wii in October 2011, with an Xbox 360 and iOS release following in November and December. The Price Is Right 2010 Edition and The Price Is Right Decades have also been released as downloads within the PlayStation Store for the PlayStation 3 in May 2010 and April 2012, respectively. Irwin Toys released an electronic tabletop version in 2008 featuring Contestants Row, the Big Wheel, a physical Plinko board with chips, Showcases and seven pricing games. Jakks Pacific released a Plug It in & Play TV Games version of The Price Is Right in 2009, featuring Carey and Fields.",
-      "original_question": "How many months after the initial release was The Price is Right's new version previewed at the Target Bullseye Lounge?",
-      "original_answer_data": {
-        "spans": [
-          "15"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 177
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Troops of Montenegro supported the revolt and captured 12 Ottoman soldiers and imprisoned them in Podgorica. The first serious attempt of the Ottoman government to suppress the revolt resulted with the Battle of De\u00e7iq. Terenzio Tocci gathered the Mirdite chieftains on 26 April 1911 in Orosh, proclaimed the independence of Albania, raised the flag of Albania  and established the provisional government. Shefqet Turgut Pasha wanted to meet this threat and returned to the region with 8.000 soldiers. As soon as he reached Shkod\u00ebr on 11 May, he issued a general proclamation which declared martial law and offered an amnesty for all rebels  if they immediately return to their homes. After Ottoman troops entered the area Tocci fled the empire abandoning his activities. On 14 May, three days after his poclamation, Shefqet Turgut Pasha ordered his troops to seize De\u010di\u0107, hill that overlooked Tuzi. Sixty Albanian chieftains rejected Turgut Pasha's proclamation on their meeting in Podgorica on 18 May. After almost a month of intense fightings rebels were trapped and their only choices were either to die fighting, to surrender or to flee to Montenegro. Most of the rebels chose to flee to Montenegro which became a base for large number of rebels determined to attack the Ottoman Empire. Ismail Kemal Bey and Tiranli Cemal bey traveled from Italy to Montenegro at the end of May and met the rebels to convince them to adopt the nationalistic agenda which they eventually did. On 12 June Porte prematurely proclaimed that the revolt had ended.",
-      "original_question": "How many months after the chieftains rejected Turgut Pasha's proclamation did Porte proclaim the revolt had ended?",
-      "original_answer_data": {
-        "spans": [
-          "1"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 842
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "As of the census of 2000, there were 1,623,018 people, 654,445 households, and 411,645 families residing in the county. The population density was 1,346 people per square mile (520/km\u00b2). There were 741,043 housing units at an average density of 615 per square mile (237/km\u00b2). The racial makeup of the county was 70.57% Race (United States Census) (58% were Non-Hispanic), 20.54% Race (United States Census) or Race (United States Census), 0.24% Race (United States Census), 2.25% Race (United States Census), 0.06% Race (United States Census), 3.00% from Race (United States Census), and 3.35% from two or more races. 16.74% of the population were Race (United States Census) or Race (United States Census) of any race.",
-      "original_question": "which had less, housing units or households?",
-      "original_answer_data": {
-        "spans": [
-          "households"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 200
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "David Carr threw for 167 yards and ran for 48 more, and the Texans defeated the Jaguars 13-10 to snap a 12-game road losing streak. The Texans upset their AFC South rivals for the second time in four weeks and won on the road for the first time since December 2004. David Garrard, making his third consecutive start in place of Byron Leftwich, was intercepted four times. Two came after Matt Jones bobbled perfect passes. Ernest Wilford also dropped two balls, including a deep one that could have been a touchdown. Carr directed a 70-yard drive to start the game and had two key runs. Wali Lundy scored from 1 yard, then Houston took advantage of Garrard's first turnover to make it 10-0. DeMeco Ryans pressured Garrard and forced a floater over the middle. Morlon Greenwood picked it off, setting up Kris Brown's 25-yard field goal.",
-      "original_question": "How many total points were scored by the end of the game?",
-      "original_answer_data": {
-        "spans": [
-          "23"
-        ],
-        "types": [
-          "number"
-        ]
-      },
-      "line_number": 765
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In September 1190 Richard and Philip arrived in Sicily. After the death of King William II of Sicily his cousin Tancred had seized power and had been crowned early in 1190 as King Tancred of Sicily, although the legal heir was William's aunt Constance, wife of the new Emperor Henry VI. Tancred had imprisoned William's widow, Queen Joan, who was Richard's sister and did not give her the money she had inherited in William's will. When Richard arrived he demanded that his sister be released and given her inheritance; she was freed on 28 September, but without the inheritance. The presence of foreign troops also caused unrest: in October, the people of Messina revolted, demanding that the foreigners leave. Richard attacked Messina, capturing it on 4 October 1190. After looting and burning the city Richard established his base there, but this created tension between Richard and Philip Augustus. He remained there until Tancred finally agreed to sign a treaty on 4 March 1191. The treaty was signed by Richard, Philip, and Tancred. Its main terms were:",
-      "original_question": "King Tancred of Sicily seized power from who?",
-      "original_answer_data": {
-        "spans": [
-          "Queen Joan"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 909
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "In the second half of 1724, the New Englanders launched an aggressive campaign up the Kennebec and Penobscot rivers.:80 On August 22, Captains Jeremiah Moulton and Johnson Harmon led 200 rangers to Norridgewock to kill Father Rale and destroy the settlement. There were 160 Abenakis, many of whom chose to flee rather than fight. At least 31 chose to fight, and most of them were killed.:80 Rale was killed in the opening moments of the battle, a leading chief was killed, and nearly two dozen women and children.:84 The Colonists had casualties of two militiamen and one Mohawk. Harmon destroyed the Abenaki farms, and those who had escaped were forced to abandon their village and move northward to the Abenaki village of St. Francis and Becancour, Quebec.:81 :123",
-      "original_question": "Who had more casualties, the Colonists or the Abenakis?",
-      "original_answer_data": {
-        "spans": [
-          "Abenakis"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 293
-    },
-    {
-      "source": "jsonl_dataset",
-      "original_passage": "Sydney has been a manufacturing city since the protectionist policies of the 1920s. By 1961 the industry accounted for 39% of all employment and by 1970 over 30% of all Australian manufacturing jobs were in Sydney. Its status has declined in more recent decades, making up 12.6% of employment in 2001 and 8.5% in 2011. Between 1970 and 1985 there was a loss of 180,000 manufacturing jobs. The city is still the largest manufacturing centre in Australia. Its manufacturing output of $21.7 billion in 2013 was greater than that of Melbourne with $18.9 billion. Observers have noted Sydneys focus on the domestic market and high-tech manufacturing as reasons for its resilience against the high Australian dollar of the early 2010s.",
-      "original_question": "Which city had a greater manufacturing outpoint in 2013, Sydney or Melbourne?",
-      "original_answer_data": {
-        "spans": [
-          "Sydney"
-        ],
-        "types": [
-          "span"
-        ]
-      },
-      "line_number": 538
+      "source": "hotpotqa",
+      "filename": "hotpotqa/test.json",
+      "type": "bridge",
+      "level": "hard",
+      "original_question": "What company produced the 1978 movie based on a book written by a radio playwright and children's book author born in 1900?",
+      "num_documents": 10
     }
   ],
   "example_indices": [
     23,
     24,
-    25,
-    26,
-    27,
-    28,
-    29,
-    30,
-    31,
-    32
+    25
   ],
   "results": [
     {
-      "success": true,
-      "answer": "Isabella II died in 1228, while John of Ibelin died in 1236. Therefore, Isabella II died first.",
-      "output": "ANSWER_START\nIsabella II died in 1228, while John of Ibelin died in 1236. Therefore, Isabella II died first.\n\nANSWER_END\n",
+      "success": false,
+      "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+      "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
       "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer states that Isabella II died first, which is the information conveyed by the golden answer (Isabella II)."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The Redskins won Super Bowl XXVI by 13 points, defeating the Buffalo Bills 37-24.",
-      "output": "ANSWER_START\nThe Redskins won Super Bowl XXVI by 13 points, defeating the Buffalo Bills 37-24.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The System answer states that the Redskins won by 13 points, so it includes the correct answer."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "Based on the provided information, the most common household type in 2000 was married-couple households, representing 46.6% of all households.",
-      "output": "ANSWER_START\nBased on the provided information, the most common household type in 2000 was married-couple households, representing 46.6% of all households.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer states that married-couple households were the most common household type, which is semantically equivalent to \"married couples living together\" as the golden answer."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The provided sub-answers fail to accurately extract the necessary information from the passage to answer the question. The dates for the initial release and the preview at the Target Bullseye Lounge are incorrect according to the provided text. Because of this, it's impossible to calculate the number of months between the two events.",
-      "output": "ANSWER_START\nThe provided sub-answers fail to accurately extract the necessary information from the passage to answer the question. The dates for the initial release and the preview at the Target Bullseye Lounge are incorrect according to the provided text. Because of this, it's impossible to calculate the number of months between the two events.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer explicitly states that it cannot calculate the correct answer due to inaccurate information extraction, while the golden answer provides the numerical solution '15'. These answers do not convey the same information."
-      },
       "match": false
     },
     {
-      "success": true,
-      "answer": "Based on the provided information, there is a discrepancy in the dates provided within the sub-answers. The chieftains rejected Turgut Pasha's proclamation on October 18, 1912, while Porte proclaimed the revolt had ended on June 18, 1876. As a result, there is a difference of 36 years and 4 months between the two events.",
-      "output": "ANSWER_START\nBased on the provided information, there is a discrepancy in the dates provided within the sub-answers. The chieftains rejected Turgut Pasha's proclamation on October 18, 1912, while Porte proclaimed the revolt had ended on June 18, 1876. As a result, there is a difference of 36 years and 4 months between the two events.\n\nANSWER_END\n",
+      "success": false,
+      "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+      "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
       "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer provides a detailed explanation of a discrepancy in dates, while the golden answer simply states '1'. These answers do not convey the same information."
-      },
       "match": false
     },
     {
-      "success": true,
-      "answer": "Based on the provided census data, there were 654,445 households and 741,043 housing units in the county. Therefore, households were fewer in number than housing units.",
-      "output": "ANSWER_START\nBased on the provided census data, there were 654,445 households and 741,043 housing units in the county. Therefore, households were fewer in number than housing units.\n\nANSWER_END\n",
+      "success": false,
+      "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+      "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
       "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer explicitly states that households were fewer in number than housing units, which implies the answer 'households'. The golden answer is 'households'. Therefore, they convey the same information."
-      },
-      "match": true
-    },
-    {
-      "success": true,
-      "answer": "The final score of the Texans was 39 and the final score of the Jaguars was 20, for a total of 54 points scored in the game.",
-      "output": "ANSWER_START\nThe final score of the Texans was 39 and the final score of the Jaguars was 20, for a total of 54 points scored in the game.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The golden answer is 23, while the system answer states the Texans scored 39 and the Jaguars scored 20, for a total of 54 points. The system answer does not contain the golden answer."
-      },
       "match": false
-    },
-    {
-      "success": true,
-      "answer": "King Tancred of Sicily seized power from the previous ruler, William II, by seizing the throne after William II's death despite having a weak claim to it.",
-      "output": "ANSWER_START\nKing Tancred of Sicily seized power from the previous ruler, William II, by seizing the throne after William II's death despite having a weak claim to it.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer describes the actions of King Tancred, while the golden answer states Queen Joan. These are different people and different answers."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "The Colonists had more casualties than the Abenakis. The Colonists had around 6,800 casualties, while the number of Abenaki casualties is unknown.",
-      "output": "ANSWER_START\nThe Colonists had more casualties than the Abenakis. The Colonists had around 6,800 casualties, while the number of Abenaki casualties is unknown.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": false,
-        "confidence": 1,
-        "explanation": "The system answer describes the casualties of the colonists and Abenakis, while the golden answer just mentions Abenakis. They don't convey the same information."
-      },
-      "match": false
-    },
-    {
-      "success": true,
-      "answer": "In 2013, Sydney had a manufacturing output of $21.7 billion, while Melbourne's was $18.9 billion. Therefore, Sydney had a greater manufacturing output than Melbourne in 2013.",
-      "output": "ANSWER_START\nIn 2013, Sydney had a manufacturing output of $21.7 billion, while Melbourne's was $18.9 billion. Therefore, Sydney had a greater manufacturing output than Melbourne in 2013.\n\nANSWER_END\n",
-      "trace_file": "archive/trace_iteration_3.jsonl",
-      "evaluation": {
-        "match": true,
-        "confidence": 1,
-        "explanation": "The system answer provides context and reasoning, but ultimately concludes that Sydney had a greater manufacturing output. This aligns with the golden answer, which simply states 'Sydney'."
-      },
-      "match": true
     }
   ],
   "performance": {
-    "accuracy": 0.5,
-    "correct_count": 5,
-    "total_count": 10,
+    "accuracy": 0.0,
+    "correct_count": 0,
+    "total_count": 3,
     "evaluations": [
       {
         "sample_id": 0,
-        "success": true,
-        "system_answer": "Isabella II died in 1228, while John of Ibelin died in 1236. Therefore, Isabella II died first.",
-        "golden_answer": "Isabella II",
-        "output": "ANSWER_START\nIsabella II died in 1228, while John of Ibelin died in 1236. Therefore, Isabella II died first.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer states that Isabella II died first, which is the information conveyed by the golden answer (Isabella II)."
-        }
+        "success": false,
+        "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+        "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
+        "match": false,
+        "capability_failures": [
+          "execution"
+        ]
       },
       {
         "sample_id": 1,
-        "success": true,
-        "system_answer": "The Redskins won Super Bowl XXVI by 13 points, defeating the Buffalo Bills 37-24.",
-        "golden_answer": "13",
-        "output": "ANSWER_START\nThe Redskins won Super Bowl XXVI by 13 points, defeating the Buffalo Bills 37-24.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The System answer states that the Redskins won by 13 points, so it includes the correct answer."
-        }
+        "success": false,
+        "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+        "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
+        "match": false,
+        "capability_failures": [
+          "execution"
+        ]
       },
       {
         "sample_id": 2,
-        "success": true,
-        "system_answer": "Based on the provided information, the most common household type in 2000 was married-couple households, representing 46.6% of all households.",
-        "golden_answer": "married couples living together",
-        "output": "ANSWER_START\nBased on the provided information, the most common household type in 2000 was married-couple households, representing 46.6% of all households.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer states that married-couple households were the most common household type, which is semantically equivalent to \"married couples living together\" as the golden answer."
-        }
-      },
-      {
-        "sample_id": 3,
-        "success": true,
-        "system_answer": "The provided sub-answers fail to accurately extract the necessary information from the passage to answer the question. The dates for the initial release and the preview at the Target Bullseye Lounge are incorrect according to the provided text. Because of this, it's impossible to calculate the number of months between the two events.",
-        "golden_answer": "15",
-        "output": "ANSWER_START\nThe provided sub-answers fail to accurately extract the necessary information from the passage to answer the question. The dates for the initial release and the preview at the Target Bullseye Lounge are incorrect according to the provided text. Because of this, it's impossible to calculate the number of months between the two events.\n\nANSWER_END\n",
+        "success": false,
+        "error": "main() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'",
+        "output": "ERROR_START\nmain() missing 1 required positional argument: 'supporting_documents'\nTraceback (most recent call last):\n  File \"/home/runner/workspace/scripts/test_script_3.py\", line 261, in <module>\n    answer = module.main(question)\n             ^^^^^^^^^^^^^^^^^^^^^\nTypeError: main() missing 1 required positional argument: 'supporting_documents'\n\nERROR_END\n",
         "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer explicitly states that it cannot calculate the correct answer due to inaccurate information extraction, while the golden answer provides the numerical solution '15'. These answers do not convey the same information."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 4,
-        "success": true,
-        "system_answer": "Based on the provided information, there is a discrepancy in the dates provided within the sub-answers. The chieftains rejected Turgut Pasha's proclamation on October 18, 1912, while Porte proclaimed the revolt had ended on June 18, 1876. As a result, there is a difference of 36 years and 4 months between the two events.",
-        "golden_answer": "1",
-        "output": "ANSWER_START\nBased on the provided information, there is a discrepancy in the dates provided within the sub-answers. The chieftains rejected Turgut Pasha's proclamation on October 18, 1912, while Porte proclaimed the revolt had ended on June 18, 1876. As a result, there is a difference of 36 years and 4 months between the two events.\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer provides a detailed explanation of a discrepancy in dates, while the golden answer simply states '1'. These answers do not convey the same information."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 5,
-        "success": true,
-        "system_answer": "Based on the provided census data, there were 654,445 households and 741,043 housing units in the county. Therefore, households were fewer in number than housing units.",
-        "golden_answer": "households",
-        "output": "ANSWER_START\nBased on the provided census data, there were 654,445 households and 741,043 housing units in the county. Therefore, households were fewer in number than housing units.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer explicitly states that households were fewer in number than housing units, which implies the answer 'households'. The golden answer is 'households'. Therefore, they convey the same information."
-        }
-      },
-      {
-        "sample_id": 6,
-        "success": true,
-        "system_answer": "The final score of the Texans was 39 and the final score of the Jaguars was 20, for a total of 54 points scored in the game.",
-        "golden_answer": "23",
-        "output": "ANSWER_START\nThe final score of the Texans was 39 and the final score of the Jaguars was 20, for a total of 54 points scored in the game.\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The golden answer is 23, while the system answer states the Texans scored 39 and the Jaguars scored 20, for a total of 54 points. The system answer does not contain the golden answer."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 7,
-        "success": true,
-        "system_answer": "King Tancred of Sicily seized power from the previous ruler, William II, by seizing the throne after William II's death despite having a weak claim to it.",
-        "golden_answer": "Queen Joan",
-        "output": "ANSWER_START\nKing Tancred of Sicily seized power from the previous ruler, William II, by seizing the throne after William II's death despite having a weak claim to it.\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer describes the actions of King Tancred, while the golden answer states Queen Joan. These are different people and different answers."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 8,
-        "success": true,
-        "system_answer": "The Colonists had more casualties than the Abenakis. The Colonists had around 6,800 casualties, while the number of Abenaki casualties is unknown.",
-        "golden_answer": "Abenakis",
-        "output": "ANSWER_START\nThe Colonists had more casualties than the Abenakis. The Colonists had around 6,800 casualties, while the number of Abenaki casualties is unknown.\n\nANSWER_END\n",
-        "match": false,
-        "evaluation": {
-          "match": false,
-          "confidence": 1,
-          "explanation": "The system answer describes the casualties of the colonists and Abenakis, while the golden answer just mentions Abenakis. They don't convey the same information."
-        },
-        "capability_failures": []
-      },
-      {
-        "sample_id": 9,
-        "success": true,
-        "system_answer": "In 2013, Sydney had a manufacturing output of $21.7 billion, while Melbourne's was $18.9 billion. Therefore, Sydney had a greater manufacturing output than Melbourne in 2013.",
-        "golden_answer": "Sydney",
-        "output": "ANSWER_START\nIn 2013, Sydney had a manufacturing output of $21.7 billion, while Melbourne's was $18.9 billion. Therefore, Sydney had a greater manufacturing output than Melbourne in 2013.\n\nANSWER_END\n",
-        "match": true,
-        "evaluation": {
-          "match": true,
-          "confidence": 1,
-          "explanation": "The system answer provides context and reasoning, but ultimately concludes that Sydney had a greater manufacturing output. This aligns with the golden answer, which simply states 'Sydney'."
-        }
+        "capability_failures": [
+          "execution"
+        ]
       }
     ],
     "error_analysis": {
-      "text_report": "## RUNTIME ERRORS\n\nThere are no explicit runtime errors like JSONDecodeError or TypeError found in the 'output' fields of the error cases. The errors stem from incorrect information extraction and flawed reasoning.\n\n## STRENGTHS\n\n1.  **Successful Information Extraction in Some Cases:** The system correctly extracts and uses information to answer questions in the success cases (e.g., Sample ID 0, 1, 2, 5, 9). It can identify key data points like dates, scores, and quantities within the passage.\n2.  **Logical Reasoning (When Information is Correct):** In success cases, the system demonstrates the ability to perform logical deductions based on the extracted information. For example, in Sample ID 0, it correctly infers who died first based on the dates of death.\n3. **Providing Context and Explanation:** The system often provides a detailed explanation of its reasoning, which aids in debugging. In many of the successful cases, the system not only provides the correct answer, but also outlines the data it used to arrive at that answer.\n\n## WEAKNESSES\n\n1.  **Inaccurate Information Extraction:** Several error cases (e.g., Sample ID 3, 4, 6, 8) are caused by the system extracting incorrect or irrelevant information from the passage. Dates, scores, and quantities are particularly problematic.\n2.  **Poor Numerical Reasoning:** Sample IDs 3 and 6 demonstrate a weakness in performing basic arithmetic calculations. Even when extracting numbers, the system struggles to calculate the correct difference or total.\n3.  **Semantic Understanding and Inference:** The system sometimes fails to correctly understand the relationships between entities and events described in the passage (e.g., Sample ID 7). It may misunderstand who seized power from whom or misinterpret the context of actions.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Information Extraction Accuracy:** The most significant bottleneck is the system's ability to accurately extract the correct and relevant information from the given passage. Errors in this stage cascade into incorrect reasoning and final answers.\n2.  **Numerical Reasoning and Calculation:** Even with correct information extraction, the system struggles to perform simple arithmetic calculations required to answer quantitative questions.\n\n## ERROR PATTERNS\n\n1.  **Date Extraction and Calculation Errors:** Several errors revolve around extracting and calculating differences between dates.\n2.  **Confusion with Pronouns and Relationships:** The system appears to get confused with relationships between different objects/people within the passage. This leads to it answering the wrong question in some situations.\n3.  **Numbers:** System appears to extract the wrong numbers when trying to perform calculations in some cases.\n\n## PRIMARY ISSUE\n\nThe primary issue is **inaccurate information extraction, specifically for dates and numerical values**. This often leads to miscalculations and flawed reasoning, even when the underlying logic is sound.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Extraction:** Improve the accuracy of information extraction, particularly for dates, numbers, and entity relationships.\n2.  **Numerical Reasoning:** Enhance the system's ability to perform basic arithmetic calculations accurately.\n3.  **Contextual Understanding:** Improve the model's ability to perform inference on more complex pronoun resolutions.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Refine Information Extraction Techniques:**\n    *   Implement more robust regular expressions or NLP techniques for date and number extraction.\n    *   Use named entity recognition (NER) models to identify and classify relevant entities (e.g., people, organizations, dates, locations) within the passage.\n    *   Train a separate model specifically for extracting date information.\n2.  **Strengthen Numerical Reasoning Module:**\n    *   Implement a dedicated module for performing numerical calculations.\n    *   Add unit tests to ensure the numerical reasoning module performs correctly.\n    *   Explore using external tools like calculators or symbolic math solvers to improve accuracy.\n3.  **Enhance Semantic Understanding:**\n    *   Use coreference resolution to accurately track entities and their relationships throughout the passage.\n    *   Train the model on a larger dataset of question-answer pairs that require complex reasoning and inference.\n4. Add more print statements and intermediate outputs in your code so that you can see them later to determine why things are going wrong\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 3:** information\\_extraction, solution\\_generation\n*   **Sample ID 4:** information\\_extraction, solution\\_generation\n*   **Sample ID 6:** information\\_extraction, solution\\_generation\n*   **Sample ID 7:** information\\_extraction, decision\\_making\n*   **Sample ID 8:** information\\_extraction, decision\\_making\n",
+      "text_report": "## RUNTIME ERRORS\nThe error message `TypeError: main() missing 1 required positional argument: 'supporting_documents'` appears in all three error cases. This indicates a fundamental issue with how the `main` function is being called in the test script. The function expects two arguments: `question` and `supporting_documents`, but it's only being called with the `question`. This is a straightforward argument mismatch.\n\n## STRENGTHS\nSince there are no success cases, we cannot identify any strengths of the current approach. However, the presence of detailed traceback information is helpful for debugging.\n\n## WEAKNESSES\n1.  **Incorrect Function Call:** The primary weakness is the incorrect way the `main` function is called in the testing script. It's missing the `supporting_documents` argument, leading to a `TypeError`.\n2.  **Lack of Error Handling:** There's no apparent error handling in the code that might catch such argument errors or provide a more informative message before the program crashes.\n3. **Unclear reasoning path**: The system answer and golden answer are empty. The explanation field is also empty which makes debugging and analysis difficult.\n\n## CRITICAL BOTTLENECKS\n1.  **Incorrect Function Signature in Test Script:** The test script is calling the `main` function with an incorrect number of arguments. This is the root cause of all the errors.\n2.  **Lack of Input Validation:** The `main` function (or the code calling it) should ideally validate the inputs it receives.\n\n## ERROR PATTERNS\nThe same `TypeError` occurs in all three error cases, indicating a systemic problem with the test script's invocation of the `main` function.\n\n## PRIMARY ISSUE\nThe most critical problem is the incorrect function call in `test_script_3.py`. The `main` function requires both `question` and `supporting_documents` as arguments, but the script is only passing the `question`.\n\n## IMPROVEMENT AREAS\n1.  **Test Script Correction:** The test script needs to be updated to correctly call the `main` function with both the `question` and `supporting_documents` arguments.\n2.  **Input Validation:** Add input validation in the `main` function to check if both `question` and `supporting_documents` are provided, and raise a more informative error if they are not.\n3. **Add Print Statements for Intermediate outputs**: Print out the question, the supporting documents, and what the system is about to do with them. Also, print out intermediate variables as well to help debug the system.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Modify `test_script_3.py`:**  Change the line `answer = module.main(question)` to `answer = module.main(question, supporting_documents)`. Ensure that `supporting_documents` is properly defined and passed from the test case.\n2.  **Add Input Validation to `main` function:**  Inside the `main` function, add a check like:\n    ```python\n    def main(question, supporting_documents):\n        if not question or not supporting_documents:\n            raise ValueError(\"Both question and supporting_documents must be provided.\")\n        # ... rest of the code ...\n    ```\n3. **Add Print Statements for Intermediate outputs:**\n    ```python\n    def main(question, supporting_documents):\n        print(\"Question:\", question)\n        print(\"Supporting Documents:\", supporting_documents)\n        # ... rest of the code ...\n    ```\n\n## CAPABILITY MAPPING\nAll samples exhibited the same error due to the incorrect function call. Therefore, the capability mapping is identical for all.\n*   **Sample ID 0, 1, 2:** All capabilities (information_extraction, constraint_handling, solution_generation, solution_verification, decision_making) were effectively not tested due to the initial `TypeError`. The program never reached the point where these capabilities could be assessed.\n",
       "strengths": [],
       "weaknesses": [],
-      "primary_issue": "The primary issue is **inaccurate information extraction, specifically for dates and numerical values**. This often leads to miscalculations and flawed reasoning, even when the underlying logic is sound.",
-      "improvement_suggestions": [
-        "Implement more robust regular expressions or NLP techniques for date and number extraction.",
-        "Use named entity recognition (NER) models to identify and classify relevant entities (e.g., people, organizations, dates, locations) within the passage.",
-        "Train a separate model specifically for extracting date information.",
-        "Implement a dedicated module for performing numerical calculations.",
-        "Add unit tests to ensure the numerical reasoning module performs correctly.",
-        "Explore using external tools like calculators or symbolic math solvers to improve accuracy.",
-        "Use coreference resolution to accurately track entities and their relationships throughout the passage.",
-        "Train the model on a larger dataset of question-answer pairs that require complex reasoning and inference."
-      ],
+      "primary_issue": "The most critical problem is the incorrect function call in `test_script_3.py`. The `main` function requires both `question` and `supporting_documents` as arguments, but the script is only passing the `question`.",
+      "improvement_suggestions": [],
       "runtime_errors": []
     },
     "capability_report": {
-      "text_report": "Okay, here's a comprehensive capability report based on the provided information, focusing on actionable insights and improvements.\n\n## EXECUTION ANALYSIS\n\nThe sample execution outputs show a mix of success and failures, reinforcing the error analysis.\n\n*   **Successes (based on provided examples):**  The system can extract simple facts and provide a basic logical deduction when the information is clearly presented and directly answers the question (e.g., Sample ID 0 infers who died first).  The system also demonstrates the ability to format the answer and give context.\n*   **Failures (inferred from Error Analysis and Capability Mapping):** Based on the \"Capability Mapping\" section and the error analysis, we can see that sample IDs 3, 4, 6, 7, and 8 all had issues with `information_extraction` and either `solution_generation` or `decision_making`. Because these errors cascade from `information_extraction`, this means even when the correct information is used, the model cannot always generate the correct response.\n\nThe fact that errors are clustered around `information_extraction` and then propagate to later stages like `solution_generation` or `decision_making` confirms the primary issue identified in the original analysis. The sample outputs further support the need to improve information extraction.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates **limited but promising question-answering capabilities**. It can perform simple information extraction and logical deductions in some cases. However, its accuracy is significantly hampered by inaccurate information extraction and weak numerical reasoning. **Overall, the system is currently unreliable for tasks requiring precise information retrieval or calculation.** The quality of the model's information extraction is inconsistent, and this inconsistency degrades the whole system's ability to correctly respond to questions.\n\n## KEY STRENGTHS\n\n*   **Basic Information Extraction in Ideal Scenarios:** It can correctly identify key data points when they are presented in a straightforward manner within the text.\n*   **Logical Deduction (with correct information):** When it extracts the correct information, it is sometimes able to perform simple logical inferences.\n*   **Contextual Explanation:** It gives explanations and outlines the data it used to arrive at an answer, which allows for debugging and error tracing.\n\n## KEY WEAKNESSES\n\n*   **Inaccurate Information Extraction:** This is the *most* critical weakness.  The system struggles to reliably extract dates, numbers, and relationships between entities.\n*   **Poor Numerical Reasoning:** It struggles with basic arithmetic, even when the necessary numbers are (sometimes) extracted.\n*   **Inconsistent Semantic Understanding:** It misinterprets relationships, pronouns, and the overall context of the text. This is a secondary but still important weakness.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Extraction Accuracy**.  Addressing this bottleneck will have the most significant impact on overall system performance. This is not to say that other areas don't need improvement, but an improvement in information extraction would increase the reliability of all future steps.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Dedicated Information Extraction Module:**\n    *   **Details:** Create a separate module specifically for information extraction.  This module should be designed with modularity in mind so that different extraction strategies can be easily swapped in and out.\n    *   **Rationale:** Isolating information extraction allows for focused development, testing, and optimization.  It also enables the use of specialized tools and techniques.\n2.  **Develop a Date Extraction Model:**\n    *   **Details:** Train a new model or fine-tune an existing model specifically to extract date information in various formats.\n    *   **Rationale:** Dates are a recurring source of errors. A dedicated model can improve accuracy and robustness.\n3.  **Improve Numerical Extraction with Type Checking and Regular Expressions:**\n    *   **Details:**  Enhance numerical extraction to include type checking. For example, if the question asks for a number of points, the extraction should filter for numerical values related to scores. Use more sophisticated regular expressions to handle different number formats (e.g., percentages, decimals, currency).\n    *   **Rationale:** The current system often extracts incorrect numbers. Improved filtering and formatting will increase accuracy.\n4.  **Introduce Unit Tests for Numerical Reasoning:**\n    *   **Details:** Create a comprehensive suite of unit tests for the numerical reasoning module.  These tests should cover a wide range of arithmetic operations and edge cases.\n    *   **Rationale:** Unit tests will ensure the reliability and accuracy of the numerical reasoning module.\n5. **Add Error Logging:**\n    *   **Details:** Log every step of the execution process, so that you can later investigate and correct errors.\n\n## CAPABILITY TREND\n\nBased on the performance summary (50% accuracy) and the error analysis, it is difficult to determine if the capabilities are trending up, down or stable. You'd need previous scores to compare against. However, given the specific issues identified, **without targeted improvements, the capabilities are likely to remain stable at a low level of performance or even decline** as the complexity of the tasks increases. Focused improvement on the information extraction is the key to seeing upward trending capabilities.\n",
+      "text_report": "## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe raw execution outputs consistently show the same `TypeError: main() missing 1 required positional argument: 'supporting_documents'`. This indicates a fundamental flaw in the test script (`test_script_3.py`) where the `main` function is being called incorrectly. The function requires both `question` and `supporting_documents`, but the test script only provides the `question` argument. This prevents the AI system from being properly tested, rendering all further analysis moot until this core issue is resolved. Because the `main` function is never correctly called, the system's core capabilities were never tested. This makes it impossible to evaluate information extraction, constraint handling, solution generation, or any other high-level functions.\n\n### CAPABILITY ASSESSMENT\n\nDue to the consistent `TypeError`, it's impossible to accurately assess the system's capabilities. The system is not even able to begin processing the input because of the error in the test script.  Therefore, any perceived lack of capability is currently masked by this fundamental error. Until the `test_script_3.py` is corrected, any statements about information extraction, reasoning abilities, or the system's general performance would be purely speculative.\n\n### KEY STRENGTHS\n\nThe only strength currently apparent is the clear and informative traceback provided by Python. This allows for rapid identification of the root cause of the error.\n\n### KEY WEAKNESSES\n\n1.  **Test Script Error:** The primary weakness is the error in `test_script_3.py` which prevents the `main` function from being called correctly. This is a critical blocker.\n2.  **Lack of Robustness in `main`:** Although the test script is at fault, ideally, the `main` function (or the code immediately calling it) should include some basic input validation. This would provide a more informative error message and potentially prevent the crash.\n3. **Lack of Output**: The system provided no explanation or answer, this limits understanding of the system's execution.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on is **correcting the test script** to properly call the `main` function with the correct arguments. This is a prerequisite for any further capability assessment or improvement.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Modify `test_script_3.py`:**\n    *   Find the line `answer = module.main(question)` and change it to `answer = module.main(question, supporting_documents)`.\n    *   Ensure that `supporting_documents` is defined and populated with the appropriate data *before* this line. Example: `supporting_documents = \"Example supporting text for the question.\"` or retrieve it from a file or variable.\n2.  **Add Input Validation to `main` function:**\n    *   Inside the `main` function, add a check like:\n        ```python\n        def main(question, supporting_documents):\n            if not question or not supporting_documents:\n                raise ValueError(\"Both question and supporting_documents must be provided.\")\n            # ... rest of the code ...\n        ```\n    *   This will provide a more informative error message if the function is called incorrectly again in the future.\n3.  **Add Print Statements for Intermediate outputs:**\n    * Add the following print statements at the top of the `main` function:\n        ```python\n        def main(question, supporting_documents):\n            print(\"Question:\", question)\n            print(\"Supporting Documents:\", supporting_documents)\n            # ... rest of the code ...\n        ```\n\n### CAPABILITY TREND\n\nCurrently, the capability trend is **stable at zero**. No actual functionality is being tested, so there is no improvement or decline. After the test script is fixed, the trend can be properly assessed in the next iteration.\n",
       "strengths": [],
       "weaknesses": [],
-      "improvement_suggestions": [
-        "Implement more robust regular expressions or NLP techniques for date and number extraction.",
-        "Use named entity recognition (NER) models to identify and classify relevant entities (e.g., people, organizations, dates, locations) within the passage.",
-        "Train a separate model specifically for extracting date information.",
-        "Implement a dedicated module for performing numerical calculations.",
-        "Add unit tests to ensure the numerical reasoning module performs correctly.",
-        "Explore using external tools like calculators or symbolic math solvers to improve accuracy.",
-        "Use coreference resolution to accurately track entities and their relationships throughout the passage.",
-        "Train the model on a larger dataset of question-answer pairs that require complex reasoning and inference."
-      ],
+      "improvement_suggestions": [],
       "runtime_errors": []
     },
-    "error_analysis_text": "## RUNTIME ERRORS\n\nThere are no explicit runtime errors like JSONDecodeError or TypeError found in the 'output' fields of the error cases. The errors stem from incorrect information extraction and flawed reasoning.\n\n## STRENGTHS\n\n1.  **Successful Information Extraction in Some Cases:** The system correctly extracts and uses information to answer questions in the success cases (e.g., Sample ID 0, 1, 2, 5, 9). It can identify key data points like dates, scores, and quantities within the passage.\n2.  **Logical Reasoning (When Information is Correct):** In success cases, the system demonstrates the ability to perform logical deductions based on the extracted information. For example, in Sample ID 0, it correctly infers who died first based on the dates of death.\n3. **Providing Context and Explanation:** The system often provides a detailed explanation of its reasoning, which aids in debugging. In many of the successful cases, the system not only provides the correct answer, but also outlines the data it used to arrive at that answer.\n\n## WEAKNESSES\n\n1.  **Inaccurate Information Extraction:** Several error cases (e.g., Sample ID 3, 4, 6, 8) are caused by the system extracting incorrect or irrelevant information from the passage. Dates, scores, and quantities are particularly problematic.\n2.  **Poor Numerical Reasoning:** Sample IDs 3 and 6 demonstrate a weakness in performing basic arithmetic calculations. Even when extracting numbers, the system struggles to calculate the correct difference or total.\n3.  **Semantic Understanding and Inference:** The system sometimes fails to correctly understand the relationships between entities and events described in the passage (e.g., Sample ID 7). It may misunderstand who seized power from whom or misinterpret the context of actions.\n\n## CRITICAL BOTTLENECKS\n\n1.  **Information Extraction Accuracy:** The most significant bottleneck is the system's ability to accurately extract the correct and relevant information from the given passage. Errors in this stage cascade into incorrect reasoning and final answers.\n2.  **Numerical Reasoning and Calculation:** Even with correct information extraction, the system struggles to perform simple arithmetic calculations required to answer quantitative questions.\n\n## ERROR PATTERNS\n\n1.  **Date Extraction and Calculation Errors:** Several errors revolve around extracting and calculating differences between dates.\n2.  **Confusion with Pronouns and Relationships:** The system appears to get confused with relationships between different objects/people within the passage. This leads to it answering the wrong question in some situations.\n3.  **Numbers:** System appears to extract the wrong numbers when trying to perform calculations in some cases.\n\n## PRIMARY ISSUE\n\nThe primary issue is **inaccurate information extraction, specifically for dates and numerical values**. This often leads to miscalculations and flawed reasoning, even when the underlying logic is sound.\n\n## IMPROVEMENT AREAS\n\n1.  **Information Extraction:** Improve the accuracy of information extraction, particularly for dates, numbers, and entity relationships.\n2.  **Numerical Reasoning:** Enhance the system's ability to perform basic arithmetic calculations accurately.\n3.  **Contextual Understanding:** Improve the model's ability to perform inference on more complex pronoun resolutions.\n\n## IMPROVEMENT SUGGESTIONS\n\n1.  **Refine Information Extraction Techniques:**\n    *   Implement more robust regular expressions or NLP techniques for date and number extraction.\n    *   Use named entity recognition (NER) models to identify and classify relevant entities (e.g., people, organizations, dates, locations) within the passage.\n    *   Train a separate model specifically for extracting date information.\n2.  **Strengthen Numerical Reasoning Module:**\n    *   Implement a dedicated module for performing numerical calculations.\n    *   Add unit tests to ensure the numerical reasoning module performs correctly.\n    *   Explore using external tools like calculators or symbolic math solvers to improve accuracy.\n3.  **Enhance Semantic Understanding:**\n    *   Use coreference resolution to accurately track entities and their relationships throughout the passage.\n    *   Train the model on a larger dataset of question-answer pairs that require complex reasoning and inference.\n4. Add more print statements and intermediate outputs in your code so that you can see them later to determine why things are going wrong\n\n## CAPABILITY MAPPING\n\n*   **Sample ID 3:** information\\_extraction, solution\\_generation\n*   **Sample ID 4:** information\\_extraction, solution\\_generation\n*   **Sample ID 6:** information\\_extraction, solution\\_generation\n*   **Sample ID 7:** information\\_extraction, decision\\_making\n*   **Sample ID 8:** information\\_extraction, decision\\_making\n",
-    "capability_report_text": "Okay, here's a comprehensive capability report based on the provided information, focusing on actionable insights and improvements.\n\n## EXECUTION ANALYSIS\n\nThe sample execution outputs show a mix of success and failures, reinforcing the error analysis.\n\n*   **Successes (based on provided examples):**  The system can extract simple facts and provide a basic logical deduction when the information is clearly presented and directly answers the question (e.g., Sample ID 0 infers who died first).  The system also demonstrates the ability to format the answer and give context.\n*   **Failures (inferred from Error Analysis and Capability Mapping):** Based on the \"Capability Mapping\" section and the error analysis, we can see that sample IDs 3, 4, 6, 7, and 8 all had issues with `information_extraction` and either `solution_generation` or `decision_making`. Because these errors cascade from `information_extraction`, this means even when the correct information is used, the model cannot always generate the correct response.\n\nThe fact that errors are clustered around `information_extraction` and then propagate to later stages like `solution_generation` or `decision_making` confirms the primary issue identified in the original analysis. The sample outputs further support the need to improve information extraction.\n\n## CAPABILITY ASSESSMENT\n\nThe AI system demonstrates **limited but promising question-answering capabilities**. It can perform simple information extraction and logical deductions in some cases. However, its accuracy is significantly hampered by inaccurate information extraction and weak numerical reasoning. **Overall, the system is currently unreliable for tasks requiring precise information retrieval or calculation.** The quality of the model's information extraction is inconsistent, and this inconsistency degrades the whole system's ability to correctly respond to questions.\n\n## KEY STRENGTHS\n\n*   **Basic Information Extraction in Ideal Scenarios:** It can correctly identify key data points when they are presented in a straightforward manner within the text.\n*   **Logical Deduction (with correct information):** When it extracts the correct information, it is sometimes able to perform simple logical inferences.\n*   **Contextual Explanation:** It gives explanations and outlines the data it used to arrive at an answer, which allows for debugging and error tracing.\n\n## KEY WEAKNESSES\n\n*   **Inaccurate Information Extraction:** This is the *most* critical weakness.  The system struggles to reliably extract dates, numbers, and relationships between entities.\n*   **Poor Numerical Reasoning:** It struggles with basic arithmetic, even when the necessary numbers are (sometimes) extracted.\n*   **Inconsistent Semantic Understanding:** It misinterprets relationships, pronouns, and the overall context of the text. This is a secondary but still important weakness.\n\n## IMPROVEMENT FOCUS\n\nThe single most important capability to focus on improving is **Information Extraction Accuracy**.  Addressing this bottleneck will have the most significant impact on overall system performance. This is not to say that other areas don't need improvement, but an improvement in information extraction would increase the reliability of all future steps.\n\n## ACTIONABLE RECOMMENDATIONS\n\n1.  **Implement a Dedicated Information Extraction Module:**\n    *   **Details:** Create a separate module specifically for information extraction.  This module should be designed with modularity in mind so that different extraction strategies can be easily swapped in and out.\n    *   **Rationale:** Isolating information extraction allows for focused development, testing, and optimization.  It also enables the use of specialized tools and techniques.\n2.  **Develop a Date Extraction Model:**\n    *   **Details:** Train a new model or fine-tune an existing model specifically to extract date information in various formats.\n    *   **Rationale:** Dates are a recurring source of errors. A dedicated model can improve accuracy and robustness.\n3.  **Improve Numerical Extraction with Type Checking and Regular Expressions:**\n    *   **Details:**  Enhance numerical extraction to include type checking. For example, if the question asks for a number of points, the extraction should filter for numerical values related to scores. Use more sophisticated regular expressions to handle different number formats (e.g., percentages, decimals, currency).\n    *   **Rationale:** The current system often extracts incorrect numbers. Improved filtering and formatting will increase accuracy.\n4.  **Introduce Unit Tests for Numerical Reasoning:**\n    *   **Details:** Create a comprehensive suite of unit tests for the numerical reasoning module.  These tests should cover a wide range of arithmetic operations and edge cases.\n    *   **Rationale:** Unit tests will ensure the reliability and accuracy of the numerical reasoning module.\n5. **Add Error Logging:**\n    *   **Details:** Log every step of the execution process, so that you can later investigate and correct errors.\n\n## CAPABILITY TREND\n\nBased on the performance summary (50% accuracy) and the error analysis, it is difficult to determine if the capabilities are trending up, down or stable. You'd need previous scores to compare against. However, given the specific issues identified, **without targeted improvements, the capabilities are likely to remain stable at a low level of performance or even decline** as the complexity of the tasks increases. Focused improvement on the information extraction is the key to seeing upward trending capabilities.\n"
+    "error_analysis_text": "## RUNTIME ERRORS\nThe error message `TypeError: main() missing 1 required positional argument: 'supporting_documents'` appears in all three error cases. This indicates a fundamental issue with how the `main` function is being called in the test script. The function expects two arguments: `question` and `supporting_documents`, but it's only being called with the `question`. This is a straightforward argument mismatch.\n\n## STRENGTHS\nSince there are no success cases, we cannot identify any strengths of the current approach. However, the presence of detailed traceback information is helpful for debugging.\n\n## WEAKNESSES\n1.  **Incorrect Function Call:** The primary weakness is the incorrect way the `main` function is called in the testing script. It's missing the `supporting_documents` argument, leading to a `TypeError`.\n2.  **Lack of Error Handling:** There's no apparent error handling in the code that might catch such argument errors or provide a more informative message before the program crashes.\n3. **Unclear reasoning path**: The system answer and golden answer are empty. The explanation field is also empty which makes debugging and analysis difficult.\n\n## CRITICAL BOTTLENECKS\n1.  **Incorrect Function Signature in Test Script:** The test script is calling the `main` function with an incorrect number of arguments. This is the root cause of all the errors.\n2.  **Lack of Input Validation:** The `main` function (or the code calling it) should ideally validate the inputs it receives.\n\n## ERROR PATTERNS\nThe same `TypeError` occurs in all three error cases, indicating a systemic problem with the test script's invocation of the `main` function.\n\n## PRIMARY ISSUE\nThe most critical problem is the incorrect function call in `test_script_3.py`. The `main` function requires both `question` and `supporting_documents` as arguments, but the script is only passing the `question`.\n\n## IMPROVEMENT AREAS\n1.  **Test Script Correction:** The test script needs to be updated to correctly call the `main` function with both the `question` and `supporting_documents` arguments.\n2.  **Input Validation:** Add input validation in the `main` function to check if both `question` and `supporting_documents` are provided, and raise a more informative error if they are not.\n3. **Add Print Statements for Intermediate outputs**: Print out the question, the supporting documents, and what the system is about to do with them. Also, print out intermediate variables as well to help debug the system.\n\n## IMPROVEMENT SUGGESTIONS\n1.  **Modify `test_script_3.py`:**  Change the line `answer = module.main(question)` to `answer = module.main(question, supporting_documents)`. Ensure that `supporting_documents` is properly defined and passed from the test case.\n2.  **Add Input Validation to `main` function:**  Inside the `main` function, add a check like:\n    ```python\n    def main(question, supporting_documents):\n        if not question or not supporting_documents:\n            raise ValueError(\"Both question and supporting_documents must be provided.\")\n        # ... rest of the code ...\n    ```\n3. **Add Print Statements for Intermediate outputs:**\n    ```python\n    def main(question, supporting_documents):\n        print(\"Question:\", question)\n        print(\"Supporting Documents:\", supporting_documents)\n        # ... rest of the code ...\n    ```\n\n## CAPABILITY MAPPING\nAll samples exhibited the same error due to the incorrect function call. Therefore, the capability mapping is identical for all.\n*   **Sample ID 0, 1, 2:** All capabilities (information_extraction, constraint_handling, solution_generation, solution_verification, decision_making) were effectively not tested due to the initial `TypeError`. The program never reached the point where these capabilities could be assessed.\n",
+    "capability_report_text": "## CAPABILITY ASSESSMENT REPORT\n\n### EXECUTION ANALYSIS\n\nThe raw execution outputs consistently show the same `TypeError: main() missing 1 required positional argument: 'supporting_documents'`. This indicates a fundamental flaw in the test script (`test_script_3.py`) where the `main` function is being called incorrectly. The function requires both `question` and `supporting_documents`, but the test script only provides the `question` argument. This prevents the AI system from being properly tested, rendering all further analysis moot until this core issue is resolved. Because the `main` function is never correctly called, the system's core capabilities were never tested. This makes it impossible to evaluate information extraction, constraint handling, solution generation, or any other high-level functions.\n\n### CAPABILITY ASSESSMENT\n\nDue to the consistent `TypeError`, it's impossible to accurately assess the system's capabilities. The system is not even able to begin processing the input because of the error in the test script.  Therefore, any perceived lack of capability is currently masked by this fundamental error. Until the `test_script_3.py` is corrected, any statements about information extraction, reasoning abilities, or the system's general performance would be purely speculative.\n\n### KEY STRENGTHS\n\nThe only strength currently apparent is the clear and informative traceback provided by Python. This allows for rapid identification of the root cause of the error.\n\n### KEY WEAKNESSES\n\n1.  **Test Script Error:** The primary weakness is the error in `test_script_3.py` which prevents the `main` function from being called correctly. This is a critical blocker.\n2.  **Lack of Robustness in `main`:** Although the test script is at fault, ideally, the `main` function (or the code immediately calling it) should include some basic input validation. This would provide a more informative error message and potentially prevent the crash.\n3. **Lack of Output**: The system provided no explanation or answer, this limits understanding of the system's execution.\n\n### IMPROVEMENT FOCUS\n\nThe single most important capability to focus on is **correcting the test script** to properly call the `main` function with the correct arguments. This is a prerequisite for any further capability assessment or improvement.\n\n### ACTIONABLE RECOMMENDATIONS\n\n1.  **Modify `test_script_3.py`:**\n    *   Find the line `answer = module.main(question)` and change it to `answer = module.main(question, supporting_documents)`.\n    *   Ensure that `supporting_documents` is defined and populated with the appropriate data *before* this line. Example: `supporting_documents = \"Example supporting text for the question.\"` or retrieve it from a file or variable.\n2.  **Add Input Validation to `main` function:**\n    *   Inside the `main` function, add a check like:\n        ```python\n        def main(question, supporting_documents):\n            if not question or not supporting_documents:\n                raise ValueError(\"Both question and supporting_documents must be provided.\")\n            # ... rest of the code ...\n        ```\n    *   This will provide a more informative error message if the function is called incorrectly again in the future.\n3.  **Add Print Statements for Intermediate outputs:**\n    * Add the following print statements at the top of the `main` function:\n        ```python\n        def main(question, supporting_documents):\n            print(\"Question:\", question)\n            print(\"Supporting Documents:\", supporting_documents)\n            # ... rest of the code ...\n        ```\n\n### CAPABILITY TREND\n\nCurrently, the capability trend is **stable at zero**. No actual functionality is being tested, so there is no improvement or decline. After the test script is fixed, the trend can be properly assessed in the next iteration.\n"
   },
   "progressive_testing": null,
-  "execution_time": 73.14289331436157,
+  "execution_time": 49.79896521568298,
   "capability_report": {
     "text_report": "No report available",
     "strengths": [],

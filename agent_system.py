@@ -2971,9 +2971,6 @@ from openai import OpenAI
 # Add the scripts directory to the path
 sys.path.append("{self.scripts_dir}")
 
-# Ensure the Gemini API key is available to the script
-os.environ["GEMINI_API_KEY"] = "{os.environ.get('GEMINI_API_KEY')}"
-
 # Configure tracing
 trace_file = "{trace_file}"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)

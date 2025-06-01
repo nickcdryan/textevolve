@@ -1,8 +1,8 @@
 import os
-import re
-import math
 from google import genai
 from google.genai import types
+
+# REFINEMENT HYPOTHESIS: The baseline script sometimes fails to extract the correct answer because it doesn't have enough context or reasoning steps. I will improve the baseline script by adding a chain-of-thought approach, providing multiple examples of how to reason through the question, and extracting relevant information from the supporting documents before answering the question. This will improve the accuracy of the script by providing the LLM with more context and guidance.
 
 def call_llm(prompt, system_instruction=None):
     """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
@@ -33,90 +33,71 @@ def call_llm(prompt, system_instruction=None):
         print(f"Error calling Gemini API: {str(e)}")
         return f"Error: {str(e)}"
 
-def main(question):
+def main(question, supporting_documents):
     """
-    This script uses a fact-verification with self-correction approach.
-    HYPOTHESIS: Implement a robust fact-verification stage using external knowledge and leverage self-correction capabilities to improve accuracy.
-    This approach uses a main LLM call for generating an initial answer, then uses a separate LLM call to verify facts in that answer against the passage and a broader knowledge set.
+    Improved script: Adds a chain-of-thought approach, provides multiple examples,
+    and extracts relevant information before answering.
     """
+    system_instruction = "You are a helpful assistant. Answer the question directly and concisely based on the information provided in the supporting documents. Use chain-of-thought reasoning to explain your answer."
 
-    # Step 1: Initial Answer Generation
-    initial_prompt = f"""
-    Provide a concise answer to the question based on the provided text.
+    # Chain-of-thought prompt with multiple examples
+    prompt = f"""
+    You are given a question and a set of supporting documents. Use the information in the documents to answer the question. Explain your reasoning step by step.
 
     Example 1:
-    Question: Which player kicked the only field goal of the game?
-    Answer: Josh Scobee
+    Question: What group did Carlene LeFevre and Rich LeFevre form in Brooklyn, New York City?
+    Supporting Documents:
+    === Document 1: Carlene LeFevre ===
+    Carlene LeFevre is a competitive eater from Henderson, Nevada. She and her husband, Rich LeFevre, are said to form the "First Family of Competitive Eating" in spite of having normal weights and ages around 60, and are both top ranked members of the International Federation of Competitive Eating.
+    === Document 2: Nathan's Hot Dog Eating Contest ===
+    The Nathan's Hot Dog Eating Contest is an annual American hot dog competitive eating competition. It is held each year on Independence Day at Nathan's Famous Corporation's original, and best-known restaurant at the corner of Surf and Stillwell Avenues in Coney Island, a neighborhood of Brooklyn, New York City.
+    Reasoning:
+    1. The question asks about a group formed by Carlene and Rich LeFevre in Brooklyn.
+    2. Document 1 mentions that Carlene and Rich LeFevre are said to form the "First Family of Competitive Eating".
+    3. Document 2 mentions that the Nathan's Hot Dog Eating Contest is held in Brooklyn.
+    4. Therefore, the group formed by Carlene and Rich LeFevre is likely related to competitive eating and located in Brooklyn.
+    Answer: the "First Family of Competitive Eating"
 
     Example 2:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Answer: Gliese 915
+    Question: Michaël Llodra of France, called "the best volleyer on tour", defeated Juan Martín del Potro a professional of what nationality?
+    Supporting Documents:
+    === Document 1: Juan Martín del Potro ===
+    Juan Martín del Potro (born 23 September 1988), also known as Delpo is an Argentinian professional tennis player
+    === Document 2: Michaël Llodra ===
+    Michaël Llodra (born 18 May 1980) is a French former professional tennis player. He is a successful doubles player with three Grand Slam championships and an Olympic silver medal, and has also had success in singles, winning five career titles and gaining victories over Novak Djokovic, Juan Martín del Potro
+    Reasoning:
+    1. The question asks for the nationality of Juan Martín del Potro.
+    2. Document 1 explicitly states that Juan Martín del Potro is an Argentinian professional tennis player.
+    Answer: Argentinian
+
+    Example 3:
+    Question: What animated movie, starring Danny Devito, featured music written and produced by Kool Kojak?
+    Supporting Documents:
+    === Document 1: Kool Kojak ===
+    Allan P. Grigg, better known by his stage name Kool Kojak and stylized as "KoOoLkOjAk", is an American musician, songwriter, record producer, film director, and artist notable for co-writing and co-producing Flo Rida's #1 Billboard hit single "Right Round", Nicki Minaj's hit single "Va Va Voom" , and Ke$ha's top 10 single "Blow".
+    === Document 2: The Lorax (film) ===
+    The Lorax (also known as Dr. Seuss' The Lorax) is a 2012 American 3D computer-animated musical fantasy–comedy film produced by Illumination Entertainment and based on Dr. Seuss's children's book of the same name. The cast includes Danny DeVito as the Lorax
+    Reasoning:
+    1. The question asks about an animated movie starring Danny DeVito with music by Kool Kojak.
+    2. Document 2 mentions that Danny DeVito stars in the animated movie "The Lorax".
+    3. Document 1 doesn't say Kool Kojak wrote music for that particular movie. Look for the movie in the other documents.
+    4. After searching, the only possible answer is The Lorax.
+    Answer: The Lorax
 
     Question: {question}
-    Answer:
-    """
-    try:
-        initial_answer = call_llm(initial_prompt, "You are a precise information retriever.")
-        initial_answer = initial_answer.strip()
-    except Exception as e:
-        print(f"Error generating initial answer: {e}")
-        return "Error generating initial answer."
-
-    # Step 2: Fact Verification and Self-Correction
-    verification_prompt = f"""
-    Analyze the answer for factual correctness against the original question and a broader knowledge base.
-    Identify any inaccuracies or inconsistencies. If the answer is incorrect, provide a corrected answer using the available information.
-
-    Example 1:
-    Question: Which player kicked the only field goal of the game?
-    Proposed Answer: Tom Brady
-    Analysis: Tom Brady is a quarterback, not a kicker. A more likely answer based on the context is a kicker like Josh Scobee. The passage will also be searched to verify this information.
-    Corrected Answer: Josh Scobee
-
-    Example 2:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Proposed Answer: Gliese 915
-    Analysis: The answer is correct. Gliese 915 is a white dwarf and known to have less mass than Nu Phoenicis based on general astronomical knowledge.
-    Corrected Answer: Gliese 915
-
-    Question: {question}
-    Proposed Answer: {initial_answer}
-    Analysis:
-    """
-    try:
-        verification_response = call_llm(verification_prompt, "You are a fact-checker and self-correction expert.")
-        # Attempt to extract the corrected answer; if impossible, stick with the initial answer
-        if "Corrected Answer:" in verification_response:
-          corrected_answer = verification_response.split("Corrected Answer:")[-1].strip()
-        else:
-          corrected_answer = initial_answer
-    except Exception as e:
-        print(f"Error during fact verification: {e}")
-        corrected_answer = initial_answer # Fallback in case verification fails
-
-    # Step 3: Final Output Validation (Ensure it's concise)
-    final_validation_prompt = f"""
-    Validate if the final answer is concise and accurately answers the question. Return the answer or a more concise version.
-
-    Example 1:
-    Question: Which player kicked the only field goal of the game?
-    Proposed Answer: Josh Scobee was the player
-    Final Answer: Josh Scobee
-
-    Example 2:
-    Question: Which star has a smaller mass, Nu Phoenicis or Gliese 915?
-    Proposed Answer: Gliese 915, the white dwarf star.
-    Final Answer: Gliese 915
-
-    Question: {question}
-    Proposed Answer: {corrected_answer}
-    Final Answer:
+    Supporting Documents:
+    {supporting_documents}
+    Reasoning:
     """
 
-    try:
-        final_answer = call_llm(final_validation_prompt, "You are a validator for concise answers.")
-        final_answer = final_answer.strip()
-        return final_answer
-    except Exception as e:
-        print(f"Error validating final answer: {e}")
-        return corrected_answer # As a final safety
+    # Direct call to LLM with chain-of-thought prompt
+    answer = call_llm(prompt, system_instruction)
+
+    # Verification (simple check for non-empty answer)
+    if not answer:
+        answer = "Could not determine the answer from the provided documents."
+        print("Verification failed: LLM returned an empty response.")  # Debug output
+    else:
+        print("Verification passed: LLM returned a non-empty response.") # Debug output
+
+    return answer
