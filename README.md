@@ -1,6 +1,14 @@
 # TextEvolve
 
+![TextEvolve Overview](images/textevolve_diagram.png)
+
 An advanced AI system that uses LLM-driven reasoning to iteratively improve its approach to solving problems from datasets. The system employs dynamic exploration/exploitation strategies and adapts its approach based on performance feedback.
+
+## 📄 Paper & Demo
+
+**📖 Read the Paper:** [TextEvolve: LLM-Driven Iterative Problem Solving](https://drive.google.com/file/d/11ZOOjVJeDfmoP1-sabi8lVWO9UEifZlP/view?usp=sharing)
+
+**🎥 Watch the Demo:** [YouTube](https://youtu.be/QS-Mzb7P_9w)
 
 ## 🚀 Quick Start
 
