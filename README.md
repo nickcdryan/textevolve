@@ -1,249 +1,304 @@
-# Improved Agentic Learning System
+# TextEvolve
 
-This system uses LLM-driven reasoning to iteratively improve its approach to solving problems from a dataset. It employs a dynamic exploration/exploitation strategy and adapts its testing approach based on performance.
+An advanced AI system that uses LLM-driven reasoning to iteratively improve its approach to solving problems from datasets. The system employs dynamic exploration/exploitation strategies and adapts its approach based on performance feedback.
 
-## Key Features
+## 🚀 Quick Start
 
-### 1. Example Rotation and Progressive Testing
-
-- The system works through dataset examples sequentially, encountering new examples with each iteration
-- It starts with small batch sizes (5 examples) and gradually increases as performance improves
-- For promising scripts, it runs "progressive testing" on all previously seen examples to verify robustness
-
-### 2. LLM-Driven Decision Making
-
-- Batch size adjustment is determined by LLM reasoning about performance trends
-- Explore/exploit balance is adapted based on LLM analysis of accuracy and coverage
-- Best script selection considers both accuracy and testing coverage
-- Answer evaluation uses semantic matching via LLM, not just exact string matching
-
-### 3. Validation Interface
-
-A separate validation script allows testing the best solution on any range of dataset examples:
-
-```bash
-python validate_script.py --start 900 --end 999
-```
-
-## How to Run
-
-1. Set your Gemini API key:
-   ```
+1. **Set your Gemini API key:**
+   ```bash
    export GEMINI_API_KEY=your_api_key_here
    ```
 
-2. Run the system for a specified number of iterations:
+2. **Run the system:**
+   ```bash
+   # Basic usage with 5 iterations
+   python run_script.py --dataset your_dataset.jsonl --loader jsonl --iterations 5
+
+   # Example with MATH benchmark
+   python run_script.py --dataset hendrycks_math/math_test.jsonl --loader math --iterations 5
    ```
-   python run_script.py --iterations 10
+
+3. **Validate results:**
+   ```bash
+   # Test the best script on examples 100-199
+   python validate_script.py --script scripts/script_iteration_4.py --dataset hendrycks_math/math_test.jsonl --loader math --start 100 --end 199
    ```
 
-## System Workflow
+## 📊 Supported Dataset Formats
 
-1. **Initialization**: 
-   - Starting explore rate: 70%, exploit rate: 30%
-   - Starting batch size: 5 examples
+The system supports multiple dataset formats through modular loaders:
 
-2. **Each Iteration**:
-   - Retrieves the next N examples from the dataset (where N is the current batch size)
-   - Decides whether to explore (try a new approach) or exploit (refine existing approach)
-   - Generates a script using LLM guidance
-   - Tests the script on the batch
-   - Evaluates results using LLM-based semantic matching
-   - For promising scripts, runs progressive testing on all previously seen examples
-   - Adjusts explore/exploit balance and batch size based on performance
+### Built-in Loaders
 
-3. **Performance Tracking**:
-   - Tracks both batch performance and progressive testing performance
-   - Maintains detailed logs of all iterations and performance metrics
-   - Identifies the best script based on both accuracy and coverage
+| Loader | Dataset Type | Example Usage |
+|--------|--------------|---------------|
+| `arc` | ARC (Abstraction and Reasoning Corpus) | `--loader arc` |
+| `jsonl` | JSONL files (one JSON per line) | `--loader jsonl` |
+| `json` | JSON files with configurable fields | `--loader json` |
+| `simpleqa` | SimpleQA dataset | `--loader simpleqa` |
+| `math` | MATH dataset | `--loader math` |
+| `natural_plan` | Natural Plan dataset | `--loader natural_plan` |
+| `gpqa` | GPQA dataset | `--gpqa` |
+| `hotpotqa` | HotpotQA dataset | `--gpqa` |
+| `custom` | Your own custom format | `--loader custom` |
 
-## Output and Results
+### Usage Examples
 
-The system provides:
-- Detailed iteration logs in the archive directory
-- Performance trend summaries
-- Information about the best script
-- A convenient interface for validating scripts on held-out examples
+```bash
+# ARC dataset (directory of JSON files)
+python run_script.py --dataset ARC_2024_Training/ --loader arc --iterations 10
 
-## Dataset Format
+# JSONL dataset (like MATH benchmark)
+python run_script.py --dataset math_test.jsonl --loader math --iterations 5
 
-The system expects a JSON dataset with example keys following a pattern (e.g., "calendar_scheduling_example_0"):
+# Custom JSON with specific fields
+python run_script.py --dataset custom.json --loader json --input-field question --output-field answer --iterations 5
 
-```json
-{
-  "calendar_scheduling_example_0": {
-    "prompt_0shot": "...",  // The input question
-    "golden_plan": "..."    // The expected answer
-  },
-  "calendar_scheduling_example_1": {
-    ...
-  }
-}
+# JSONL with custom fields (like DROP dataset)
+python run_script.py --dataset drop_dataset.jsonl --loader jsonl --input-field question --output-field answers_spans --iterations 5
+
+# Disable shuffling for consistent ordering
+python run_script.py --dataset dataset.jsonl --loader jsonl --no-shuffle --iterations 5
 ```
 
+## 🔧 Command Line Options
 
+### run_script.py
 
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--iterations` | Number of iterations to run | 5 |
+| `--dataset` | Path to dataset file/directory | required |
+| `--loader` | Type of dataset loader | required |
+| `--input-field` | Input field name (JSON/JSONL) | "input" |
+| `--output-field` | Output field name (JSON/JSONL) | "output" |
+| `--passage-field` | Passage field (JSONL) | "passage" |
+| `--no-shuffle` | Disable dataset shuffling | False |
+| `--seed` | Random seed | 42 |
 
-# Custom Dataset Loaders for Agentic Learning System
+### validate_script.py
 
-This system now supports flexible dataset loading through a custom loader interface. Instead of hardcoding field names or making assumptions about dataset structure, the system now uses a modular loader approach that can handle various dataset formats.
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--script` | Path to script to validate | required |
+| `--dataset` | Path to dataset | required |
+| `--loader` | Dataset loader type | required |
+| `--start` | Start index for validation | 0 |
+| `--end` | End index for validation | 99 |
+| `--detailed` | Show detailed results | False |
 
-## Key Features
+## 🏗️ Creating Custom Dataset Loaders
 
-- **Modular Dataset Loaders**: Separate the dataset loading logic from the core learning system
-- **ARC Dataset Support**: Built-in support for the ARC (Abstraction and Reasoning Corpus) format
-- **Optional Shuffling**: Control whether examples are shuffled or used in their original order
-- **Extensible Design**: Create custom loaders for your specific dataset formats
+### Method 1: Simple Custom Loader
 
-## Available Dataset Loaders
-
-### 1. ARC Dataset Loader
-
-Designed for the ARC dataset format, handling both directory-based and single-file formats:
+For basic custom formats, extend the `DatasetLoader` class:
 
 ```python
-from dataset_loader import ARCDatasetLoader
+from dataset_loader import DatasetLoader
+import json
 
-# For a directory of ARC files
-loader = ARCDatasetLoader(
-    dataset_path="ARC_2024_Training/",
-    shuffle=True,
-    random_seed=42
-)
+class MyDatasetLoader(DatasetLoader):
+    def _load_examples(self):
+        """Load examples from your custom format"""
+        with open(self.dataset_path, 'r') as f:
+            data = json.load(f)
 
-# For a single ARC file
-loader = ARCDatasetLoader(
-    dataset_path="arc_problem.json",
-    shuffle=False
-)
+        for key, example in data.items():
+            # Convert to standard format
+            self.examples.append({
+                "id": key,
+                "question": example["my_input_field"],  # Standard field: "question"
+                "answer": example["my_output_field"],   # Standard field: "answer"
+                "meta": {
+                    "source": "my_dataset",
+                    "original_data": example
+                }
+            })
+
+        print(f"Loaded {len(self.examples)} examples from custom dataset")
+
+# Register and use your loader
+from dataset_loader import create_dataset_loader
+
+def create_my_loader(**kwargs):
+    return MyDatasetLoader(**kwargs)
+
+# Add to the create_dataset_loader function or use directly
+loader = MyDatasetLoader(dataset_path="my_data.json", shuffle=True)
 ```
 
-### 2. Generic JSON Loader
+### Method 2: Using the Custom Loader Framework
 
-For JSON datasets with configurable field names:
-
-```python
-from dataset_loader import JSONDatasetLoader
-
-loader = JSONDatasetLoader(
-    dataset_path="dataset.json",
-    input_field="question",     # Name of input field
-    output_field="answer",      # Name of output field
-    example_prefix="example_",  # Optional prefix for example keys
-    shuffle=True
-)
-```
-
-### 3. Custom Loader
-
-For completely custom formats, you can provide your own loading functions:
+For more complex formats, use the built-in custom loader:
 
 ```python
-from dataset_loader import CustomDatasetLoader
+from dataset_loader import create_dataset_loader
 
-# Define your custom functions
 def load_my_examples(dataset_path):
-    # Your logic to load examples from the dataset
-    # Return a list of examples in any format
+    """Load examples from your dataset"""
+    # Your custom loading logic
+    with open(dataset_path, 'r') as f:
+        raw_data = f.read()
+
+    # Process and return list of examples
+    examples = []
+    # ... your processing logic ...
     return examples
 
 def get_my_input(example):
-    # Extract input from your example format
-    return example["my_input_field"]
+    """Extract input from example"""
+    return example["my_question_field"]
 
 def get_my_output(example):
-    # Extract output from your example format
-    return example["my_output_field"]
+    """Extract output from example"""
+    return example["my_answer_field"]
 
 # Create the custom loader
-loader = CustomDatasetLoader(
-    dataset_path="my_custom_dataset.xyz",
+loader = create_dataset_loader(
+    "custom",
+    dataset_path="my_dataset.xyz",
     load_examples_fn=load_my_examples,
     get_input_fn=get_my_input,
     get_output_fn=get_my_output,
     shuffle=True
 )
+
+# Use with agent system
+from agent_system import AgentSystem
+agent = AgentSystem(dataset_loader=loader)
 ```
 
-## Running the System
+## 📈 How It Works
 
-### Using run_script.py
+### 1. Adaptive Strategy
 
-The main script has been updated to support different loader types:
+The system uses three main strategies:
+- **Explore** (60% initially): Try completely new approaches
+- **Exploit** (20% initially): Combine successful techniques  
+- **Refine** (20% initially): Make targeted improvements to the best script
+
+The balance between these strategies adapts based on performance.
+
+### 2. Progressive Testing
+
+- Starts with small batches (3-5 examples)
+- For promising scripts (>60% accuracy), runs progressive testing on all previously seen examples
+- Adjusts batch size based on performance stability
+
+### 3. LLM-Driven Improvements
+
+- Uses LLM reasoning for strategy decisions, error analysis, and script generation
+- Employs advanced agentic patterns like ReAct, chain-of-thought, and verification loops
+- Automatically repairs and debugs generated scripts
+
+### 4. Example Workflow
+
+```
+Iteration 0: Baseline script (simple LLM call) → 45% accuracy
+Iteration 1: Explore new approach → 62% accuracy → Progressive testing → 58% overall
+Iteration 2: Exploit successful techniques → 71% accuracy → Progressive testing → 65% overall  
+Iteration 3: Refine best approach → 73% accuracy → Progressive testing → 68% overall
+...
+```
+
+## 📁 Output Structure
+
+The system creates several directories:
+
+```
+├── archive/                 # Iteration data and summaries
+│   ├── iteration_0.json    # Detailed data for each iteration
+│   ├── iteration_1.json
+│   └── summaries.json      # Performance summaries
+├── scripts/                # Generated scripts
+│   ├── script_iteration_0.py
+│   ├── script_iteration_1.py
+│   └── ...
+├── learnings.txt           # Accumulated insights and patterns
+└── README.md
+```
+
+## 🎯 Performance Tracking
+
+The system tracks multiple metrics:
+
+- **Batch Accuracy**: Performance on current test batch
+- **Progressive Accuracy**: Performance on all previously seen examples  
+- **Combined Accuracy**: Weighted average across all tested examples
+- **Capability Assessment**: Strengths, weaknesses, and improvement areas
+
+Example output:
+```
+Iteration  Strategy     Batch Acc.   Prog. Acc.      Combined    Batch Size  Prog. Size
+8          exploit      75.00%       68.33% (60)     69.23%      4           60
+```
+
+## 🔍 Validation and Testing
+
+Test your best script on specific example ranges:
 
 ```bash
-# For ARC dataset
-python run_script.py --iterations 5 --dataset ARC_2024_Training/ --loader arc
+# Test on examples 0-99
+python validate_script.py --script scripts/script_iteration_5.py --dataset data.jsonl --loader jsonl --start 0 --end 99
 
-# For a JSON dataset with custom fields
-python run_script.py --iterations 5 --dataset custom_data.json --loader json --input-field question --output-field answer
+# Test on examples 500-599 with detailed output
+python validate_script.py --script scripts/script_iteration_5.py --dataset data.jsonl --loader jsonl --start 500 --end 599 --detailed
 
-# Disable shuffling
-python run_script.py --iterations 5 --dataset ARC_2024_Training/ --loader arc --no-shuffle
+# Test the current best script (auto-detected)
+python validate_script.py --dataset data.jsonl --loader jsonl --start 100 --end 199
 ```
 
-### Using a Custom Script
+## 🛠️ Advanced Usage
 
-For more control, you can create your own script and initialize the system directly:
+### Programmatic Usage
 
 ```python
 from dataset_loader import create_dataset_loader
 from agent_system import AgentSystem
 
-# Create your desired loader
+# Create dataset loader
 loader = create_dataset_loader(
-    "arc",
-    dataset_path="ARC_2024_Training/",
-    shuffle=True
+    "jsonl",
+    dataset_path="your_dataset.jsonl",
+    shuffle=True,
+    random_seed=42
 )
 
-# Initialize the agent system with the loader
+# Initialize agent system
 agent = AgentSystem(dataset_loader=loader)
 
 # Run iterations
-for i in range(5):
-    agent.run_iteration()
+for i in range(10):
+    result = agent.run_iteration()
+    print(f"Iteration {i}: {result.get('performance', {}).get('accuracy', 0):.2f} accuracy")
+
+# Get best script info
+best_script = agent.get_best_script_info()
+print(f"Best script: {best_script.get('path')} with {best_script.get('combined_accuracy', 0):.2f} accuracy")
 ```
 
-## Creating Your Own Loader
+### Custom Field Mapping
 
-To create a custom loader for a new dataset format, subclass `DatasetLoader` and implement the required methods:
-
-```python
-from dataset_loader import DatasetLoader
-
-class MySpecialDatasetLoader(DatasetLoader):
-    def _load_examples(self):
-        # Load examples from your dataset format
-        # Populate self.examples with your data
-
-    def get_example_input(self, example):
-        # Extract input from your example format
-        return example["my_input_field"]
-
-    def get_example_output(self, example):
-        # Extract output from your example format
-        return example["my_output_field"]
-```
-
-## Example for ARC Dataset
-
-A complete example for running with the ARC dataset is provided in `run_arc_example.py`:
+For datasets with non-standard field names:
 
 ```bash
-python run_arc_example.py
+# JSON dataset with custom fields
+python run_script.py --dataset custom.json --loader json --input-field "problem_statement" --output-field "solution"
+
+# JSONL dataset with passage and question
+python run_script.py --dataset reading_comprehension.jsonl --loader jsonl --input-field "question" --passage-field "context" --output-field "answer"
 ```
 
-This will:
-1. Load the ARC dataset from the "ARC_2024_Training/" directory
-2. Initialize the agent system
-3. Run 3 iterations to demonstrate the system
-4. Print information about the examples and results
+## 🤝 Contributing
 
-## Benefits of This Approach
+To add support for a new dataset format:
 
-- **Modularity**: Dataset logic is separate from the core learning system
-- **Flexibility**: Support for various dataset formats without changing core code
-- **Extensibility**: Easy to add support for new dataset formats
-- **Control**: Fine-grained control over dataset loading and processing
-- **Simplicity**: No need to convert datasets to a specific format
+1. Create a new loader class inheriting from `DatasetLoader`
+2. Implement the `_load_examples()` method
+3. Ensure examples use standard field names: `"question"`, `"answer"`, `"id"`
+4. Add your loader to the `create_dataset_loader()` function
+5. Test with both `run_script.py` and `validate_script.py`
+
+## 📜 License
+
+MIT License - see LICENSE file for details.
