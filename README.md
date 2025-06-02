@@ -2,7 +2,9 @@
 
 ![TextEvolve Overview](images/textevolve_diagram.png)
 
-An advanced AI system that uses LLM-driven reasoning and memory to iteratively improve its approach to solving problems from datasets. The system is task-agnostic, meaning no prompting or instruction is needed for a new dataset - just provide "question" and "answer" fields (see DataLoader instructions below). The system employs dynamic exploration/exploitation strategies and adapts its approach based on performance feedback.
+An advanced AI system that uses LLM-driven reasoning and memory to iteratively improve its approach to solving problems from datasets. The system is task-agnostic, meaning no prompting or instruction is needed for a new dataset - just provide "question" and "answer" fields. The system employs dynamic exploration/exploitation strategies and adapts its approach (creating new functions, writing code that generates and executes new code, writing prompts, etc.) based on performance feedback.
+
+EXPERIMENTAL: The system also includes a self-modifying loop (system_improver.py), using higher order instructions to edit the system.
 
 ## 📄 Paper & Demo
 
@@ -16,9 +18,24 @@ An advanced AI system that uses LLM-driven reasoning and memory to iteratively i
 
 [Memory / experiment log for HotpotQA](HOTPOTQA_learnings.txt)
 
+
+🚧 **Repository Status: Under Construction** 🚧
+
+**Current State:**
+- ✅ TextEvolve is stable and runs successfully
+- 🔄 Codebase is actively being refactored and cleaned up
+- 📝 Documentation and examples are being written
+- 🏗️ Repository structure may change frequently
+
+Please expect ongoing changes to code organization, APIs, and documentation as we work toward a more polished release.
+
+---
+
  
 
 ## 🚀 Quick Start
+
+⚠️ TextEvolve has the ability to write and execute code - please run the system in a safe or sandboxed environment ⚠️
 
 1. **Set your Gemini API key:**
    ```bash
