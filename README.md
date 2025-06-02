@@ -29,6 +29,13 @@ An advanced AI system that uses LLM-driven reasoning and memory to iteratively i
 
 Please expect ongoing changes to code organization, APIs, and documentation as we work toward a more polished release.
 
+**Preliminary Results:**
+Here's some preliminary benchmark data from the paper comparing standard I/O with Gemini 2.0 Flash vs. the best performing TextEvolve program run with Gemini 2.0 Flash. (NB: Run over 100 randomly sampled examples from the test set - more extensive benchmarking is underway). TextEvolve boosts performance by automating manual experimenting over workflows, prompts, and code.
+
+Program search is typically completed in around **20-30 minutes** over **~100 data examples** for **$.05-$.10** in Gemini credits.
+
+![](images/results.png)
+
 ---
 
  
