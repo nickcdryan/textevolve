@@ -378,6 +378,18 @@ python run_script.py --dataset custom.json --loader json --input-field "problem_
 python run_script.py --dataset reading_comprehension.jsonl --loader jsonl --input-field "question" --passage-field "context" --output-field "answer"
 ```
 
+## Potential Roadmap Features
+- Parallelized batch testing
+- Support for multi-turn flows
+- system_improver.py iteration
+- Better code execution
+- Custom evaluation and multi-objective functions
+- Integrate RAG capability
+- More dynamic memory selection (access and reasoning over memory filesystem) 
+- Further metaheuristic testing
+- API, tool, modality (vision) integration
+
+
 ## 🤝 Contributing
 
 To add support for a new dataset format:
