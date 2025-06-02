@@ -2094,7 +2094,7 @@ def main(question):
 
         """
 
-        #historical_context += meta_programming_guidance
+        historical_context += meta_programming_guidance
 
         # Add the accumulated learnings to the context
         learning_context = ""
@@ -2508,7 +2508,7 @@ def main(question):
         """
 
         # Add this to the end of your prompt:
-        # prompt += explicit_code_execution_instruction
+        prompt += explicit_code_execution_instruction
         
         # Write prompt to scripts/ directory
         prompt_path = self.scripts_dir / f"prompt_{self.current_iteration}.txt"

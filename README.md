@@ -32,7 +32,7 @@ Please expect ongoing changes to code organization, APIs, and documentation as w
 **Preliminary Results:**
 Here's some preliminary benchmark data from the paper comparing standard I/O with Gemini 2.0 Flash vs. the best performing TextEvolve program run with Gemini 2.0 Flash. (NB: Run over 100 randomly sampled examples from the test set - more extensive benchmarking is underway). TextEvolve boosts performance by automating manual experimenting over workflows, prompts, and code.
 
-Program search is typically completed in around **20-30 minutes** over **~100 data examples** for **$.05-$.10** in Gemini credits.
+Program search is typically completed (20-30 iterations) in around **20-30 minutes** over **~100 data examples** for **\$.05-$.10** in Gemini credits.
 
 ![](images/results.png)
 
@@ -58,7 +58,10 @@ Program search is typically completed in around **20-30 minutes** over **~100 da
    python run_script.py --dataset hendrycks_math/math_test.jsonl --loader math --iterations 5
    ```
 
+Program search is typically completed (20-30 iterations) in around **20-30 minutes** over **~100 data examples** for **\$.05-$.10** in Gemini credits.
+
 You can run more iterations if you're unsatisfied with the result. This will pick up right where the system left off. After the system runs you'll see a final report:
+
 ![](images/system_output.png)
 
 4. **Validate results:**
