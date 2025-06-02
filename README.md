@@ -20,6 +20,12 @@ The system employs dynamic exploration/exploitation/refinement strategies and ad
 
 [System-generated script for MATH dataset](examples/MATH_script.py)
 
+[System-generated script for GPQA Diamond dataset](examples/GPQA_script.py)
+
+[System-generated script for HotpotQA dataset](examples/HOTPOTQA_script.py)
+
+[System-generated script for DROP dataset](examples/DROP_script.py)
+
 [Memory / experiment log for HotpotQA](examples/HOTPOTQA_learnings.txt)
 
 
