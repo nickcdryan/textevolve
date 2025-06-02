@@ -4,7 +4,7 @@
 
 An advanced AI system that uses LLM-driven reasoning and memory to iteratively improve its approach to solving problems from datasets. The system is task-agnostic, meaning no prompting or instruction is needed for a new dataset - just provide "question" and "answer" fields. The system employs dynamic exploration/exploitation strategies and adapts its approach (creating new functions, writing code that generates and executes new code, writing prompts, etc.) based on performance feedback.
 
-EXPERIMENTAL: The system also includes a self-modifying loop (system_improver.py), using higher order instructions to edit the system.
+⚠️ EXPERIMENTAL ⚠️ The system also includes a meta-self-modifying loop (system_improver.py), using higher order instructions to edit the system (this respository).
 
 ## 📄 Paper & Demo
 
@@ -274,6 +274,16 @@ Example output:
 Iteration  Strategy     Batch Acc.   Prog. Acc.      Combined    Batch Size  Prog. Size
 8          exploit      75.00%       68.33% (60)     69.23%      4           60
 ```
+
+## EXPERIMENTAL: Meta Self-Improvement
+
+system_improver.py has access to review and edit the core functionality of the repository. Specifically, system_improver.py 
+1) reviews the program
+2) reviews iteration history and performance
+3) reviews past changes made by system_improver.py in /diffs
+4) proposes and integrates changes to the system, e.g. adding utility function, rewriting meta-agent prompts, etc.
+
+This system does not reliably work yet, please stay tuned.
 
 
 ## 🛠️ Advanced Usage
