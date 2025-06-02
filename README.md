@@ -14,9 +14,9 @@ An advanced AI system that uses LLM-driven reasoning and memory to iteratively i
 
 **📁 Examples in Action:** 
 
-[System-generated script for MATH dataset](MATH_script.py)
+[System-generated script for MATH dataset](examples/MATH_script.py)
 
-[Memory / experiment log for HotpotQA](HOTPOTQA_learnings.txt)
+[Memory / experiment log for HotpotQA](examples/HOTPOTQA_learnings.txt)
 
 
 🚧 **Repository Status: Under Construction** 🚧
