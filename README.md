@@ -2,13 +2,17 @@
 
 ![TextEvolve Overview](images/textevolve_diagram.png)
 
-An advanced AI system that uses LLM-driven reasoning and memory to iteratively improve its approach to solving problems from datasets. The system is task-agnostic, meaning no prompting or instruction is needed for a new dataset - just provide "question" and "answer" fields. The system employs dynamic exploration/exploitation strategies and adapts its approach (creating new functions, writing code that generates and executes new code, writing prompts, etc.) based on performance feedback.
+TextEvolve is a system that uses LLM-driven reasoning and memory to iteratively improve its approach to solving problems from datasets. TextEvolve automates the labor-intensive task of iterating over system design, prompt engineering, and program flow by learning, remembering, and adapating its approach. 
 
-⚠️ EXPERIMENTAL ⚠️ The system also includes a meta-self-modifying loop (system_improver.py), using higher order instructions to edit the system (this respository).
+**Input:** Any dataset with "question" and "answer" fields 
+
+**Output:** A series of executable python scripts containing advanced workflows and agentic behavior optimized for the dataset.
+
+The system employs dynamic exploration/exploitation/refinement strategies and adapts its approach (creating new functions, writing code that generates and executes new code, writing prompts, etc.) based on performance feedback, keeping rich logs of its past performance.
 
 ## 📄 Paper & Demo
 
-**📖 Read the Paper:** [TextEvolve: LLM-Driven Iterative Problem Solving](https://drive.google.com/file/d/11ZOOjVJeDfmoP1-sabi8lVWO9UEifZlP/view?usp=sharing)
+**📖 Read the Paper:** [TextEvolve: Automated Program Discovery with Large Language Models](https://drive.google.com/file/d/11ZOOjVJeDfmoP1-sabi8lVWO9UEifZlP/view?usp=sharing)
 
 **🎥 Watch the Demo:** [YouTube](https://youtu.be/QS-Mzb7P_9w)
 
@@ -27,9 +31,12 @@ An advanced AI system that uses LLM-driven reasoning and memory to iteratively i
 - 📝 Documentation and examples are being written
 - 🏗️ Repository structure may change frequently
 
-Please expect ongoing changes to code organization, APIs, and documentation as we work toward a more polished release.
+Please expect ongoing changes to code organization and documentation as we work toward a more polished release.
+
+⚠️ **EXPERIMENTAL:** The system also includes a meta self-modifying loop (system_improver.py) that uses higher order prompt instructions to edit itself. This functionality is still under review. ⚠️
 
 **Preliminary Results:**
+
 Here's some preliminary benchmark data from the paper comparing standard I/O with Gemini 2.0 Flash vs. the best performing TextEvolve program run with Gemini 2.0 Flash. (NB: Run over 100 randomly sampled examples from the test set - more extensive benchmarking is underway). TextEvolve boosts performance by automating manual experimenting over workflows, prompts, and code.
 
 Program search is typically completed (20-30 iterations) in around **20-30 minutes** over **~100 data examples** for **\$.05-$.10** in Gemini credits.
