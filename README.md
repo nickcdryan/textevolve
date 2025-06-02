@@ -42,7 +42,7 @@ Program search is typically completed (20-30 iterations) in around **20-30 minut
 
 ## 🚀 Quick Start
 
-⚠️ TextEvolve has the ability to write and execute code - please run the system in a safe or sandboxed environment ⚠️
+⚠️ TextEvolve has the ability to write code, execute code, and install new libraries - please run the system in a safe or sandboxed environment ⚠️
 
 1. **Set your Gemini API key:**
    ```bash
