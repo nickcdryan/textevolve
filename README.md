@@ -2,13 +2,21 @@
 
 ![TextEvolve Overview](images/textevolve_diagram.png)
 
-An advanced AI system that uses LLM-driven reasoning to iteratively improve its approach to solving problems from datasets. The system employs dynamic exploration/exploitation strategies and adapts its approach based on performance feedback.
+An advanced AI system that uses LLM-driven reasoning and memory to iteratively improve its approach to solving problems from datasets. The system is task-agnostic, meaning no prompting or instruction is needed for a new dataset - just provide "question" and "answer" fields (see DataLoader instructions below). The system employs dynamic exploration/exploitation strategies and adapts its approach based on performance feedback.
 
 ## 📄 Paper & Demo
 
 **📖 Read the Paper:** [TextEvolve: LLM-Driven Iterative Problem Solving](https://drive.google.com/file/d/11ZOOjVJeDfmoP1-sabi8lVWO9UEifZlP/view?usp=sharing)
 
 **🎥 Watch the Demo:** [YouTube](https://youtu.be/QS-Mzb7P_9w)
+
+**📁 Examples in Action:** 
+
+[System-generated script for MATH dataset](MATH_script.py)
+
+[Memory / experiment log for HotpotQA](HOTPOTQA_learnings.txt)
+
+ 
 
 ## 🚀 Quick Start
 
@@ -26,10 +34,19 @@ An advanced AI system that uses LLM-driven reasoning to iteratively improve its 
    python run_script.py --dataset hendrycks_math/math_test.jsonl --loader math --iterations 5
    ```
 
-3. **Validate results:**
+You can run more iterations if you're unsatisfied with the result. This will pick up right where the system left off. After the system runs you'll see a final report:
+![](images/system_output.png)
+
+4. **Validate results:**
    ```bash
    # Test the best script on examples 100-199
    python validate_script.py --script scripts/script_iteration_4.py --dataset hendrycks_math/math_test.jsonl --loader math --start 100 --end 199
+   ```
+
+5. **Reset system:**
+   ```bash
+   # Wipe memory and start the system from scratch
+   python reset_system.py
    ```
 
 ## 📊 Supported Dataset Formats
@@ -190,13 +207,13 @@ The balance between these strategies adapts based on performance.
 ### 2. Progressive Testing
 
 - Starts with small batches (3-5 examples)
-- For promising scripts (>60% accuracy), runs progressive testing on all previously seen examples
-- Adjusts batch size based on performance stability
+- For promising scripts (>60% accuracy), runs progressive testing (backtesting) on a set of previously seen examples
+- Adjusts batch size based on performance, balancing throughput with acquiring accurate measurement of itertation performance
 
 ### 3. LLM-Driven Improvements
 
 - Uses LLM reasoning for strategy decisions, error analysis, and script generation
-- Employs advanced agentic patterns like ReAct, chain-of-thought, and verification loops
+- Employs and creates novel advanced agentic patterns like ReAct, chain-of-thought, and verification loops
 - Automatically repairs and debugs generated scripts
 
 ### 4. Example Workflow
@@ -231,7 +248,7 @@ The system creates several directories:
 The system tracks multiple metrics:
 
 - **Batch Accuracy**: Performance on current test batch
-- **Progressive Accuracy**: Performance on all previously seen examples  
+- **Progressive Accuracy**: Performance on small set of previously seen examples  
 - **Combined Accuracy**: Weighted average across all tested examples
 - **Capability Assessment**: Strengths, weaknesses, and improvement areas
 
@@ -241,20 +258,6 @@ Iteration  Strategy     Batch Acc.   Prog. Acc.      Combined    Batch Size  Pro
 8          exploit      75.00%       68.33% (60)     69.23%      4           60
 ```
 
-## 🔍 Validation and Testing
-
-Test your best script on specific example ranges:
-
-```bash
-# Test on examples 0-99
-python validate_script.py --script scripts/script_iteration_5.py --dataset data.jsonl --loader jsonl --start 0 --end 99
-
-# Test on examples 500-599 with detailed output
-python validate_script.py --script scripts/script_iteration_5.py --dataset data.jsonl --loader jsonl --start 500 --end 599 --detailed
-
-# Test the current best script (auto-detected)
-python validate_script.py --dataset data.jsonl --loader jsonl --start 100 --end 199
-```
 
 ## 🛠️ Advanced Usage
 
