@@ -243,6 +243,39 @@ Iteration 3: Refine best approach → 73% accuracy → Progressive testing → 6
 ...
 ```
 
+
+## Quick Setup
+
+### 1. Install uv (if not already installed)
+
+**macOS/Linux:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### 2. Clone and Setup Project
+
+```bash
+# Clone the repository
+git clone <www.github.com/nickcdryan/madas>
+
+# Install dependencies (creates virtual environment automatically)
+uv sync
+
+# Set up your Gemini API key
+export GEMINI_API_KEY=your_api_key_here
+```
+
+### 3. Verify Installation
+
+```bash
+# Run the verification script
+uv run python verify_setup.py
+
+# Quick test run (optional)
+uv run python run_script.py --dataset hendrycks_math/math_test.jsonl --loader math --iterations 1
+```
+
 ## 📁 Output Structure
 
 The system creates several directories:
@@ -282,6 +315,7 @@ system_improver.py has access to review and edit the core functionality of the r
 2) reviews iteration history and performance
 3) reviews past changes made by system_improver.py in /diffs
 4) proposes and integrates changes to the system, e.g. adding utility function, rewriting meta-agent prompts, etc.
+5) creates system backups in /backup (eventually auto-rollback will be integrated if the new changes are system-breaking)
 
 This system does not reliably work yet, please stay tuned.
 
