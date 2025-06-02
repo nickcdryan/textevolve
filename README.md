@@ -267,7 +267,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```bash
 # Clone the repository
-git clone <www.github.com/nickcdryan/madas>
+git clone <www.github.com/nickcdryan/textevolve>
 
 # Install dependencies (creates virtual environment automatically)
 uv sync
