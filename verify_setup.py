@@ -21,44 +21,46 @@ def check_api_key():
 
 def check_dataset():
     """Check if the dataset file exists and has the expected format"""
-    dataset_path = "calendar_scheduling.json"
-    example_prefix = "calendar_scheduling_example_"
+    dataset_path = Path("hendrycks_math", "math_test.jsonl")
+    example_prefix = "problem"
 
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file '{dataset_path}' not found.")
         return False
 
     try:
+        data = {}
         with open(dataset_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            for i, line in enumerate(f):
+                try:
+                    example = json.loads(line.strip())
+                    data[f"{example_prefix}{i}"] = example
+                except json.JSONDecodeError as e:
+                    print(f"❌ Error parsing line {i+1}: {e}")
+                    return False
 
         # Check if the file contains data
         if not data:
             print(f"❌ Dataset file '{dataset_path}' is empty.")
             return False
 
-        # Check if the expected example format exists
-        key = f"{example_prefix}0"
-        if key not in data:
-            print(f"❌ Dataset does not contain example key '{key}'.")
-            print(f"   Expected format: '{example_prefix}0', '{example_prefix}1', etc.")
-            return False
-
         # Check if examples have the required fields
-        example = data[key]
-        if "prompt_0shot" not in example or "golden_plan" not in example:
+        example = next(iter(data.values()))
+        if "problem" not in example or "level" not in example or "type" not in example or "solution" not in example:
             print("❌ Dataset examples are missing required fields.")
-            print("   Each example should have 'prompt_0shot' and 'golden_plan' fields.")
+            print("   Each example should have 'problem', 'level', 'type', and 'solution' fields.")
             return False
 
         # Count examples
-        count = sum(1 for k in data if k.startswith(example_prefix))
+        count = len(data)
         print(f"✅ Dataset found with {count} examples.")
 
         # Print a sample
         print("\nSample from dataset:")
-        print(f"  prompt_0shot: {example['prompt_0shot'][:100]}...")
-        print(f"  golden_plan: {example['golden_plan']}")
+        print(f"  problem: {example['problem'][:100]}...")
+        print(f"  level: {example['level']}")
+        print(f"  type: {example['type']}")
+        print(f"  solution: {example['solution'][:100]}...")
 
         return True
     except Exception as e:
@@ -68,12 +70,12 @@ def check_dataset():
 def check_dependencies():
     """Check if required dependencies are installed"""
     try:
-        import google.generativeai
+        import google.genai
         print("✅ Required package 'google-generativeai' is installed.")
         return True
     except ImportError:
         print("❌ Required package 'google-generativeai' is not installed.")
-        print("   Install it with: pip install google-generativeai")
+        print("   Install it with: uv pip install google-generativeai")
         return False
 
 def check_directories():
