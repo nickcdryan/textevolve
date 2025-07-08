@@ -10,13 +10,15 @@ import random
 from pathlib import Path
 from typing import List, Dict, Any, Callable, Tuple, Optional, Union
 import csv
+import random
+
 
 class DatasetLoader:
     """Base interface for dataset loaders with standard field names"""
 
-    def __init__(self, 
+    def __init__(self,
                  dataset_path: str,
-                 shuffle: bool = True, 
+                 shuffle: bool = True,
                  random_seed: int = 42):
         """
         Initialize the dataset loader
@@ -46,7 +48,8 @@ class DatasetLoader:
 
     def _load_examples(self):
         """Load examples from dataset (to be implemented by subclasses)"""
-        raise NotImplementedError("Subclasses must implement _load_examples method")
+        raise NotImplementedError(
+            "Subclasses must implement _load_examples method")
 
     def get_examples(self, count: int) -> List[Any]:
         """
@@ -107,165 +110,107 @@ class ARCDatasetLoader(DatasetLoader):
     """Loader for ARC datasets, ensuring standard field names with improved formatting"""
 
     def _format_grid(self, grid):
-        """
-        Format a grid in a more visually readable way
-
-        Args:
-            grid: A 2D array (list of lists)
-
-        Returns:
-            A formatted string representation of the grid
-        """
+        """Format a grid in a more visually readable way"""
         formatted = []
         for row in grid:
             formatted.append("[" + ", ".join(str(cell) for cell in row) + "]")
         return "[\n  " + "\n  ".join(formatted) + "\n]"
 
+    def _process_arc_file(self, file_path):
+        """Process a single ARC JSON file"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                problem_data = json.load(f)
+
+            problem_id = os.path.basename(file_path).replace(".json", "")
+
+            # Process each task as a separate example
+            if "train" in problem_data and "test" in problem_data:
+                train_examples = problem_data.get("train", [])
+                test_cases = problem_data.get("test", [])
+
+                # Only process if we have both training examples and test case
+                if train_examples and test_cases:
+                    test_case = test_cases[
+                        0]  # Usually there's just one test case
+
+                    # Format training examples
+                    examples_text = ""
+                    for i, example in enumerate(train_examples, 1):
+                        examples_text += f"""Example {i}:
+Input Grid:
+{self._format_grid(example['input'])}
+
+Output Grid:
+{self._format_grid(example['output'])}
+
+"""
+
+                    # Format as a visually structured question
+                    question_str = f"""Grid Transformation Task
+
+=== TRAINING EXAMPLES ===
+
+{examples_text}=== TEST INPUT ===
+{self._format_grid(test_case.get('input'))}
+
+Transform the test input according to the pattern shown in the training examples.
+"""
+
+                    # Add learnings if available
+                    # try:
+                    #     with open('learnings.txt', 'r') as l:
+                    #         learnings = l.read()
+                    #     question_str = "\n\n Here are the learnings from previous iterations: \n\n" + learnings + "\n\n" + question_str
+                    # except:
+                    #     pass
+
+                    # For the answer, keep the same format for consistency
+                    test_output_json = json.dumps(test_case.get("output"),
+                                                  separators=(',', ':'))
+
+                    # Create the example with STANDARD field names
+                    task_data = {
+                        "id": f"arc_{problem_id}",
+                        "question": question_str.strip(),
+                        "answer": test_output_json,
+                        "meta": {
+                            "source": "ARC",
+                            "filename": os.path.basename(file_path)
+                        }
+                    }
+
+                    return task_data
+        except Exception as e:
+            print(f"Warning: Error processing {file_path}: {e}")
+
+        return None
+
     def _load_examples(self):
-        """Load examples from ARC dataset directory or file with universal field names and improved formatting"""
+        """Load examples from ARC dataset directory or file"""
+        examples = []
+
         if os.path.isdir(self.dataset_path):
             # Directory of JSON files
             json_files = glob.glob(os.path.join(self.dataset_path, "*.json"))
             if not json_files:
-                raise ValueError(f"No JSON files found in directory: {self.dataset_path}")
+                raise ValueError(
+                    f"No JSON files found in directory: {self.dataset_path}")
 
             for file_path in json_files:
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        problem_data = json.load(f)
-
-                    problem_id = os.path.basename(file_path).replace(".json", "")
-
-                    # Process each task as a separate example
-                    if "train" in problem_data and "test" in problem_data:
-                        train_examples = problem_data.get("train", [])
-                        test_cases = problem_data.get("test", [])
-
-                        # Only process if we have both training examples and test case
-                        if train_examples and test_cases:
-                            test_case = test_cases[0]  # Usually there's just one test case
-
-                            # Format the main training example
-                            main_example = ""
-                            if train_examples:
-                                main_example = f"""Example 1:
-Input Grid:
-{self._format_grid(train_examples[0]['input'])}
-
-Output Grid:
-{self._format_grid(train_examples[0]['output'])}"""
-
-                            # Format additional training examples
-                            additional_examples = ""
-                            for i, example in enumerate(train_examples[1:], 2):
-                                additional_examples += f"""
-Example {i}:
-Input Grid:
-{self._format_grid(example['input'])}
-
-Output Grid:
-{self._format_grid(example['output'])}"""
-
-                            # Format as a visually structured question
-                            question_str = f"""Grid Transformation Task
-
-=== TRAINING EXAMPLES ===
-
-{main_example}{additional_examples}
-
-=== TEST INPUT ===
-{self._format_grid(test_case.get('input'))}
-
-Transform the test input according to the pattern shown in the training examples.
-"""
-                            # For the answer, we'll keep the same format for consistency
-                            test_output_json = json.dumps(test_case.get("output"), separators=(',', ':'))
-
-                            # Create the example with STANDARD field names
-                            task_data = {
-                                "id": f"arc_{problem_id}",
-                                "question": question_str.strip(),  # Standard field: "question"
-                                "answer": test_output_json,        # Standard field: "answer"
-                                "meta": {
-                                    "source": "ARC",
-                                    "filename": os.path.basename(file_path)
-                                }
-                            }
-
-                            self.examples.append(task_data)
-                except Exception as e:
-                    print(f"Warning: Error processing {file_path}: {e}")
+                task_data = self._process_arc_file(file_path)
+                if task_data:
+                    examples.append(task_data)
         else:
-            # Single JSON file case - similar logic but for a single file
-            try:
-                with open(self.dataset_path, 'r', encoding='utf-8') as f:
-                    problem_data = json.load(f)
+            # Single JSON file
+            task_data = self._process_arc_file(self.dataset_path)
+            if task_data:
+                examples.append(task_data)
 
-                problem_id = os.path.basename(self.dataset_path).replace(".json", "")
-
-                # Process the single file as a task
-                if "train" in problem_data and "test" in problem_data:
-                    train_examples = problem_data.get("train", [])
-                    test_cases = problem_data.get("test", [])
-
-                    # Only process if we have both training examples and test case
-                    if train_examples and test_cases:
-                        test_case = test_cases[0]  # Usually there's just one test case
-
-                        # Format the main training example
-                        main_example = ""
-                        if train_examples:
-                            main_example = f"""Example 1:
-Input Grid:
-{self._format_grid(train_examples[0]['input'])}
-
-Output Grid:
-{self._format_grid(train_examples[0]['output'])}"""
-
-                        # Format additional training examples
-                        additional_examples = ""
-                        for i, example in enumerate(train_examples[1:], 2):
-                            additional_examples += f"""
-Example {i}:
-Input Grid:
-{self._format_grid(example['input'])}
-
-Output Grid:
-{self._format_grid(example['output'])}"""
-
-                        # Format as a visually structured question
-                        question_str = f"""Grid Transformation Task
-
-=== TRAINING EXAMPLES ===
-
-{main_example}{additional_examples}
-
-=== TEST INPUT ===
-{self._format_grid(test_case.get('input'))}
-
-Transform the test input according to the pattern shown in the training examples.
-"""
-                        # For the answer, we'll keep the same format for consistency
-                        test_output_json = json.dumps(test_case.get("output"), separators=(',', ':'))
-
-                        # Create the example with STANDARD field names
-                        task_data = {
-                            "id": f"arc_{problem_id}",
-                            "question": question_str.strip(),  # Standard field: "question"
-                            "answer": test_output_json,        # Standard field: "answer"
-                            "meta": {
-                                "source": "ARC",
-                                "filename": os.path.basename(self.dataset_path)
-                            }
-                        }
-
-                        self.examples.append(task_data)
-            except Exception as e:
-                raise ValueError(f"Error loading dataset: {e}")
-
-        if not self.examples:
+        if not examples:
             raise ValueError("No valid examples found in dataset")
 
+        self.examples = examples
         print(f"Loaded {len(self.examples)} examples from ARC dataset")
 
     # The get_example_input and get_example_output methods are inherited from the base class
@@ -282,7 +227,8 @@ class HotpotQADatasetLoader(DatasetLoader):
                 data = json.load(f)
 
             if not isinstance(data, list):
-                raise ValueError("HotpotQA dataset JSON must be a list of objects")
+                raise ValueError(
+                    "HotpotQA dataset JSON must be a list of objects")
 
             examples = []
             for item in data:
@@ -293,7 +239,9 @@ class HotpotQADatasetLoader(DatasetLoader):
 
                 # Skip examples that don't have required fields
                 if not original_question or not answer:
-                    print(f"Warning: Skipping {example_id} - missing question or answer")
+                    print(
+                        f"Warning: Skipping {example_id} - missing question or answer"
+                    )
                     continue
 
                 # Extract and format context
@@ -307,7 +255,8 @@ class HotpotQADatasetLoader(DatasetLoader):
 
                 # Format the supporting documents
                 formatted_context = ""
-                for i, (title, sentences) in enumerate(zip(titles, sentences_lists)):
+                for i, (title,
+                        sentences) in enumerate(zip(titles, sentences_lists)):
                     formatted_context += f"\n=== Document {i+1}: {title} ===\n"
                     for j, sentence in enumerate(sentences):
                         formatted_context += f"{sentence.strip()} "
@@ -325,14 +274,16 @@ Provide your answer based on the information in the supporting documents."""
                 # Create standardized example with universal field names
                 standardized_example = {
                     "id": example_id,
-                    "question": structured_question.strip(),  # Standard field: "question"
-                    "answer": str(answer).strip(),            # Standard field: "answer"
+                    "question":
+                    structured_question.strip(),  # Standard field: "question"
+                    "answer": str(answer).strip(),  # Standard field: "answer"
                     "meta": {
                         "source": "hotpotqa",
                         "filename": self.dataset_path,
                         "type": item.get("type", "unknown"),
                         "level": item.get("level", "unknown"),
-                        "original_question": original_question,  # Keep original for reference
+                        "original_question":
+                        original_question,  # Keep original for reference
                         "num_documents": len(titles)
                     }
                 }
@@ -352,12 +303,12 @@ Provide your answer based on the information in the supporting documents."""
 class JSONDatasetLoader(DatasetLoader):
     """Loader for generic JSON datasets with configurable field names using universal interface"""
 
-    def __init__(self, 
+    def __init__(self,
                  dataset_path: str,
                  input_field: str = "input",
                  output_field: str = "output",
                  example_prefix: str = None,
-                 shuffle: bool = True, 
+                 shuffle: bool = True,
                  random_seed: int = 42):
         """
         Initialize the JSON dataset loader
@@ -387,7 +338,8 @@ class JSONDatasetLoader(DatasetLoader):
             # Process all examples
             for key, example in data.items():
                 # Skip keys that don't match the prefix if specified
-                if self.example_prefix and not key.startswith(self.example_prefix):
+                if self.example_prefix and not key.startswith(
+                        self.example_prefix):
                     continue
 
                 # Check if the example has the required fields
@@ -399,8 +351,8 @@ class JSONDatasetLoader(DatasetLoader):
                     # Store with STANDARD field names
                     self.examples.append({
                         "id": key,
-                        "question": input_str,      # Standard field: "question"
-                        "answer": output_str,       # Standard field: "answer"
+                        "question": input_str,  # Standard field: "question"
+                        "answer": output_str,  # Standard field: "answer"
                         "meta": {
                             "source": "json_dataset",
                             "filename": os.path.basename(self.dataset_path),
@@ -409,7 +361,9 @@ class JSONDatasetLoader(DatasetLoader):
                     })
 
             if not self.examples:
-                raise ValueError(f"No valid examples found with fields '{self.input_field}' and '{self.output_field}'")
+                raise ValueError(
+                    f"No valid examples found with fields '{self.input_field}' and '{self.output_field}'"
+                )
 
             print(f"Loaded {len(self.examples)} examples from JSON dataset")
 
@@ -423,12 +377,12 @@ class JSONDatasetLoader(DatasetLoader):
 class CustomDatasetLoader(DatasetLoader):
     """Loader for custom datasets with user-provided extraction functions"""
 
-    def __init__(self, 
+    def __init__(self,
                  dataset_path: str,
                  load_examples_fn: Callable[[str], List[Any]],
                  get_input_fn: Callable[[Any], Any],
                  get_output_fn: Callable[[Any], Any],
-                 shuffle: bool = True, 
+                 shuffle: bool = True,
                  random_seed: int = 42):
         """
         Initialize a custom dataset loader with user-provided functions
@@ -459,21 +413,24 @@ class CustomDatasetLoader(DatasetLoader):
                 question = self.get_input_fn(raw_example)
                 answer = self.get_output_fn(raw_example)
 
-                # Convert to standard format 
+                # Convert to standard format
                 self.examples.append({
                     "id": f"custom_{i}",
-                    "question": str(question),  # Ensure string type for question
-                    "answer": str(answer),      # Ensure string type for answer
+                    "question":
+                    str(question),  # Ensure string type for question
+                    "answer": str(answer),  # Ensure string type for answer
                     "meta": {
                         "source": "custom_dataset",
-                        "original_data": raw_example  # Store original data for reference
+                        "original_data":
+                        raw_example  # Store original data for reference
                     }
                 })
 
             print(f"Loaded {len(self.examples)} examples using custom loader")
 
         except Exception as e:
-            raise ValueError(f"Error loading examples with custom function: {e}")
+            raise ValueError(
+                f"Error loading examples with custom function: {e}")
 
     def get_example_input(self, example: Any) -> str:
         """Extract input using the standardized field"""
@@ -488,15 +445,17 @@ class JSONLDatasetLoader(DatasetLoader):
     """Loader for JSONL datasets with configurable field mapping
     Used for DROP"""
 
-    def __init__(self, 
-                 dataset_path: str,
-                 input_field: str = "question",
-                 output_field: str = "answers_spans",
-                 passage_field: str = "passage",
-                 answer_extraction: str = "spans",  # Field within answers_spans to extract
-                 shuffle: bool = True, 
-                 random_seed: int = 42,
-                 **kwargs):  # Added **kwargs to accept any additional parameters
+    def __init__(
+            self,
+            dataset_path: str,
+            input_field: str = "question",
+            output_field: str = "answers_spans",
+            passage_field: str = "passage",
+            answer_extraction:
+        str = "spans",  # Field within answers_spans to extract
+            shuffle: bool = True,
+            random_seed: int = 42,
+            **kwargs):  # Added **kwargs to accept any additional parameters
         """
         Initialize the JSONL dataset loader
 
@@ -543,7 +502,9 @@ class JSONLDatasetLoader(DatasetLoader):
 
                         # Get all answer spans (instead of just the first one)
                         answer = ""
-                        if isinstance(answer_data, dict) and self.answer_extraction in answer_data:
+                        if isinstance(
+                                answer_data, dict
+                        ) and self.answer_extraction in answer_data:
                             spans = answer_data.get(self.answer_extraction, [])
                             if spans and isinstance(spans, list):
                                 # Join all spans with a comma and space instead of taking just the first item
@@ -556,9 +517,12 @@ class JSONLDatasetLoader(DatasetLoader):
 
                         # Create standardized example with universal field names
                         examples.append({
-                            "id": example.get("query_id", f"example_{line_num}"),
-                            "question": formatted_question,  # Standard field: "question"
-                            "answer": answer,                # Standard field: "answer"
+                            "id":
+                            example.get("query_id", f"example_{line_num}"),
+                            "question":
+                            formatted_question,  # Standard field: "question"
+                            "answer":
+                            answer,  # Standard field: "answer"
                             "meta": {
                                 "source": "jsonl_dataset",
                                 "original_passage": passage,
@@ -569,9 +533,13 @@ class JSONLDatasetLoader(DatasetLoader):
                         })
 
                     except json.JSONDecodeError:
-                        print(f"Warning: Invalid JSON on line {line_num+1}, skipping")
+                        print(
+                            f"Warning: Invalid JSON on line {line_num+1}, skipping"
+                        )
                     except Exception as e:
-                        print(f"Warning: Error processing line {line_num+1}: {e}")
+                        print(
+                            f"Warning: Error processing line {line_num+1}: {e}"
+                        )
 
             self.examples = examples
             print(f"Loaded {len(examples)} examples from JSONL dataset")
@@ -614,7 +582,9 @@ class SimpleQADatasetLoader(DatasetLoader):
                         examples.append({
                             "id": example_id,
                             "question": problem,  # Standard field: "question"
-                            "answer": str(answer),  # Standard field: "answer" (ensure string)
+                            "answer":
+                            str(answer
+                                ),  # Standard field: "answer" (ensure string)
                             "meta": {
                                 "source": "SimpleQA",
                                 "line_number": line_num,
@@ -623,9 +593,13 @@ class SimpleQADatasetLoader(DatasetLoader):
                         })
 
                     except json.JSONDecodeError:
-                        print(f"Warning: Invalid JSON on line {line_num+1}, skipping")
+                        print(
+                            f"Warning: Invalid JSON on line {line_num+1}, skipping"
+                        )
                     except Exception as e:
-                        print(f"Warning: Error processing line {line_num+1}: {e}")
+                        print(
+                            f"Warning: Error processing line {line_num+1}: {e}"
+                        )
 
             self.examples = examples
             print(f"Loaded {len(examples)} examples from SimpleQA dataset")
@@ -664,7 +638,9 @@ class MathDatasetLoader(DatasetLoader):
                         examples.append({
                             "id": example_id,
                             "question": problem,  # Standard field: "question"
-                            "answer": str(answer),  # Standard field: "answer" (ensure string)
+                            "answer":
+                            str(answer
+                                ),  # Standard field: "answer" (ensure string)
                             "meta": {
                                 "source": "Math",
                                 "line_number": line_num,
@@ -674,9 +650,13 @@ class MathDatasetLoader(DatasetLoader):
                         })
 
                     except json.JSONDecodeError:
-                        print(f"Warning: Invalid JSON on line {line_num+1}, skipping")
+                        print(
+                            f"Warning: Invalid JSON on line {line_num+1}, skipping"
+                        )
                     except Exception as e:
-                        print(f"Warning: Error processing line {line_num+1}: {e}")
+                        print(
+                            f"Warning: Error processing line {line_num+1}: {e}"
+                        )
 
             self.examples = examples
             print(f"Loaded {len(examples)} examples from Math dataset")
@@ -698,7 +678,8 @@ class NaturalPlanDatasetLoader(DatasetLoader):
                 data = json.load(f)
 
             if not isinstance(data, dict):
-                raise ValueError("Natural Plan dataset JSON must be an object/dictionary")
+                raise ValueError(
+                    "Natural Plan dataset JSON must be an object/dictionary")
 
             examples = []
             for example_key, example_data in data.items():
@@ -708,18 +689,31 @@ class NaturalPlanDatasetLoader(DatasetLoader):
 
                 # Extract the question (problem statement) and answer (golden plan)
                 question = example_data.get("prompt_0shot", "")
+                # try:
+                #     with open('learnings.txt', 'r') as l:
+                #         learnings = l.read()
+                #     question += "\n\n Here are the learnings from previous iterations: \n\n" + learnings
+                # except:
+                #     pass
                 answer = example_data.get("golden_plan", "")
+
+                # with open('learnings.txt', 'r') as l:
+                #     learnings = l.read()
+                # question += "\n\n Here are the learnings from previous iterations: \n\n" + learnings
 
                 # Skip examples that don't have both required fields
                 if not question or not answer:
-                    print(f"Warning: Skipping {example_key} - missing prompt_0shot or golden_plan")
+                    print(
+                        f"Warning: Skipping {example_key} - missing prompt_0shot or golden_plan"
+                    )
                     continue
 
                 # Create standardized example with universal field names
                 standardized_example = {
                     "id": example_key,
                     "question": question.strip(),  # Standard field: "question"
-                    "answer": answer,#.strip(),      # Standard field: "answer"
+                    "answer":
+                    answer,  #.strip(),      # Standard field: "answer"
                     "meta": {
                         "source": "natural_plan",
                         "filename": self.dataset_path,
@@ -737,46 +731,120 @@ class NaturalPlanDatasetLoader(DatasetLoader):
             print(f"Loaded {len(examples)} examples from Natural Plan dataset")
 
             if not self.examples:
-                raise ValueError("No valid examples found in Natural Plan dataset")
+                raise ValueError(
+                    "No valid examples found in Natural Plan dataset")
 
         except Exception as e:
             raise ValueError(f"Error loading Natural Plan dataset: {e}")
 
 
 class GPQADatasetLoader(DatasetLoader):
-    """Loader specifically for GPQA datasets with 'Question' and 'Correct Answer' fields"""
+    """Loader specifically for GPQA datasets with multiple choice questions"""
+
+    def __init__(self,
+                 dataset_path: str,
+                 shuffle_choices: bool = True,
+                 **kwargs):
+        """
+        Initialize GPQA dataset loader
+
+        Args:
+            dataset_path: Path to GPQA CSV file
+            shuffle_choices: Whether to shuffle answer choices to prevent bias
+            **kwargs: Other arguments passed to parent class (shuffle, random_seed, etc.)
+        """
+        self.shuffle_choices = shuffle_choices
+        super().__init__(dataset_path, **kwargs)
 
     def _load_examples(self):
-        """Load examples from GPQA CSV file"""
+        """Load examples from GPQA CSV file with shuffled answer choices"""
+        # Set random seed for reproducible choice shuffling
+        # Use a separate random instance to avoid interfering with dataset shuffling
+        choice_random = random.Random(self.random_seed) if hasattr(
+            self, 'random_seed') else random.Random(42)
+
         try:
-            with open(self.dataset_path, 'r', encoding='utf-8', newline='') as csvfile:
+            with open(self.dataset_path, 'r', encoding='utf-8',
+                      newline='') as csvfile:
                 reader = csv.DictReader(csvfile)
 
-                # Verify GPQA fields exist
-                if 'Question' not in reader.fieldnames:
-                    raise ValueError(f"'Question' field not found in GPQA CSV. Available fields: {list(reader.fieldnames)}")
-
-                if 'Correct Answer' not in reader.fieldnames:
-                    raise ValueError(f"'Correct Answer' field not found in GPQA CSV. Available fields: {list(reader.fieldnames)}")
-
-                # Process each row
                 for row_num, row in enumerate(reader):
                     question = row.get('Question', '').strip()
-                    answer = row.get('Correct Answer', '').strip()
+                    # try:
+                    #     with open('learnings.txt', 'r') as l:
+                    #         learnings = l.read()
+                    #     question = "\n\n Here are the learnings from previous iterations: \n\n" + learnings + question
+                    # except:
+                    #     pass
+                    correct_answer = row.get('Correct Answer', '').strip()
+                    incorrect_1 = row.get('Incorrect Answer 1', '').strip()
+                    incorrect_2 = row.get('Incorrect Answer 2', '').strip()
+                    incorrect_3 = row.get('Incorrect Answer 3', '').strip()
 
-                    # Skip empty rows
-                    if not question or not answer:
+                    # Skip empty rows or rows with missing answers
+                    if not question or not correct_answer or not all(
+                        [incorrect_1, incorrect_2, incorrect_3]):
+                        print(
+                            f"Warning: Skipping row {row_num + 1} due to missing data"
+                        )
                         continue
+
+                    # Create list of all answers with their types
+                    all_answers = [(correct_answer, 'correct'),
+                                   (incorrect_1, 'incorrect'),
+                                   (incorrect_2, 'incorrect'),
+                                   (incorrect_3, 'incorrect')]
+
+                    # Shuffle the answers to prevent bias (if enabled)
+                    if self.shuffle_choices:
+                        choice_random.shuffle(all_answers)
+
+                    # Find which position the correct answer ended up in
+                    correct_position = None
+                    for i, (answer_text,
+                            answer_type) in enumerate(all_answers):
+                        if answer_type == 'correct':
+                            correct_position = ['A', 'B', 'C', 'D'][i]
+                            break
+
+                    # Format the question with answer choices (prompt template from openai simple eval)
+                    formatted_question = f"""Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.
+
+{question}
+
+A) {all_answers[0][0]}
+B) {all_answers[1][0]}
+C) {all_answers[2][0]}
+D) {all_answers[3][0]}
+"""
 
                     # Create standardized example
                     example = {
                         "id": f"gpqa_{row_num}",
-                        "question": question,  # Standard field: "question"
-                        "answer": answer,      # Standard field: "answer"
+                        "question":
+                        formatted_question,  # Standard field: "question"
+                        "answer":
+                        correct_position,  # Standard field: "answer" - now the letter (A/B/C/D)
                         "meta": {
-                            "source": "GPQA",
-                            "filename": os.path.basename(self.dataset_path),
-                            "row_number": row_num + 1
+                            "source":
+                            "GPQA",
+                            "filename":
+                            os.path.basename(self.dataset_path),
+                            "row_number":
+                            row_num + 1,
+                            "correct_answer_text":
+                            correct_answer,  # Store the original text
+                            "incorrect_answers":
+                            [incorrect_1, incorrect_2,
+                             incorrect_3],  # Store incorrect answers
+                            "all_answer_choices":
+                            [answer[0] for answer in all_answers
+                             ],  # Store all choices in order
+                            "correct_position":
+                            correct_position,  # Store which letter is correct
+                            "shuffled":
+                            self.
+                            shuffle_choices  # Track if choices were shuffled
                         }
                     }
 
@@ -786,6 +854,8 @@ class GPQADatasetLoader(DatasetLoader):
                 raise ValueError("No valid examples found in GPQA dataset")
 
             print(f"Loaded {len(self.examples)} examples from GPQA dataset")
+            if self.shuffle_choices:
+                print("Answer choices are shuffled to prevent bias")
 
         except Exception as e:
             raise ValueError(f"Error loading GPQA dataset: {e}")
