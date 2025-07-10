@@ -1793,313 +1793,52 @@ def main(question):
         # Set up trace file in the archive directory
         trace_file = self.archive_dir / f"trace_iteration_{self.current_iteration}.jsonl"
 
+        # Load the test script template
+        template_path = Path("test_script_template.py")
+        if not template_path.exists():
+            return {
+                "success": False,
+                "error": "test_script_template.py not found",
+                "output": "Template missing",
+                "trace_file": str(trace_file)
+            }
+
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error reading template: {str(e)}",
+                "output": "Template read error",
+                "trace_file": str(trace_file)
+            }
+
         # Create a test harness for the script with enhanced tracing
-        test_script = f"""import sys
-import traceback
-import os
-import json
-import datetime
-import inspect
-import functools
-import importlib.util
-import openai
-from openai import OpenAI
-
-
-# Add the scripts directory to the path
-sys.path.append("{self.scripts_dir}")
-
-# Configure tracing
-trace_file = "{trace_file}"
-os.makedirs(os.path.dirname(trace_file), exist_ok=True)
-
-
-
-def call_llm(prompt, system_instruction=None):
-
-    try:
-        from google import genai
-        from google.genai import types
-        import os  # Import the os module
-
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
+        try:
+            test_script = template_content.format(
+                scripts_dir=self.scripts_dir,
+                trace_file=trace_file,
+                current_iteration=self.current_iteration,
+                sample_id=sample_id,
+                question_repr=repr(question),
+                script_path=script_path
             )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
-
-        return response.text
-    except Exception as e:
-        print(f"Error calling Gemini API: {{str(e)}}")
-        return f"Error: {{str(e)}}"
-
-def execute_code(code_str, timeout=10):
-    \"\"\"Execute Python code with automatic package installation and proper scoping\"\"\"
-    import sys
-    import re
-    import subprocess
-    from io import StringIO
-
-    print("  [SYSTEM] Auto-installing execute_code() with scope fix")
-
-    # Clean markdown formatting
-    patterns = [
-        r'```python\\s*\\n(.*?)\\n```',
-        r'```python\\s*(.*?)```', 
-        r'```\\s*\\n(.*?)\\n```',
-        r'```\\s*(.*?)```'
-    ]
-
-    cleaned_code = code_str.strip()
-    for pattern in patterns:
-        match = re.search(pattern, code_str, re.DOTALL | re.IGNORECASE)
-        if match:
-            cleaned_code = match.group(1).strip()
-            print("  [CLEANING] Removed markdown")
-            break
-
-    # Function to install a package
-    def install_package(package_name):
-        try:
-            print(f"  [INSTALLING] Installing {{package_name}}...")
-            result = subprocess.run([
-                sys.executable, "-m", "pip", "install", package_name
-            ], capture_output=True, text=True, timeout=30)
-
-            if result.returncode == 0:
-                print(f"  [SUCCESS] {{package_name}} installed successfully")
-                return True
-            else:
-                print(f"  [FAILED] Could not install {{package_name}}: {{result.stderr}}")
-                return False
         except Exception as e:
-            print(f"  [ERROR] Installation error: {{str(e)}}")
-            return False
-
-    # Execute with proper scoping and auto-installation retry
-    max_install_attempts = 3
-    attempt = 0
-
-    while attempt <= max_install_attempts:
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        stdout_capture = StringIO()
-        stderr_capture = StringIO()
-
-        try:
-            sys.stdout = stdout_capture
-            sys.stderr = stderr_capture
-
-            # CRITICAL FIX: Provide explicit globals and locals
-            # This ensures imports are available to functions defined in the code
-            exec_namespace = {{}}
-            exec(cleaned_code, exec_namespace, exec_namespace)
-
-            # Success!
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
-
-            output = stdout_capture.getvalue().strip()
-            return output if output else "Code executed successfully"
-
-        except ModuleNotFoundError as e:
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
-
-            # Extract the missing module name
-            module_name = str(e).split("'")[1] if "'" in str(e) else None
-
-            if module_name and attempt < max_install_attempts:
-                print(f"  [MISSING] Module '{{module_name}}' not found, attempting to install...")
-
-                # Try to install the missing package
-                if install_package(module_name):
-                    attempt += 1
-                    print(f"  [RETRY] Retrying code execution (attempt {{attempt + 1}})...")
-                    continue
-                else:
-                    return f"Error: Could not install required package '{{module_name}}'"
-            else:
-                return f"Error: {{str(e)}}"
-
-        except Exception as e:
-            sys.stdout = old_stdout  
-            sys.stderr = old_stderr
-            return f"Error: {{str(e)}}"
-
-        attempt += 1
-
-    return "Error: Maximum installation attempts exceeded"
-
-
-# Trace entry for execution start
-with open(trace_file, 'a', encoding='utf-8') as f:
-    start_entry = {{
-        "timestamp": datetime.datetime.now().isoformat(),
-        "event": "execution_start",
-        "iteration": {self.current_iteration},
-        "sample_id": "{sample_id}",
-        "question": {repr(question)}
-    }}
-    f.write(json.dumps(start_entry) + "\\n")
-
-# More reliable method for getting caller information
-def get_real_caller():
-    #Get information about the caller, skipping intermediate functions like wrappers and decorators.
-    frames = inspect.stack()
-    # Skip first 2 frames (this function and immediate caller)
-    for frame_info in frames[2:]:
-        # Get the frame's module
-        frame_module = frame_info.frame.f_globals.get('__name__', '')
-        # If this frame is from our module (not from system libraries)
-        if frame_module == 'current_script_{self.current_iteration}':
-            # Check if it's not the call_llm function itself
-            if frame_info.function != 'call_llm' and 'wrapper' not in frame_info.function:
-                return {{
-                    "function": frame_info.function,
-                    "filename": frame_info.filename,
-                    "lineno": frame_info.lineno
-                }}
-    # Fallback if we can't find a suitable caller
-    return {{"function": "unknown", "filename": "unknown", "lineno": 0}}
-
-# Create a tracing decorator for call_llm
-def trace_call_llm(func):
-    @functools.wraps(func)
-    def wrapper(prompt, system_instruction=None):
-        # Get caller information using our improved method
-        caller_info = get_real_caller()
-
-        # Create trace entry with caller information
-        trace_entry = {{
-            "timestamp": datetime.datetime.now().isoformat(),
-            "event": "llm_call",
-            "iteration": {self.current_iteration},
-            "sample_id": "{sample_id}",
-            "function": "call_llm",
-            "caller": caller_info,
-            "input": {{
-                "prompt": prompt,
-                "system_instruction": system_instruction
-            }}
-        }}
-
-        # Call the original function
-        try:
-            result = func(prompt, system_instruction)
-
-            # Log successful response
-            trace_entry["output"] = result
-            trace_entry["status"] = "success"
-
-            with open(trace_file, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(trace_entry) + "\\n")
-
-            return result
-
-        except Exception as e:
-            # Log error
-            trace_entry["error"] = str(e)
-            trace_entry["status"] = "error"
-            trace_entry["traceback"] = traceback.format_exc()
-
-            with open(trace_file, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(trace_entry) + "\\n")
-
-            raise
-
-    return wrapper
-
-try:
-    # Import the script as a module
-    spec = importlib.util.spec_from_file_location(
-        "current_script_{self.current_iteration}", 
-        "{script_path}"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    # INJECT BOTH FUNCTIONS
-    module.execute_code = execute_code
-    module.call_llm = call_llm
-
-    # Patch call_llm function if it exists
-    if hasattr(module, 'call_llm'):
-        original_call_llm = module.call_llm
-        module.call_llm = trace_call_llm(original_call_llm)
-
-    # Also patch any other functions that might call LLM directly
-    for name, obj in inspect.getmembers(module):
-        if inspect.isfunction(obj) and obj.__module__ == module.__name__:
-            try:
-                source = inspect.getsource(obj)
-                if 'generate_content' in source and obj is not getattr(module, 'call_llm', None):
-                    setattr(module, name, trace_call_llm(obj))
-            except:
-                pass
-
-    # Execute the main function with the question string
-    question = {repr(question)}
-
-    # Call the main function and get the answer
-    answer = module.main(question)
-
-    # Log execution completion
-    with open(trace_file, 'a', encoding='utf-8') as f:
-        end_entry = {{
-            "timestamp": datetime.datetime.now().isoformat(),
-            "event": "execution_complete",
-            "iteration": {self.current_iteration},
-            "sample_id": "{sample_id}",
-            "answer": str(answer)
-        }}
-        f.write(json.dumps(end_entry) + "\\n")
-
-    # Print the answer for capture
-    print("ANSWER_START")
-    print(answer)
-    print("ANSWER_END")
-
-except Exception as e:
-    # Log the error
-    with open(trace_file, 'a', encoding='utf-8') as f:
-        error_entry = {{
-            "timestamp": datetime.datetime.now().isoformat(),
-            "event": "execution_error",
-            "iteration": {self.current_iteration},
-            "sample_id": "{sample_id}",
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }}
-        f.write(json.dumps(error_entry) + "\\n")
-
-    print("ERROR_START")
-    print(str(e))
-    print(traceback.format_exc())
-    print("ERROR_END")
-"""
+            return {
+                "success": False,
+                "error": f"Error formatting template: {str(e)}",
+                "output": "Template formatting error",
+                "trace_file": str(trace_file)
+            }
 
         test_path = self.scripts_dir / f"test_script_{self.current_iteration}.py"
         with open(test_path, 'w', encoding='utf-8') as f:
             f.write(test_script)
 
-        # The rest of your function remains unchanged...
+        # Rest of the execution logic remains the same...
         debug_attempts = 0
         max_debug_attempts = 3
-
-        # Rest of the function as before...
 
         while debug_attempts <= max_debug_attempts:
             try:
@@ -2108,24 +1847,22 @@ except Exception as e:
                     [sys.executable, str(test_path)],
                     capture_output=True,
                     text=True,
-                    timeout=90  # x second timeout - increased for LLM API calls
+                    timeout=90  # 90 second timeout - increased for LLM API calls
                 )
 
                 # Parse the output
                 output = result.stdout + result.stderr
 
                 if "ANSWER_START" in output and "ANSWER_END" in output:
-                    answer = output.split("ANSWER_START")[1].split(
-                        "ANSWER_END")[0].strip()
+                    answer = output.split("ANSWER_START")[1].split("ANSWER_END")[0].strip()
                     return {
                         "success": True,
                         "answer": answer,
                         "output": output,
-                        "trace_file": str(trace_file)  # Return trace file path
+                        "trace_file": str(trace_file)
                     }
                 elif "ERROR_START" in output and "ERROR_END" in output:
-                    error = output.split("ERROR_START")[1].split(
-                        "ERROR_END")[0].strip()
+                    error = output.split("ERROR_START")[1].split("ERROR_END")[0].strip()
 
                     # If we've reached max debug attempts or this isn't a "missing main" error, return the error
                     if debug_attempts >= max_debug_attempts or "cannot import name 'main'" not in error:
@@ -2133,14 +1870,12 @@ except Exception as e:
                             "success": False,
                             "error": error,
                             "output": output,
-                            "trace_file": str(trace_file)  # Return trace file path
+                            "trace_file": str(trace_file)
                         }
 
                     # Try to debug the script
                     debug_attempts += 1
-                    print(
-                        f"  Debugging attempt {debug_attempts}/{max_debug_attempts}..."
-                    )
+                    print(f"  Debugging attempt {debug_attempts}/{max_debug_attempts}...")
 
                     # Apply debugging fixes
                     self._debug_script(script_path)
@@ -2152,21 +1887,21 @@ except Exception as e:
                         "success": False,
                         "error": "Unknown execution error",
                         "output": output,
-                        "trace_file": str(trace_file)  # Return trace file path
+                        "trace_file": str(trace_file)
                     }
             except subprocess.TimeoutExpired:
                 return {
                     "success": False,
-                    "error": "Script execution timed out (60 seconds)",
+                    "error": "Script execution timed out (90 seconds)",
                     "output": "Timeout",
-                    "trace_file": str(trace_file)  # Return trace file path
+                    "trace_file": str(trace_file)
                 }
             except Exception as e:
                 return {
                     "success": False,
                     "error": str(e),
                     "output": traceback.format_exc(),
-                    "trace_file": str(trace_file)  # Return trace file path
+                    "trace_file": str(trace_file)
                 }
 
         # If we get here, we've exhausted our debug attempts
@@ -2174,8 +1909,10 @@ except Exception as e:
             "success": False,
             "error": "Maximum debug attempts reached. Could not fix script.",
             "output": "Debug failure",
-            "trace_file": str(trace_file)  # Return trace file path
+            "trace_file": str(trace_file)
         }
+
+    
     
     def _debug_script(self, script_path: Path) -> bool:
         """
