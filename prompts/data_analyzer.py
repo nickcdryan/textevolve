@@ -10,8 +10,7 @@ def get_dataset_analysis_prompt(formatted_examples):
     Returns:
         tuple: (prompt, system_instruction)
     """
-    system_instruction =
-        """You are a Data Pattern Analyst specialized in identifying patterns, 
+    system_instruction = """You are a Data Pattern Analyst specialized in identifying patterns, 
         structures, and challenges in datasets. Your goal is to provide deep 
         insights and creative strategies for approaching problems."""
 

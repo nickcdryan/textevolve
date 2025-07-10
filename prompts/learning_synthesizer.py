@@ -12,8 +12,7 @@ def get_learning_synthesis_prompt(current_learnings, new_batch_learnings, approa
   Returns:
       tuple: (prompt, system_instruction)
   """
-  system_instruction = """
-      You are a Knowledge Integrator. Your role is to synthesize accumulated
+  system_instruction = """You are a Knowledge Integrator. Your role is to synthesize accumulated
       dataset-specific knowledge with new insights, creating an evolving experiment 
       log that captures concrete patterns, strategies, and findings about this specific task."""
 

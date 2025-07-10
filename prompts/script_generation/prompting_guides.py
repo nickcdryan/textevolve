@@ -1,6 +1,16 @@
 """
 Static prompting guidance and instruction blocks.
 These are reusable text blocks that don't require variable interpolation.
+
+
+CONTAINS:
+
+multi_example_prompting_guide
+llm_reasoning_prompting_guide
+validation_prompting_guide
+meta_programming_prompting_guide
+code_execution_prompting_guide
+
 """
 
 multi_example_prompting_guide = """MULTI-EXAMPLE PROMPTING GUIDANCE:

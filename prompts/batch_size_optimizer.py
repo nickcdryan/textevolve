@@ -13,8 +13,7 @@ def get_batch_size_optimization_prompt(current_batch_size, current_accuracy, tot
     Returns:
         tuple: (prompt, system_instruction)
     """
-    system_instruction = 
-        "You are a Batch Size Optimizer. Your task is to analyze performance trends and recommend the optimal batch size for testing, balancing between stability and throughput."
+    system_instruction = "You are a Batch Size Optimizer. Your task is to analyze performance trends and recommend the optimal batch size for testing, balancing between stability and throughput."
 
     prompt = f"""
 As an AI optimization system, you need to determine the appropriate batch size for testing.

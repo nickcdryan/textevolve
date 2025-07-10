@@ -15,11 +15,10 @@ def get_batch_learnings_prompt(iteration_data, accuracy, sample_questions, scrip
     Returns:
         tuple: (prompt, system_instruction)
     """
-    system_instruction = (
-        "You are a Knowledge Synthesizer. Your role is to extract concrete, "
-        "dataset-specific insights from experiment results, focusing on patterns "
-        "in the data, effective strategies for this specific task, and precise failure modes."
-    )
+    system_instruction = """You are a Knowledge Synthesizer. Your role is to extract concrete, 
+        dataset-specific insights from experiment results, focusing on patterns 
+        in the data, effective strategies for this specific task, and precise failure modes."""
+    
 
     prompt = f"""
     Extract specific, concrete learnings from this iteration's results, focusing on dataset-specific insights:
