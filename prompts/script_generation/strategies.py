@@ -104,7 +104,7 @@ Return a COMPLETE, RUNNABLE Python script that:
 5. Is COMPLETE - no missing code, no "..." placeholders
 6. Closes all string literals properly
 
-This should be FUNDAMENTALLY DIFFERENT from all previous approaches. Do not reuse the same overall structure.
+This should be FUNDAMENTALLY DIFFERENT from all previous approaches. You MUST try a new very different approach. You SHOULD draw upon the example LLM patterns provided to you. Use and combine them in new ways.
 
 BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
 """

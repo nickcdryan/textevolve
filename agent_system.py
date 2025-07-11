@@ -2862,6 +2862,51 @@ def main(question):
             "results": results
         }
 
+
+
+    def choose_strategy_with_llm(self) -> str:
+        """
+        Use LLM to directly choose the strategy for this iteration.
+        Returns: "explore", "exploit", or "refine"
+        """
+        summaries = self.get_summaries()
+        baseline_accuracy = self.get_baseline_performance()
+
+        # Build performance history with noise awareness
+        performance_data = []
+        for summary in summaries:
+            accuracy = summary.get("performance", {}).get("accuracy", 0)
+            batch_size = summary.get("batch_size", 5)
+            strategy = summary.get("strategy", "unknown")
+
+            performance_data.append({
+                "iteration": summary.get("iteration"),
+                "strategy": strategy,
+                "accuracy": accuracy,
+                "batch_size": batch_size
+            })
+
+        prompt, system_instruction = get_strategy_optimization_prompt(
+            current_iteration=self.current_iteration,
+            baseline_accuracy=baseline_accuracy,
+            performance_history=performance_data
+        )
+
+        response = self.call_llm(prompt, system_instruction=system_instruction)
+
+        # Extract strategy from response
+        response_lower = response.lower()
+        if "strategy: explore" in response_lower or "choose explore" in response_lower:
+            return "explore"
+        elif "strategy: exploit" in response_lower or "choose exploit" in response_lower:
+            return "exploit"  
+        elif "strategy: refine" in response_lower or "choose refine" in response_lower:
+            return "refine"
+        else:
+            # Fallback - favor exploration for early iterations
+            return "explore" if self.current_iteration < 8 else "exploit"
+
+    
     def run_iteration(self) -> Dict:
         """Run a single iteration of the agent system with baseline-calibrated three-mode strategy"""
 
@@ -2922,17 +2967,24 @@ def main(question):
                             print(f"    - {suggestion}")
                     print("=" * 40)
 
-            # Decide which strategy mode to use based on probabilities
-            strategy_roll = random.random() * 100
+            # # Decide which strategy mode to use based on probabilities
+            # strategy_roll = random.random() * 100
 
-            if strategy_roll < self.explore_rate:
-                strategy_mode = "explore"
-            elif strategy_roll < (self.explore_rate + self.exploit_rate):
-                strategy_mode = "exploit"
+            # if strategy_roll < self.explore_rate:
+            #     strategy_mode = "explore"
+            # elif strategy_roll < (self.explore_rate + self.exploit_rate):
+            #     strategy_mode = "exploit"
+            # else:
+            #     strategy_mode = "refine"
+
+            # # Override strategy based on capability trends if available
+
+            if self.current_iteration == 0:
+                strategy_mode = "baseline"
             else:
-                strategy_mode = "refine"
+                strategy_mode = self.choose_strategy_with_llm()
 
-            # Override strategy based on capability trends if available
+            print(f"Strategy for this iteration: {strategy_mode}")
             if capability_report and capability_report.get("trend") != "insufficient_data":
                 weakest_capability = capability_report.get("improvement_focus", "")
                 trends = capability_report.get("trend", {})
@@ -3098,14 +3150,14 @@ def main(question):
         new_exploit = self.exploit_rate  
         new_refine = self.refine_rate
 
-        if self.current_iteration > 0:
-            try:
-                print("Adjusting strategy balance...")
-                new_explore, new_exploit, new_refine = self.adjust_strategy_with_llm()
-                print(f"New strategy balance: {new_explore}/{new_exploit}/{new_refine}")
-            except Exception as e:
-                print(f"Error adjusting strategy balance: {str(e)}")
-                print("Maintaining current strategy balance")
+        # if self.current_iteration > 0:
+        #     try:
+        #         print("Adjusting strategy balance...")
+        #         new_explore, new_exploit, new_refine = self.adjust_strategy_with_llm()
+        #         print(f"New strategy balance: {new_explore}/{new_exploit}/{new_refine}")
+        #     except Exception as e:
+        #         print(f"Error adjusting strategy balance: {str(e)}")
+        #         print("Maintaining current strategy balance")
 
         # Adjust batch size for next iteration  
         new_batch_size = self.current_batch_size
