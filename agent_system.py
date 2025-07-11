@@ -17,6 +17,8 @@ from google import genai
 from google.genai import types  # Added import for GenerateContentConfig
 import numpy as np
 
+from clients import LLMClient
+
 from prompts.data_analyzer import get_dataset_analysis_prompt
 from prompts.batch_size_optimizer import get_batch_size_optimization_prompt
 from prompts.batch_learnings import get_batch_learnings_prompt
@@ -63,7 +65,7 @@ class AgentSystem:
     Now supports custom dataset loaders.
     """
 
-    def __init__(self, dataset_loader=None):
+    def __init__(self, client: LLMClient, dataset_loader=None):
         """
         Initialize the agent system with a dataset loader
 
@@ -97,15 +99,8 @@ class AgentSystem:
         self.system_prompt = self._load_system_prompt()
         print(f"System prompt loaded: {len(self.system_prompt)} characters")
 
-        # Initialize Gemini API client
-        try:
-            self.client = genai.Client(
-                api_key=os.environ.get("GEMINI_API_KEY"))
-            print("Gemini API client initialized successfully")
-        except Exception as e:
-            print(f"Error initializing Gemini API client: {e}")
-            print("Make sure to set the GEMINI_API_KEY environment variable")
-            raise
+        # Initialize LLM API client
+        self.client = client 
 
         # Initialize learnings mechanism
         print("Initializing learnings mechanism...")
@@ -230,7 +225,7 @@ class AgentSystem:
         # Call LLM to analyze the dataset
         try:
             prompt, system_instruction = get_dataset_analysis_prompt(formatted_examples)
-            dataset_analysis = self.call_llm(prompt, system_instruction=system_instruction)
+            dataset_analysis = self.client.call_llm(prompt, system_instruction=system_instruction)
             print("Dataset analysis complete, adding to learnings.txt")
 
             # Format the analysis for learnings.txt
@@ -363,21 +358,6 @@ class AgentSystem:
                 self.current_iteration = 0
                 print("No previous state found. Starting from iteration 0.")
     
-    def call_llm(self, prompt: str, system_instruction: str = None) -> str:
-        """Call the Gemini LLM with a prompt and return the response"""
-        try:
-            # Use provided system instruction or default to the loaded system prompt
-            sys_instruction = system_instruction if system_instruction is not None else ""
-
-            response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
-                config=types.GenerateContentConfig(
-                    system_instruction=sys_instruction),
-                contents=prompt)
-            return response.text
-        except Exception as e:
-            print(f"Error calling Gemini API: {e}")
-            return f"Error: {str(e)}"
 
     def load_dataset(self) -> Dict:
         """Load the entire dataset from the specified file"""
@@ -552,7 +532,7 @@ class AgentSystem:
                 total_examples_seen=len(self.seen_examples),
                 performance_history=performance_history
             )
-            response = self.call_llm(
+            response = self.client.call_llm(
                 prompt, system_instruction=system_instruction)
 
             # Extract JSON from response
@@ -675,7 +655,7 @@ class AgentSystem:
                                                                     error_examples, 
                                                                     capability_insights)
             
-            response = self.call_llm(prompt, system_instruction=system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=system_instruction)
             return f"--- LEARNINGS FROM ITERATION {iteration_data.get('iteration')} ---\n{response.strip()}\n\n"
         except Exception as e:
             error_message = f"Error generating batch learnings: {str(e)}"
@@ -726,7 +706,7 @@ class AgentSystem:
 
         try:
             print(f"Calling LLM to {'condense and synthesize' if approaching_limit else 'synthesize'} learnings...")
-            response = self.call_llm(prompt, system_instruction=system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=system_instruction)
 
             response_length = len(response.strip())
             print(f"Received synthesized learnings: {response_length} characters")
@@ -985,7 +965,7 @@ def main(question):
                                                                           performance_history, 
                                                                           capability_context=None)
             
-            response = self.call_llm(prompt, system_instruction=system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=system_instruction)
 
             # Extract JSON from response
             response = response.strip()
@@ -1429,7 +1409,7 @@ def main(question):
             attempts += 1
 
             # Call LLM to generate script with the specific system instruction
-            response = self.call_llm(
+            response = self.client.call_llm(
                 prompt, system_instruction=script_generator_system_instruction)
 
             # Extract code block from response
@@ -1591,7 +1571,7 @@ def main(question):
         """
         
         try:
-            response = self.call_llm(prompt, system_instruction=repairer_system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=repairer_system_instruction)
 
             # Extract code block from response
             if "```python" in response:
@@ -1644,7 +1624,7 @@ def main(question):
         """
 
         try:
-            response = self.call_llm(prompt, system_instruction=error_checker_system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=error_checker_system_instruction)
 
             # Check if the response indicates an error
             response = response.strip()
@@ -2168,7 +2148,7 @@ def main(question):
     
             # Call LLM for detailed error analysis as text
             try:
-                error_analysis_text = self.call_llm(prompt, system_instruction=error_analyzer_system_instruction)
+                error_analysis_text = self.client.call_llm(prompt, system_instruction=error_analyzer_system_instruction)
                 print("Generated error analysis text report")
     
                 # Extract useful information for the dictionary return
@@ -2292,7 +2272,7 @@ def main(question):
             Pay particular attention to any patterns in the execution outputs that might reveal issues with the implementation.
             """
     
-            capability_report_text = self.call_llm(capability_prompt, system_instruction=capability_reporter_system_instruction)
+            capability_report_text = self.client.call_llm(capability_prompt, system_instruction=capability_reporter_system_instruction)
             print("Generated capability report text successfully")
     
             # Extract the improvement focus for the dictionary return
@@ -2425,7 +2405,7 @@ def main(question):
         print ("SYSTEM ANSWER: ....", system_answer)
         print ("GOLDEN ANSWER: ", golden_answer)
         try:
-            response = self.call_llm(
+            response = self.client.call_llm(
                 prompt, system_instruction=evaluator_system_instruction)
 
             # Extract JSON from response
@@ -2488,7 +2468,7 @@ def main(question):
         """
 
         try:
-            summary = self.call_llm(
+            summary = self.client.call_llm(
                 prompt, system_instruction=summarizer_system_instruction)
             return summary.strip()
         except Exception as e:
@@ -2591,7 +2571,7 @@ def main(question):
             {{"best_iteration": <integer>, "rationale": "<brief explanation>"}}
             """
 
-            response = self.call_llm(
+            response = self.client.call_llm(
                 prompt, system_instruction=script_evaluator_system_instruction)
 
             # Extract JSON from response
