@@ -7,6 +7,11 @@ from openai import OpenAI
 
 
 class LLMClient(ABC):
+
+    @property
+    def provider(self):
+        raise NotImplementedError
+
     @abstractmethod
     def call_llm(self, prompt: str, system_instruction: str = "") -> str:
         pass
@@ -23,6 +28,9 @@ class GeminiClient(LLMClient):
             print("Make sure to set the GEMINI_API_KEY environment variable")
             raise
 
+    @property
+    def provider(self):
+        return "Gemini"
 
     def call_llm(self, prompt: str, system_instruction: str = "") -> str:
         """Call the Gemini LLM with a prompt and return the response"""
@@ -48,6 +56,10 @@ class OpenAIClient(LLMClient):
         api_key = os.environ.get("OPENAI_API_KEY")
         org_id = os.environ.get("OPENAI_ORG_ID")
         self.client = OpenAI(api_key=api_key, organization=org_id) if org_id else OpenAI(api_key=api_key)
+    
+    @property
+    def provider(self):
+        return "OpenAI"
 
     def call_llm(self, prompt: str, system_instruction: str = "") -> str:
         try:
