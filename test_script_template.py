@@ -7,6 +7,7 @@ import inspect
 import functools
 import importlib.util
 
+
 # Add the scripts directory to the path
 sys.path.append("{scripts_dir}")
 
@@ -14,34 +15,25 @@ sys.path.append("{scripts_dir}")
 trace_file = "{trace_file}"
 os.makedirs(os.path.dirname(trace_file), exist_ok=True)
 
-def call_llm(prompt, system_instruction=None):
-    try:
-        from google import genai
-        from google.genai import types
-        import os  # Import the os module
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+from clients import GeminiClient, OpenAIClient
 
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
+provider_type = "{provider_type}"
+model_name = "{model_name}"
 
-        return response.text
-    except Exception as e:
-        print("Error calling Gemini API: " + str(e))
-        return "Error: " + str(e)
+if provider_type == "gemini":
+    client = GeminiClient(model_name)
+elif provider_type == "openai":
+    client = OpenAIClient(model_name)
+else:
+    raise ValueError(f"Unknown provider: {provider_type}")
+
+def call_llm(prompt, system_instruction=""):
+    return client.call_llm(prompt, system_instruction)
+
 
 def execute_code(code_str, timeout=10):
     """Execute Python code with automatic package installation and proper scoping"""

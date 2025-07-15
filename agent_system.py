@@ -13,8 +13,6 @@ import sys
 import ast  # Added for script validation
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
-from google import genai
-from google.genai import types  # Added import for GenerateContentConfig
 import numpy as np
 
 from clients import LLMClient
@@ -766,31 +764,20 @@ class AgentSystem:
 from google import genai
 from google.genai import types
 
-def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response"""
-    try:
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+from clients import GeminiClient, OpenAIClient
 
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
+provider_type = "{provider}"
+model_name = "{model_name}"
 
-        return response.text
-    except Exception as e:
-        print(f"Error calling Gemini API: {str(e)}")
-        return f"Error: {str(e)}"
+if provider_type == "gemini":
+    client = GeminiClient(model_name)
+elif provider_type == "openai":
+    client = OpenAIClient(model_name)
+else:
+    raise ValueError(f"Unknown provider: {provider_type}")
+
+def call_llm(prompt, system_instruction=""):
+    return client.call_llm(prompt, system_instruction)
 
 def main(question):
     """
@@ -1298,7 +1285,7 @@ def main(question):
         # Set specific system instruction for script generation
         script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {strategy_mode} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning, agentic LLM patterns, and python to solve the problem examples provided."
 
-
+        # TODO(jam): this still needs to be modified to include other providers
         gemini_api_example = 'def call_llm(prompt, system_instruction=None):\n    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f"Error calling Gemini API: {str(e)}")\n        return f"Error: {str(e)}"'
 
 
@@ -1772,6 +1759,7 @@ def main(question):
 
         # Set up trace file in the archive directory
         trace_file = self.archive_dir / f"trace_iteration_{self.current_iteration}.jsonl"
+        
 
         # Load the test script template
         template_path = Path("test_script_template.py")
@@ -1802,7 +1790,9 @@ def main(question):
                 current_iteration=self.current_iteration,
                 sample_id=sample_id,
                 question_repr=repr(question),
-                script_path=script_path
+                script_path=script_path,
+                provider_type=self.client.provider,  # e.g., "gemini" or "openai"
+                model_name=self.client.model_name
             )
         except Exception as e:
             return {
@@ -2852,7 +2842,8 @@ def main(question):
         # Handle baseline generation for iteration 0
         if self.current_iteration == 0:
             print("Generating baseline script to calibrate performance expectations...")
-            script = self.generate_baseline_script()
+            base_script = self.generate_baseline_script()
+            script = base_script.format(provider=self.client.provider, model_name=self.client.model_name)
             strategy_mode = "baseline"
             approach_summary = "Simple baseline script: Direct LLM call without sophisticated techniques"
 

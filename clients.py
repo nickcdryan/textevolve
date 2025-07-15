@@ -30,7 +30,7 @@ class GeminiClient(LLMClient):
 
     @property
     def provider(self):
-        return "Gemini"
+        return "gemini"
 
     def call_llm(self, prompt: str, system_instruction: str = "") -> str:
         """Call the Gemini LLM with a prompt and return the response"""
@@ -59,7 +59,7 @@ class OpenAIClient(LLMClient):
     
     @property
     def provider(self):
-        return "OpenAI"
+        return "openai"
 
     def call_llm(self, prompt: str, system_instruction: str = "") -> str:
         try:
