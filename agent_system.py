@@ -22,6 +22,7 @@ from prompts.batch_size_optimizer import get_batch_size_optimization_prompt
 from prompts.batch_learnings import get_batch_learnings_prompt
 from prompts.learning_synthesizer import get_learning_synthesis_prompt
 from prompts.strategy_optimizer import get_strategy_optimization_prompt
+from prompts.progressive_testing import get_progressive_testing_prompt
 
 from prompts.script_generation.strategies import get_explore_instructions, get_exploit_instructions, get_refine_instructions
 
@@ -82,6 +83,7 @@ class AgentSystem:
 
         # Initialize batch size and tracking for seen examples
         self.current_batch_size = 3  # Start with a small batch
+        self.baseline_batch_size = 10
         self.seen_examples = set()
         self.examples_processed = 0
 
@@ -2862,6 +2864,106 @@ def main(question):
             "results": results
         }
 
+
+
+    def choose_strategy_with_llm(self) -> str:
+        """
+        Use LLM to directly choose the strategy for this iteration.
+        Returns: "explore", "exploit", or "refine"
+        """
+        summaries = self.get_summaries()
+        baseline_accuracy = self.get_baseline_performance()
+
+        # Build performance history with noise awareness
+        performance_data = []
+        for summary in summaries:
+            accuracy = summary.get("performance", {}).get("accuracy", 0)
+            batch_size = summary.get("batch_size", 5)
+            strategy = summary.get("strategy", "unknown")
+
+            performance_data.append({
+                "iteration": summary.get("iteration"),
+                "strategy": strategy,
+                "accuracy": accuracy,
+                "batch_size": batch_size
+            })
+
+        prompt, system_instruction = get_strategy_optimization_prompt(
+            current_iteration=self.current_iteration,
+            baseline_accuracy=baseline_accuracy,
+            performance_history=performance_data
+        )
+
+        response = self.call_llm(prompt, system_instruction=system_instruction)
+
+        # Extract strategy from response
+        response_lower = response.lower()
+        if "strategy: explore" in response_lower or "choose explore" in response_lower:
+            return "explore"
+        elif "strategy: exploit" in response_lower or "choose exploit" in response_lower:
+            return "exploit"  
+        elif "strategy: refine" in response_lower or "choose refine" in response_lower:
+            return "refine"
+        else:
+            # Fallback - favor exploration for early iterations
+            return "explore" if self.current_iteration < 8 else "exploit"
+
+    
+    def should_run_progressive_testing(self, current_accuracy: float, current_batch_size: int) -> bool:
+        """
+        Use LLM to decide whether to run progressive testing based on current performance and context.
+
+        Args:
+            current_accuracy: Accuracy from the current iteration
+            current_batch_size: Batch size used for current iteration
+
+        Returns:
+            bool: True if progressive testing should be run
+        """
+        # Get context for decision
+        baseline_accuracy = self.get_baseline_performance()
+        summaries = self.get_summaries()
+
+        # Build performance history
+        performance_history = []
+        for summary in summaries:
+            performance_history.append({
+                "iteration": summary.get("iteration"),
+                "strategy": summary.get("strategy", "unknown"),
+                "accuracy": summary.get("performance", {}).get("accuracy", 0),
+                "batch_size": summary.get("batch_size", 5),
+                "had_progressive_testing": summary.get("progressive_accuracy") is not None
+            })
+
+        prompt, system_instruction = get_progressive_testing_prompt(
+            current_iteration=self.current_iteration,
+            current_accuracy=current_accuracy,
+            current_batch_size=current_batch_size,
+            baseline_accuracy=baseline_accuracy,
+            performance_history=performance_history
+        )
+
+        try:
+            response = self.call_llm(prompt, system_instruction=system_instruction)
+
+            # Extract decision from response
+            response_lower = response.lower()
+            if "decision: yes" in response_lower or "run progressive testing: yes" in response_lower:
+                return True
+            elif "decision: no" in response_lower or "run progressive testing: no" in response_lower:
+                return False
+            else:
+                # Parse for other indicators
+                if "yes" in response_lower and ("promising" in response_lower or "worth" in response_lower):
+                    return True
+                else:
+                    return False  # Conservative default
+
+        except Exception as e:
+            print(f"Error deciding on progressive testing: {e}")
+            return False  # Conservative fallback
+
+    
     def run_iteration(self) -> Dict:
         """Run a single iteration of the agent system with baseline-calibrated three-mode strategy"""
 
@@ -2877,7 +2979,7 @@ def main(question):
             approach_summary = "Simple baseline script: Direct LLM call without sophisticated techniques"
 
             # Hard code: Use larger batch size for baseline to get more accurate measurement
-            baseline_batch_size = 10
+            baseline_batch_size = self.baseline_batch_size
             original_batch_size = self.current_batch_size
             self.current_batch_size = baseline_batch_size
             print(f"Using {baseline_batch_size} examples for baseline (vs normal batch size of {original_batch_size})")
@@ -2922,32 +3024,10 @@ def main(question):
                             print(f"    - {suggestion}")
                     print("=" * 40)
 
-            # Decide which strategy mode to use based on probabilities
-            strategy_roll = random.random() * 100
-
-            if strategy_roll < self.explore_rate:
-                strategy_mode = "explore"
-            elif strategy_roll < (self.explore_rate + self.exploit_rate):
-                strategy_mode = "exploit"
+            if self.current_iteration == 0:
+                strategy_mode = "baseline"
             else:
-                strategy_mode = "refine"
-
-            # Override strategy based on capability trends if available
-            if capability_report and capability_report.get("trend") != "insufficient_data":
-                weakest_capability = capability_report.get("improvement_focus", "")
-                trends = capability_report.get("trend", {})
-                weakest_trend = trends.get(weakest_capability) if isinstance(trends, dict) else None
-
-                # Strategy overrides based on trends
-                if weakest_trend == "declining":
-                    if strategy_mode != "explore":
-                        print(f"Strategy override: Forcing exploration to address declining capability: {weakest_capability}")
-                        strategy_mode = "explore"
-                elif isinstance(trends, dict):
-                    improving_count = sum(1 for trend in trends.values() if trend == "improving")
-                    if improving_count == len(trends) and strategy_mode == "explore" and improving_count > 0:
-                        print(f"Strategy override: Forcing exploitation to capitalize on improving capabilities")
-                        strategy_mode = "exploit"
+                strategy_mode = self.choose_strategy_with_llm()
 
             print(f"Strategy for this iteration: {strategy_mode}")
 
@@ -3077,35 +3157,50 @@ def main(question):
                 "root_causes": [str(e)]
             }
 
-        # Run progressive testing on promising scripts (but don't force exploitation)
+        # # Run progressive testing on promising scripts (but don't force exploitation)
+        # progressive_testing_results = None
+        # if accuracy >= 0.6:
+        #     try:
+        #         print("Script looks promising! Running progressive testing on all seen examples...")
+        #         progressive_testing_results = self.run_progressive_testing(script, max_examples=10)
+        #         if progressive_testing_results:
+        #             prog_accuracy = progressive_testing_results.get("accuracy", 0)
+        #             prog_matches = progressive_testing_results.get("matches", 0)
+        #             prog_total = progressive_testing_results.get("total_examples", 0)
+        #             print(f"Progressive testing results: {prog_accuracy:.2f} accuracy " + 
+        #                     f"({prog_matches}/{prog_total} correct)")
+        #     except Exception as e:
+        #         print(f"Error in progressive testing: {str(e)}")
+        #         progressive_testing_results = None
+
+
         progressive_testing_results = None
-        if accuracy >= 0.6:
-            try:
+        try:
+            print("Evaluating whether to run progressive testing...")
+            should_test = self.should_run_progressive_testing(accuracy, len(samples))
+
+            if should_test:
                 print("Script looks promising! Running progressive testing on all seen examples...")
-                progressive_testing_results = self.run_progressive_testing(script, max_examples=10)
+                progressive_testing_results = self.run_progressive_testing(script, max_examples=20)
                 if progressive_testing_results:
                     prog_accuracy = progressive_testing_results.get("accuracy", 0)
                     prog_matches = progressive_testing_results.get("matches", 0)
                     prog_total = progressive_testing_results.get("total_examples", 0)
                     print(f"Progressive testing results: {prog_accuracy:.2f} accuracy " + 
                             f"({prog_matches}/{prog_total} correct)")
-            except Exception as e:
-                print(f"Error in progressive testing: {str(e)}")
-                progressive_testing_results = None
+            else:
+                print("Performance doesn't warrant progressive testing at this time.")
+
+        except Exception as e:
+            print(f"Error in progressive testing evaluation: {str(e)}")
+            progressive_testing_results = None
+
+        
 
         # Adjust strategy balance for next iteration (skip for baseline)
         new_explore = self.explore_rate
         new_exploit = self.exploit_rate  
         new_refine = self.refine_rate
-
-        if self.current_iteration > 0:
-            try:
-                print("Adjusting strategy balance...")
-                new_explore, new_exploit, new_refine = self.adjust_strategy_with_llm()
-                print(f"New strategy balance: {new_explore}/{new_exploit}/{new_refine}")
-            except Exception as e:
-                print(f"Error adjusting strategy balance: {str(e)}")
-                print("Maintaining current strategy balance")
 
         # Adjust batch size for next iteration  
         new_batch_size = self.current_batch_size
@@ -3176,7 +3271,7 @@ def main(question):
             "explore_rate": self.explore_rate,
             "exploit_rate": self.exploit_rate,
             "refine_rate": self.refine_rate,
-            "batch_size": self.current_batch_size,
+            "batch_size": self.current_batch_size if self.current_iteration != 0 else self.baseline_batch_size,
             "script": script,
             "approach_summary": approach_summary,
             "sample_count": len(samples),
@@ -3198,7 +3293,7 @@ def main(question):
             "explore_rate": self.explore_rate,
             "exploit_rate": self.exploit_rate,
             "refine_rate": self.refine_rate,
-            "batch_size": self.current_batch_size,
+            "batch_size": self.current_batch_size if self.current_iteration != 0 else self.baseline_batch_size,
             "approach_summary": approach_summary,
             "performance": {
                 "accuracy": accuracy,

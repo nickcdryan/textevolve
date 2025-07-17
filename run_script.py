@@ -79,10 +79,20 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
 
         all_iteration_data = agent.get_all_iterations()
 
+        # Build summary table lines
+        summary_lines = []
+        summary_lines.append("Performance Trend:")
+
+        header_line = f"{'Iteration':<8} {'Strategy':<12} {'Batch Acc.':<12} {'Prog. Acc.':<16} {'Combined':<12} {'Batch Size':<10} {'Prog. Size':<10} {'Expl/Expt':<10} {'Primary Issue'}"
+        summary_lines.append(header_line)
+
+        separator_line = "-" * 120
+        summary_lines.append(separator_line)
+
         # Print performance trend
         print("\nPerformance Trend:")
-        print(f"{'Iteration':<8} {'Strategy':<12} {'Batch Acc.':<12} {'Prog. Acc.':<16} {'Combined':<12} {'Batch Size':<10} {'Prog. Size':<10} {'Expl/Expt':<10} {'Primary Issue'}")
-        print("-" * 120)
+        print(header_line)
+        print(separator_line)
 
         for summary in summaries:
             iteration = summary.get("iteration", "?")
@@ -123,7 +133,20 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
                 combined_acc = (total_correct / total_samples) * 100
                 combined_acc_str = f"{combined_acc:.2f}%"
 
-            print(f"{iteration:<8} {strategy:<12} {batch_accuracy:<12.2f}% {prog_acc_str:<16} {combined_acc_str:<12} {batch_size:<10} {prog_samples:<10} {explore}/{exploit}/{refine:<10} {issue}")
+            data_line = f"{iteration:<8} {strategy:<12} {batch_accuracy:<12.2f}% {prog_acc_str:<16} {combined_acc_str:<12} {batch_size:<10} {prog_samples:<10} {explore}/{exploit}/{refine:<10} {issue}"
+
+            # Print and save the line
+            print(data_line)
+            summary_lines.append(data_line)
+
+        # Write summary to file
+        try:
+            Path("scripts").mkdir(exist_ok=True)
+            with open("scripts/summary.txt", "w") as f:
+                f.write("\n".join(summary_lines))
+            print(f"\nSummary saved to scripts/summary.txt")
+        except Exception as e:
+            print(f"Error saving summary to file: {e}")
 
     # Get best script info - with error handling
     try:
@@ -159,7 +182,6 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
     except Exception as e:
         print(f"Error getting best script info: {e}")
         print("Could not determine best script due to an error.")
-
 
     print(f"Final batch size: {agent.current_batch_size}")
     print(f"Total examples seen: {len(agent.seen_examples)}")
