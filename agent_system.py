@@ -13,9 +13,9 @@ import sys
 import ast  # Added for script validation
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
-from google import genai
-from google.genai import types  # Added import for GenerateContentConfig
 import numpy as np
+
+from clients import LLMClient
 
 from prompts.data_analyzer import get_dataset_analysis_prompt
 from prompts.batch_size_optimizer import get_batch_size_optimization_prompt
@@ -64,7 +64,7 @@ class AgentSystem:
     Now supports custom dataset loaders.
     """
 
-    def __init__(self, dataset_loader=None):
+    def __init__(self, client: LLMClient, dataset_loader=None):
         """
         Initialize the agent system with a dataset loader
 
@@ -99,15 +99,8 @@ class AgentSystem:
         self.system_prompt = self._load_system_prompt()
         print(f"System prompt loaded: {len(self.system_prompt)} characters")
 
-        # Initialize Gemini API client
-        try:
-            self.client = genai.Client(
-                api_key=os.environ.get("GEMINI_API_KEY"))
-            print("Gemini API client initialized successfully")
-        except Exception as e:
-            print(f"Error initializing Gemini API client: {e}")
-            print("Make sure to set the GEMINI_API_KEY environment variable")
-            raise
+        # Initialize LLM API client
+        self.client = client 
 
         # Initialize learnings mechanism
         print("Initializing learnings mechanism...")
@@ -232,7 +225,7 @@ class AgentSystem:
         # Call LLM to analyze the dataset
         try:
             prompt, system_instruction = get_dataset_analysis_prompt(formatted_examples)
-            dataset_analysis = self.call_llm(prompt, system_instruction=system_instruction)
+            dataset_analysis = self.client.call_llm(prompt, system_instruction=system_instruction)
             print("Dataset analysis complete, adding to learnings.txt")
 
             # Format the analysis for learnings.txt
@@ -365,21 +358,6 @@ class AgentSystem:
                 self.current_iteration = 0
                 print("No previous state found. Starting from iteration 0.")
     
-    def call_llm(self, prompt: str, system_instruction: str = None) -> str:
-        """Call the Gemini LLM with a prompt and return the response"""
-        try:
-            # Use provided system instruction or default to the loaded system prompt
-            sys_instruction = system_instruction if system_instruction is not None else ""
-
-            response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
-                config=types.GenerateContentConfig(
-                    system_instruction=sys_instruction),
-                contents=prompt)
-            return response.text
-        except Exception as e:
-            print(f"Error calling Gemini API: {e}")
-            return f"Error: {str(e)}"
 
     def load_dataset(self) -> Dict:
         """Load the entire dataset from the specified file"""
@@ -554,7 +532,7 @@ class AgentSystem:
                 total_examples_seen=len(self.seen_examples),
                 performance_history=performance_history
             )
-            response = self.call_llm(
+            response = self.client.call_llm(
                 prompt, system_instruction=system_instruction)
 
             # Extract JSON from response
@@ -677,7 +655,7 @@ class AgentSystem:
                                                                     error_examples, 
                                                                     capability_insights)
             
-            response = self.call_llm(prompt, system_instruction=system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=system_instruction)
             return f"--- LEARNINGS FROM ITERATION {iteration_data.get('iteration')} ---\n{response.strip()}\n\n"
         except Exception as e:
             error_message = f"Error generating batch learnings: {str(e)}"
@@ -728,7 +706,7 @@ class AgentSystem:
 
         try:
             print(f"Calling LLM to {'condense and synthesize' if approaching_limit else 'synthesize'} learnings...")
-            response = self.call_llm(prompt, system_instruction=system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=system_instruction)
 
             response_length = len(response.strip())
             print(f"Received synthesized learnings: {response_length} characters")
@@ -788,31 +766,20 @@ class AgentSystem:
 from google import genai
 from google.genai import types
 
-def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response"""
-    try:
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+from clients import GeminiClient, OpenAIClient
 
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
+provider_type = "{provider}"
+model_name = "{model_name}"
 
-        return response.text
-    except Exception as e:
-        print(f"Error calling Gemini API: {str(e)}")
-        return f"Error: {str(e)}"
+if provider_type == "gemini":
+    client = GeminiClient(model_name)
+elif provider_type == "openai":
+    client = OpenAIClient(model_name)
+else:
+    raise ValueError(f"Unknown provider: {provider}")
+
+def call_llm(prompt, system_instruction=""):
+    return client.call_llm(prompt, system_instruction)
 
 def main(question):
     """
@@ -987,7 +954,7 @@ def main(question):
                                                                           performance_history, 
                                                                           capability_context=None)
             
-            response = self.call_llm(prompt, system_instruction=system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=system_instruction)
 
             # Extract JSON from response
             response = response.strip()
@@ -1320,9 +1287,17 @@ def main(question):
         # Set specific system instruction for script generation
         script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {strategy_mode} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning, agentic LLM patterns, and python to solve the problem examples provided."
 
+        # Add a provider-agnostic LLM API example generator
+        def get_llm_api_example(provider, model_name):
+            if provider == "gemini":
+                return f'''from clients import GeminiClient\n\nmodel_name = "{model_name}"\nclient = GeminiClient(model_name)\n\ndef call_llm(prompt, system_instruction=""):\n    return client.call_llm(prompt, system_instruction)\n'''
+            elif provider == "openai":
+                return f'''from clients import OpenAIClient\n\nmodel_name = "{model_name}"\nclient = OpenAIClient(model_name)\n\ndef call_llm(prompt, system_instruction=""):\n    return client.call_llm(prompt, system_instruction)\n'''
+            else:
+                return f"# LLM provider '{provider}' not supported in example"
 
-        gemini_api_example = 'def call_llm(prompt, system_instruction=None):\n    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f"Error calling Gemini API: {str(e)}")\n        return f"Error: {str(e)}"'
-
+        # Use provider-agnostic LLM API example in prompt construction
+        llm_api_example = self.get_llm_api_example(self.client.provider, self.client.model_name)
 
         # Create appropriate prompt based on strategy
         if strategy_mode == "explore":
@@ -1333,7 +1308,7 @@ def main(question):
                 last_scripts_context=last_scripts_context,
                 learning_context=learning_context,
                 capability_context=capability_context,
-                llm_api_example=gemini_api_example
+                llm_api_example=llm_api_example
             )
         elif strategy_mode == "exploit":
             # Exploitation prompt - combine strengths from multiple top scripts
@@ -1359,7 +1334,7 @@ def main(question):
                 top_scripts_analysis=top_scripts_analysis,
                 learning_context=learning_context,
                 capability_context=capability_context,
-                llm_api_example=gemini_api_example
+                llm_api_example=llm_api_example
             )
 
         elif strategy_mode == "refine":
@@ -1413,7 +1388,7 @@ def main(question):
                                              best_script_errors=best_script_errors,
                                              learning_context=learning_context, 
                                              capability_context=capability_context, 
-                                             llm_api_example=gemini_api_example)
+                                             llm_api_example=llm_api_example)
 
 
         
@@ -1431,7 +1406,7 @@ def main(question):
             attempts += 1
 
             # Call LLM to generate script with the specific system instruction
-            response = self.call_llm(
+            response = self.client.call_llm(
                 prompt, system_instruction=script_generator_system_instruction)
 
             # Extract code block from response
@@ -1593,7 +1568,7 @@ def main(question):
         """
         
         try:
-            response = self.call_llm(prompt, system_instruction=repairer_system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=repairer_system_instruction)
 
             # Extract code block from response
             if "```python" in response:
@@ -1646,7 +1621,7 @@ def main(question):
         """
 
         try:
-            response = self.call_llm(prompt, system_instruction=error_checker_system_instruction)
+            response = self.client.call_llm(prompt, system_instruction=error_checker_system_instruction)
 
             # Check if the response indicates an error
             response = response.strip()
@@ -1794,6 +1769,7 @@ def main(question):
 
         # Set up trace file in the archive directory
         trace_file = self.archive_dir / f"trace_iteration_{self.current_iteration}.jsonl"
+        
 
         # Load the test script template
         template_path = Path("test_script_template.py")
@@ -1824,7 +1800,9 @@ def main(question):
                 current_iteration=self.current_iteration,
                 sample_id=sample_id,
                 question_repr=repr(question),
-                script_path=script_path
+                script_path=script_path,
+                provider_type=self.client.provider,  # e.g., "gemini" or "openai"
+                model_name=self.client.model_name
             )
         except Exception as e:
             return {
@@ -2170,7 +2148,7 @@ def main(question):
     
             # Call LLM for detailed error analysis as text
             try:
-                error_analysis_text = self.call_llm(prompt, system_instruction=error_analyzer_system_instruction)
+                error_analysis_text = self.client.call_llm(prompt, system_instruction=error_analyzer_system_instruction)
                 print("Generated error analysis text report")
     
                 # Extract useful information for the dictionary return
@@ -2294,7 +2272,7 @@ def main(question):
             Pay particular attention to any patterns in the execution outputs that might reveal issues with the implementation.
             """
     
-            capability_report_text = self.call_llm(capability_prompt, system_instruction=capability_reporter_system_instruction)
+            capability_report_text = self.client.call_llm(capability_prompt, system_instruction=capability_reporter_system_instruction)
             print("Generated capability report text successfully")
     
             # Extract the improvement focus for the dictionary return
@@ -2427,7 +2405,7 @@ def main(question):
         print ("SYSTEM ANSWER: ....", system_answer)
         print ("GOLDEN ANSWER: ", golden_answer)
         try:
-            response = self.call_llm(
+            response = self.client.call_llm(
                 prompt, system_instruction=evaluator_system_instruction)
 
             # Extract JSON from response
@@ -2490,7 +2468,7 @@ def main(question):
         """
 
         try:
-            summary = self.call_llm(
+            summary = self.client.call_llm(
                 prompt, system_instruction=summarizer_system_instruction)
             return summary.strip()
         except Exception as e:
@@ -2593,7 +2571,7 @@ def main(question):
             {{"best_iteration": <integer>, "rationale": "<brief explanation>"}}
             """
 
-            response = self.call_llm(
+            response = self.client.call_llm(
                 prompt, system_instruction=script_evaluator_system_instruction)
 
             # Extract JSON from response
@@ -2974,7 +2952,8 @@ def main(question):
         # Handle baseline generation for iteration 0
         if self.current_iteration == 0:
             print("Generating baseline script to calibrate performance expectations...")
-            script = self.generate_baseline_script()
+            base_script = self.generate_baseline_script()
+            script = base_script.format(provider=self.client.provider, model_name=self.client.model_name)
             strategy_mode = "baseline"
             approach_summary = "Simple baseline script: Direct LLM call without sophisticated techniques"
 
@@ -3337,6 +3316,28 @@ def main(question):
             print(f"Error updating learnings: {e}")
 
         return iteration_data
+
+    def get_llm_api_example(self, provider, model_name):
+        if provider == "gemini":
+            return f'''from clients import GeminiClient
+
+model_name = "{model_name}"
+client = GeminiClient(model_name)
+
+def call_llm(prompt, system_instruction=""):
+    return client.call_llm(prompt, system_instruction)
+'''
+        elif provider == "openai":
+            return f'''from clients import OpenAIClient
+
+model_name = "{model_name}"
+client = OpenAIClient(model_name)
+
+def call_llm(prompt, system_instruction=""):
+    return client.call_llm(prompt, system_instruction)
+'''
+        else:
+            return f"# LLM provider '{provider}' not supported in example"
 
 class CapabilityTracker:
     """

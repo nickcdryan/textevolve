@@ -16,6 +16,7 @@ from typing import Dict, List, Any
 
 from agent_system import AgentSystem
 from dataset_loader import create_dataset_loader
+from providers import ProviderFactory
 
 # Fixed random seed for reproducibility (if shuffling is enabled)
 RANDOM_SEED = 42
@@ -31,11 +32,15 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
     # Create the appropriate dataset loader
     try:
         loader_type = loader_config.pop("loader_type")
+        provider = loader_config.pop("provider")
+        model = loader_config.pop("model")
+        print(f"Loading {provider} {model}")
         dataset_loader = create_dataset_loader(loader_type, **loader_config)
+        client = ProviderFactory.get_client(provider, model)
         print(f"Created {loader_type} dataset loader with {dataset_loader.get_total_count()} examples")
 
         # Initialize the agent system with the dataset loader
-        agent = AgentSystem(dataset_loader=dataset_loader)
+        agent = AgentSystem(client=client, dataset_loader=dataset_loader)
     except Exception as e:
         print(f"Error initializing system: {e}")
         sys.exit(1)
@@ -193,6 +198,17 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Run the Agentic Learning System with custom dataset loaders")
 
+    parser.add_argument("--provider",
+                        type=str,
+                        default="gemini",
+                        choices=["gemini", "openai"],
+                        help="Provider to use (default: gemini)")
+    
+    parser.add_argument("--model",
+                        type=str,
+                        default="gemini-2.0-flash",
+                        help="Model to use (default: gemini-2.0-flash)")
+
     parser.add_argument("--iterations",
                         "-i",
                         type=int,
@@ -270,17 +286,12 @@ if __name__ == "__main__":
     # Parse command-line arguments
     args = parse_arguments()
 
-    # Check environment variables
-    if not os.environ.get("GEMINI_API_KEY"):
-        print("Error: GEMINI_API_KEY environment variable is not set.")
-        print(
-            "Please set this variable to your Gemini API key before running the script."
-        )
-        print("Example: export GEMINI_API_KEY=your_api_key_here")
-        sys.exit(1)
 
+    
     # Create loader configuration
     loader_config = {
+        "provider": args.provider,
+        "model": args.model,
         "loader_type": args.loader,
         "dataset_path": args.dataset,
         "shuffle": not args.no_shuffle,

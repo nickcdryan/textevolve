@@ -11,7 +11,7 @@ def get_explore_instructions(example_problems, historical_context, last_scripts_
         last_scripts_context: Context about the last 5 scripts tried
         learning_context: Accumulated learnings from previous iterations
         capability_context: Capability assessment and improvement guidance
-        gemini_api_example: Standard API usage example
+        llm_api_example: Standard API usage example
 
     Returns:
         str: Complete exploration prompt
@@ -71,7 +71,7 @@ EXPLORATION GUIDANCE:
    - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
    - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
 
-Here's how to call the Gemini API. Use this example without modification and don't invent configuration options:
+Here's how to call the LLM API. Use this example without modification and don't invent configuration options:
 {llm_api_example}
 
 Since this is an EXPLORATION phase:
@@ -122,7 +122,7 @@ def get_exploit_instructions(example_problems, historical_context, top_scripts_a
    top_scripts_analysis: Analysis of top performing scripts to combine
    learning_context: Accumulated learnings from previous iterations
    capability_context: Capability assessment and improvement guidance
-   gemini_api_example: Standard API usage example
+   llm_api_example: Standard API usage example
    
    Returns:
    str: Complete exploitation prompt
@@ -185,7 +185,7 @@ def get_exploit_instructions(example_problems, historical_context, top_scripts_a
    4. The hybrid should be more robust than any individual approach
    5. Address the weaknesses identified in the capability assessment through synthesis
    
-   Here's how to call the Gemini API. Use this example without modification:
+   Here's how to call the LLM API. Use this example without modification:
    {llm_api_example}
    
    SYNTHESIS IMPLEMENTATION:
@@ -223,7 +223,7 @@ def get_refine_instructions(example_problems, historical_context, best_script_to
    error_samples: List of failed examples from the best script
    learning_context: Accumulated learnings from previous iterations
    capability_context: Capability assessment and improvement guidance
-   gemini_api_example: Standard API usage example
+   llm_api_example: Standard API usage example
    
    Returns:
    str: Complete refinement prompt
@@ -296,7 +296,7 @@ def get_refine_instructions(example_problems, historical_context, best_script_to
    5. EVERY LLM PROMPT must include embedded examples
    6. Test your hypothesis with additional verification
    
-   Here's how to call the Gemini API. Use this example without modification:
+   Here's how to call the LLM API. Use this example without modification:
    {llm_api_example}
    
    REFINEMENT IMPLEMENTATION:
