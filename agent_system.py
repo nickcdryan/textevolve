@@ -17,6 +17,8 @@ from google import genai
 from google.genai import types  # Added import for GenerateContentConfig
 import numpy as np
 
+from sandbox import DockerSandbox, check_docker_available
+
 from prompts.data_analyzer import get_dataset_analysis_prompt
 from prompts.batch_size_optimizer import get_batch_size_optimization_prompt
 from prompts.batch_learnings import get_batch_learnings_prompt
@@ -64,17 +66,42 @@ class AgentSystem:
     Now supports custom dataset loaders.
     """
 
-    def __init__(self, dataset_loader=None):
+    def __init__(self, dataset_loader=None, use_sandbox=True):
         """
         Initialize the agent system with a dataset loader
 
         Args:
             dataset_loader: A DatasetLoader instance for loading and processing examples
+            use_sandbox: Whether to use Docker sandbox for code execution (default: True)
         """
         # Initialize configuration
         self.explore_rate = 60  # Start with exploration focus
         self.exploit_rate = 20  # Some exploitation
         self.refine_rate = 20   # Some refinement
+
+        # Initialize sandbox
+        self.use_sandbox = use_sandbox
+        self.sandbox = None
+        if self.use_sandbox:
+            if not check_docker_available():
+                print("WARNING: Docker not available. Falling back to direct execution.")
+                print("For secure execution, please install and start Docker.")
+                self.use_sandbox = False
+            else:
+                try:
+                    self.sandbox = DockerSandbox()
+                    if not self.sandbox.ensure_image_available():
+                        print("WARNING: Failed to ensure Docker image is available.")
+                        print("Falling back to direct execution.")
+                        self.use_sandbox = False
+                        self.sandbox = None
+                    else:
+                        print("Docker sandbox initialized successfully.")
+                except Exception as e:
+                    print(f"WARNING: Failed to initialize Docker sandbox: {e}")
+                    print("Falling back to direct execution.")
+                    self.use_sandbox = False
+                    self.sandbox = None
 
         # Store the dataset loader
         self.dataset_loader = dataset_loader
@@ -1781,8 +1808,12 @@ def main(question):
     def execute_script(self, script: str, sample: Dict) -> Dict:
         """
         Execute the generated script on a sample and return the result.
+        Uses Docker sandbox if enabled, otherwise falls back to direct execution.
         Uses automatic debugging if the script fails with specific errors.
         """
+        # Use sandbox if available
+        if self.use_sandbox and self.sandbox:
+            return self.sandbox.execute_script(script, sample)
         # Create a temporary script file
         script_path = self.scripts_dir / f"current_script_{self.current_iteration}.py"
         with open(script_path, 'w', encoding='utf-8') as f:

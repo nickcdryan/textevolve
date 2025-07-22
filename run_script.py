@@ -20,13 +20,14 @@ from dataset_loader import create_dataset_loader
 # Fixed random seed for reproducibility (if shuffling is enabled)
 RANDOM_SEED = 42
 
-def run_agent(iterations: int, loader_config: Dict) -> None:
+def run_agent(iterations: int, loader_config: Dict, use_sandbox: bool = True) -> None:
     """
     Run the agent system for the specified number of iterations.
 
     Args:
         iterations: Number of iterations to run
         loader_config: Configuration for dataset loader
+        use_sandbox: Whether to use Docker sandbox for code execution
     """
     # Create the appropriate dataset loader
     try:
@@ -35,7 +36,7 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
         print(f"Created {loader_type} dataset loader with {dataset_loader.get_total_count()} examples")
 
         # Initialize the agent system with the dataset loader
-        agent = AgentSystem(dataset_loader=dataset_loader)
+        agent = AgentSystem(dataset_loader=dataset_loader, use_sandbox=use_sandbox)
     except Exception as e:
         print(f"Error initializing system: {e}")
         sys.exit(1)
@@ -46,6 +47,7 @@ def run_agent(iterations: int, loader_config: Dict) -> None:
     print(f"Dataset: {loader_config.get('dataset_path')}")
     print(f"Loader type: {loader_type}")
     print(f"Shuffle data: {loader_config.get('shuffle', True)}")
+    print(f"Sandbox enabled: {agent.use_sandbox}")
     print(f"Starting with explore/exploit/refine balance: {agent.explore_rate}/{agent.exploit_rate}/{agent.refine_rate}")
     print(f"Starting batch size: {agent.current_batch_size}")
     print("-" * 80)
@@ -264,6 +266,12 @@ def parse_arguments():
         default=RANDOM_SEED,
         help=f"Random seed for dataset shuffling (default: {RANDOM_SEED})")
 
+    # Sandbox options
+    parser.add_argument(
+        "--no-sandbox",
+        action="store_true",
+        help="Disable Docker sandbox for code execution (default: False)")
+
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -307,4 +315,4 @@ if __name__ == "__main__":
         })
 
     # Run the agent
-    run_agent(args.iterations, loader_config)
+    run_agent(args.iterations, loader_config, use_sandbox=not args.no_sandbox)
