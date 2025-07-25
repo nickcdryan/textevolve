@@ -20,7 +20,7 @@ from dataset_loader import create_dataset_loader
 # Fixed random seed for reproducibility (if shuffling is enabled)
 RANDOM_SEED = 42
 
-def run_agent(iterations: int, loader_config: Dict, use_sandbox: bool = True) -> None:
+def run_agent(iterations: int, loader_config: Dict, use_sandbox: bool = False) -> None:
     """
     Run the agent system for the specified number of iterations.
 
@@ -268,9 +268,9 @@ def parse_arguments():
 
     # Sandbox options
     parser.add_argument(
-        "--no-sandbox",
+        "--sandbox",
         action="store_true",
-        help="Disable Docker sandbox for code execution (default: False)")
+        help="Enable Docker sandbox for code execution (default: False)")
 
     return parser.parse_args()
 
@@ -315,4 +315,4 @@ if __name__ == "__main__":
         })
 
     # Run the agent
-    run_agent(args.iterations, loader_config, use_sandbox=not args.no_sandbox)
+    run_agent(args.iterations, loader_config, use_sandbox=args.sandbox)

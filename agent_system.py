@@ -13,6 +13,7 @@ import sys
 import ast  # Added for script validation
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from google import genai
 from google.genai import types  # Added import for GenerateContentConfig
 import numpy as np
@@ -2750,6 +2751,22 @@ def main(question):
                         "rationale": "No valid iterations completed"
                     }
     
+    def _evaluate_sample(self, script: str, sample: Dict) -> Dict:
+        """Helper method to evaluate a single sample with a script"""
+        result = self.execute_script(script, sample)
+        
+        if result.get("success"):
+            golden_answer = self.dataset_loader.get_example_output(sample)
+            system_answer = result.get("answer", "")
+            evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+            result["golden_answer"] = golden_answer
+            result["evaluation"] = evaluation
+            result["match"] = evaluation.get("match", False)
+        else:
+            result["match"] = False
+            
+        return result
+
     def run_progressive_testing(self, script: str, max_examples: int = 20) -> Dict:
         """Run progressive testing on seen examples, up to a maximum limit"""
         # Load the dataset
@@ -2776,29 +2793,16 @@ def main(question):
 
         print(f"Running progressive testing on {len(samples)} seen examples (out of {len(all_samples)} total seen)...")
 
-        # Execute script on selected samples
-        results = []
-        for i, sample in enumerate(samples):
-            if i % 5 == 0:  # Status update every 5 samples
-                print(f"  Processing sample {i+1}/{len(samples)}...")
-
-            # Execute the script with the full sample
-            result = self.execute_script(script, sample)
-
-            # Evaluate the result if successful
-            if result.get("success"):
-                golden_answer = self.dataset_loader.get_example_output(sample)  # This already uses the universal interface
-                system_answer = result.get("answer", "")
-
-                # Use LLM-based evaluation
-                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
-                result["golden_answer"] = golden_answer
-                result["evaluation"] = evaluation
-                result["match"] = evaluation.get("match", False)
-            else:
-                result["match"] = False
-
-            results.append(result)
+        # Execute script on selected samples in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_idx = {executor.submit(self._evaluate_sample, script, sample): i for i, sample in enumerate(samples)}
+            results = [None] * len(samples)
+            
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                results[idx] = future.result()
+                if (idx + 1) % 5 == 0:  # Status update every 5 samples
+                    print(f"  Completed {idx + 1}/{len(samples)} samples...")
 
         # Calculate overall statistics
         successful_runs = sum(1 for r in results if r.get("success", False))
@@ -2858,29 +2862,18 @@ def main(question):
     
         print(f"Validating script on {len(samples)} examples from range {start_index}-{end_index}...")
     
-        # Execute script on all samples
-        results = []
-        for i, sample in enumerate(samples):
-            if i % 10 == 0:  # Status update every 10 samples
-                print(f"  Processing sample {i+1}/{len(samples)}...")
-
-            question = self.dataset_loader.get_example_input(sample)
-            result = self.execute_script(script, question)
-
-            # Evaluate the result if successful
-            if result.get("success"):
-                golden_answer = self.dataset_loader.get_example_output(sample)
-                system_answer = result.get("answer", "")
-
-                # Use LLM-based evaluation
-                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
-
-                result["evaluation"] = evaluation
-                result["match"] = evaluation.get("match", False)
-            else:
-                result["match"] = False
-
-            results.append({"key": sample.get("id", f"example_{i}"), "result": result})
+        # Execute script on all samples in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_idx = {executor.submit(self._evaluate_sample, script, sample): i for i, sample in enumerate(samples)}
+            results = [None] * len(samples)
+            
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                sample = samples[idx]
+                result = future.result()
+                results[idx] = {"key": sample.get("id", f"example_{idx}"), "result": result}
+                if (idx + 1) % 10 == 0:  # Status update every 10 samples
+                    print(f"  Completed {idx + 1}/{len(samples)} samples...")
     
         # Calculate overall statistics
         successful_runs = sum(1 for r in results if r["result"].get("success", False))
@@ -3090,45 +3083,29 @@ def main(question):
 
         print(f"Processing {len(samples)} examples (including {samples_data['new_examples_added']} new examples)")
 
-        # Execute script on samples
+        # Execute script on samples in parallel
         print("Executing script on samples...")
-        results = []
-        for i, sample in enumerate(samples):
-            print(f"  Processing sample {i+1}/{len(samples)}...")
-
-            # Execute the script with the full sample dictionary
-            result = self.execute_script(script, sample)
-
-            if result.get("success"):
-                print(f"    Result: {result.get('answer')}")
-                # Evaluate with LLM
-                golden_answer = sample.get("answer", "")  # Use universal "answer" field
-                system_answer = result.get("answer", "")
-
-                try:
-                    evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
-                    result["evaluation"] = evaluation
-                    result["match"] = evaluation.get("match", False)
-                    if result["match"]:
-                        print(f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})")
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_idx = {executor.submit(self._evaluate_sample, script, sample): i for i, sample in enumerate(samples)}
+            results = [None] * len(samples)
+            
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                sample = samples[idx]
+                result = future.result()
+                results[idx] = result
+                
+                print(f"  Completed sample {idx+1}/{len(samples)}")
+                if result.get("success"):
+                    print(f"    Result: {result.get('answer')}")
+                    if result.get("match"):
+                        confidence = result.get("evaluation", {}).get("confidence", 0)
+                        print(f"    ✅ Match (confidence: {confidence:.2f})")
                     else:
-                        print(f"    ❌ No match: {evaluation.get('explanation', '')}")
-                except Exception as e:
-                    print(f"    ⚠️ Error evaluating answer: {str(e)}")
-                    # Fallback to exact match
-                    exact_match = system_answer.strip() == golden_answer.strip()
-                    result["match"] = exact_match
-                    result["evaluation"] = {
-                        "match": exact_match,
-                        "confidence": 1.0 if exact_match else 0.0,
-                        "explanation": f"Error evaluating: {str(e)}"
-                    }
-                    print(f"    {'✅' if exact_match else '❌'} Fallback to exact match: {exact_match}")
-            else:
-                print(f"    Error: {result.get('error')}")
-                result["match"] = False
-
-            results.append(result)
+                        explanation = result.get("evaluation", {}).get("explanation", "")
+                        print(f"    ❌ No match: {explanation}")
+                else:
+                    print(f"    Error: {result.get('error')}")
 
         # Restore original batch size after baseline measurement
         if self.current_iteration == 0:
