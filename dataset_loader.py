@@ -895,5 +895,8 @@ def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
     elif loader_type.lower() == "custom":
         from dataset_loader import CustomDatasetLoader
         return CustomDatasetLoader(**kwargs)
+    elif loader_type.lower() == "asset":
+        from asset_dataset_loader import AssetDatasetLoader
+        return AssetDatasetLoader(**kwargs)
     else:
         raise ValueError(f"Unknown loader type: {loader_type}")
