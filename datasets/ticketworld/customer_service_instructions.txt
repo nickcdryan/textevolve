@@ -1,0 +1,138 @@
+# Customer Service Resolution Plan Instructions
+
+## Overview
+When you receive a customer email, create a comprehensive resolution plan following our standardized schema. Analyze the customer's issue, look up relevant information in our databases, and determine the appropriate response based on company policies.
+
+## Required Resources
+You have access to these files located at datasets/ticketworld/:
+- **customer_database.db** - SQLite database with customer, order, and product information
+- **company_policy.txt** - Complete company policies with policy IDs and rules
+
+## Database Schema (customer_database.db)
+
+### Table: customers
+- customer_id (TEXT, PRIMARY KEY): Format CUST-XXXX
+- name (TEXT): Customer full name
+- primary_email (TEXT): Primary email address
+- alternate_email (TEXT): Secondary email address
+- phone (TEXT): Phone number
+- shipping_street, shipping_city, shipping_state, shipping_zip (TEXT): Shipping address
+- billing_street, billing_city, billing_state, billing_zip (TEXT): Billing address
+- created_date (DATE): Account creation date
+
+### Table: products
+- product_id (TEXT, PRIMARY KEY): Format PROD-XXXX
+- name (TEXT): Product name
+- category, brand (TEXT): Product classification
+- base_price (DECIMAL): Product price
+- warranty_period (INTEGER): Warranty days
+- weight (DECIMAL): Product weight
+- requires_signature (BOOLEAN): Delivery requirement
+- in_stock (BOOLEAN): Availability status
+- description (TEXT): Product description
+
+### Table: orders
+- order_id (TEXT, PRIMARY KEY): Format ORD-YYYYMMDD-XXXX
+- customer_id (TEXT): Links to customers table
+- order_date (DATE): Order placement date
+- items (TEXT): JSON array of order items
+- shipping_method (TEXT): Shipping method used
+- tracking_number (TEXT): Package tracking
+- total_amount (DECIMAL): Total order amount
+- payment_method (TEXT): Payment method
+- order_status (TEXT): Current status
+
+### Order Items JSON Structure
+```
+[
+  {
+    "product_id": "PROD-XXXX",
+    "quantity": 1,
+    "price_paid": 99.99,
+    "item_status": "delivered"
+  }
+]
+```
+
+## Resolution Plan Schema
+
+### Main Structure
+```
+{
+  "order_id": "string",              // Order ID or "N/A"
+  "order_date": "string",            // "YYYY-MM-DD" or "N/A"
+  "customer_lookup": {object},       // Customer identification
+  "policy_references": [string],     // Array of policy IDs
+  "policy_reasoning": "string",      // Detailed explanation
+  "actions": [object],               // Array of actions
+  "escalation_required": boolean,    // true/false
+  "escalation_reason": "string",     // null if no escalation
+  "priority": "enum",                // Priority level
+  "total_resolution_value": number   // Sum of action values
+}
+```
+
+### Customer Lookup Object
+```
+{
+  "status": "found|not_found",
+  "customer_id": "string",
+  "lookup_method": "email_match",
+  "notes": "string"
+}
+```
+
+### Action Object
+```
+{
+  "type": "enum",         // See action types below
+  "reason": "string",     // Policy citation
+  "value": number,        // Dollar amount (0 for denials)
+  "details": "string"     // Implementation details
+}
+```
+
+### Action Types (Complete List)
+- process_return
+- issue_refund
+- send_replacement
+- provide_tracking
+- honor_warranty
+- escalate_to_manager
+- request_more_info
+- request_photo
+- update_shipping_address
+- cancel_order
+- deny_return
+- deny_refund
+- deny_warranty_claim
+- deny_price_match
+- deny_order_modification
+- deny_cancellation
+- provide_information
+- initiate_investigation
+- process_exchange
+- deny_exchange
+- send_return_label
+
+### Priority Levels
+- low
+- medium
+- high
+- urgent
+
+## Process Steps
+1. **Customer Lookup**: Search database by email, record customer_id and status
+2. **Order Information**: Extract order_id and order_date if applicable, use "N/A" if none
+3. **Policy Research**: Find all relevant policies from company_policy.txt
+4. **Policy Reasoning**: Explain which policies apply and how they interact
+5. **Determine Actions**: Choose appropriate actions with monetary values and detailed instructions
+6. **Escalation Assessment**: Check for high-value items (>$500), complex interactions, or unusual circumstances
+7. **Priority Assignment**: Set based on urgency and issue type
+8. **Calculate Total**: Sum all monetary values from actions
+
+## Key Requirements
+- Reference specific policy IDs (e.g., "POL-WARRANTY-001")
+- Use exact dollar amounts from product prices
+- Provide detailed reasoning connecting issue to policies
+- When in doubt, escalate rather than assume 

@@ -26,7 +26,7 @@ def get_strategy_optimization_prompt(current_iteration, baseline_accuracy, perfo
 
     1. EXPLORATION BIAS (Early Iterations):
        - Favor EXPLORE for first 5-8 iterations to build approach diversity
-       - Only exploit/refine if you have genuinely exceptional results relative to baseline
+       - Only exploit/refine if you have genuinely good results relative to baseline
 
     2. NOISE AWARENESS:
        - Small batch sizes (≤3) make results very noisy - don't over-interpret single results
@@ -42,6 +42,7 @@ def get_strategy_optimization_prompt(current_iteration, baseline_accuracy, perfo
     4. DIVERSITY MAINTENANCE:
        - Even when doing well, occasionally explore (every 4-5 iterations)
        - Avoid getting stuck in local optima
+       - There should be some diversity in approaches. It should not be the case that we just continue exploring relentelssly or exploiting relentlessly or refinin relentlessly.
 
     5. EXPLOITATION SIGNALS:
        - Multiple approaches performing well above baseline
@@ -55,7 +56,7 @@ def get_strategy_optimization_prompt(current_iteration, baseline_accuracy, perfo
 
     CURRENT CONTEXT:
     - This is iteration {current_iteration}
-    - Early exploration phase: {"Yes" if current_iteration < 8 else "No"}
+    - Early exploration phase: {"Yes" if current_iteration < 6 else "No"}
 
     Analyze the performance history considering batch size noise and baseline calibration.
 

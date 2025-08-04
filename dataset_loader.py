@@ -899,10 +899,58 @@ class TicketWorldDatasetLoader(DatasetLoader):
 ## Overview
 When you receive a customer email, create a comprehensive resolution plan following our standardized schema. Analyze the customer's issue, look up relevant information in our databases, and determine the appropriate response based on company policies.
 
+🔥 CRITICAL: FILE ACCESS AND DATABASE ACCESS CAPABILITIES AVAILABLE 🔥
+
+You have access to powerful file reading and searching functions for accessing local files safely.
+
+
 ## Required Resources
 You have access to these files located at datasets/ticketworld/:
 - **customer_database.db** - SQLite database with customer, order, and product information
 - **company_policy.txt** - Complete company policies with policy IDs and rules
+
+
+You have built in functions to access the database and files - YOU MUST USE THESE! 
+
+The functions are:
+- call_database(path_to_database, SQL_query)
+- read_file(path_to_file)
+- search_file(path_to_file, pattern)
+
+EXAMPLE: HOW TO USE call_database(path_to_database, SQL_query):
+```python
+# Query a database file
+result = call_database("path/to/database.db", "SELECT * FROM table_name LIMIT 10")
+
+# The result contains formatted query results as a string
+# For SELECT queries: Returns formatted table with columns and rows
+# For INSERT/UPDATE/DELETE: Returns success message with affected row count
+
+# Example with specific query
+customers = call_database("shop.db", "SELECT name, email FROM customers WHERE age > 25")
+
+# Example with aggregation
+stats = call_database("analytics.db", "SELECT COUNT(*) as total_users, AVG(score) as avg_score FROM users")
+```
+
+HOW TO USE read_file():
+```python
+# Read entire file
+content = read_file("config.txt")
+
+# Read specific line range (1-based line numbers)
+content = read_file("large_file.log", start_line=100, end_line=200)
+
+# Read from start to specific line
+content = read_file("script.py", end_line=50)
+
+# Read from specific line to end
+content = read_file("data.txt", start_line=25)
+```
+
+DO NOT TRY TO CALL_LLM TO READ THESE FILES. YOU MUST USE THE PROVIDED REAL ASSETS. CALLING THE LLM TO READ FILES OR WITH DATABASE QUERIES IS FORBIDDEN.
+
+🔥 CRITICAL: YOU MUST USE THESE TOOLS TO ACCESS THE DATABASES AND FILES: THEY ARE REQUIRED TO SOLVE THE TICKET 🔥
 
 ## Database Schema (customer_database.db)
 

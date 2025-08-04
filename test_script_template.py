@@ -49,7 +49,7 @@ def call_database(db_path, sql_query):
     import os
     from pathlib import Path
     
-    print(f"  [DATABASE] Executing query on {db_path}: {sql_query[:100]}...")
+    print(f"  [DATABASE] Executing query on {{db_path}}: {{sql_query[:100]}}...")
     
     try:
         # Handle path resolution for sandbox environment
@@ -65,18 +65,18 @@ def call_database(db_path, sql_query):
                     if current_path.exists():
                         db_path = str(current_path)
                     else:
-                        return f"Error: Database file not found at {db_path} (checked workspace and current directory)"
+                        return f"Error: Database file not found at {{db_path}} (checked workspace and current directory)"
             else:
                 # Not in sandbox, use relative to current directory
                 current_path = Path(db_path)
                 if current_path.exists():
                     db_path = str(current_path)
                 else:
-                    return f"Error: Database file not found at {db_path}"
+                    return f"Error: Database file not found at {{db_path}}"
         
         # Check if database file exists
         if not os.path.exists(db_path):
-            return f"Error: Database file not found at {db_path}"
+            return f"Error: Database file not found at {{db_path}}"
         
         # Connect to database
         conn = sqlite3.connect(db_path)
@@ -96,7 +96,7 @@ def call_database(db_path, sql_query):
                 
                 # Convert results to a readable format
                 columns = [description[0] for description in cursor.description]
-                result_text = f"Results ({len(results)} rows):\n"
+                result_text = f"Results ({{len(results)}} rows):\n"
                 result_text += " | ".join(columns) + "\n"
                 result_text += "-" * (len(" | ".join(columns))) + "\n"
                 
@@ -105,30 +105,30 @@ def call_database(db_path, sql_query):
                     result_text += " | ".join(row_values) + "\n"
                 
                 if len(results) > 50:
-                    result_text += f"... and {len(results) - 50} more rows\n"
+                    result_text += f"... and {{len(results) - 50}} more rows\n"
                 
                 return result_text
             else:
                 # Query modifies data (INSERT, UPDATE, DELETE, etc.)
                 conn.commit()
                 rows_affected = cursor.rowcount
-                return f"Query executed successfully. {rows_affected} rows affected."
+                return f"Query executed successfully. {{rows_affected}} rows affected."
                 
         except sqlite3.Error as e:
-            return f"SQL Error: {str(e)}"
+            return f"SQL Error: {{str(e)}}"
         finally:
             cursor.close()
             conn.close()
             
     except Exception as e:
-        return f"Database Error: {str(e)}"
+        return f"Database Error: {{str(e)}}"
 
 def read_file(filepath, start_line=None, end_line=None):
     """Read entire files or specific line ranges with proper error handling"""
     import os
     from pathlib import Path
     
-    print(f"  [FILE] Reading file: {filepath}" + (f" (lines {start_line}-{end_line})" if start_line is not None else ""))
+    print(f"  [FILE] Reading file: {{filepath}}" + (f" (lines {{start_line}}-{{end_line}})" if start_line is not None else ""))
     
     try:
         # Handle path resolution for sandbox environment
@@ -144,22 +144,22 @@ def read_file(filepath, start_line=None, end_line=None):
                     if current_path.exists():
                         filepath = str(current_path)
                     else:
-                        return f"Error: File not found at {filepath} (checked workspace and current directory)"
+                        return f"Error: File not found at {{filepath}} (checked workspace and current directory)"
             else:
                 # Not in sandbox, use relative to current directory
                 current_path = Path(filepath)
                 if current_path.exists():
                     filepath = str(current_path)
                 else:
-                    return f"Error: File not found at {filepath}"
+                    return f"Error: File not found at {{filepath}}"
         
         # Check if file exists
         if not os.path.exists(filepath):
-            return f"Error: File not found at {filepath}"
+            return f"Error: File not found at {{filepath}}"
         
         # Check if it's actually a file (not a directory)
         if not os.path.isfile(filepath):
-            return f"Error: {filepath} is not a file"
+            return f"Error: {{filepath}} is not a file"
         
         # Read the file
         try:
@@ -180,15 +180,15 @@ def read_file(filepath, start_line=None, end_line=None):
                 if end_idx > total_lines:
                     end_idx = total_lines
                 if start_idx >= end_idx:
-                    return f"Error: Invalid line range. File has {total_lines} lines."
+                    return f"Error: Invalid line range. File has {{total_lines}} lines."
                 
                 lines = lines[start_idx:end_idx]
                 
-                result = f"File content ({filepath}) - Lines {start_idx + 1} to {end_idx} of {total_lines}:\n"
+                result = f"File content ({{filepath}}) - Lines {{start_idx + 1}} to {{end_idx}} of {{total_lines}}:\n"
                 result += "=" * 50 + "\n"
                 
                 for i, line in enumerate(lines, start=start_idx + 1):
-                    result += f"{i:4d}: {line.rstrip()}\n"
+                    result += f"{{i:4d}}: {{line.rstrip()}}\n"
                 
                 return result
             else:
@@ -196,25 +196,25 @@ def read_file(filepath, start_line=None, end_line=None):
                 total_lines = len(lines)
                 if total_lines > 200:
                     # For very large files, show warning
-                    result = f"File content ({filepath}) - {total_lines} lines (showing all):\n"
+                    result = f"File content ({{filepath}}) - {{total_lines}} lines (showing all):\n"
                     result += "WARNING: Large file - consider using line ranges for better performance\n"
                     result += "=" * 50 + "\n"
                 else:
-                    result = f"File content ({filepath}) - {total_lines} lines:\n"
+                    result = f"File content ({{filepath}}) - {{total_lines}} lines:\n"
                     result += "=" * 50 + "\n"
                 
                 for i, line in enumerate(lines, start=1):
-                    result += f"{i:4d}: {line.rstrip()}\n"
+                    result += f"{{i:4d}}: {{line.rstrip()}}\n"
                 
                 return result
                 
         except UnicodeDecodeError:
-            return f"Error: Unable to read {filepath} - file appears to be binary"
+            return f"Error: Unable to read {{filepath}} - file appears to be binary"
         except PermissionError:
-            return f"Error: Permission denied reading {filepath}"
+            return f"Error: Permission denied reading {{filepath}}"
             
     except Exception as e:
-        return f"File Error: {str(e)}"
+        return f"File Error: {{str(e)}}"
 
 def search_file(filepath, pattern, case_sensitive=True, show_line_numbers=True, context_lines=0, max_results=50):
     """Search for patterns in files with grep-like functionality"""
@@ -222,7 +222,7 @@ def search_file(filepath, pattern, case_sensitive=True, show_line_numbers=True, 
     import re
     from pathlib import Path
     
-    print(f"  [SEARCH] Searching in {filepath} for pattern: '{pattern}'" + 
+    print(f"  [SEARCH] Searching in {{filepath}} for pattern: '{{pattern}}'" + 
           ("" if case_sensitive else " (case-insensitive)"))
     
     try:
@@ -239,38 +239,38 @@ def search_file(filepath, pattern, case_sensitive=True, show_line_numbers=True, 
                     if current_path.exists():
                         filepath = str(current_path)
                     else:
-                        return f"Error: File not found at {filepath} (checked workspace and current directory)"
+                        return f"Error: File not found at {{filepath}} (checked workspace and current directory)"
             else:
                 # Not in sandbox, use relative to current directory
                 current_path = Path(filepath)
                 if current_path.exists():
                     filepath = str(current_path)
                 else:
-                    return f"Error: File not found at {filepath}"
+                    return f"Error: File not found at {{filepath}}"
         
         # Check if file exists
         if not os.path.exists(filepath):
-            return f"Error: File not found at {filepath}"
+            return f"Error: File not found at {{filepath}}"
         
         # Check if it's actually a file (not a directory)
         if not os.path.isfile(filepath):
-            return f"Error: {filepath} is not a file"
+            return f"Error: {{filepath}} is not a file"
         
         # Read the file
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
         except UnicodeDecodeError:
-            return f"Error: Unable to read {filepath} - file appears to be binary"
+            return f"Error: Unable to read {{filepath}} - file appears to be binary"
         except PermissionError:
-            return f"Error: Permission denied reading {filepath}"
+            return f"Error: Permission denied reading {{filepath}}"
         
         # Prepare regex pattern
         regex_flags = 0 if case_sensitive else re.IGNORECASE
         try:
             compiled_pattern = re.compile(pattern, regex_flags)
         except re.error as e:
-            return f"Error: Invalid regex pattern '{pattern}': {str(e)}"
+            return f"Error: Invalid regex pattern '{{pattern}}': {{str(e)}}"
         
         # Find matches
         matches = []
@@ -281,14 +281,14 @@ def search_file(filepath, pattern, case_sensitive=True, show_line_numbers=True, 
                     break
         
         if not matches:
-            return f"No matches found for pattern '{pattern}' in {filepath}"
+            return f"No matches found for pattern '{{pattern}}' in {{filepath}}"
         
         # Build result with context
-        result = f"Search results for '{pattern}' in {filepath}:\n"
+        result = f"Search results for '{{pattern}}' in {{filepath}}:\n"
         if len(matches) >= max_results:
-            result += f"Found {len(matches)}+ matches (showing first {max_results}):\n"
+            result += f"Found {{len(matches)}}+ matches (showing first {{max_results}}):\n"
         else:
-            result += f"Found {len(matches)} matches:\n"
+            result += f"Found {{len(matches)}} matches:\n"
         result += "=" * 50 + "\n"
         
         displayed_lines = set()
@@ -312,20 +312,20 @@ def search_file(filepath, pattern, case_sensitive=True, show_line_numbers=True, 
                 if line_num == match_line:
                     # Highlight the matching line
                     prefix = ">>> " if show_line_numbers else ">>> "
-                    line_display = f"{line_num:4d}: {line_content}" if show_line_numbers else line_content
-                    result += f"{prefix}{line_display}\n"
+                    line_display = f"{{line_num:4d}}: {{line_content}}" if show_line_numbers else line_content
+                    result += f"{{prefix}}{{line_display}}\n"
                 else:
                     # Context line
                     prefix = "    " if show_line_numbers else ""
-                    line_display = f"{line_num:4d}: {line_content}" if show_line_numbers else line_content
-                    result += f"{prefix}{line_display}\n"
+                    line_display = f"{{line_num:4d}}: {{line_content}}" if show_line_numbers else line_content
+                    result += f"{{prefix}}{{line_display}}\n"
                 
                 displayed_lines.add(line_num)
         
         return result
         
     except Exception as e:
-        return f"Search Error: {str(e)}"
+        return f"Search Error: {{str(e)}}"
 
 def execute_code(code_str, timeout=10):
     """Execute Python code with automatic package installation and proper scoping"""
