@@ -430,3 +430,212 @@ you will execute code without calling the execute_code() function is not allowed
 
 ⛔ DO NOT DEFINE execute_code() or call_llm() - they are PROVIDED BY THE SYSTEM
 """
+
+
+database_prompting_guide = """
+
+🔥 CRITICAL: DATABASE ACCESS CAPABILITY AVAILABLE 🔥
+
+You have access to a powerful call_database() function that can query SQLite databases safely.
+
+WHEN TO USE call_database():
+- When you need to retrieve structured data from a database
+- Problems involving data analysis, lookups, or queries
+- When you need to access pre-existing datasets in database format
+- Questions that reference tables, records, or database-like operations
+- You understand that using database queries is more reliable for data retrieval than asking an LLM
+
+HOW TO USE call_database():
+```python
+# Query a database file
+result = call_database("path/to/database.db", "SELECT * FROM table_name LIMIT 10")
+
+# The result contains formatted query results as a string
+# For SELECT queries: Returns formatted table with columns and rows
+# For INSERT/UPDATE/DELETE: Returns success message with affected row count
+
+# Example with specific query
+customers = call_database("shop.db", "SELECT name, email FROM customers WHERE age > 25")
+
+# Example with aggregation
+stats = call_database("analytics.db", "SELECT COUNT(*) as total_users, AVG(score) as avg_score FROM users")
+```
+
+Example pattern:
+```python
+def main(question):
+    if "database" in question.lower() or "table" in question.lower():
+        # Extract what database/table is being asked about
+        query_prompt = f"Generate a SQL query for this question: {question}"
+        sql_query = call_llm(query_prompt, "You are a SQL expert")
+        
+        # Execute the database query
+        db_result = call_database("data.db", sql_query)
+        
+        # Interpret the results
+        return call_llm(f"Question: {question}, Database results: {db_result}, What's the answer?")
+    else:
+        # No database needed - use reasoning
+        return call_llm(f"Solve: {question}")
+```
+
+DATABASE FEATURES:
+- Automatic path resolution (works in sandbox and local environments)
+- Handles both SELECT queries (returns formatted results) and modification queries (INSERT/UPDATE/DELETE)
+- Built-in error handling for SQL syntax errors and file access issues
+- Results limited to 50 rows for readability (shows total count if more)
+- Column names included in results for easy interpretation
+
+REMEMBER: call_database() is available - use it for data retrieval and analysis!
+
+⛔ DO NOT DEFINE call_database() - it is PROVIDED BY THE SYSTEM
+⛔ Just USE it like built-in functions (like print() or len())
+
+✅ CORRECT:
+def main(question):
+    result = call_database("data.db", "SELECT * FROM products")  # Just use it
+    return result
+
+❌ WRONG:
+def call_database(db_path, query):  # Don't define this!
+    import sqlite3
+    # ... implementation
+
+DATABASE PATH NOTES:
+- Relative paths like "data.db" work automatically (checks workspace and current directory)
+- Absolute paths work if the database file is accessible
+- In sandbox environments, databases should be in the workspace directory
+
+⛔ DO NOT DEFINE call_database() - it is PROVIDED BY THE SYSTEM
+"""
+
+
+file_access_prompting_guide = """
+
+🔥 CRITICAL: FILE ACCESS CAPABILITIES AVAILABLE 🔥
+
+You have access to powerful file reading and searching functions for accessing local files safely.
+
+## read_file(filepath, start_line=None, end_line=None) - File Reading
+
+WHEN TO USE read_file():
+- When you need to read configuration files, code files, or documentation
+- Reading specific sections of large files using line ranges
+- Accessing data files, logs, or any text-based content
+- When you need the complete content or specific portions of a file
+
+HOW TO USE read_file():
+```python
+# Read entire file
+content = read_file("config.txt")
+
+# Read specific line range (1-based line numbers)
+content = read_file("large_file.log", start_line=100, end_line=200)
+
+# Read from start to specific line
+content = read_file("script.py", end_line=50)
+
+# Read from specific line to end
+content = read_file("data.txt", start_line=25)
+```
+
+## search_file(filepath, pattern, case_sensitive=True, show_line_numbers=True, context_lines=0, max_results=50) - File Search
+
+WHEN TO USE search_file():
+- Finding specific functions, classes, or variables in code files
+- Searching for patterns, keywords, or errors in log files
+- Locating specific content with context around matches
+- When you need grep-like functionality with regex support
+
+HOW TO USE search_file():
+```python
+# Find function definitions
+results = search_file("script.py", "def ")
+
+# Case-insensitive search
+results = search_file("docs.md", "database", case_sensitive=False)
+
+# Search with context lines around matches
+results = search_file("error.log", "ERROR", context_lines=2)
+
+# Use regex patterns
+results = search_file("code.py", r"class \w+\(", case_sensitive=True)
+
+# Limit results for performance
+results = search_file("large.txt", "pattern", max_results=10)
+```
+
+Example pattern combining both functions:
+```python
+def main(question):
+    if "find" in question.lower() or "search" in question.lower():
+        # Extract what to search for
+        search_prompt = f"What pattern should I search for based on: {question}"
+        pattern = call_llm(search_prompt, "Extract the search pattern")
+        
+        # Search in relevant file
+        search_results = search_file("target_file.py", pattern, context_lines=1)
+        
+        # Analyze results
+        return call_llm(f"Question: {question}, Search results: {search_results}, What's the answer?")
+    elif "read" in question.lower() or "content" in question.lower():
+        # Read specific file content
+        content = read_file("target_file.txt")
+        
+        # Process content
+        return call_llm(f"Question: {question}, File content: {content}, What's the answer?")
+    else:
+        # No file access needed
+        return call_llm(f"Solve: {question}")
+```
+
+## FILE ACCESS FEATURES:
+
+### read_file() Features:
+- Automatic path resolution (works in sandbox and local environments)
+- Line range support for reading specific sections
+- Line-numbered output for easy reference
+- Handles large files with warnings
+- Built-in error handling for missing files, permissions, binary files
+
+### search_file() Features:
+- Full regex pattern support with proper error handling
+- Case-sensitive and case-insensitive search options
+- Context lines around matches (like grep -A/-B)
+- Line numbers and highlighted matching lines
+- Result limiting to prevent overwhelming output
+- Handles overlapping context intelligently
+
+## PATH RESOLUTION:
+- Relative paths like "config.txt" work automatically (checks workspace and current directory)
+- Absolute paths work if the file is accessible
+- In sandbox environments, files should be in the workspace directory
+
+## ERROR HANDLING:
+- Graceful handling of missing files, permission errors
+- Binary file detection and appropriate error messages
+- Invalid regex pattern detection and helpful error messages
+- File vs directory validation
+
+REMEMBER: read_file() and search_file() are available - use them for file operations!
+
+⛔ DO NOT DEFINE read_file() or search_file() - they are PROVIDED BY THE SYSTEM
+⛔ Just USE them like built-in functions (like print() or len())
+
+✅ CORRECT:
+def main(question):
+    content = read_file("data.txt")  # Just use it
+    matches = search_file("script.py", "def main")  # Just use it
+    return content
+
+❌ WRONG:
+def read_file(filepath):  # Don't define this!
+    with open(filepath) as f:
+        return f.read()
+
+def search_file(filepath, pattern):  # Don't define this!
+    import re
+    # ... implementation
+
+⛔ DO NOT DEFINE read_file() or search_file() - they are PROVIDED BY THE SYSTEM
+"""

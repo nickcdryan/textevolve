@@ -35,6 +35,8 @@ from prompts.script_generation.prompting_guides import (
     validation_prompting_guide,
     meta_programming_prompting_guide,
     code_execution_prompting_guide,
+    database_prompting_guide,
+    file_access_prompting_guide,
 )
 
 from prompts.script_generation.llm_patterns import(
@@ -1328,6 +1330,8 @@ def main(question):
         historical_context += validation_prompting_guide
         historical_context += meta_programming_prompting_guide
         historical_context += code_execution_prompting_guide
+        historical_context += database_prompting_guide
+        historical_context += file_access_prompting_guide
 
         # Add the accumulated learnings to the context
         learning_context = ""

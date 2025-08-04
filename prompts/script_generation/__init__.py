@@ -8,6 +8,8 @@ from .prompting_guides import (
     validation_prompting_guide,
     meta_programming_prompting_guide,
     code_execution_prompting_guide,
+    database_prompting_guide,
+    file_access_prompting_guide,
 )
 
 from .llm_patterns import(
