@@ -214,7 +214,7 @@ def parse_arguments():
             "--loader",
             "-l",
             type=str,
-            choices=["arc", "json", "jsonl", "simpleqa", "custom", "natural_plan", "hotpotqa", "math", "gpqa"],  
+            choices=["arc", "json", "jsonl", "simpleqa", "custom", "natural_plan", "hotpotqa", "math", "gpqa", "ticketworld"],  
             default="arc",
             help="Type of dataset loader to use (default: arc)")
 
