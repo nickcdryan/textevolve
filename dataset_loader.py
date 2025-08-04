@@ -899,6 +899,8 @@ class TicketWorldDatasetLoader(DatasetLoader):
 ## Overview
 When you receive a customer email, create a comprehensive resolution plan following our standardized schema. Analyze the customer's issue, look up relevant information in our databases, and determine the appropriate response based on company policies.
 
+🔥 CRITICAL: YOU MUST OUTPUT THE RESOLUTION PLAN IN DEMONSTRATED FORMAT. DO NOT OUTPUT ANYTHING EXCEPT FOR THE RESOLUTION PLAN.
+
 🔥 CRITICAL: FILE ACCESS AND DATABASE ACCESS CAPABILITIES AVAILABLE 🔥
 
 You have access to powerful file reading and searching functions for accessing local files safely.

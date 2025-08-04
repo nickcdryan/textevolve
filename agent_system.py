@@ -30,6 +30,7 @@ from prompts.progressive_testing import get_progressive_testing_prompt
 from prompts.script_generation.strategies import get_explore_instructions, get_exploit_instructions, get_refine_instructions
 
 from prompts.script_generation.prompting_guides import (
+    system_imports_header,
     multi_example_prompting_guide,
     llm_reasoning_prompting_guide,
     validation_prompting_guide,
@@ -402,9 +403,11 @@ class AgentSystem:
             sys_instruction = system_instruction if system_instruction is not None else ""
 
             response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 config=types.GenerateContentConfig(
-                    system_instruction=sys_instruction),
+                    system_instruction=sys_instruction,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
+                    ),
                 contents=prompt)
             return response.text
         except Exception as e:
@@ -1325,6 +1328,8 @@ def main(question):
         # Add the few-shot examples to the context
         historical_context += patterns
 
+        # CRITICAL: Add system imports header first so LLM sees import pattern
+        historical_context += system_imports_header
         historical_context += multi_example_prompting_guide
         historical_context += llm_reasoning_prompting_guide
         historical_context += validation_prompting_guide

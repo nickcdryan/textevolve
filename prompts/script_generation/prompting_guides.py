@@ -13,6 +13,64 @@ code_execution_prompting_guide
 
 """
 
+system_imports_header = """
+🔥 CRITICAL: SYSTEM FUNCTIONS IMPORT HEADER 🔥
+
+EVERY script you generate MUST start with this exact import header to access system functions:
+
+```python
+# System-provided functions - These are automatically available to the system and have been thoroughly tested.
+from system_tools import (
+    call_llm,           # LLM API calls
+    call_database,      # SQLite database queries  
+    read_file,          # File reading with line ranges
+    search_file,        # File pattern searching
+    execute_code        # Safe code execution
+)
+
+# Function signatures for reference:
+# call_llm(prompt: str, system_instruction: str = None) -> str
+# call_database(db_path: str, sql_query: str) -> str  
+# read_file(filepath: str, start_line: int = None, end_line: int = None) -> str
+# search_file(filepath: str, pattern: str, case_sensitive: bool = True, show_line_numbers: bool = True, context_lines: int = 0, max_results: int = 50) -> str
+# execute_code(code_str: str, timeout: int = 10) -> str
+```
+
+🚨 CRITICAL REQUIREMENTS:
+1. ALWAYS start your script with the import header above
+2. NEVER redefine these functions - they are imported from system_tools
+3. Use the functions directly after importing them
+4. The imports make the functions visible and IDE-friendly
+
+✅ CORRECT PATTERN:
+```python
+from system_tools import call_llm, call_database, read_file
+
+def main(question):
+    # Extract email using imported function
+    email = call_llm("Extract email from: " + question)
+    
+    # Query database using imported function  
+    data = call_database("data.db", f"SELECT * FROM customers WHERE email='{email}'")
+    
+    # Read policies using imported function
+    policies = read_file("policies.txt")
+    
+    return f"Customer: {data}, Policies: {policies}"
+```
+
+❌ WRONG - DON'T DO THIS:
+```python
+def call_llm(prompt):  # Don't redefine!
+    # ... implementation
+    
+def main(question):
+    result = call_llm(question)  # This looks undefined without import
+```
+
+The import header makes functions appear properly defined, preventing syntax concerns and encouraging usage.
+"""
+
 multi_example_prompting_guide = """MULTI-EXAMPLE PROMPTING GUIDANCE:
 1. CRITICAL: Use MULTIPLE examples (2-5) in EVERY LLM prompt, not just one
 2. Vary the number of examples based on task complexity - more complex tasks need more examples
@@ -413,22 +471,22 @@ def main(question):
 
 REMEMBER: execute_code() is available - use it for computational problems!
 
-⛔ DO NOT DEFINE execute_code() or call_llm() - they are PROVIDED BY THE SYSTEM
-⛔ Just USE them like built-in functions (like print() or len())
+✅ ALWAYS START WITH SYSTEM IMPORTS:
+```python
+from system_tools import call_llm, execute_code
 
-✅ CORRECT:
 def main(question):
-    result = execute_code("print('hello')")  # Just use it
-    return result
+    if any(char.isdigit() for char in question):
+        # Has numbers - use imported execute_code
+        code = call_llm(f"Write Python code to solve: {question}")
+        result = execute_code(code) 
+        return result
+    else:
+        # No numbers - use imported call_llm
+        return call_llm(f"Solve: {question}")
+```
 
-❌ WRONG:
-def execute_code(code):  # Don't define this!
-    exec(code)
-
-REMEMBER! If you want to execute code you must use the execute_code() function. Just saying 
-you will execute code without calling the execute_code() function is not allowed.
-
-⛔ DO NOT DEFINE execute_code() or call_llm() - they are PROVIDED BY THE SYSTEM
+⛔ DO NOT REDEFINE IMPORTED FUNCTIONS - Use them directly after importing from system_tools
 """
 
 
@@ -488,25 +546,31 @@ DATABASE FEATURES:
 
 REMEMBER: call_database() is available - use it for data retrieval and analysis!
 
-⛔ DO NOT DEFINE call_database() - it is PROVIDED BY THE SYSTEM
-⛔ Just USE it like built-in functions (like print() or len())
+✅ ALWAYS START WITH SYSTEM IMPORTS:
+```python
+from system_tools import call_llm, call_database
 
-✅ CORRECT:
 def main(question):
-    result = call_database("data.db", "SELECT * FROM products")  # Just use it
-    return result
-
-❌ WRONG:
-def call_database(db_path, query):  # Don't define this!
-    import sqlite3
-    # ... implementation
+    if "database" in question.lower() or "table" in question.lower():
+        # Generate SQL using imported call_llm
+        query_prompt = f"Generate a SQL query for this question: {question}"
+        sql_query = call_llm(query_prompt, "You are a SQL expert")
+        
+        # Execute using imported call_database
+        db_result = call_database("data.db", sql_query)
+        
+        # Interpret results using imported call_llm
+        return call_llm(f"Question: {question}, Database results: {db_result}, What's the answer?")
+    else:
+        return call_llm(f"Solve: {question}")
+```
 
 DATABASE PATH NOTES:
 - Relative paths like "data.db" work automatically (checks workspace and current directory)
 - Absolute paths work if the database file is accessible
 - In sandbox environments, databases should be in the workspace directory
 
-⛔ DO NOT DEFINE call_database() - it is PROVIDED BY THE SYSTEM
+⛔ DO NOT REDEFINE IMPORTED FUNCTIONS - Use them directly after importing from system_tools
 """
 
 
@@ -619,24 +683,31 @@ def main(question):
 
 REMEMBER: read_file() and search_file() are available - use them for file operations!
 
-⛔ DO NOT DEFINE read_file() or search_file() - they are PROVIDED BY THE SYSTEM
-⛔ Just USE them like built-in functions (like print() or len())
+✅ ALWAYS START WITH SYSTEM IMPORTS:
+```python
+from system_tools import call_llm, read_file, search_file
 
-✅ CORRECT:
 def main(question):
-    content = read_file("data.txt")  # Just use it
-    matches = search_file("script.py", "def main")  # Just use it
-    return content
+    if "find" in question.lower() or "search" in question.lower():
+        # Extract search pattern using imported call_llm
+        search_prompt = f"What pattern should I search for based on: {question}"
+        pattern = call_llm(search_prompt, "Extract the search pattern")
+        
+        # Search using imported search_file
+        search_results = search_file("target_file.py", pattern, context_lines=1)
+        
+        # Analyze results using imported call_llm
+        return call_llm(f"Question: {question}, Search results: {search_results}, What's the answer?")
+    elif "read" in question.lower() or "content" in question.lower():
+        # Read using imported read_file
+        content = read_file("target_file.txt")
+        
+        # Process content using imported call_llm
+        return call_llm(f"Question: {question}, File content: {content}, What's the answer?")
+    else:
+        return call_llm(f"Solve: {question}")
+```
 
-❌ WRONG:
-def read_file(filepath):  # Don't define this!
-    with open(filepath) as f:
-        return f.read()
-
-def search_file(filepath, pattern):  # Don't define this!
-    import re
-    # ... implementation
-
-⛔ DO NOT DEFINE read_file() or search_file() - they are PROVIDED BY THE SYSTEM
+⛔ DO NOT REDEFINE IMPORTED FUNCTIONS - Use them directly after importing from system_tools
 
 """

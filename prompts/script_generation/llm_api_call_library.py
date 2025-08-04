@@ -40,7 +40,8 @@ def call_llm(prompt, system_instruction=None):
             response = client.models.generate_content(
                 model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
+                    system_instruction=system_instruction,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
                 ),
                 contents=prompt
             )

@@ -26,15 +26,17 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-2.5-flash", 
                 config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
+                    system_instruction=system_instruction,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
                 ),
                 contents=prompt
             )
         else:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
+                thinking_config=types.ThinkingConfig(thinking_budget=0), # Disables thinking
                 contents=prompt
             )
 
@@ -510,7 +512,46 @@ try:
         "{script_path}"
     )
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    
+    # Try to execute the module, handling system_tools import failures gracefully
+    try:
+        spec.loader.exec_module(module)
+    except ModuleNotFoundError as e:
+        if 'system_tools' in str(e):
+            print("  [INFO] system_tools import failed as expected - functions will be injected")
+            # Continue execution - we'll inject the functions below
+            # Re-execute without the problematic import by modifying the script
+            import re
+            with open("{script_path}", 'r') as f:
+                script_content = f.read()
+            
+            # Comment out the system_tools import line
+            modified_content = re.sub(
+                r'^from system_tools import.*$', 
+                '# from system_tools import... # (functions injected by system)', 
+                script_content, 
+                flags=re.MULTILINE
+            )
+            
+            # Write the modified script to a temp location and load it
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
+                temp_file.write(modified_content)
+                temp_path = temp_file.name
+            
+            try:
+                temp_spec = importlib.util.spec_from_file_location(
+                    "current_script_{current_iteration}_fixed", 
+                    temp_path
+                )
+                module = importlib.util.module_from_spec(temp_spec)
+                temp_spec.loader.exec_module(module)
+            finally:
+                import os
+                os.unlink(temp_path)
+        else:
+            # Re-raise other import errors
+            raise
 
     # INJECT ALL FUNCTIONS
     module.execute_code = execute_code
