@@ -63,6 +63,9 @@ from prompts.script_generation.llm_patterns import(
     combination_example,
 )
 
+# Import text conversion function for generating human-readable summaries
+from convert_iterations_to_text import convert_single_iteration
+
 class AgentSystem:
     """
     Agentic Learning System that uses LLM reasoning to continuously improve its approach
@@ -403,10 +406,10 @@ class AgentSystem:
             sys_instruction = system_instruction if system_instruction is not None else ""
 
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-2.0-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=sys_instruction,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
+                    #thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
                     ),
                 contents=prompt)
             return response.text
@@ -1326,7 +1329,7 @@ def main(question):
 
         
         # Add the few-shot examples to the context
-        historical_context += patterns
+        # historical_context += patterns
 
         # CRITICAL: Add system imports header first so LLM sees import pattern
         historical_context += system_imports_header
@@ -3328,7 +3331,17 @@ def main(question):
 
         # Save to archive
         try:
-            self.save_to_archive(iteration_data, f"iteration_{self.current_iteration}.json")
+            json_filename = f"iteration_{self.current_iteration}.json"
+            self.save_to_archive(iteration_data, json_filename)
+            
+            # Generate human-readable text version
+            try:
+                json_path = self.archive_dir / json_filename
+                txt_path = convert_single_iteration(json_path)
+                print(f"Generated human-readable summary: {txt_path}")
+            except Exception as e:
+                print(f"Warning: Could not generate text summary: {str(e)}")
+            
             self.update_summaries(summary)
         except Exception as e:
             print(f"Error saving iteration data: {str(e)}")

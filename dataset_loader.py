@@ -898,6 +898,8 @@ class TicketWorldDatasetLoader(DatasetLoader):
 
 ## Overview
 When you receive a customer email, create a comprehensive resolution plan following our standardized schema. Analyze the customer's issue, look up relevant information in our databases, and determine the appropriate response based on company policies.
+Note: it is impossible to accurately resolve the customer's issue without perhaps multiple steps of reasoning and retrieving the relevant information from the provided database and policy document.
+Therefore you must use these tools.
 
 🔥 CRITICAL: YOU MUST OUTPUT THE RESOLUTION PLAN IN DEMONSTRATED FORMAT. DO NOT OUTPUT ANYTHING EXCEPT FOR THE RESOLUTION PLAN.
 
@@ -1084,8 +1086,8 @@ DO NOT TRY TO CALL_LLM TO READ THESE FILES. YOU MUST USE THE PROVIDED REAL ASSET
 - When in doubt, escalate rather than assume 
 
 ---
-
-## Customer Email to Process
+## HERE IS THE CURRENT CUSTOMER EMAIL TO PROCESS
+## Customer Email 
 
 Customer Email: {customer_email}
 Subject: {subject}

@@ -41,6 +41,7 @@ from system_tools import (
 2. NEVER redefine these functions - they are imported from system_tools
 3. Use the functions directly after importing them
 4. The imports make the functions visible and IDE-friendly
+5. You never need to worry about these functions, they have been thoroughly tested and validated beforehand and are safe to use.
 
 ✅ CORRECT PATTERN:
 ```python

@@ -26,17 +26,17 @@ def call_llm(prompt, system_instruction=None):
         # Call the API with system instruction if provided
         if system_instruction:
             response = client.models.generate_content(
-                model="gemini-2.5-flash", 
+                model="gemini-2.0-flash", 
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
+                    #thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
                 ),
                 contents=prompt
             )
         else:
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                thinking_config=types.ThinkingConfig(thinking_budget=0), # Disables thinking
+                model="gemini-2.0-flash",
+                #thinking_config=types.ThinkingConfig(thinking_budget=0), # Disables thinking
                 contents=prompt
             )
 
