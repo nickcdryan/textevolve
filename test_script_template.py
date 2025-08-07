@@ -525,10 +525,16 @@ try:
             with open("{script_path}", 'r') as f:
                 script_content = f.read()
             
-            # Comment out the system_tools import line
+            # Comment out the system_tools import line while preserving indentation
+            def preserve_indentation(match):
+                line = match.group(0)
+                # Get leading whitespace from the original line
+                leading_whitespace = re.match(r'^(\s*)', line).group(1)
+                return leading_whitespace + '# from system_tools import... # (functions injected by system)'
+            
             modified_content = re.sub(
-                r'^from system_tools import.*$', 
-                '# from system_tools import... # (functions injected by system)', 
+                r'^(\s*)from system_tools import.*$', 
+                preserve_indentation, 
                 script_content, 
                 flags=re.MULTILINE
             )
