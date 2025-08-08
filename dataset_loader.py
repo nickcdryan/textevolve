@@ -898,7 +898,7 @@ class TicketWorldDatasetLoader(DatasetLoader):
 
 ## Overview
 When you receive a customer email, create a comprehensive resolution plan following our standardized schema. Analyze the customer's issue, look up relevant information in our databases, and determine the appropriate response based on company policies.
-Note: it is impossible to accurately resolve the customer's issue without perhaps multiple steps of reasoning and retrieving the relevant information from the provided database and policy document.
+Note: it is impossible to accurately resolve the customer's issue without multiple steps of reasoning and retrieving the relevant information from the provided database and policy document.
 Therefore you must use these tools.
 
 🔥 CRITICAL: YOU MUST OUTPUT THE RESOLUTION PLAN IN DEMONSTRATED FORMAT. DO NOT OUTPUT ANYTHING EXCEPT FOR THE RESOLUTION PLAN.
@@ -1130,6 +1130,149 @@ Please provide a resolution plan for this customer service ticket following the 
             raise ValueError(f"Error loading TicketWorld dataset: {e}")
 
 
+class TicketWorldSimpleDatasetLoader(DatasetLoader):
+    """Simplified loader for TicketWorld customer service datasets - focuses only on customer_id and order_id retrieval"""
+
+    def _load_examples(self):
+        """Load examples from TicketWorld JSON dataset file with simplified objective"""
+        try:
+            with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            if not isinstance(data, list):
+                raise ValueError("TicketWorld dataset JSON must be a list of objects")
+
+            examples = []
+            for item in data:
+                # Extract customer email fields for the question
+                customer_email = item.get("customer_email", "")
+                subject = item.get("subject", "")
+                body = item.get("body", "")
+                timestamp = item.get("timestamp", "")
+                ticket_id = item.get("ticket_id", f"ticket_{len(examples)}")
+                
+                # Skip examples that don't have required fields
+                if not customer_email or not subject or not body:
+                    print(f"Warning: Skipping {ticket_id} - missing customer email, subject, or body")
+                    continue
+
+                # Get the expected customer_id and order_id from the original data
+                expected_customer_id = item.get("customer_id", "")
+                expected_order_id = item.get("order_id", "")
+                
+                if not expected_customer_id:
+                    print(f"Warning: Skipping {ticket_id} - missing customer_id")
+                    continue
+
+                # Format the simplified question focused on customer/order lookup
+                formatted_question = f"""# Customer Information Lookup Task
+
+## Overview
+Your task is to identify the customer_id and order_id from the customer email below. You may need to search the customer database to find this information.
+
+🔥 CRITICAL: YOU MUST USE THE DATABASE ACCESS FUNCTION TO LOOK UP CUSTOMER INFORMATION 🔥
+
+## Required Resources
+You have access to these files located at datasets/ticketworld/:
+- **customer_database.db** - SQLite database with customer, order, and product information
+
+## Available Functions
+You MUST use the call_database() function to access the customer information:
+
+EXAMPLE: HOW TO USE call_database(path_to_database, SQL_query):
+```python
+# Query the customer database to find customer information by email
+result = call_database("datasets/ticketworld/customer_database.db", "SELECT customer_id FROM customers WHERE primary_email = 'customer@email.com' OR alternate_email = 'customer@email.com'")
+
+# Query orders for a specific customer
+orders = call_database("datasets/ticketworld/customer_database.db", "SELECT order_id, order_date FROM orders WHERE customer_id = 'CUST-0001' ORDER BY order_date DESC")
+```
+
+## Database Schema (customer_database.db)
+
+### Table: customers
+- customer_id (TEXT, PRIMARY KEY): Format CUST-XXXX
+- name (TEXT): Customer full name
+- primary_email (TEXT): Primary email address
+- alternate_email (TEXT): Secondary email address
+- phone (TEXT): Phone number
+- shipping_street, shipping_city, shipping_state, shipping_zip (TEXT): Shipping address
+- billing_street, billing_city, billing_state, billing_zip (TEXT): Billing address
+- created_date (DATE): Account creation date
+
+### Table: orders
+- order_id (TEXT, PRIMARY KEY): Format ORD-YYYYMMDD-XXXX
+- customer_id (TEXT): Links to customers table
+- order_date (DATE): Order placement date
+- items (TEXT): JSON array of order items
+- shipping_method (TEXT): Shipping method used
+- tracking_number (TEXT): Package tracking
+- total_amount (DECIMAL): Total order amount
+- payment_method (TEXT): Payment method
+- order_status (TEXT): Current status
+
+## Task Instructions
+1. **Customer Lookup**: Use the database to find the customer_id by searching for the email address in both primary_email and alternate_email fields
+2. **Order Identification**: If an order_id is mentioned in the email, extract it. Otherwise, find the most relevant recent order for this customer
+3. **Output Format**: Return your answer as a JSON object with exactly these two fields:
+
+```json
+{{
+  "customer_id": "CUST-XXXX",
+  "order_id": "ORD-YYYYMMDD-XXXX"
+}}
+```
+
+Note: If you cannot find the customer or order information, use "N/A" for the respective field.
+
+---
+## Customer Email to Process
+
+Customer Email: {customer_email}
+Subject: {subject}
+Timestamp: {timestamp}
+
+Message Body:
+{body}
+
+Please identify the customer_id and order_id for this ticket using the database lookup functions provided."""
+
+                # Create the simplified answer with just customer_id and order_id
+                simple_answer = {
+                    "customer_id": expected_customer_id,
+                    "order_id": expected_order_id if expected_order_id else "N/A"
+                }
+                answer = json.dumps(simple_answer, indent=2)
+
+                # Create standardized example with universal field names
+                standardized_example = {
+                    "id": ticket_id,
+                    "question": formatted_question.strip(),  # Standard field: "question"
+                    "answer": answer,  # Standard field: "answer"
+                    "meta": {
+                        "source": "ticketworld_simple",
+                        "filename": os.path.basename(self.dataset_path),
+                        "expected_customer_id": expected_customer_id,
+                        "expected_order_id": expected_order_id,
+                        "original_customer_email": customer_email,
+                        "original_subject": subject,
+                        "original_body": body,
+                        "original_timestamp": timestamp
+                    }
+                }
+
+                examples.append(standardized_example)
+
+            self.examples = examples
+            print(f"Loaded {len(examples)} examples from TicketWorld Simple dataset")
+
+            if not self.examples:
+                raise ValueError("No valid examples found in TicketWorld Simple dataset")
+
+        except Exception as e:
+            raise ValueError(f"Error loading TicketWorld Simple dataset: {e}")
+
+
 def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
     """
     Create a dataset loader of the specified type
@@ -1163,6 +1306,8 @@ def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
         return GPQADatasetLoader(**kwargs)
     elif loader_type.lower() == "ticketworld":
         return TicketWorldDatasetLoader(**kwargs)
+    elif loader_type.lower() == "ticketworld_simple":
+        return TicketWorldSimpleDatasetLoader(**kwargs)
     elif loader_type.lower() == "custom":
         from dataset_loader import CustomDatasetLoader
         return CustomDatasetLoader(**kwargs)
