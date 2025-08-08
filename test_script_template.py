@@ -7,7 +7,14 @@ import inspect
 import functools
 import importlib.util
 
-# Import system tool functions
+# Add the project root to the path so we can import system_tools
+# The script runs from scripts/ directory, so we need to go up one level
+current_file = os.path.abspath(__file__)
+project_root = os.path.dirname(os.path.dirname(current_file))  # Go up from scripts/ to project root
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Import system tool functions - these should work normally now
 from system_tools import call_llm, call_database, read_file, search_file, execute_code
 
 # Add the scripts directory to the path
@@ -103,73 +110,20 @@ try:
     )
     module = importlib.util.module_from_spec(spec)
     
-    # Try to execute the module, handling system_tools import failures gracefully
-    try:
-        spec.loader.exec_module(module)
-    except ModuleNotFoundError as e:
-        if 'system_tools' in str(e):
-            print("  [INFO] system_tools import failed as expected - functions will be injected")
-            # Continue execution - we'll inject the functions below
-            # Re-execute without the problematic import by modifying the script
-            import re
-            with open("{script_path}", 'r') as f:
-                script_content = f.read()
-            
-            # Comment out the system_tools import line while preserving indentation
-            def preserve_indentation(match):
-                line = match.group(0)
-                # Get leading whitespace from the original line
-                leading_whitespace = re.match(r'^(\s*)', line).group(1)
-                return leading_whitespace + '# from system_tools import... # (functions injected by system)'
-            
-            modified_content = re.sub(
-                r'^(\s*)from system_tools import.*$', 
-                preserve_indentation, 
-                script_content, 
-                flags=re.MULTILINE
-            )
-            
-            # Write the modified script to a temp location and load it
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
-                temp_file.write(modified_content)
-                temp_path = temp_file.name
-            
-            try:
-                temp_spec = importlib.util.spec_from_file_location(
-                    "current_script_{current_iteration}_fixed", 
-                    temp_path
-                )
-                module = importlib.util.module_from_spec(temp_spec)
-                temp_spec.loader.exec_module(module)
-            finally:
-                import os
-                os.unlink(temp_path)
-        else:
-            # Re-raise other import errors
-            raise
+    # Execute the module - this should work fine now since system_tools is importable
+    spec.loader.exec_module(module)
 
-    # INJECT ALL FUNCTIONS
-    module.execute_code = execute_code
+    # Inject system functions into the module namespace (for compatibility)
+    # This ensures the module can access them even if it defined its own versions
     module.call_llm = call_llm
     module.call_database = call_database
     module.read_file = read_file
     module.search_file = search_file
+    module.execute_code = execute_code
 
-    # Patch call_llm function if it exists
-    if hasattr(module, 'call_llm'):
-        original_call_llm = module.call_llm
-        module.call_llm = trace_call_llm(original_call_llm)
-
-    # Also patch any other functions that might call LLM directly
-    for name, obj in inspect.getmembers(module):
-        if inspect.isfunction(obj) and obj.__module__ == module.__name__:
-            try:
-                source = inspect.getsource(obj)
-                if 'generate_content' in source and obj is not getattr(module, 'call_llm', None):
-                    setattr(module, name, trace_call_llm(obj))
-            except:
-                pass
+    # Add tracing to the call_llm function
+    original_call_llm = module.call_llm
+    module.call_llm = trace_call_llm(original_call_llm)
 
     # Execute the main function with the question string
     question = {question_repr}
