@@ -1330,8 +1330,6 @@ def main(question):
         
         # Add the few-shot examples to the context
         # historical_context += patterns
-
-        # CRITICAL: Add system imports header first so LLM sees import pattern
         historical_context += system_imports_header
         historical_context += multi_example_prompting_guide
         historical_context += llm_reasoning_prompting_guide
