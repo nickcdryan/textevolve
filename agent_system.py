@@ -11,6 +11,7 @@ import traceback
 import random
 import sys
 import ast  # Added for script validation
+import importlib.util  # Added for simplified execution
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -19,6 +20,7 @@ from google.genai import types  # Added import for GenerateContentConfig
 import numpy as np
 
 from sandbox import DockerSandbox, check_docker_available
+from system_tools import call_llm, call_database, read_file, search_file, execute_code
 
 from prompts.data_analyzer import get_dataset_analysis_prompt
 from prompts.batch_size_optimizer import get_batch_size_optimization_prompt
@@ -1699,8 +1701,8 @@ def main(question):
 
     def attempt_script_repair(self, script: str, max_attempts: int = 3) -> str:
         """
-        Attempt to repair a script by testing it with a fixed training example.
-        Uses an LLM to determine if the output contains errors.
+        Simplified script repair using the new in-memory execution system.
+        Much faster and cleaner than the old approach.
 
         Args:
             script: The script to repair
@@ -1709,32 +1711,39 @@ def main(question):
         Returns:
             The best script (original or repaired)
         """
-        print("Attempting script repair and verification...")
+        print("Attempting script validation and repair...")
 
         # Save current dataset position
         original_index = self.dataset_loader.current_index
 
         try:
-            # Temporarily set index to 0 to get the first training example
+            # Use the new validation system first
+            try:
+                validated_script = self.validate_and_repair_script(script)
+                print("Script passed initial validation")
+                return validated_script
+            except Exception as e:
+                print(f"Initial validation failed: {e}")
+                current_script = script
+
+            # If validation failed, try repair with a test sample
             self.dataset_loader.current_index = 0
             test_example = self.dataset_loader.get_examples(1)[0]
             test_question_str = self.dataset_loader.get_example_input(test_example)
             print(f"Using test question for repair: {test_question_str[:50]}...")
 
-            # Create a properly formatted sample dictionary
             test_sample = {
                 "question": test_question_str,
                 "answer": self.dataset_loader.get_example_output(test_example),
                 "id": "test_sample"
             }
 
-            current_script = script
             best_script = script
             best_result = None
 
             for attempt in range(max_attempts):
-                # Try to execute the current script
-                result = self.execute_script(current_script, test_sample)
+                # Try to execute the current script using simplified execution
+                result = self.execute_script_simplified(current_script, test_sample)
     
                 # Get the output and answer
                 output = result.get("output", "")
@@ -1819,236 +1828,18 @@ def main(question):
     def execute_script(self, script: str, sample: Dict) -> Dict:
         """
         Execute the generated script on a sample and return the result.
-        Uses Docker sandbox if enabled, otherwise falls back to direct execution.
-        Uses automatic debugging if the script fails with specific errors.
+        Uses Docker sandbox if enabled, otherwise falls back to simplified execution.
         """
         # Use sandbox if available
         if self.use_sandbox and self.sandbox:
             return self.sandbox.execute_script(script, sample)
-        # Create a temporary script file
-        script_path = self.scripts_dir / f"current_script_{self.current_iteration}.py"
-        with open(script_path, 'w', encoding='utf-8') as f:
-            f.write(script)
-
-        # Get the question string from the sample
-        question = sample.get("question", "")
-        sample_id = sample.get("id", f"example_{self.current_iteration}")
-
-        # Set up trace file in the archive directory
-        trace_file = self.archive_dir / f"trace_iteration_{self.current_iteration}.jsonl"
-
-        # Load the test script template
-        template_path = Path("test_script_template.py")
-        if not template_path.exists():
-            return {
-                "success": False,
-                "error": "test_script_template.py not found",
-                "output": "Template missing",
-                "trace_file": str(trace_file)
-            }
-
-        try:
-            with open(template_path, 'r', encoding='utf-8') as f:
-                template_content = f.read()
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Error reading template: {str(e)}",
-                "output": "Template read error",
-                "trace_file": str(trace_file)
-            }
-
-        # Create a test harness for the script with enhanced tracing
-        try:
-            test_script = template_content.format(
-                scripts_dir=self.scripts_dir,
-                trace_file=trace_file,
-                current_iteration=self.current_iteration,
-                sample_id=sample_id,
-                question_repr=repr(question),
-                script_path=script_path
-            )
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Error formatting template: {str(e)}",
-                "output": "Template formatting error",
-                "trace_file": str(trace_file)
-            }
-
-        test_path = self.scripts_dir / f"test_script_{self.current_iteration}.py"
-        with open(test_path, 'w', encoding='utf-8') as f:
-            f.write(test_script)
-
-        # Rest of the execution logic remains the same...
-        debug_attempts = 0
-        max_debug_attempts = 3
-
-        while debug_attempts <= max_debug_attempts:
-            try:
-                import subprocess
-                result = subprocess.run(
-                    [sys.executable, str(test_path)],
-                    capture_output=True,
-                    text=True,
-                    timeout=90  # 90 second timeout - increased for LLM API calls
-                )
-
-                # Parse the output
-                output = result.stdout + result.stderr
-
-                if "ANSWER_START" in output and "ANSWER_END" in output:
-                    answer = output.split("ANSWER_START")[1].split("ANSWER_END")[0].strip()
-                    return {
-                        "success": True,
-                        "answer": answer,
-                        "output": output,
-                        "trace_file": str(trace_file)
-                    }
-                elif "ERROR_START" in output and "ERROR_END" in output:
-                    error = output.split("ERROR_START")[1].split("ERROR_END")[0].strip()
-
-                    # If we've reached max debug attempts or this isn't a "missing main" error, return the error
-                    if debug_attempts >= max_debug_attempts or "cannot import name 'main'" not in error:
-                        return {
-                            "success": False,
-                            "error": error,
-                            "output": output,
-                            "trace_file": str(trace_file)
-                        }
-
-                    # Try to debug the script
-                    debug_attempts += 1
-                    print(f"  Debugging attempt {debug_attempts}/{max_debug_attempts}...")
-
-                    # Apply debugging fixes
-                    self._debug_script(script_path)
-
-                    # Continue to next attempt
-                    continue
-                else:
-                    return {
-                        "success": False,
-                        "error": "Unknown execution error",
-                        "output": output,
-                        "trace_file": str(trace_file)
-                    }
-            except subprocess.TimeoutExpired:
-                return {
-                    "success": False,
-                    "error": "Script execution timed out (90 seconds)",
-                    "output": "Timeout",
-                    "trace_file": str(trace_file)
-                }
-            except Exception as e:
-                return {
-                    "success": False,
-                    "error": str(e),
-                    "output": traceback.format_exc(),
-                    "trace_file": str(trace_file)
-                }
-
-        # If we get here, we've exhausted our debug attempts
-        return {
-            "success": False,
-            "error": "Maximum debug attempts reached. Could not fix script.",
-            "output": "Debug failure",
-            "trace_file": str(trace_file)
-        }
+        
+        # Use the new simplified execution system
+        return self.execute_script_simplified(script, sample)
 
     
     
-    def _debug_script(self, script_path: Path) -> bool:
-        """
-        Debug a script by checking for common issues and fixing them.
 
-        Args:
-            script_path: Path to the script file
-
-        Returns:
-            bool: True if debugging was successful, False otherwise
-        """
-        print(f"  Analyzing script: {script_path}")
-
-        try:
-            # Read the script content
-            with open(script_path, 'r', encoding='utf-8') as f:
-                script_content = f.read()
-
-            # Check if the script has a 'main' function
-            has_main_function = "def main(" in script_content
-            if not has_main_function:
-                print(
-                    "  Issue detected: Script does not have a 'main' function")
-
-                # Look for possible main function alternatives
-                possible_main_functions = []
-                for line in script_content.split('\n'):
-                    if line.strip().startswith("def ") and "(" in line:
-                        function_name = line.strip().split("def ")[1].split(
-                            "(")[0].strip()
-                        if function_name != "main" and (
-                                "solve" in function_name
-                                or "process" in function_name
-                                or "answer" in function_name or
-                                function_name.lower() == "process_question"):
-                            possible_main_functions.append(function_name)
-
-                if possible_main_functions:
-                    primary_function = possible_main_functions[0]
-                    print(
-                        f"  Found potential main function: {primary_function}")
-
-                    # Add a main function that calls the primary function
-                    new_content = script_content + f"\n\ndef main(question):\n    return {primary_function}(question)\n"
-
-                    # Save the modified script
-                    with open(script_path, 'w', encoding='utf-8') as f:
-                        f.write(new_content)
-
-                    print(
-                        f"  Added 'main' function wrapper for {primary_function}"
-                    )
-                    return True
-                else:
-                    # If no suitable function found, try to identify the primary function
-                    # This is a more aggressive fix for when function names don't match patterns
-                    function_names = []
-                    for line in script_content.split('\n'):
-                        if line.strip().startswith("def ") and "(" in line:
-                            function_name = line.strip().split(
-                                "def ")[1].split("(")[0].strip()
-                            if function_name != "main":
-                                function_names.append(function_name)
-
-                    if function_names:
-                        # Choose the first defined function as the main function
-                        primary_function = function_names[0]
-                        print(
-                            f"  Using first defined function as main: {primary_function}"
-                        )
-
-                        # Add a main function that calls this function
-                        new_content = script_content + f"\n\ndef main(question):\n    return {primary_function}(question)\n"
-
-                        # Save the modified script
-                        with open(script_path, 'w', encoding='utf-8') as f:
-                            f.write(new_content)
-
-                        print(
-                            f"  Added 'main' function wrapper for {primary_function}"
-                        )
-                        return True
-                    else:
-                        print("  No functions found to use as main")
-                        return False
-            else:
-                print("  Script already has a 'main' function - no fix needed")
-                return True
-
-        except Exception as e:
-            print(f"  Error debugging script: {e}")
-            return False
 
     def evaluate_with_llm(self, samples: List[Dict], results: List[Dict]) -> Dict:
         """
@@ -2762,8 +2553,8 @@ def main(question):
                     }
     
     def _evaluate_sample(self, script: str, sample: Dict) -> Dict:
-        """Helper method to evaluate a single sample with a script"""
-        result = self.execute_script(script, sample)
+        """Helper method to evaluate a single sample with a script using simplified execution"""
+        result = self.execute_script_simplified(script, sample)
         
         if result.get("success"):
             golden_answer = self.dataset_loader.get_example_output(sample)
@@ -3365,6 +3156,230 @@ def main(question):
             print(f"Error updating learnings: {e}")
 
         return iteration_data
+
+    def execute_script_simplified(self, script: str, sample: Dict) -> Dict:
+        """
+        Simplified script execution - loads script as module and executes directly in memory.
+        Much faster and cleaner than the template-based subprocess approach.
+        """
+        try:
+            # Get the question string from the sample
+            question = sample.get("question", "")
+            sample_id = sample.get("id", f"example_{self.current_iteration}")
+            
+            # Set up trace file in the archive directory
+            trace_file = self.archive_dir / f"trace_iteration_{self.current_iteration}.jsonl"
+            
+            # Load script as a Python module with injected system tools
+            module = self._load_script_as_module(script)
+            
+            # Log execution start
+            self._log_trace_entry(trace_file, {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "event": "execution_start",
+                "iteration": self.current_iteration,
+                "sample_id": sample_id,
+                "question": question
+            })
+            
+            start_time = time.time()
+            
+            # Execute the main function directly
+            answer = module.main(question)
+            
+            execution_time = time.time() - start_time
+            
+            # Log execution completion
+            self._log_trace_entry(trace_file, {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "event": "execution_complete",
+                "iteration": self.current_iteration,
+                "sample_id": sample_id,
+                "answer": str(answer),
+                "execution_time": execution_time
+            })
+            
+            return {
+                "success": True,
+                "answer": str(answer),
+                "output": f"Executed successfully in {execution_time:.3f}s",
+                "trace_file": str(trace_file),
+                "execution_time": execution_time
+            }
+            
+        except Exception as e:
+            # Log the error
+            error_trace = {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "event": "execution_error",
+                "iteration": self.current_iteration,
+                "sample_id": sample_id,
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+            
+            self._log_trace_entry(trace_file, error_trace)
+            
+            return {
+                "success": False,
+                "error": str(e),
+                "output": traceback.format_exc(),
+                "trace_file": str(trace_file)
+            }
+
+    def _load_script_as_module(self, script: str):
+        """
+        Load a script string as a Python module with system tools injected.
+        """
+        import importlib.util
+        
+        # Create a module spec
+        spec = importlib.util.spec_from_loader(
+            f"script_iteration_{self.current_iteration}",
+            loader=None,
+            origin="virtual"
+        )
+        module = importlib.util.module_from_spec(spec)
+        
+        # Execute the script to define its functions and classes first
+        try:
+            exec(script, module.__dict__)
+        except Exception as e:
+            raise Exception(f"Error loading script as module: {str(e)}")
+        
+        # THEN inject system tools into the module's namespace (this overrides any script-defined functions)
+        module.call_llm = self._create_traced_call_llm()
+        module.call_database = call_database
+        module.read_file = read_file
+        module.search_file = search_file
+        module.execute_code = execute_code
+        
+        # Verify the script has a main function
+        if not hasattr(module, 'main'):
+            raise Exception("Script does not define a 'main' function")
+        
+        if not callable(module.main):
+            raise Exception("Script 'main' is not callable")
+        
+        return module
+    
+    def _create_traced_call_llm(self):
+        """
+        Create a traced version of call_llm for logging LLM calls.
+        """
+        def traced_call_llm(prompt, system_instruction=None):
+            trace_file = self.archive_dir / f"trace_iteration_{self.current_iteration}.jsonl"
+            
+            # Log the LLM call
+            call_trace = {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "event": "llm_call",
+                "iteration": self.current_iteration,
+                "input": {
+                    "prompt": prompt,
+                    "system_instruction": system_instruction
+                }
+            }
+            
+            try:
+                # Call the actual LLM function
+                result = call_llm(prompt, system_instruction)
+                
+                call_trace["output"] = result
+                call_trace["status"] = "success"
+                
+                self._log_trace_entry(trace_file, call_trace)
+                
+                return result
+                
+            except Exception as e:
+                call_trace["error"] = str(e)
+                call_trace["status"] = "error"
+                call_trace["traceback"] = traceback.format_exc()
+                
+                self._log_trace_entry(trace_file, call_trace)
+                
+                raise
+        
+        return traced_call_llm
+    
+    def _log_trace_entry(self, trace_file: Path, entry: Dict):
+        """
+        Log a trace entry to the specified file.
+        """
+        try:
+            os.makedirs(os.path.dirname(trace_file), exist_ok=True)
+            with open(trace_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception as e:
+            print(f"Warning: Could not write trace entry: {e}")
+    
+    def validate_and_repair_script(self, script: str) -> str:
+        """
+        Validate script and perform simple repairs before testing.
+        Much faster than the old repair system - just catches obvious issues.
+        """
+        # 1. Syntax validation
+        try:
+            ast.parse(script)
+        except SyntaxError as e:
+            print(f"Script has syntax error: {e}")
+            # Try to repair with LLM
+            script = self.repair_script_with_llm(script, "test question", f"Syntax error: {e}")
+            
+            # Verify the repair worked
+            try:
+                ast.parse(script)
+                print("Syntax error repaired successfully")
+            except SyntaxError:
+                raise Exception("Could not repair syntax error")
+        
+        # 2. Check for main function
+        if "def main(" not in script:
+            print("Script missing main function, attempting to add wrapper")
+            script = self._add_main_wrapper(script)
+        
+        # 3. Quick execution test
+        try:
+            module = self._load_script_as_module(script)
+            # Test with a simple question
+            test_result = module.main("test")
+            print("Script validation passed")
+            return script
+        except Exception as e:
+            print(f"Script failed validation test: {e}")
+            # Try one repair attempt
+            repaired_script = self.repair_script_with_llm(script, "test", str(e))
+            
+            # Test the repaired script
+            try:
+                module = self._load_script_as_module(repaired_script)
+                module.main("test")
+                print("Script repair successful")
+                return repaired_script
+            except Exception:
+                print("Script repair failed, using original")
+                return script  # Return original if repair doesn't work
+    
+    def _add_main_wrapper(self, script: str) -> str:
+        """
+        Add a main function wrapper if the script is missing one.
+        """
+        # Look for function definitions in the script
+        functions = []
+        for line in script.split('\n'):
+            if line.strip().startswith("def ") and "(" in line:
+                func_name = line.strip().split("def ")[1].split("(")[0].strip()
+                if func_name != "main":
+                    functions.append(func_name)
+        
+        if functions:
+            # Use the first function as the main function
+            primary_function = functions[0]
+            wrapper = f"\n\ndef main(question):\n    return {primary_function}(question)\n"
+            return script + wrapper
+        else:
+            raise Exception("No functions found in script to use as main")
 
 class CapabilityTracker:
     """

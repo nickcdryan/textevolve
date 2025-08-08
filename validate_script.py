@@ -149,7 +149,7 @@ def main():
             print(f"  Processing sample {total_examples}/{args.end - args.start + 1}...")
 
             # Execute the script with the sample
-            result = agent.execute_script(script_content, sample)
+            result = agent.execute_script_simplified(script_content, sample)
 
             # Evaluate the result if successful
             if result.get("success"):
