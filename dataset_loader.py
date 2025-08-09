@@ -1168,7 +1168,8 @@ class TicketWorldSimpleDatasetLoader(DatasetLoader):
                 formatted_question = f"""# Customer Information Lookup Task
 
 ## Overview
-Your task is to identify the customer_id and order_id from the customer email below. You may need to search the customer database to find this information.
+TASK SPECIFICATION:
+Your task is simply to extract the email address from the customer email and use the call_database() function to find the customer_id and order_id.
 
 🔥 CRITICAL: YOU MUST USE THE DATABASE ACCESS FUNCTION TO LOOK UP CUSTOMER INFORMATION 🔥
 

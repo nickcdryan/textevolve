@@ -30,7 +30,10 @@ from system_tools import (
 
 # Function signatures for reference:
 # call_llm(prompt: str, system_instruction: str = None) -> str
-# call_database(db_path: str, sql_query: str) -> str  
+# call_database(db_path: str, sql_query: str) -> list[dict] | dict  
+#   → SELECT queries return list of dicts: [{'column': 'value'}, ...]
+#   → INSERT/UPDATE/DELETE return dict: {'success': True, 'rows_affected': N}
+#   → Errors return dict: {'error': 'error message'}
 # read_file(filepath: str, start_line: int = None, end_line: int = None) -> str
 # search_file(filepath: str, pattern: str, case_sensitive: bool = True, show_line_numbers: bool = True, context_lines: int = 0, max_results: int = 50) -> str
 # execute_code(code_str: str, timeout: int = 10) -> str
@@ -506,72 +509,196 @@ WHEN TO USE call_database():
 
 HOW TO USE call_database():
 ```python
-# Query a database file
-result = call_database("path/to/database.db", "SELECT * FROM table_name LIMIT 10")
+# Basic syntax
+result = call_database("path/to/database.db", "SELECT column FROM table WHERE condition")
 
-# The result contains formatted query results as a string
-# For SELECT queries: Returns formatted table with columns and rows
-# For INSERT/UPDATE/DELETE: Returns success message with affected row count
-
-# Example with specific query
-customers = call_database("shop.db", "SELECT name, email FROM customers WHERE age > 25")
-
-# Example with aggregation
-stats = call_database("analytics.db", "SELECT COUNT(*) as total_users, AVG(score) as avg_score FROM users")
+# The function returns standard Python data structures:
+# - SELECT queries: List of dictionaries (one dict per row)
+# - INSERT/UPDATE/DELETE: Dictionary with success status and rows_affected
+# - Errors: Dictionary with error message
 ```
 
-Example pattern:
+OUTPUT FORMATS AND EXAMPLES:
+
+## Single Result (One Row, One Column):
 ```python
-def main(question):
-    if "database" in question.lower() or "table" in question.lower():
-        # Extract what database/table is being asked about
-        query_prompt = f"Generate a SQL query for this question: {question}"
-        sql_query = call_llm(query_prompt, "You are a SQL expert")
-        
-        # Execute the database query
-        db_result = call_database("data.db", sql_query)
-        
-        # Interpret the results
-        return call_llm(f"Question: {question}, Database results: {db_result}, What's the answer?")
+result = call_database("shop.db", "SELECT customer_id FROM customers WHERE email = 'john@example.com'")
+# Returns: [{'customer_id': 'CUST-0001'}]
+
+# Access the value:
+if result:  # Check if not empty
+    customer_id = result[0]['customer_id']  # 'CUST-0001'
+```
+
+## Single Result (One Row, Multiple Columns):
+```python
+result = call_database("shop.db", "SELECT customer_id, name, email FROM customers WHERE customer_id = 'CUST-0001'")
+# Returns: [{'customer_id': 'CUST-0001', 'name': 'John Smith', 'email': 'john@example.com'}]
+
+# Access the values:
+if result:
+    row = result[0]
+    customer_id = row['customer_id']
+    name = row['name']
+    email = row['email']
+```
+
+## Multiple Results (Multiple Rows):
+```python
+result = call_database("shop.db", "SELECT customer_id, name FROM customers LIMIT 5")
+# Returns: [
+#   {'customer_id': 'CUST-0001', 'name': 'John Smith'},
+#   {'customer_id': 'CUST-0002', 'name': 'Jane Doe'},
+#   {'customer_id': 'CUST-0003', 'name': 'Bob Wilson'},
+#   ...
+# ]
+
+# Process multiple results:
+for row in result:
+    print(f"Customer {row['customer_id']}: {row['name']}")
+```
+
+## No Results Found:
+```python
+result = call_database("shop.db", "SELECT * FROM customers WHERE email = 'nonexistent@example.com'")
+# Returns: []  (empty list)
+
+# Handle no results:
+if not result:  # or: if len(result) == 0
+    print("No customers found")
+else:
+    print(f"Found {len(result)} customers")
+```
+
+## Successful Data Modification (INSERT/UPDATE/DELETE):
+```python
+result = call_database("shop.db", "UPDATE customers SET name = 'John Doe' WHERE customer_id = 'CUST-0001'")
+# Returns: {'success': True, 'rows_affected': 1}
+
+# Check if modification was successful:
+if result.get('success'):
+    print(f"Updated {result['rows_affected']} rows")
+```
+
+## SQL Error:
+```python
+result = call_database("shop.db", "SELECT invalid_column FROM customers")
+# Returns: {'error': 'SQL Error: no such column: invalid_column'}
+
+# Handle errors:
+if 'error' in result:
+    print(f"Database error: {result['error']}")
+    return "Unable to query database"
+```
+
+## Database File Not Found:
+```python
+result = call_database("nonexistent.db", "SELECT * FROM table")
+# Returns: {'error': 'Database Error: Database file not found at nonexistent.db'}
+```
+
+PRACTICAL EXAMPLE PATTERNS:
+
+## Pattern 1: Simple Lookup
+```python
+def find_customer_by_email(email):
+    result = call_database("customers.db", f"SELECT customer_id, name FROM customers WHERE primary_email = '{email}' OR alternate_email = '{email}'")
+    
+    if 'error' in result:
+        return f"Database error: {result['error']}"
+    
+    if not result:
+        return "Customer not found"
+    
+    customer = result[0]
+    return f"Found customer: {customer['customer_id']} - {customer['name']}"
+```
+
+## Pattern 2: Multiple Results Processing
+```python
+def get_recent_orders(customer_id):
+    result = call_database("orders.db", f"SELECT order_id, order_date, total_amount FROM orders WHERE customer_id = '{customer_id}' ORDER BY order_date DESC LIMIT 10")
+    
+    if 'error' in result:
+        return f"Error: {result['error']}"
+    
+    if not result:
+        return "No orders found for this customer"
+    
+    orders = []
+    for order in result:
+        orders.append(f"Order {order['order_id']}: ${order['total_amount']} on {order['order_date']}")
+    
+    return "Recent orders:\\n" + "\\n".join(orders)
+```
+
+## Pattern 3: Data Modification with Validation
+```python
+def update_customer_email(customer_id, new_email):
+    # First check if customer exists
+    check = call_database("customers.db", f"SELECT customer_id FROM customers WHERE customer_id = '{customer_id}'")
+    
+    if 'error' in check:
+        return f"Database error: {check['error']}"
+    
+    if not check:
+        return "Customer not found"
+    
+    # Update the email
+    result = call_database("customers.db", f"UPDATE customers SET primary_email = '{new_email}' WHERE customer_id = '{customer_id}'")
+    
+    if 'error' in result:
+        return f"Update failed: {result['error']}"
+    
+    if result.get('success') and result.get('rows_affected', 0) > 0:
+        return f"Successfully updated email for customer {customer_id}"
     else:
-        # No database needed - use reasoning
-        return call_llm(f"Solve: {question}")
+        return "Update failed - no rows affected"
 ```
 
 DATABASE FEATURES:
 - Automatic path resolution (works in sandbox and local environments)
-- Handles both SELECT queries (returns formatted results) and modification queries (INSERT/UPDATE/DELETE)
+- Returns standard Python data structures (lists and dictionaries)
 - Built-in error handling for SQL syntax errors and file access issues
-- Results limited to 50 rows for readability (shows total count if more)
-- Column names included in results for easy interpretation
-
-REMEMBER: call_database() is available - use it for data retrieval and analysis!
-
-✅ ALWAYS START WITH SYSTEM IMPORTS:
-```python
-from system_tools import call_llm, call_database
-
-def main(question):
-    if "database" in question.lower() or "table" in question.lower():
-        # Generate SQL using imported call_llm
-        query_prompt = f"Generate a SQL query for this question: {question}"
-        sql_query = call_llm(query_prompt, "You are a SQL expert")
-        
-        # Execute using imported call_database
-        db_result = call_database("data.db", sql_query)
-        
-        # Interpret results using imported call_llm
-        return call_llm(f"Question: {question}, Database results: {db_result}, What's the answer?")
-    else:
-        return call_llm(f"Solve: {question}")
-```
+- No custom parsing required - works like any standard database interface
+- Column names included as dictionary keys for easy access
 
 DATABASE PATH NOTES:
 - Relative paths like "data.db" work automatically (checks workspace and current directory)
 - Absolute paths work if the database file is accessible
 - In sandbox environments, databases should be in the workspace directory
 
+REMEMBER: call_database() returns standard Python data structures that every Python developer and LLM naturally knows how to handle!
+
+✅ ALWAYS START WITH SYSTEM IMPORTS:
+```python
+from system_tools import call_llm, call_database
+
+def main(question):
+    # Extract what database/table is being asked about
+    if "customer" in question.lower():
+        result = call_database("customers.db", "SELECT customer_id, name FROM customers LIMIT 5")
+        
+        # Handle different result types
+        if 'error' in result:
+            return f"Database error: {result['error']}"
+        
+        if not result:
+            return "No customers found"
+        
+        # Process the results naturally
+        customer_list = []
+        for customer in result:
+            customer_list.append(f"{customer['customer_id']}: {customer['name']}")
+        
+        return "Customers found:\\n" + "\\n".join(customer_list)
+    else:
+        return call_llm(f"Solve: {question}")
+```
+
 ⛔ DO NOT REDEFINE IMPORTED FUNCTIONS - Use them directly after importing from system_tools
+
+KEY ADVANTAGE: This format is exactly what Python developers and LLMs expect from database operations - no special parsing or custom logic required!
 """
 
 

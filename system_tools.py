@@ -89,36 +89,25 @@ def call_database(db_path, sql_query):
                 # Query returns results
                 results = cursor.fetchall()
                 if not results:
-                    return "Query executed successfully. No results returned."
+                    return []  # Empty list for no results
                 
-                # Convert results to a readable format
+                # Return standard dictionary format
                 columns = [description[0] for description in cursor.description]
-                result_text = f"Results ({len(results)} rows):\n"
-                result_text += " | ".join(columns) + "\n"
-                result_text += "-" * (len(" | ".join(columns))) + "\n"
-                
-                for row in results[:50]:  # Limit to first 50 rows to avoid overwhelming output
-                    row_values = [str(row[col]) if row[col] is not None else 'NULL' for col in columns]
-                    result_text += " | ".join(row_values) + "\n"
-                
-                if len(results) > 50:
-                    result_text += f"... and {len(results) - 50} more rows\n"
-                
-                return result_text
+                return [dict(zip(columns, row)) for row in results]
             else:
                 # Query modifies data (INSERT, UPDATE, DELETE, etc.)
                 conn.commit()
                 rows_affected = cursor.rowcount
-                return f"Query executed successfully. {rows_affected} rows affected."
+                return {"success": True, "rows_affected": rows_affected}
                 
         except sqlite3.Error as e:
-            return f"SQL Error: {str(e)}"
+            return {"error": f"SQL Error: {str(e)}"}
         finally:
             cursor.close()
             conn.close()
             
     except Exception as e:
-        return f"Database Error: {str(e)}"
+        return {"error": f"Database Error: {str(e)}"}
 
 
 def read_file(filepath, start_line=None, end_line=None):
