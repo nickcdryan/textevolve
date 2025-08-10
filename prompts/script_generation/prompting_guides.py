@@ -22,7 +22,10 @@ EVERY script you generate MUST start with this exact import header to access sys
 # System-provided functions - These are automatically available to the system and have been thoroughly tested.
 from system_tools import (
     call_llm,           # LLM API calls
-    call_database,      # SQLite database queries  
+    read_query,         # Enhanced SELECT queries (MCP-style)
+    write_query,        # Enhanced modification queries (MCP-style)
+    list_tables,        # List database tables (MCP-style)
+    describe_table,     # Get table schema (MCP-style)
     read_file,          # File reading with line ranges
     search_file,        # File pattern searching
     execute_code        # Safe code execution
@@ -30,10 +33,23 @@ from system_tools import (
 
 # Function signatures for reference:
 # call_llm(prompt: str, system_instruction: str = None) -> str
-# call_database(db_path: str, sql_query: str) -> list[dict] | dict  
+# call_database(db_path: str, sql_query: str) -> list[dict] | dict  # LEGACY - use MCP functions below
 #   → SELECT queries return list of dicts: [{'column': 'value'}, ...]
 #   → INSERT/UPDATE/DELETE return dict: {'success': True, 'rows_affected': N}
 #   → Errors return dict: {'error': 'error message'}
+# 
+# MCP DATABASE FUNCTIONS (RECOMMENDED):
+# read_query(sql_query: str, db_path: str = None) -> list[dict] | dict
+#   → Enhanced SELECT query execution with better error handling
+#   → Uses default TicketWorld database if db_path not provided
+# write_query(sql_query: str, db_path: str = None) -> dict
+#   → Enhanced INSERT/UPDATE/DELETE execution
+#   → Returns {'success': True, 'rows_affected': N} or {'error': 'message'}
+# list_tables(db_path: str = None) -> list[str] | dict
+#   → Returns list of table names or {'error': 'message'}
+# describe_table(table_name: str, db_path: str = None) -> dict
+#   → Returns detailed table schema information
+#
 # read_file(filepath: str, start_line: int = None, end_line: int = None) -> str
 # search_file(filepath: str, pattern: str, case_sensitive: bool = True, show_line_numbers: bool = True, context_lines: int = 0, max_results: int = 50) -> str
 # execute_code(code_str: str, timeout: int = 10) -> str
@@ -46,7 +62,24 @@ from system_tools import (
 4. The imports make the functions visible and IDE-friendly
 5. You never need to worry about these functions, they have been thoroughly tested and validated beforehand and are safe to use.
 
-✅ CORRECT PATTERN:
+✅ CORRECT PATTERN (with new MCP functions):
+```python
+from system_tools import call_llm, read_query, write_query, list_tables, describe_table, read_file
+
+def main(question):
+    # Extract email using imported function
+    email = call_llm("Extract email from: " + question)
+    
+    # Query database using new MCP function (enhanced reliability)
+    data = read_query(f"SELECT * FROM customers WHERE email='{email}'")
+    
+    # Read policies using imported function
+    policies = read_file("policies.txt")
+    
+    return f"Customer: {data}, Policies: {policies}"
+```
+
+✅ LEGACY PATTERN (still works):
 ```python
 from system_tools import call_llm, call_database, read_file
 
@@ -54,7 +87,7 @@ def main(question):
     # Extract email using imported function
     email = call_llm("Extract email from: " + question)
     
-    # Query database using imported function  
+    # Query database using legacy function  
     data = call_database("data.db", f"SELECT * FROM customers WHERE email='{email}'")
     
     # Read policies using imported function
@@ -496,16 +529,56 @@ def main(question):
 
 database_prompting_guide = """
 
-🔥 CRITICAL: DATABASE ACCESS CAPABILITY AVAILABLE 🔥
+🔥 CRITICAL: ENHANCED DATABASE ACCESS CAPABILITIES AVAILABLE 🔥
 
-You have access to a powerful call_database() function that can query SQLite databases safely.
+You have access to both legacy and enhanced database functions for SQLite database operations.
 
-WHEN TO USE call_database():
+## RECOMMENDED: MCP DATABASE FUNCTIONS (Enhanced Reliability)
+
+WHEN TO USE MCP FUNCTIONS (read_query, write_query, list_tables, describe_table):
 - When you need to retrieve structured data from a database
-- Problems involving data analysis, lookups, or queries
+- Problems involving data analysis, lookups, or queries  
 - When you need to access pre-existing datasets in database format
 - Questions that reference tables, records, or database-like operations
+- When working with datasets that have configured default database connections
 - You understand that using database queries is more reliable for data retrieval than asking an LLM
+
+## Enhanced MCP Functions:
+
+### read_query(sql_query, db_path=None) - For SELECT operations
+```python
+# Automatic connection to default database (if configured by dataset)
+customers = read_query("SELECT customer_id, name FROM customers WHERE email = 'email@domain.com'")
+
+# Specify custom database if needed  
+results = read_query("SELECT * FROM products", db_path="custom.db")
+```
+
+### write_query(sql_query, db_path=None) - For INSERT/UPDATE/DELETE operations
+```python
+# Modify data safely
+result = write_query("UPDATE customers SET name = 'New Name' WHERE customer_id = 'CUST-0001'")
+```
+
+### list_tables(db_path=None) - Explore database structure
+```python
+# See all available tables
+tables = list_tables()  # Returns: ['table1', 'table2', 'table3']
+```
+
+### describe_table(table_name, db_path=None) - Get table schema
+```python
+# Get detailed table information
+schema = describe_table("table_name")
+# Returns column names, types, constraints, etc.
+```
+
+## LEGACY: call_database() function (Still Supported)
+
+WHEN TO USE call_database():
+- When working with custom databases not covered by MCP defaults
+- Legacy compatibility
+- When you need full control over database path specification
 
 HOW TO USE call_database():
 ```python
@@ -670,35 +743,75 @@ DATABASE PATH NOTES:
 
 REMEMBER: call_database() returns standard Python data structures that every Python developer and LLM naturally knows how to handle!
 
-✅ ALWAYS START WITH SYSTEM IMPORTS:
+✅ RECOMMENDED PATTERN WITH MCP FUNCTIONS:
+```python
+from system_tools import call_llm, read_query, write_query, list_tables, describe_table
+
+def main(question):
+    # Extract what database/table is being asked about
+    if "database" in question.lower() or "table" in question.lower():
+        # Use enhanced MCP function (auto-connects to default database)
+        result = read_query("SELECT id, name FROM main_table LIMIT 5")
+        
+        # Handle different result types (same error handling pattern)
+        if isinstance(result, dict) and 'error' in result:
+            return f"Database error: {result['error']}"
+        
+        if not result:
+            return "No records found"
+        
+        # Process the results naturally (same as before)
+        record_list = []
+        for record in result:
+            record_list.append(f"{record['id']}: {record['name']}")
+        
+        return "Records found:\\n" + "\\n".join(record_list)
+    else:
+        return call_llm(f"Solve: {question}")
+```
+
+✅ LEGACY PATTERN (still works):
 ```python
 from system_tools import call_llm, call_database
 
 def main(question):
     # Extract what database/table is being asked about
-    if "customer" in question.lower():
-        result = call_database("customers.db", "SELECT customer_id, name FROM customers LIMIT 5")
+    if "database" in question.lower() or "table" in question.lower():
+        result = call_database("data.db", "SELECT id, name FROM main_table LIMIT 5")
         
         # Handle different result types
         if 'error' in result:
             return f"Database error: {result['error']}"
         
         if not result:
-            return "No customers found"
+            return "No records found"
         
         # Process the results naturally
-        customer_list = []
-        for customer in result:
-            customer_list.append(f"{customer['customer_id']}: {customer['name']}")
+        record_list = []
+        for record in result:
+            record_list.append(f"{record['id']}: {record['name']}")
         
-        return "Customers found:\\n" + "\\n".join(customer_list)
+        return "Records found:\\n" + "\\n".join(record_list)
     else:
         return call_llm(f"Solve: {question}")
 ```
 
 ⛔ DO NOT REDEFINE IMPORTED FUNCTIONS - Use them directly after importing from system_tools
 
-KEY ADVANTAGE: This format is exactly what Python developers and LLMs expect from database operations - no special parsing or custom logic required!
+## KEY ADVANTAGES OF MCP FUNCTIONS:
+✅ **Automatic Connection**: No need to specify database paths when dataset provides defaults
+✅ **Enhanced Error Handling**: More robust error detection and reporting  
+✅ **Query Validation**: Built-in SQL validation before execution
+✅ **Consistent Results**: Reliable data formatting across all operations
+✅ **Type Safety**: Proper handling of different data types and edge cases
+
+## MIGRATION NOTES:
+- **Same Return Format**: MCP functions return the same data structures as call_database()
+- **Same Error Handling**: Use the same `if 'error' in result:` pattern for both
+- **Backward Compatible**: Existing call_database() patterns continue to work
+- **Gradual Adoption**: Start using MCP functions for new code, keep legacy code unchanged
+
+KEY ADVANTAGE: Both approaches return exactly what Python developers and LLMs expect from database operations - no special parsing or custom logic required!
 """
 
 

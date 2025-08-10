@@ -961,27 +961,41 @@ You have access to these files located at datasets/ticketworld/:
 - **company_policy.txt** - Complete company policies with policy IDs and rules
 
 
-You have built in functions to access the database and files - YOU MUST USE THESE! 
+You have advanced database and file access functions - YOU MUST USE THESE! 
 
-The functions are:
-- call_database(path_to_database, SQL_query)
-- read_file(path_to_file)
-- search_file(path_to_file, pattern)
+## Enhanced Database Functions (Recommended):
+- **read_query(sql_query)** - Execute SELECT queries with automatic connection to TicketWorld database
+- **write_query(sql_query)** - Execute INSERT/UPDATE/DELETE queries 
+- **list_tables()** - Show all available database tables
+- **describe_table(table_name)** - Get detailed table schema information
 
-EXAMPLE: HOW TO USE call_database(path_to_database, SQL_query):
+## File Access Functions:
+- **read_file(path_to_file)** - Read file contents with optional line ranges
+- **search_file(path_to_file, pattern)** - Search for patterns within files
+
+## Legacy Database Function (still supported):
+- **call_database(path_to_database, SQL_query)** - Original database access method
+
+EXAMPLE: HOW TO USE read_query() (RECOMMENDED):
 ```python
-# Query a database file
-result = call_database("path/to/database.db", "SELECT * FROM table_name LIMIT 10")
+# Find customer by email (auto-connects to TicketWorld database)
+customer = read_query("SELECT customer_id, name FROM customers WHERE primary_email = 'customer@email.com'")
 
-# The result contains formatted query results as a string
-# For SELECT queries: Returns formatted table with columns and rows
-# For INSERT/UPDATE/DELETE: Returns success message with affected row count
+# Get customer's recent orders
+orders = read_query("SELECT order_id, order_date, total_amount FROM orders WHERE customer_id = 'CUST-0001' ORDER BY order_date DESC LIMIT 5")
 
-# Example with specific query
-customers = call_database("shop.db", "SELECT name, email FROM customers WHERE age > 25")
+# Get complete order details
+order_details = read_query("SELECT * FROM orders WHERE order_id = 'ORD-20250224-1008'")
 
-# Example with aggregation
-stats = call_database("analytics.db", "SELECT COUNT(*) as total_users, AVG(score) as avg_score FROM users")
+# Explore database if needed
+tables = list_tables()                           # See all tables
+customer_schema = describe_table("customers")    # Get table structure
+```
+
+EXAMPLE: HOW TO USE call_database() (LEGACY):
+```python
+# Legacy method - still works but requires full database path
+customers = call_database("datasets/ticketworld/customer_database.db", "SELECT name, email FROM customers WHERE customer_id = 'CUST-0001'")
 ```
 
 HOW TO USE read_file():
@@ -1215,15 +1229,15 @@ class TicketWorldSimpleDatasetLoader(DatasetLoader):
                 formatted_question = f"""# Customer Service Resolution System
 
 ## TASK OVERVIEW
-You are a customer service resolution system. Your job is to analyze incoming support tickets and create comprehensive resolution plans. This is a complex multi-step process that requires:
+You are a customer service resolution system with advanced database access capabilities. Your job is to analyze incoming support tickets and create a resolution plan. This process requires:
 
-1. **Database Investigation** - Look up customer and order information
-2. **Policy Research** - Reference company policies for applicable rules
-3. **Multi-step Reasoning** - Analyze the situation through multiple lenses
-4. **Decision Making** - Choose appropriate actions and escalation decisions
-
-🚨 **CRITICAL**: This task is IMPOSSIBLE without using the provided tools. You MUST use call_database() and read_file() functions.
-🚨 **CRITICAL**: Customer emails will not necessarily contain all the required information - this is why you must use the database and policy document to find the information before you can make a decision and output the resolution plan.
+1. **Analyze Customer Issue**: Read the customer email and subject to understand their problem
+2. **Find Customer**: Use the email address to look up customer information in the database
+3. **Locate Orders**: Find relevant orders for the customer
+4. **Get Order Details**: Retrieve complete order information
+5. **Research Policies**: Read company policies to understand applicable rules
+6. **Create Resolution**: Determine appropriate actions based on data and policies
+7. **Assess Escalation**: Decide if manager escalation is required
 
 ## REQUIRED OUTPUT FIELDS
 Your primary objective is to correctly determine these core fields:
@@ -1233,24 +1247,42 @@ Your primary objective is to correctly determine these core fields:
 - **escalation_required**: Boolean decision on whether escalation is needed
 - **policy_references**: List of policy IDs that apply to this case
 
-## AVAILABLE TOOLS
-You have access to these essential functions:
+🚨 **CRITICAL**: This task is IMPOSSIBLE without using the provided database and file tools.
+🚨 **CRITICAL**: Customer emails contain limited information - you MUST use the database and policy documents to gather complete context before making decisions.
+All customers and orders exist in the database - there are no missing records.
 
-### Database Access
-```python
-call_database("datasets/ticketworld/customer_database.db", "SQL_QUERY")
-```
+## ENHANCED DATABASE TOOLS
+You have access to reliable, simplified database functions:
+
+### Primary Database Functions (Recommended)
+# Find customer by email (auto-connects to TicketWorld database)
+customer_data = read_query("SELECT customer_id, name FROM customers WHERE primary_email = 'customer@email.com' OR alternate_email = 'customer@email.com'")
+
+# Get customer's orders
+orders = read_query("SELECT order_id, order_date, total_amount FROM orders WHERE customer_id = 'CUST-0001' ORDER BY order_date DESC")
+
+# Get specific order details
+order_details = read_query("SELECT * FROM orders WHERE order_id = 'ORD-20250224-1008'")
+
+# Explore database structure (if needed)
+tables = list_tables()                    # See available tables
+schema = describe_table("customers")      # Get table structure
 
 ### Policy Document Access  
-```python
-read_file("datasets/ticketworld/company_policy.txt")
-```
+policy_text = read_file("datasets/ticketworld/company_policy.txt")
 
-🔥 **YOU MUST USE THESE TOOLS** - It is impossible to answer accurately without them.
+### Key Benefits of New Database Tools:
+✅ **Automatic Connection**: No need to specify database path
+✅ **Error Handling**: Clear error messages and validation
+✅ **Consistent Results**: Reliable data formatting
+✅ **Query Safety**: Built-in SQL validation
+✅ **Type Safety**: Proper handling of different data types
+
+🔥 **YOU MUST USE THESE TOOLS** - Accurate resolution requires database lookup and policy research.
 
 ## DATABASE SCHEMA
 
-### customers table
+### Table: customers
 - customer_id (TEXT, PRIMARY KEY): Format CUST-XXXX
 - name (TEXT): Customer full name  
 - primary_email (TEXT): Primary email address
@@ -1260,7 +1292,7 @@ read_file("datasets/ticketworld/company_policy.txt")
 - billing_street, billing_city, billing_state, billing_zip (TEXT): Billing address
 - created_date (DATE): Account creation date
 
-### orders table
+### Table: orders
 - order_id (TEXT, PRIMARY KEY): Format ORD-YYYYMMDD-XXXX
 - customer_id (TEXT): Links to customers table
 - order_date (DATE): Order placement date
@@ -1271,7 +1303,7 @@ read_file("datasets/ticketworld/company_policy.txt")
 - payment_method (TEXT): Payment method
 - order_status (TEXT): Current status
 
-### products table
+### Table: products
 - product_id (TEXT, PRIMARY KEY): Format PROD-XXXX
 - name (TEXT): Product name
 - category, brand (TEXT): Product classification
@@ -1306,59 +1338,113 @@ Choose from these action types only:
 - deny_exchange
 - send_return_label
 
-## POLICY REFERENCE EXAMPLES
-Common policy IDs include (but reference the policy document for complete list):
-- POL-RETURN-001 (Return Window)
-- POL-RETURN-002 (Opened Items Restocking Fee)
-- POL-RETURN-003 (Unopened Items)
-- POL-RETURN-004 (Damaged Items)
-- POL-SHIP-001 (Standard Shipping)
-- POL-SHIP-002 (Lost Packages)
-- POL-COMM-001 (Response Time)
-- POL-COMM-002 (Escalation Thresholds)
-- And many more - ALWAYS reference the policy document
 
-## MULTI-STEP PROCESS REQUIRED
-This is complex work requiring multiple reasoning steps:
+## WORKING EXAMPLE APPROACH
+Here's a proven workflow that successfully extracts all required information:
 
-1. **Customer Investigation**: Use database to find customer by email
-2. **Order Analysis**: Identify relevant orders and their details  
-3. **Policy Research**: Read and understand applicable policies
-4. **Situation Assessment**: Analyze customer issue against policies
-5. **Decision Making**: Choose appropriate actions and escalation
-6. **Reasoning Integration**: Ensure all decisions work together coherently
-
-## OUTPUT FORMAT
-Provide your complete resolution as a JSON object. The evaluation will focus on the core fields listed above, but include the full resolution for learning purposes:
-
-```json
-{{
-  "order_id": "ORD-YYYYMMDD-XXXX or N/A",
-  "order_date": "YYYY-MM-DD or N/A", 
-  "customer_lookup": {{
-    "status": "found/not_found",
-    "customer_id": "CUST-XXXX",
-    "lookup_method": "email_match",
-    "notes": "Customer found in database"
-  }},
-  "policy_references": ["POL-XXX-XXX", "POL-YYY-YYY"],
-  "policy_reasoning": "Detailed explanation of which policies apply and how",
-  "actions": [
-    {{
-      "type": "action_type_from_list_above",
-      "reason": "Policy citation and reasoning",
-      "value": 0.00,
-      "details": "Implementation details"
-    }}
-  ],
-  "escalation_required": true/false,
-  "escalation_reason": "null or explanation",
-  "priority": "low/medium/high/urgent",
-  "total_resolution_value": 0.00
-}}
+### Step 1: Extract Customer Email
+```python
+# Extract email from customer ticket using LLM
+email_prompt = f"Extract the customer email address from this text: {{question}}. Return only the email address, nothing else."
+customer_email = call_llm(email_prompt).strip()
 ```
 
-**NOTE FOR EVALUATION**: While this complete resolution helps with learning, the evaluation will focus ONLY on: order_id, customer_id, actions[type], escalation_required, and policy_references.
+### Step 2: Find Customer in Database
+```python
+# Look up customer using the extracted email
+customer_data = read_query(f"SELECT customer_id, name, primary_email FROM customers WHERE primary_email = '{{customer_email}}' OR alternate_email = '{{customer_email}}'")
+
+# Handle errors and empty results
+if isinstance(customer_data, dict) and 'error' in customer_data:
+    return customer_data
+if not customer_data:
+    return {{"error": "Customer not found"}}
+
+customer = customer_data[0]
+customer_id = customer['customer_id']
+customer_name = customer['name']
+```
+
+### Step 3: Get Most Recent Order
+```python
+# Find customer's most recent order (realistic approach - customers rarely mention order IDs)
+order_data = read_query(f"SELECT order_id, customer_id, order_date, total_amount, order_status FROM orders WHERE customer_id = '{{customer_id}}' ORDER BY order_date DESC LIMIT 1")
+
+if isinstance(order_data, dict) and 'error' in order_data:
+    return order_data
+if not order_data:
+    return {{"error": "No orders found"}}
+
+order = order_data[0]
+order_id = order['order_id']
+```
+
+### Step 4: Read Company Policies
+```python
+# Access policy document for decision making
+policy_content = read_file("datasets/ticketworld/company_policy.txt")
+if "Error:" in policy_content:
+    policy_summary = "Unable to read policy file"
+else:
+    policy_summary = "Return policy available"
+```
+
+### Step 5: Generate Final Resolution
+```python
+# Create comprehensive prompt with all gathered information
+resolution_prompt = f'''
+Reason carefully over the following information to create a customer service resolution plan:
+
+Customer: {{customer_name}} ({{customer_id}})
+Email: {{customer_email}}
+Order: {{order_id}}
+Order Date: {{order['order_date']}}
+Order Status: {{order['order_status']}}
+Order Amount: ${{order['total_amount']}}
+
+Customer Issue: {{question}}
+
+Policy Information: {{policy_summary}}
+
+Reference the policy document, order information, and customer issue to determine:
+- Appropriate actions to take
+- Whether escalation is required
+- Which policies apply to this situation
+
+Create a JSON response with these fields:
+- order_id
+- customer_id  
+- actions (list of action types)
+- escalation_required (boolean)
+- policy_references (list of policy IDs)
+
+Format as valid JSON.
+'''
+
+resolution = call_llm(resolution_prompt)
+```
+
+### Key Success Patterns:
+✅ **Always extract email first** - Most reliable starting point
+✅ **Use most recent order** - More realistic than expecting order IDs in emails  
+✅ **Handle all error cases** - Check for database errors and empty results
+✅ **Gather complete context** - Get customer, order, and policy information before deciding
+✅ **Use structured prompting** - Provide all context to LLM for final reasoning
+
+ ## OUTPUT FORMAT
+ Provide ONLY the essential fields as a JSON object:
+ 
+ ```json
+ {{
+   "order_id": "ORD-YYYYMMDD-XXXX",
+   "customer_id": "CUST-XXXX", 
+   "actions": ["action_type1", "action_type2"],
+   "escalation_required": true/false,
+   "policy_references": ["POL-XXX-XXX", "POL-YYY-YYY"]
+ }}
+ ```
+ 
+ These are the ONLY fields required. Do not include additional fields - focus on getting these core decisions correct.
 
 ---
 
@@ -1375,8 +1461,15 @@ Provide your complete resolution as a JSON object. The evaluation will focus on 
 
 **YOUR TASK:** Write a comprehensive program that uses the database and policy tools to accurately resolve this customer service ticket. Remember: this requires multiple steps of investigation, policy research, reasoning, and decision-making."""
 
-                # Use the full resolution plan as the answer
-                answer = json.dumps(resolution_plan, indent=2)
+                # Extract only the essential fields for the simplified answer
+                essential_answer = {
+                    "order_id": resolution_plan.get("order_id", "N/A"),
+                    "customer_id": resolution_plan.get("customer_lookup", {}).get("customer_id", "N/A"),
+                    "actions": [action.get("type") for action in resolution_plan.get("actions", []) if action.get("type")],
+                    "escalation_required": resolution_plan.get("escalation_required", False),
+                    "policy_references": resolution_plan.get("policy_references", [])
+                }
+                answer = json.dumps(essential_answer, indent=2)
 
                 # Create standardized example with universal field names
                 standardized_example = {

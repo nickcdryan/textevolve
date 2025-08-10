@@ -3263,6 +3263,13 @@ def main(question):
         module.search_file = search_file
         module.execute_code = execute_code
         
+        # Inject MCP database tools
+        from system_tools import read_query, write_query, list_tables, describe_table
+        module.read_query = read_query
+        module.write_query = write_query
+        module.list_tables = list_tables
+        module.describe_table = describe_table
+        
         # Verify the script has a main function
         if not hasattr(module, 'main'):
             raise Exception("Script does not define a 'main' function")

@@ -110,6 +110,185 @@ def call_database(db_path, sql_query):
         return {"error": f"Database Error: {str(e)}"}
 
 
+# MCP Database Tools - Enhanced database functionality
+class MCPDatabase:
+    """MCP-style database tools for enhanced reliability and functionality"""
+    
+    def __init__(self, db_path=None):
+        """Initialize with optional default database path"""
+        self.default_db_path = db_path or "/Users/nickcdryan/Dev/textevolve/datasets/ticketworld/customer_database.db"
+    
+    def read_query(self, sql_query, db_path=None):
+        """
+        Execute a SELECT query with enhanced error handling and formatting
+        
+        Args:
+            sql_query (str): SELECT query to execute
+            db_path (str, optional): Database path, uses default if not provided
+            
+        Returns:
+            list: List of dictionaries for results, or error dict
+        """
+        import sqlite3
+        import os
+        from pathlib import Path
+        
+        # Use provided path or default
+        target_db = db_path or self.default_db_path
+        
+        print(f"  [MCP-DB] Read query on {os.path.basename(target_db)}: {sql_query[:100]}...")
+        
+        try:
+            # Validate it's a SELECT query
+            query_upper = sql_query.strip().upper()
+            if not query_upper.startswith(('SELECT', 'WITH', 'PRAGMA')):
+                return {"error": "read_query only accepts SELECT, WITH, or PRAGMA statements"}
+            
+            # Execute query using existing call_database logic
+            result = call_database(target_db, sql_query)
+            
+            # Enhanced error handling
+            if isinstance(result, dict) and 'error' in result:
+                return result
+            
+            # Format results consistently
+            if isinstance(result, list):
+                print(f"  [MCP-DB] Retrieved {len(result)} rows")
+                return result
+            else:
+                return {"error": "Unexpected result format from database"}
+                
+        except Exception as e:
+            return {"error": f"MCP Database Error: {str(e)}"}
+    
+    def write_query(self, sql_query, db_path=None):
+        """
+        Execute an INSERT, UPDATE, or DELETE query
+        
+        Args:
+            sql_query (str): Modification query to execute
+            db_path (str, optional): Database path, uses default if not provided
+            
+        Returns:
+            dict: Success status with rows affected, or error dict
+        """
+        import os
+        
+        # Use provided path or default
+        target_db = db_path or self.default_db_path
+        
+        print(f"  [MCP-DB] Write query on {os.path.basename(target_db)}: {sql_query[:100]}...")
+        
+        try:
+            # Validate it's a modification query
+            query_upper = sql_query.strip().upper()
+            if not query_upper.startswith(('INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER')):
+                return {"error": "write_query only accepts INSERT, UPDATE, DELETE, CREATE, DROP, or ALTER statements"}
+            
+            # Execute query using existing call_database logic
+            result = call_database(target_db, sql_query)
+            
+            if isinstance(result, dict):
+                if 'error' in result:
+                    return result
+                elif 'success' in result:
+                    print(f"  [MCP-DB] Modified {result.get('rows_affected', 0)} rows")
+                    return result
+            
+            return {"error": "Unexpected result format from database"}
+            
+        except Exception as e:
+            return {"error": f"MCP Database Error: {str(e)}"}
+    
+    def list_tables(self, db_path=None):
+        """
+        List all tables in the database
+        
+        Args:
+            db_path (str, optional): Database path, uses default if not provided
+            
+        Returns:
+            list: List of table names, or error dict
+        """
+        # Use provided path or default
+        target_db = db_path or self.default_db_path
+        
+        query = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        result = self.read_query(query, target_db)
+        
+        if isinstance(result, dict) and 'error' in result:
+            return result
+        
+        # Extract just the table names
+        table_names = [row['name'] for row in result if 'name' in row]
+        print(f"  [MCP-DB] Found {len(table_names)} tables: {', '.join(table_names)}")
+        return table_names
+    
+    def describe_table(self, table_name, db_path=None):
+        """
+        Get detailed schema information for a table
+        
+        Args:
+            table_name (str): Name of the table to describe
+            db_path (str, optional): Database path, uses default if not provided
+            
+        Returns:
+            dict: Table schema information, or error dict
+        """
+        # Use provided path or default
+        target_db = db_path or self.default_db_path
+        
+        # Get column information
+        query = f"PRAGMA table_info({table_name})"
+        result = self.read_query(query, target_db)
+        
+        if isinstance(result, dict) and 'error' in result:
+            return result
+        
+        if not result:
+            return {"error": f"Table '{table_name}' not found"}
+        
+        # Format schema information
+        schema_info = {
+            "table_name": table_name,
+            "columns": [],
+            "column_count": len(result)
+        }
+        
+        for col in result:
+            schema_info["columns"].append({
+                "name": col.get("name"),
+                "type": col.get("type"),
+                "not_null": bool(col.get("notnull")),
+                "default_value": col.get("dflt_value"),
+                "primary_key": bool(col.get("pk"))
+            })
+        
+        print(f"  [MCP-DB] Described table '{table_name}' with {len(result)} columns")
+        return schema_info
+
+
+# Create global MCP database instance for easy use in scripts
+mcp_db = MCPDatabase()
+
+# Convenience functions that scripts can use directly
+def read_query(sql_query, db_path=None):
+    """Execute a SELECT query using MCP database tools"""
+    return mcp_db.read_query(sql_query, db_path)
+
+def write_query(sql_query, db_path=None):
+    """Execute a modification query using MCP database tools"""
+    return mcp_db.write_query(sql_query, db_path)
+
+def list_tables(db_path=None):
+    """List all tables in the database"""
+    return mcp_db.list_tables(db_path)
+
+def describe_table(table_name, db_path=None):
+    """Get schema information for a table"""
+    return mcp_db.describe_table(table_name, db_path)
+
+
 def read_file(filepath, start_line=None, end_line=None):
     """Read entire files or specific line ranges with proper error handling"""
     import os
