@@ -15,11 +15,15 @@ import random
 
 class DatasetLoader:
     """Base interface for dataset loaders with standard field names"""
+    
+    # Default evaluator for this dataset type (can be overridden by subclasses)
+    default_evaluator = "llm"
 
     def __init__(self,
                  dataset_path: str,
                  shuffle: bool = True,
-                 random_seed: int = 42):
+                 random_seed: int = 42,
+                 evaluator: str = None):
         """
         Initialize the dataset loader
 
@@ -27,12 +31,23 @@ class DatasetLoader:
             dataset_path: Path to the dataset file or directory
             shuffle: Whether to shuffle examples
             random_seed: Random seed for shuffling
+            evaluator: Evaluator type to use (overrides class default)
         """
         self.dataset_path = dataset_path
         self.shuffle = shuffle
         self.random_seed = random_seed
         self.examples = []
         self.current_index = 0
+
+        # Set evaluator with precedence: param > class default > base default
+        if evaluator is not None:
+            self.evaluator = evaluator
+        elif hasattr(self.__class__, 'default_evaluator') and self.__class__.default_evaluator:
+            self.evaluator = self.__class__.default_evaluator
+        else:
+            self.evaluator = "llm"
+            print(f"Warning: No evaluator specified for {self.__class__.__name__}, using 'llm' as default.")
+            print(f"  For different evaluation methods, specify --evaluator [llm|f1|exact_match|ticketworld] or see evaluators.py")
 
         # Validate dataset path
         if not os.path.exists(dataset_path):
@@ -96,6 +111,15 @@ class DatasetLoader:
         """
         return example.get("answer", "")
 
+    def get_evaluator(self) -> str:
+        """
+        Get the evaluator type for this dataset
+        
+        Returns:
+            The evaluator type name (e.g., "llm", "f1", "exact_match")
+        """
+        return self.evaluator
+
     def get_total_count(self) -> int:
         """
         Get total number of examples
@@ -108,6 +132,8 @@ class DatasetLoader:
 
 class ARCDatasetLoader(DatasetLoader):
     """Loader for ARC datasets, ensuring standard field names with improved formatting"""
+    
+    default_evaluator = "llm"
 
     def _format_grid(self, grid):
         """Format a grid in a more visually readable way"""
@@ -219,6 +245,8 @@ Transform the test input according to the pattern shown in the training examples
 
 class HotpotQADatasetLoader(DatasetLoader):
     """Loader specifically for HotpotQA multi-hop reasoning datasets"""
+    
+    default_evaluator = "llm"
 
     def _load_examples(self):
         """Load examples from HotpotQA JSON dataset file and convert to universal format"""
@@ -302,6 +330,8 @@ Provide your answer based on the information in the supporting documents."""
 
 class JSONDatasetLoader(DatasetLoader):
     """Loader for generic JSON datasets with configurable field names using universal interface"""
+    
+    default_evaluator = "llm"
 
     def __init__(self,
                  dataset_path: str,
@@ -309,7 +339,8 @@ class JSONDatasetLoader(DatasetLoader):
                  output_field: str = "output",
                  example_prefix: str = None,
                  shuffle: bool = True,
-                 random_seed: int = 42):
+                 random_seed: int = 42,
+                 evaluator: str = None):
         """
         Initialize the JSON dataset loader
 
@@ -324,7 +355,7 @@ class JSONDatasetLoader(DatasetLoader):
         self.input_field = input_field
         self.output_field = output_field
         self.example_prefix = example_prefix
-        super().__init__(dataset_path, shuffle, random_seed)
+        super().__init__(dataset_path, shuffle, random_seed, evaluator)
 
     def _load_examples(self):
         """Load examples from JSON dataset file and convert to universal format"""
@@ -376,6 +407,8 @@ class JSONDatasetLoader(DatasetLoader):
 
 class CustomDatasetLoader(DatasetLoader):
     """Loader for custom datasets with user-provided extraction functions"""
+    
+    default_evaluator = "llm"
 
     def __init__(self,
                  dataset_path: str,
@@ -444,6 +477,8 @@ class CustomDatasetLoader(DatasetLoader):
 class JSONLDatasetLoader(DatasetLoader):
     """Loader for JSONL datasets with configurable field mapping
     Used for DROP"""
+    
+    default_evaluator = "llm"
 
     def __init__(
             self,
@@ -473,7 +508,9 @@ class JSONLDatasetLoader(DatasetLoader):
         self.output_field = output_field
         self.passage_field = passage_field
         self.answer_extraction = answer_extraction
-        super().__init__(dataset_path, shuffle, random_seed)
+        # Extract evaluator from kwargs if present
+        evaluator = kwargs.get('evaluator', None)
+        super().__init__(dataset_path, shuffle, random_seed, evaluator)
 
     def _load_examples(self):
         """Load examples from JSONL dataset file and convert to universal format"""
@@ -558,6 +595,8 @@ simpleqa_loader.py - Custom dataset loader for SimpleQA dataset
 
 class SimpleQADatasetLoader(DatasetLoader):
     """Loader specifically for SimpleQA datasets with 'problem', 'answer', and 'id' fields"""
+    
+    default_evaluator = "llm"
 
     def _load_examples(self):
         """Load examples from SimpleQA JSONL dataset file"""
@@ -613,6 +652,8 @@ class SimpleQADatasetLoader(DatasetLoader):
 
 class MathDatasetLoader(DatasetLoader):
     """Loader specifically for Hendrycks Math datasets with 'problem', 'answer', and 'id' fields"""
+    
+    default_evaluator = "llm"
 
     def _load_examples(self):
         """Load examples from Math JSONL dataset file"""
@@ -670,6 +711,8 @@ class MathDatasetLoader(DatasetLoader):
 
 class NaturalPlanDatasetLoader(DatasetLoader):
     """Loader specifically for Natural Plan trip planning datasets"""
+    
+    default_evaluator = "llm"
 
     def _load_examples(self):
         """Load examples from Natural Plan dataset file and convert to universal format"""
@@ -740,6 +783,8 @@ class NaturalPlanDatasetLoader(DatasetLoader):
 
 class GPQADatasetLoader(DatasetLoader):
     """Loader specifically for GPQA datasets with multiple choice questions"""
+    
+    default_evaluator = "llm"
 
     def __init__(self,
                  dataset_path: str,
@@ -863,6 +908,8 @@ D) {all_answers[3][0]}
 
 class TicketWorldDatasetLoader(DatasetLoader):
     """Loader specifically for TicketWorld customer service datasets"""
+    
+    default_evaluator = "ticketworld"
 
     def _load_examples(self):
         """Load examples from TicketWorld JSON dataset file"""
@@ -1131,10 +1178,12 @@ Please provide a resolution plan for this customer service ticket following the 
 
 
 class TicketWorldSimpleDatasetLoader(DatasetLoader):
-    """Simplified loader for TicketWorld customer service datasets - focuses only on customer_id and order_id retrieval"""
+    """TicketWorld customer service resolution dataset loader with comprehensive task instructions"""
+    
+    default_evaluator = "ticketworld"
 
     def _load_examples(self):
-        """Load examples from TicketWorld JSON dataset file with simplified objective"""
+        """Load examples from TicketWorld JSON dataset file with comprehensive resolution task"""
         try:
             with open(self.dataset_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -1156,44 +1205,54 @@ class TicketWorldSimpleDatasetLoader(DatasetLoader):
                     print(f"Warning: Skipping {ticket_id} - missing customer email, subject, or body")
                     continue
 
-                # Get the expected customer_id and order_id from the original data
-                expected_customer_id = item.get("customer_id", "")
-                expected_order_id = item.get("order_id", "")
-                
-                if not expected_customer_id:
-                    print(f"Warning: Skipping {ticket_id} - missing customer_id")
+                # Get the expected resolution from the original data
+                resolution_plan = item.get("resolution_plan", {})
+                if not resolution_plan:
+                    print(f"Warning: Skipping {ticket_id} - missing resolution_plan")
                     continue
 
-                # Format the simplified question focused on customer/order lookup
-                formatted_question = f"""# Customer Information Lookup Task
+                # Format the comprehensive question with all instructions
+                formatted_question = f"""# Customer Service Resolution System
 
-## Overview
-TASK SPECIFICATION:
-Your task is simply to extract the email address from the customer email and use the call_database() function to find the customer_id and order_id.
+## TASK OVERVIEW
+You are a customer service resolution system. Your job is to analyze incoming support tickets and create comprehensive resolution plans. This is a complex multi-step process that requires:
 
-🔥 CRITICAL: YOU MUST USE THE DATABASE ACCESS FUNCTION TO LOOK UP CUSTOMER INFORMATION 🔥
+1. **Database Investigation** - Look up customer and order information
+2. **Policy Research** - Reference company policies for applicable rules
+3. **Multi-step Reasoning** - Analyze the situation through multiple lenses
+4. **Decision Making** - Choose appropriate actions and escalation decisions
 
-## Required Resources
-You have access to these files located at datasets/ticketworld/:
-- **customer_database.db** - SQLite database with customer, order, and product information
+🚨 **CRITICAL**: This task is IMPOSSIBLE without using the provided tools. You MUST use call_database() and read_file() functions.
+🚨 **CRITICAL**: Customer emails will not necessarily contain all the required information - this is why you must use the database and policy document to find the information before you can make a decision and output the resolution plan.
 
-## Available Functions
-You MUST use the call_database() function to access the customer information:
+## REQUIRED OUTPUT FIELDS
+Your primary objective is to correctly determine these core fields:
+- **order_id**: The relevant order identifier  
+- **customer_id**: The customer identifier from database lookup
+- **actions[type]**: List of action types to resolve the issue
+- **escalation_required**: Boolean decision on whether escalation is needed
+- **policy_references**: List of policy IDs that apply to this case
 
-EXAMPLE: HOW TO USE call_database(path_to_database, SQL_query):
+## AVAILABLE TOOLS
+You have access to these essential functions:
+
+### Database Access
 ```python
-# Query the customer database to find customer information by email
-result = call_database("datasets/ticketworld/customer_database.db", "SELECT customer_id FROM customers WHERE primary_email = 'customer@email.com' OR alternate_email = 'customer@email.com'")
-
-# Query orders for a specific customer
-orders = call_database("datasets/ticketworld/customer_database.db", "SELECT order_id, order_date FROM orders WHERE customer_id = 'CUST-0001' ORDER BY order_date DESC")
+call_database("datasets/ticketworld/customer_database.db", "SQL_QUERY")
 ```
 
-## Database Schema (customer_database.db)
+### Policy Document Access  
+```python
+read_file("datasets/ticketworld/company_policy.txt")
+```
 
-### Table: customers
+🔥 **YOU MUST USE THESE TOOLS** - It is impossible to answer accurately without them.
+
+## DATABASE SCHEMA
+
+### customers table
 - customer_id (TEXT, PRIMARY KEY): Format CUST-XXXX
-- name (TEXT): Customer full name
+- name (TEXT): Customer full name  
 - primary_email (TEXT): Primary email address
 - alternate_email (TEXT): Secondary email address
 - phone (TEXT): Phone number
@@ -1201,7 +1260,7 @@ orders = call_database("datasets/ticketworld/customer_database.db", "SELECT orde
 - billing_street, billing_city, billing_state, billing_zip (TEXT): Billing address
 - created_date (DATE): Account creation date
 
-### Table: orders
+### orders table
 - order_id (TEXT, PRIMARY KEY): Format ORD-YYYYMMDD-XXXX
 - customer_id (TEXT): Links to customers table
 - order_date (DATE): Order placement date
@@ -1212,38 +1271,112 @@ orders = call_database("datasets/ticketworld/customer_database.db", "SELECT orde
 - payment_method (TEXT): Payment method
 - order_status (TEXT): Current status
 
-## Task Instructions
-1. **Customer Lookup**: Use the database to find the customer_id by searching for the email address in both primary_email and alternate_email fields
-2. **Order Identification**: If an order_id is mentioned in the email, extract it. Otherwise, find the most relevant recent order for this customer
-3. **Output Format**: Return your answer as a JSON object with exactly these two fields:
+### products table
+- product_id (TEXT, PRIMARY KEY): Format PROD-XXXX
+- name (TEXT): Product name
+- category, brand (TEXT): Product classification
+- base_price (DECIMAL): Product price
+- warranty_period (INTEGER): Warranty days
+- weight (DECIMAL): Product weight
+- requires_signature (BOOLEAN): Delivery requirement
+- in_stock (BOOLEAN): Availability status
+- description (TEXT): Product description
+
+## VALID ACTION TYPES
+Choose from these action types only:
+- process_return
+- issue_refund  
+- send_replacement
+- provide_tracking
+- honor_warranty
+- escalate_to_manager
+- request_more_info
+- request_photo
+- update_shipping_address
+- cancel_order
+- deny_return
+- deny_refund
+- deny_warranty_claim
+- deny_price_match
+- deny_order_modification
+- deny_cancellation
+- provide_information
+- initiate_investigation
+- process_exchange
+- deny_exchange
+- send_return_label
+
+## POLICY REFERENCE EXAMPLES
+Common policy IDs include (but reference the policy document for complete list):
+- POL-RETURN-001 (Return Window)
+- POL-RETURN-002 (Opened Items Restocking Fee)
+- POL-RETURN-003 (Unopened Items)
+- POL-RETURN-004 (Damaged Items)
+- POL-SHIP-001 (Standard Shipping)
+- POL-SHIP-002 (Lost Packages)
+- POL-COMM-001 (Response Time)
+- POL-COMM-002 (Escalation Thresholds)
+- And many more - ALWAYS reference the policy document
+
+## MULTI-STEP PROCESS REQUIRED
+This is complex work requiring multiple reasoning steps:
+
+1. **Customer Investigation**: Use database to find customer by email
+2. **Order Analysis**: Identify relevant orders and their details  
+3. **Policy Research**: Read and understand applicable policies
+4. **Situation Assessment**: Analyze customer issue against policies
+5. **Decision Making**: Choose appropriate actions and escalation
+6. **Reasoning Integration**: Ensure all decisions work together coherently
+
+## OUTPUT FORMAT
+Provide your complete resolution as a JSON object. The evaluation will focus on the core fields listed above, but include the full resolution for learning purposes:
 
 ```json
 {{
-  "customer_id": "CUST-XXXX",
-  "order_id": "ORD-YYYYMMDD-XXXX"
+  "order_id": "ORD-YYYYMMDD-XXXX or N/A",
+  "order_date": "YYYY-MM-DD or N/A", 
+  "customer_lookup": {{
+    "status": "found/not_found",
+    "customer_id": "CUST-XXXX",
+    "lookup_method": "email_match",
+    "notes": "Customer found in database"
+  }},
+  "policy_references": ["POL-XXX-XXX", "POL-YYY-YYY"],
+  "policy_reasoning": "Detailed explanation of which policies apply and how",
+  "actions": [
+    {{
+      "type": "action_type_from_list_above",
+      "reason": "Policy citation and reasoning",
+      "value": 0.00,
+      "details": "Implementation details"
+    }}
+  ],
+  "escalation_required": true/false,
+  "escalation_reason": "null or explanation",
+  "priority": "low/medium/high/urgent",
+  "total_resolution_value": 0.00
 }}
 ```
 
-Note: If you cannot find the customer or order information, use "N/A" for the respective field.
+**NOTE FOR EVALUATION**: While this complete resolution helps with learning, the evaluation will focus ONLY on: order_id, customer_id, actions[type], escalation_required, and policy_references.
 
 ---
-## Customer Email to Process
 
-Customer Email: {customer_email}
-Subject: {subject}
-Timestamp: {timestamp}
+## CUSTOMER TICKET TO RESOLVE
 
-Message Body:
+**From:** {customer_email}
+**Subject:** {subject}  
+**Date:** {timestamp}
+
+**Message:**
 {body}
 
-Please identify the customer_id and order_id for this ticket using the database lookup functions provided."""
+---
 
-                # Create the simplified answer with just customer_id and order_id
-                simple_answer = {
-                    "customer_id": expected_customer_id,
-                    "order_id": expected_order_id if expected_order_id else "N/A"
-                }
-                answer = json.dumps(simple_answer, indent=2)
+**YOUR TASK:** Write a comprehensive program that uses the database and policy tools to accurately resolve this customer service ticket. Remember: this requires multiple steps of investigation, policy research, reasoning, and decision-making."""
+
+                # Use the full resolution plan as the answer
+                answer = json.dumps(resolution_plan, indent=2)
 
                 # Create standardized example with universal field names
                 standardized_example = {
@@ -1251,14 +1384,14 @@ Please identify the customer_id and order_id for this ticket using the database 
                     "question": formatted_question.strip(),  # Standard field: "question"
                     "answer": answer,  # Standard field: "answer"
                     "meta": {
-                        "source": "ticketworld_simple",
+                        "source": "ticketworld_comprehensive",
                         "filename": os.path.basename(self.dataset_path),
-                        "expected_customer_id": expected_customer_id,
-                        "expected_order_id": expected_order_id,
                         "original_customer_email": customer_email,
                         "original_subject": subject,
                         "original_body": body,
-                        "original_timestamp": timestamp
+                        "original_timestamp": timestamp,
+                        "resolution_plan": resolution_plan,
+                        "evaluation_note": "Evaluation focuses on: order_id, customer_id, actions[type], escalation_required, policy_references"
                     }
                 }
 

@@ -156,8 +156,8 @@ def main():
                 golden_answer = dataset_loader.get_example_output(sample)
                 system_answer = result.get("answer", "")
 
-                # Use LLM-based evaluation
-                evaluation = agent.evaluate_answer_with_llm(system_answer, golden_answer)
+                # Use configured evaluator
+                evaluation = agent.evaluator.evaluate(system_answer, golden_answer, context=sample)
                 result["evaluation"] = evaluation
                 result["match"] = evaluation.get("match", False)
                 result["golden_answer"] = golden_answer

@@ -46,6 +46,7 @@ def run_agent(iterations: int, loader_config: Dict, use_sandbox: bool = False) -
     print("=" * 80)
     print(f"Dataset: {loader_config.get('dataset_path')}")
     print(f"Loader type: {loader_type}")
+    print(f"Evaluator: {agent.evaluator.__class__.__name__.replace('Evaluator', '').lower()}")
     print(f"Shuffle data: {loader_config.get('shuffle', True)}")
     print(f"Sandbox enabled: {agent.use_sandbox}")
     print(f"Starting with explore/exploit/refine balance: {agent.explore_rate}/{agent.exploit_rate}/{agent.refine_rate}")
@@ -218,6 +219,15 @@ def parse_arguments():
             default="arc",
             help="Type of dataset loader to use (default: arc)")
 
+    # Evaluator configuration
+    parser.add_argument(
+        "--evaluator",
+        "-e",
+        type=str,
+        choices=["llm", "f1", "exact_match", "exact", "ticketworld"],
+        default=None,
+        help="Evaluator type to use (overrides dataset default). Options: llm, f1, exact_match, ticketworld")
+
     # JSON loader options
     parser.add_argument(
         "--input-field",
@@ -294,6 +304,10 @@ if __name__ == "__main__":
         "shuffle": not args.no_shuffle,
         "random_seed": args.seed
     }
+
+    # Add evaluator if specified
+    if args.evaluator:
+        loader_config["evaluator"] = args.evaluator
 
     # Add loader-specific parameters
     if args.loader == "json":

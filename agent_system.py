@@ -21,6 +21,7 @@ import numpy as np
 
 from sandbox import DockerSandbox, check_docker_available
 from system_tools import call_llm, call_database, read_file, search_file, execute_code
+from evaluators import create_evaluator
 
 from prompts.data_analyzer import get_dataset_analysis_prompt
 from prompts.batch_size_optimizer import get_batch_size_optimization_prompt
@@ -116,6 +117,14 @@ class AgentSystem:
         self.dataset_loader = dataset_loader
         if not self.dataset_loader:
             raise ValueError("A dataset loader must be provided")
+
+        # Initialize evaluator based on dataset loader's preference
+        evaluator_name = self.dataset_loader.get_evaluator()
+        self.evaluator = create_evaluator(evaluator_name)
+        
+        # For LLM evaluator, inject the LLM calling function
+        if hasattr(self.evaluator, 'set_llm_caller'):
+            self.evaluator.set_llm_caller(self.call_llm)
 
         # Initialize batch size and tracking for seen examples
         self.current_batch_size = 3  # Start with a small batch
@@ -1862,11 +1871,11 @@ def main(question):
                 })
                 continue
 
-            # Compare with golden answer using LLM
+            # Compare with golden answer using configured evaluator
             if not result.get("evaluation"):
                 golden_answer = sample.get("answer", "").strip()  # Use universal "answer" field
                 system_answer = result.get("answer", "").strip()
-                evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+                evaluation = self.evaluator.evaluate(system_answer, golden_answer, context=sample)
                 result["evaluation"] = evaluation
                 result["match"] = evaluation.get("match", False)
 
@@ -2559,7 +2568,7 @@ def main(question):
         if result.get("success"):
             golden_answer = self.dataset_loader.get_example_output(sample)
             system_answer = result.get("answer", "")
-            evaluation = self.evaluate_answer_with_llm(system_answer, golden_answer)
+            evaluation = self.evaluator.evaluate(system_answer, golden_answer, context=sample)
             result["golden_answer"] = golden_answer
             result["evaluation"] = evaluation
             result["match"] = evaluation.get("match", False)
