@@ -14,10 +14,16 @@ import random
 
 
 class DatasetLoader:
-    """Base interface for dataset loaders with standard field names"""
+    """Base interface for dataset loaders with standard field names and tool specification"""
     
     # Default evaluator for this dataset type (can be overridden by subclasses)
     default_evaluator = "llm"
+    
+    # Default tools required for this dataset type (can be overridden by subclasses)
+    required_tools = ["call_llm"]  # All datasets need at least call_llm
+    
+    # Tool-specific configuration (can be overridden by subclasses)
+    tool_config = {}
 
     def __init__(self,
                  dataset_path: str,
@@ -128,12 +134,48 @@ class DatasetLoader:
             Total number of examples
         """
         return len(self.examples)
+    
+    def get_required_tools(self) -> List[str]:
+        """
+        Get the list of tools required for this dataset
+        
+        Returns:
+            List of tool names required for this dataset
+        """
+        return self.required_tools
+    
+    def get_tool_config(self) -> Dict[str, Any]:
+        """
+        Get tool-specific configuration for this dataset
+        
+        Returns:
+            Dictionary of tool configuration parameters
+        """
+        return self.tool_config
+    
+    def get_tool_categories(self) -> List[str]:
+        """
+        Get the categories of tools needed for this dataset
+        
+        Returns:
+            List of tool categories (e.g., ["llm"], ["llm", "database", "file"])
+        """
+        from system_tools import TOOL_REGISTRY
+        
+        categories = set()
+        for tool_name in self.required_tools:
+            if tool_name in TOOL_REGISTRY:
+                categories.add(TOOL_REGISTRY[tool_name]["category"])
+        
+        return list(categories)
 
 
 class ARCDatasetLoader(DatasetLoader):
     """Loader for ARC datasets, ensuring standard field names with improved formatting"""
     
     default_evaluator = "llm"
+    required_tools = ["call_llm"]  # ARC only needs LLM calls
+    tool_config = {}
 
     def _format_grid(self, grid):
         """Format a grid in a more visually readable way"""
@@ -247,6 +289,8 @@ class HotpotQADatasetLoader(DatasetLoader):
     """Loader specifically for HotpotQA multi-hop reasoning datasets"""
     
     default_evaluator = "llm"
+    required_tools = ["call_llm"]  # HotpotQA only needs LLM calls
+    tool_config = {}
 
     def _load_examples(self):
         """Load examples from HotpotQA JSON dataset file and convert to universal format"""
@@ -332,6 +376,8 @@ class JSONDatasetLoader(DatasetLoader):
     """Loader for generic JSON datasets with configurable field names using universal interface"""
     
     default_evaluator = "llm"
+    required_tools = ["call_llm"]  # Generic JSON datasets typically only need LLM
+    tool_config = {}
 
     def __init__(self,
                  dataset_path: str,
@@ -654,6 +700,8 @@ class MathDatasetLoader(DatasetLoader):
     """Loader specifically for Hendrycks Math datasets with 'problem', 'answer', and 'id' fields"""
     
     default_evaluator = "llm"
+    required_tools = ["call_llm", "execute_code"]  # Math problems may benefit from code execution
+    tool_config = {}
 
     def _load_examples(self):
         """Load examples from Math JSONL dataset file"""
@@ -785,6 +833,8 @@ class GPQADatasetLoader(DatasetLoader):
     """Loader specifically for GPQA datasets with multiple choice questions"""
     
     default_evaluator = "llm"
+    required_tools = ["call_llm"]  # GPQA only needs LLM calls
+    tool_config = {}
 
     def __init__(self,
                  dataset_path: str,
@@ -910,6 +960,24 @@ class TicketWorldDatasetLoader(DatasetLoader):
     """Loader specifically for TicketWorld customer service datasets"""
     
     default_evaluator = "ticketworld"
+    required_tools = [
+        "call_llm",
+        "read_query", 
+        "write_query",
+        "list_tables",
+        "describe_table",
+        "read_file",
+        "search_file"
+    ]
+    tool_config = {
+        "database_path": "datasets/ticketworld/customer_database.db",
+        "policy_files": ["datasets/ticketworld/company_policy.txt"],
+        "database_schema": {
+            "customers": "Customer information with IDs, emails, addresses",
+            "orders": "Order details with items, status, tracking",
+            "products": "Product catalog with pricing, warranties"
+        }
+    }
 
     def _load_examples(self):
         """Load examples from TicketWorld JSON dataset file"""
@@ -1191,10 +1259,28 @@ Please provide a resolution plan for this customer service ticket following the 
             raise ValueError(f"Error loading TicketWorld dataset: {e}")
 
 
-class TicketWorldSimpleDatasetLoader(DatasetLoader):
+class TicketWorldSimpleDatasetLoaderCOMPLEX(DatasetLoader):
     """TicketWorld customer service resolution dataset loader with comprehensive task instructions"""
     
     default_evaluator = "ticketworld"
+    required_tools = [
+        "call_llm",
+        "read_query", 
+        "write_query",
+        "list_tables",
+        "describe_table",
+        "read_file",
+        "search_file"
+    ]
+    tool_config = {
+        "database_path": "datasets/ticketworld/customer_database.db",
+        "policy_files": ["datasets/ticketworld/company_policy.txt"],
+        "database_schema": {
+            "customers": "Customer information with IDs, emails, addresses",
+            "orders": "Order details with items, status, tracking",
+            "products": "Product catalog with pricing, warranties"
+        }
+    }
 
     def _load_examples(self):
         """Load examples from TicketWorld JSON dataset file with comprehensive resolution task"""
@@ -1497,6 +1583,269 @@ resolution = call_llm(resolution_prompt)
 
         except Exception as e:
             raise ValueError(f"Error loading TicketWorld Simple dataset: {e}")
+
+
+
+class TicketWorldSimpleDatasetLoader(DatasetLoader):
+    """TicketWorld customer service resolution dataset loader with comprehensive task instructions"""
+    
+    default_evaluator = "ticketworld"
+    required_tools = [
+        "call_llm",
+        "read_query", 
+        "write_query",
+        "list_tables",
+        "describe_table",
+        "read_file",
+        "search_file"
+    ]
+    tool_config = {
+        "database_path": "datasets/ticketworld/customer_database.db",
+        "policy_files": ["datasets/ticketworld/company_policy.txt"],
+        "database_schema": {
+            "customers": "Customer information with IDs, emails, addresses",
+            "orders": "Order details with items, status, tracking",
+            "products": "Product catalog with pricing, warranties"
+        }
+    }
+
+    def _load_examples(self):
+        """Load examples from TicketWorld JSON dataset file with comprehensive resolution task"""
+        try:
+            with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            if not isinstance(data, list):
+                raise ValueError("TicketWorld dataset JSON must be a list of objects")
+
+            examples = []
+            for item in data:
+                # Extract customer email fields for the question
+                customer_email = item.get("customer_email", "")
+                subject = item.get("subject", "")
+                body = item.get("body", "")
+                timestamp = item.get("timestamp", "")
+                ticket_id = item.get("ticket_id", f"ticket_{len(examples)}")
+                
+                # Skip examples that don't have required fields
+                if not customer_email or not subject or not body:
+                    print(f"Warning: Skipping {ticket_id} - missing customer email, subject, or body")
+                    continue
+
+                # Get the expected resolution from the original data
+                resolution_plan = item.get("resolution_plan", {})
+                if not resolution_plan:
+                    print(f"Warning: Skipping {ticket_id} - missing resolution_plan")
+                    continue
+
+                # Format the comprehensive question with all instructions
+                formatted_question = f"""# Customer Service Resolution System
+
+## TASK OVERVIEW
+You are a customer service resolution system with advanced database access capabilities. 
+Your job is to analyze incoming support tickets and simply look up the customer_id and order_id using the database functions.
+
+1. **Analyze Customer Issue**: Read the customer email and subject
+2. **Find Customer**: Use the email address to look up customer information in the database
+3. **Locate Orders**: Find relevant orders for the customer
+4. **Get Order Details**: Retrieve order_id by looking up the order in the database using the customer_id.
+
+
+## REQUIRED OUTPUT FIELDS
+Your primary objective is to correctly determine these core fields:
+- **order_id**: The relevant order identifier  
+- **customer_id**: The customer identifier from database lookup
+
+
+🚨 **CRITICAL**: This task is IMPOSSIBLE without using the provided database and file tools.
+🚨 **CRITICAL**: Customer emails contain limited information - you MUST use the database and policy documents to gather complete context before making decisions.
+All customers and orders exist in the database - there are no missing records.
+
+## ENHANCED DATABASE TOOLS
+You have access to reliable, simplified database functions:
+
+### Primary Database Functions (Recommended)
+# Find customer by email (auto-connects to TicketWorld database)
+customer_data = read_query("SELECT customer_id, name FROM customers WHERE primary_email = 'customer@email.com' OR alternate_email = 'customer@email.com'")
+
+# Get customer's orders
+orders = read_query("SELECT order_id, order_date, total_amount FROM orders WHERE customer_id = 'CUST-0001' ORDER BY order_date DESC")
+
+# Get specific order details
+order_details = read_query("SELECT * FROM orders WHERE order_id = 'ORD-20250224-1008'")
+
+# Explore database structure (if needed)
+tables = list_tables()                    # See available tables
+schema = describe_table("customers")      # Get table structure
+
+### Policy Document Access  
+policy_text = read_file("datasets/ticketworld/company_policy.txt")
+
+### Key Benefits of New Database Tools:
+✅ **Automatic Connection**: No need to specify database path
+✅ **Error Handling**: Clear error messages and validation
+✅ **Consistent Results**: Reliable data formatting
+✅ **Query Safety**: Built-in SQL validation
+✅ **Type Safety**: Proper handling of different data types
+
+🔥 **YOU MUST USE THESE TOOLS** - Accurate resolution requires database lookup and policy research.
+
+## DATABASE SCHEMA
+
+### Table: customers
+- customer_id (TEXT, PRIMARY KEY): Format CUST-XXXX
+- name (TEXT): Customer full name  
+- primary_email (TEXT): Primary email address
+- alternate_email (TEXT): Secondary email address
+- phone (TEXT): Phone number
+- shipping_street, shipping_city, shipping_state, shipping_zip (TEXT): Shipping address
+- billing_street, billing_city, billing_state, billing_zip (TEXT): Billing address
+- created_date (DATE): Account creation date
+
+### Table: orders
+- order_id (TEXT, PRIMARY KEY): Format ORD-YYYYMMDD-XXXX
+- customer_id (TEXT): Links to customers table
+- order_date (DATE): Order placement date
+- items (TEXT): JSON array of order items
+- shipping_method (TEXT): Shipping method used
+- tracking_number (TEXT): Package tracking
+- total_amount (DECIMAL): Total order amount
+- payment_method (TEXT): Payment method
+- order_status (TEXT): Current status
+
+### Table: products
+- product_id (TEXT, PRIMARY KEY): Format PROD-XXXX
+- name (TEXT): Product name
+- category, brand (TEXT): Product classification
+- base_price (DECIMAL): Product price
+- warranty_period (INTEGER): Warranty days
+- weight (DECIMAL): Product weight
+- requires_signature (BOOLEAN): Delivery requirement
+- in_stock (BOOLEAN): Availability status
+- description (TEXT): Product description
+
+
+
+
+## WORKING EXAMPLE APPROACH
+Here's a proven workflow that successfully extracts all required information:
+
+### Step 1: Extract Customer Email
+```python
+# Extract email from customer ticket using LLM
+email_prompt = f"Extract the customer email address from this text: {{question}}. Return only the email address, nothing else."
+customer_email = call_llm(email_prompt).strip()
+```
+
+### Step 2: Find Customer in Database
+```python
+# Look up customer using the extracted email
+customer_data = read_query(f"SELECT customer_id, name, primary_email FROM customers WHERE primary_email = '{{customer_email}}' OR alternate_email = '{{customer_email}}'")
+
+# Handle errors and empty results
+if isinstance(customer_data, dict) and 'error' in customer_data:
+    return customer_data
+if not customer_data:
+    return {{"error": "Customer not found"}}
+
+customer = customer_data[0]
+customer_id = customer['customer_id']
+customer_name = customer['name']
+```
+
+### Step 3: Get Most Recent Order
+```python
+# Find customer's most recent order (realistic approach - customers rarely mention order IDs)
+order_data = read_query(f"SELECT order_id, customer_id, order_date, total_amount, order_status FROM orders WHERE customer_id = '{{customer_id}}' ORDER BY order_date DESC LIMIT 1")
+
+if isinstance(order_data, dict) and 'error' in order_data:
+    return order_data
+if not order_data:
+    return {{"error": "No orders found"}}
+
+order = order_data[0]
+order_id = order['order_id']
+```
+
+Create a JSON response with these fields:
+- order_id
+- customer_id  
+
+Format as valid JSON.
+'''
+
+```
+
+### Key Success Patterns:
+✅ **Always extract email first** - Most reliable starting point
+✅ **Use most recent order** - More realistic than expecting order IDs in emails  
+✅ **Handle all error cases** - Check for database errors and empty results
+✅ **Use structured prompting** - Provide all context to LLM for final reasoning
+
+ ## OUTPUT FORMAT
+ Provide ONLY the essential fields as a JSON object:
+ 
+ ```json
+ {{
+   "order_id": "ORD-YYYYMMDD-XXXX",
+   "customer_id": "CUST-XXXX", 
+ }}
+ ```
+ 
+ These are the ONLY fields required. Do not include additional fields - focus on getting these core decisions correct.
+
+---
+
+## CUSTOMER TICKET TO RESOLVE
+
+**From:** {customer_email}
+**Subject:** {subject}  
+**Date:** {timestamp}
+
+**Message:**
+{body}
+
+---
+
+**YOUR TASK:** Write a comprehensive program that uses the database and policy tools to accurately resolve this customer service ticket. Remember: this requires multiple steps of investigation, policy research, reasoning, and decision-making."""
+
+                # Extract only the essential fields for the simplified answer
+                essential_answer = {
+                    "order_id": resolution_plan.get("order_id", "N/A"),
+                    "customer_id": resolution_plan.get("customer_lookup", {}).get("customer_id", "N/A"),
+                }
+                answer = json.dumps(essential_answer, indent=2)
+
+                # Create standardized example with universal field names
+                standardized_example = {
+                    "id": ticket_id,
+                    "question": formatted_question.strip(),  # Standard field: "question"
+                    "answer": answer,  # Standard field: "answer"
+                    "meta": {
+                        "source": "ticketworld_comprehensive",
+                        "filename": os.path.basename(self.dataset_path),
+                        "original_customer_email": customer_email,
+                        "original_subject": subject,
+                        "original_body": body,
+                        "original_timestamp": timestamp,
+                        "resolution_plan": resolution_plan,
+                        "evaluation_note": "Evaluation focuses on: order_id, customer_id, actions[type], escalation_required, policy_references"
+                    }
+                }
+
+                examples.append(standardized_example)
+
+            self.examples = examples
+            print(f"Loaded {len(examples)} examples from TicketWorld Simple dataset")
+
+            if not self.examples:
+                raise ValueError("No valid examples found in TicketWorld Simple dataset")
+
+        except Exception as e:
+            raise ValueError(f"Error loading TicketWorld Simple dataset: {e}")
+
+
+
 
 
 def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:

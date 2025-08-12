@@ -1,15 +1,21 @@
 """
-Static prompting guidance and instruction blocks.
-These are reusable text blocks that don't require variable interpolation.
+Prompting guidance and instruction blocks.
+These include both static text blocks and dynamic functions that generate
+dataset-specific tool imports and documentation.
 
 
 CONTAINS:
 
-multi_example_prompting_guide
-llm_reasoning_prompting_guide
-validation_prompting_guide
-meta_programming_prompting_guide
-code_execution_prompting_guide
+Static guides:
+- multi_example_prompting_guide
+- llm_reasoning_prompting_guide
+- validation_prompting_guide
+- meta_programming_prompting_guide
+- code_execution_prompting_guide
+
+Dynamic functions:
+- generate_system_imports_header()
+- generate_tool_documentation_section()
 
 """
 
@@ -952,3 +958,138 @@ def main(question):
 ⛔ DO NOT REDEFINE IMPORTED FUNCTIONS - Use them directly after importing from system_tools
 
 """
+
+
+# Dynamic import header generation functions
+def generate_system_imports_header(dataset_loader=None):
+    """
+    Generate a dynamic system imports header based on dataset tool requirements
+    
+    Args:
+        dataset_loader: DatasetLoader instance with tool requirements, 
+                       or None for default imports
+    
+    Returns:
+        str: Generated import header with appropriate tools and documentation
+    """
+    from system_tools import generate_import_statement, generate_tool_documentation
+    
+    if dataset_loader is None:
+        # Default fallback to basic tools
+        tool_names = ["call_llm"]
+    else:
+        # Get tools required by the dataset
+        tool_names = dataset_loader.get_required_tools()
+    
+    # Generate import statement
+    import_statement = generate_import_statement(tool_names)
+    
+    # Generate basic header with dynamic imports
+    header = f"""🔥 CRITICAL: SYSTEM FUNCTIONS IMPORT HEADER 🔥
+
+EVERY script you generate MUST start with this exact import header to access system functions:
+
+```python
+# System-provided functions - These are automatically available and thoroughly tested
+{import_statement}
+```
+
+🚨 CRITICAL REQUIREMENTS:
+1. ALWAYS start your script with the import header above
+2. NEVER redefine these functions - they are imported from system_tools
+3. Use the functions directly after importing them
+4. The imports make the functions visible and IDE-friendly
+5. These functions have been thoroughly tested and validated beforehand and are safe to use
+
+"""
+    
+    # Add dataset-specific tool configuration if available
+    if dataset_loader is not None:
+        tool_config = dataset_loader.get_tool_config()
+        if tool_config:
+            header += "\n🔧 DATASET-SPECIFIC CONFIGURATION:\n"
+            for key, value in tool_config.items():
+                header += f"- {key}: {value}\n"
+            header += "\n"
+    
+    # Add usage pattern
+    header += """✅ CORRECT USAGE PATTERN:
+```python
+""" + import_statement + """
+
+def main(question):
+    # Use imported functions directly
+    result = call_llm("Process this: " + question)
+    return result
+```
+
+❌ WRONG - DON'T DO THIS:
+```python
+# Never redefine imported functions
+def call_llm(prompt):  # ❌ Wrong - function already imported
+    pass
+```
+
+"""
+    
+    return header
+
+
+def generate_tool_documentation_section(dataset_loader=None):
+    """
+    Generate documentation section for tools required by the dataset
+    
+    Args:
+        dataset_loader: DatasetLoader instance with tool requirements,
+                       or None for default documentation
+    
+    Returns:
+        str: Generated tool documentation section
+    """
+    from system_tools import generate_tool_documentation
+    
+    if dataset_loader is None:
+        # Default to basic LLM documentation
+        tool_names = ["call_llm"]
+    else:
+        # Get tools required by the dataset
+        tool_names = dataset_loader.get_required_tools()
+    
+    # Generate documentation
+    docs = generate_tool_documentation(tool_names)
+    
+    header = """
+
+🔥 AVAILABLE SYSTEM TOOLS 🔥
+
+The following functions are available after importing from system_tools:
+
+"""
+    
+    footer = """
+⚠️ IMPORTANT: All functions above are pre-tested and safe to use. Do not redefine them.
+Use them directly after importing from system_tools.
+
+"""
+    
+    return header + docs + footer
+
+
+def get_system_imports_header_for_dataset(dataset_loader):
+    """
+    Convenience function to get the complete import header for a specific dataset
+    
+    Args:
+        dataset_loader: DatasetLoader instance
+    
+    Returns:
+        str: Complete import header with tool-specific documentation
+    """
+    import_header = generate_system_imports_header(dataset_loader)
+    tool_docs = generate_tool_documentation_section(dataset_loader)
+    
+    return import_header + tool_docs
+
+
+# Legacy static header (kept for backward compatibility)
+system_imports_header_legacy = system_imports_header

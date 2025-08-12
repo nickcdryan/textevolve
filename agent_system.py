@@ -34,6 +34,9 @@ from prompts.script_generation.strategies import get_explore_instructions, get_e
 
 from prompts.script_generation.prompting_guides import (
     system_imports_header,
+    generate_system_imports_header,
+    generate_tool_documentation_section,
+    get_system_imports_header_for_dataset,
     multi_example_prompting_guide,
     llm_reasoning_prompting_guide,
     validation_prompting_guide,
@@ -1341,14 +1344,21 @@ def main(question):
         
         # Add the few-shot examples to the context
         # historical_context += patterns
-        historical_context += system_imports_header
+        
+        # Generate dynamic import header based on dataset tool requirements
+        dynamic_import_header = get_system_imports_header_for_dataset(self.dataset_loader)
+        historical_context += dynamic_import_header
+        
+        # Add other prompting guides (tool-specific guides are now included in dynamic_import_header)
         historical_context += multi_example_prompting_guide
         historical_context += llm_reasoning_prompting_guide
         historical_context += validation_prompting_guide
         historical_context += meta_programming_prompting_guide
-        historical_context += code_execution_prompting_guide
-        historical_context += database_prompting_guide
-        historical_context += file_access_prompting_guide
+        
+        # Only include code execution guide if the dataset requires it
+        dataset_tools = self.dataset_loader.get_required_tools()
+        if "execute_code" in dataset_tools:
+            historical_context += code_execution_prompting_guide
 
         # Add the accumulated learnings to the context
         learning_context = ""

@@ -5,6 +5,9 @@ system_tools.py - System functions for script injection
 This module contains the real implementations of system functions that get injected
 into generated scripts at runtime. These functions provide core capabilities like
 LLM calls, database access, file operations, and code execution.
+
+It also includes a tool registry system that allows datasets to specify which tools
+they need, enabling dynamic prompt generation and import header configuration.
 """
 
 def call_llm(prompt, system_instruction=None):
@@ -594,7 +597,392 @@ def execute_code(code_str, timeout=10):
     return "Error: Maximum installation attempts exceeded"
 
 
+# Tool Registry System
+# This registry defines all available tools with their metadata for dynamic integration
+
+TOOL_REGISTRY = {
+    "call_llm": {
+        "function": call_llm,
+        "import_name": "call_llm",
+        "category": "llm",
+        "description": "Execute LLM API calls with proper error handling",
+        "signature": "call_llm(prompt, system_instruction=None)",
+        "examples": [
+            'response = call_llm("What is the capital of France?")',
+            'result = call_llm("Analyze this data", system_instruction="You are a data analyst")'
+        ],
+        "documentation": """Execute LLM API calls with proper error handling
+        
+Args:
+    prompt (str): The prompt to send to the LLM
+    system_instruction (str, optional): System instruction for the LLM
+    
+Returns:
+    str: Response from the LLM or error message
+    
+Example:
+    response = call_llm("What is 2+2?")
+    result = call_llm("Explain quantum physics", system_instruction="You are a physics professor")
+""",
+        "required_for": "all"  # Always included
+    },
+    
+    "call_database": {
+        "function": call_database,
+        "import_name": "call_database",
+        "category": "database",
+        "description": "Execute SQL queries against SQLite databases (legacy method)",
+        "signature": "call_database(db_path, sql_query)",
+        "examples": [
+            'customers = call_database("datasets/ticketworld/customer_database.db", "SELECT * FROM customers WHERE email = \'customer@email.com\'")',
+            'result = call_database("/path/to/db.sqlite", "SELECT COUNT(*) FROM orders")'
+        ],
+        "documentation": """Execute SQL queries against a SQLite database with proper error handling
+
+Args:
+    db_path (str): Path to the SQLite database file
+    sql_query (str): SQL query to execute
+    
+Returns:
+    list: For SELECT queries, returns list of dictionaries
+    dict: For modification queries, returns success status
+    
+Example:
+    customers = call_database("customer.db", "SELECT name, email FROM customers")
+    result = call_database("orders.db", "UPDATE orders SET status='shipped' WHERE id=123")
+""",
+        "required_for": "database"
+    },
+    
+    "read_query": {
+        "function": read_query,
+        "import_name": "read_query",
+        "category": "database",
+        "description": "Execute SELECT queries with automatic connection to default database",
+        "signature": "read_query(sql_query, db_path=None)",
+        "examples": [
+            'customer = read_query("SELECT customer_id, name FROM customers WHERE primary_email = \'customer@email.com\'")',
+            'orders = read_query("SELECT order_id, order_date, total_amount FROM orders WHERE customer_id = \'CUST-0001\' ORDER BY order_date DESC LIMIT 5")',
+            'products = read_query("SELECT * FROM products WHERE category = \'electronics\'", "/path/to/other.db")'
+        ],
+        "documentation": """Execute SELECT queries with enhanced error handling and automatic database connection
+
+Args:
+    sql_query (str): SELECT query to execute
+    db_path (str, optional): Database path, uses default TicketWorld database if not provided
+    
+Returns:
+    list: List of dictionaries for successful queries
+    dict: Error dictionary if query fails
+    
+Example:
+    # Find customer by email (auto-connects to TicketWorld database)
+    customer = read_query("SELECT customer_id, name FROM customers WHERE primary_email = 'customer@email.com'")
+    
+    # Get customer's recent orders
+    orders = read_query("SELECT order_id, order_date FROM orders WHERE customer_id = 'CUST-0001' ORDER BY order_date DESC")
+""",
+        "required_for": "database"
+    },
+    
+    "write_query": {
+        "function": write_query,
+        "import_name": "write_query",
+        "category": "database",
+        "description": "Execute INSERT, UPDATE, DELETE queries with automatic connection",
+        "signature": "write_query(sql_query, db_path=None)",
+        "examples": [
+            'result = write_query("UPDATE customers SET phone = \'555-1234\' WHERE customer_id = \'CUST-0001\'")',
+            'result = write_query("INSERT INTO orders (order_id, customer_id, total_amount) VALUES (\'ORD-123\', \'CUST-001\', 99.99)")'
+        ],
+        "documentation": """Execute modification queries (INSERT, UPDATE, DELETE) with automatic database connection
+
+Args:
+    sql_query (str): Modification query to execute
+    db_path (str, optional): Database path, uses default TicketWorld database if not provided
+    
+Returns:
+    dict: Success status with rows affected, or error dictionary
+    
+Example:
+    result = write_query("UPDATE orders SET status='shipped' WHERE order_id='ORD-123'")
+    if 'error' not in result:
+        print(f"Updated {result['rows_affected']} rows")
+""",
+        "required_for": "database"
+    },
+    
+    "list_tables": {
+        "function": list_tables,
+        "import_name": "list_tables",
+        "category": "database",
+        "description": "List all tables in the database",
+        "signature": "list_tables(db_path=None)",
+        "examples": [
+            'tables = list_tables()  # Lists tables in default TicketWorld database',
+            'tables = list_tables("/path/to/other.db")  # Lists tables in specific database'
+        ],
+        "documentation": """List all tables in the database
+
+Args:
+    db_path (str, optional): Database path, uses default TicketWorld database if not provided
+    
+Returns:
+    list: List of table names, or error dictionary
+    
+Example:
+    tables = list_tables()
+    print(f"Available tables: {', '.join(tables)}")
+""",
+        "required_for": "database"
+    },
+    
+    "describe_table": {
+        "function": describe_table,
+        "import_name": "describe_table",
+        "category": "database",
+        "description": "Get detailed schema information for a table",
+        "signature": "describe_table(table_name, db_path=None)",
+        "examples": [
+            'schema = describe_table("customers")  # Get schema for customers table',
+            'schema = describe_table("orders", "/path/to/other.db")  # Get schema from specific database'
+        ],
+        "documentation": """Get detailed schema information for a table
+
+Args:
+    table_name (str): Name of the table to describe
+    db_path (str, optional): Database path, uses default TicketWorld database if not provided
+    
+Returns:
+    dict: Table schema information with columns, types, and constraints
+    
+Example:
+    schema = describe_table("customers")
+    for col in schema['columns']:
+        print(f"{col['name']}: {col['type']} {'(PK)' if col['primary_key'] else ''}")
+""",
+        "required_for": "database"
+    },
+    
+    "read_file": {
+        "function": read_file,
+        "import_name": "read_file",
+        "category": "file",
+        "description": "Read entire files or specific line ranges with proper error handling",
+        "signature": "read_file(filepath, start_line=None, end_line=None)",
+        "examples": [
+            'content = read_file("datasets/ticketworld/company_policy.txt")',
+            'content = read_file("large_file.log", start_line=100, end_line=200)',
+            'content = read_file("config.json")'
+        ],
+        "documentation": """Read entire files or specific line ranges with proper error handling
+
+Args:
+    filepath (str): Path to the file to read
+    start_line (int, optional): Starting line number (1-based)
+    end_line (int, optional): Ending line number (1-based)
+    
+Returns:
+    str: File contents with line numbers, or error message
+    
+Example:
+    # Read entire file
+    content = read_file("datasets/ticketworld/company_policy.txt")
+    
+    # Read specific line range
+    content = read_file("large_file.log", start_line=100, end_line=200)
+""",
+        "required_for": "file"
+    },
+    
+    "search_file": {
+        "function": search_file,
+        "import_name": "search_file",
+        "category": "file",
+        "description": "Search for patterns in files with grep-like functionality",
+        "signature": "search_file(filepath, pattern, case_sensitive=True, show_line_numbers=True, context_lines=0, max_results=50)",
+        "examples": [
+            'results = search_file("datasets/ticketworld/company_policy.txt", "return policy")',
+            'results = search_file("config.py", "DATABASE_URL", case_sensitive=False)',
+            'results = search_file("log.txt", "ERROR", context_lines=2)'
+        ],
+        "documentation": """Search for patterns in files with grep-like functionality
+
+Args:
+    filepath (str): Path to the file to search
+    pattern (str): Regular expression pattern to search for
+    case_sensitive (bool): Whether search should be case sensitive (default: True)
+    show_line_numbers (bool): Whether to show line numbers (default: True)
+    context_lines (int): Number of context lines around matches (default: 0)
+    max_results (int): Maximum number of matches to return (default: 50)
+    
+Returns:
+    str: Search results with matches and context, or error message
+    
+Example:
+    results = search_file("datasets/ticketworld/company_policy.txt", "warranty")
+    results = search_file("error.log", "Exception", context_lines=3)
+""",
+        "required_for": "file"
+    },
+    
+    "execute_code": {
+        "function": execute_code,
+        "import_name": "execute_code",
+        "category": "execution",
+        "description": "Execute Python code with automatic package installation",
+        "signature": "execute_code(code_str, timeout=10)",
+        "examples": [
+            'result = execute_code("print(2 + 2)")',
+            'result = execute_code("import json; print(json.dumps({\'test\': 123}))")',
+            'result = execute_code("""\\nimport pandas as pd\\ndf = pd.DataFrame({\'a\': [1,2,3]})\\nprint(df.sum())\\n""")'
+        ],
+        "documentation": """Execute Python code with automatic package installation and proper scoping
+
+Args:
+    code_str (str): Python code to execute (can include markdown formatting)
+    timeout (int): Timeout in seconds (default: 10)
+    
+Returns:
+    str: Output from code execution or error message
+    
+Example:
+    result = execute_code("print('Hello, World!')")
+    
+    # Can handle package installation automatically
+    result = execute_code('''
+    import pandas as pd
+    df = pd.DataFrame({'col1': [1, 2, 3]})
+    print(df.describe())
+    ''')
+""",
+        "required_for": "execution"
+    }
+}
+
+
+def get_tools_for_categories(categories):
+    """
+    Get all tools that belong to the specified categories
+    
+    Args:
+        categories (list): List of category names ("llm", "database", "file", "execution")
+        
+    Returns:
+        dict: Dictionary of tool_name -> tool_info for matching tools
+    """
+    if isinstance(categories, str):
+        categories = [categories]
+    
+    matching_tools = {}
+    for tool_name, tool_info in TOOL_REGISTRY.items():
+        if tool_info["category"] in categories or tool_info.get("required_for") == "all":
+            matching_tools[tool_name] = tool_info
+    
+    return matching_tools
+
+
+def get_tools_by_names(tool_names):
+    """
+    Get tool information for the specified tool names
+    
+    Args:
+        tool_names (list): List of tool names to retrieve
+        
+    Returns:
+        dict: Dictionary of tool_name -> tool_info for matching tools
+    """
+    if isinstance(tool_names, str):
+        tool_names = [tool_names]
+    
+    matching_tools = {}
+    for tool_name in tool_names:
+        if tool_name in TOOL_REGISTRY:
+            matching_tools[tool_name] = TOOL_REGISTRY[tool_name]
+        else:
+            print(f"Warning: Tool '{tool_name}' not found in registry")
+    
+    return matching_tools
+
+
+def generate_import_statement(tool_names):
+    """
+    Generate import statement for the specified tools
+    
+    Args:
+        tool_names (list): List of tool names to import
+        
+    Returns:
+        str: Import statement for the tools
+    """
+    if isinstance(tool_names, str):
+        tool_names = [tool_names]
+    
+    # Always include call_llm
+    if "call_llm" not in tool_names:
+        tool_names = ["call_llm"] + list(tool_names)
+    
+    valid_tools = []
+    for tool_name in tool_names:
+        if tool_name in TOOL_REGISTRY:
+            valid_tools.append(TOOL_REGISTRY[tool_name]["import_name"])
+        else:
+            print(f"Warning: Tool '{tool_name}' not found in registry")
+    
+    if valid_tools:
+        return f"from system_tools import {', '.join(valid_tools)}"
+    else:
+        return "from system_tools import call_llm"
+
+
+def generate_tool_documentation(tool_names):
+    """
+    Generate documentation for the specified tools
+    
+    Args:
+        tool_names (list): List of tool names to document
+        
+    Returns:
+        str: Formatted documentation for the tools
+    """
+    if isinstance(tool_names, str):
+        tool_names = [tool_names]
+    
+    # Always include call_llm
+    if "call_llm" not in tool_names:
+        tool_names = ["call_llm"] + list(tool_names)
+    
+    docs = []
+    
+    for tool_name in tool_names:
+        if tool_name in TOOL_REGISTRY:
+            tool_info = TOOL_REGISTRY[tool_name]
+            docs.append(f"## {tool_name}")
+            docs.append(f"**Signature:** `{tool_info['signature']}`")
+            docs.append(f"**Description:** {tool_info['description']}")
+            docs.append("")
+            docs.append(tool_info['documentation'])
+            docs.append("")
+            if tool_info.get('examples'):
+                docs.append("**Examples:**")
+                for example in tool_info['examples']:
+                    docs.append(f"```python")
+                    docs.append(example)
+                    docs.append("```")
+                docs.append("")
+        else:
+            print(f"Warning: Tool '{tool_name}' not found in registry")
+    
+    return "\n".join(docs)
+
+
 # For testing and validation
 if __name__ == "__main__":
     print("system_tools.py - System functions available for injection")
-    print("Functions: call_llm, call_database, read_file, search_file, execute_code") 
+    print("Functions: call_llm, call_database, read_file, search_file, execute_code")
+    print("\nTool Registry:")
+    for tool_name, tool_info in TOOL_REGISTRY.items():
+        print(f"  - {tool_name}: {tool_info['description']}")
+    
+    print("\nExample tool documentation generation:")
+    print(generate_tool_documentation(["call_llm", "read_query", "read_file"])) 

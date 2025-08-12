@@ -299,7 +299,7 @@ SYSTEM OUTPUT:
 {system_answer}
 
 Does the system output contain the right aspects of the correct resolution? Consider:
-- Are the correct IDs (order, customer) mentioned?
+- Are the correct IDs (order, customer) mentioned? These MUST be a match to ensure the system is not hallucinating.
 - Are appropriate actions taken?
 - Is the escalation decision reasonable?
 - Are relevant policies referenced?
