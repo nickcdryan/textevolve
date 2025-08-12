@@ -1204,10 +1204,11 @@ def main(question):
                 summary.get("approach_summary", "No summary available")
             })
 
-        # Aggregate error analyses
+        # Aggregate error analyses and complexity assessments
         error_patterns = []
         primary_issues = []
         targeted_improvements = []
+        complexity_assessments = []
 
         for iteration in iterations:
             if not iteration:
@@ -1233,6 +1234,17 @@ def main(question):
             elif error_analysis.get("recommendations"):
                 targeted_improvements.extend(
                     error_analysis.get("recommendations", []))
+            
+            # Collect complexity assessments
+            complexity_assessment = iteration.get("performance", {}).get("complexity_assessment", {})
+            if complexity_assessment:
+                complexity_assessments.append({
+                    "iteration": iteration.get("iteration"),
+                    "task_complexity": complexity_assessment.get("task_complexity", "MODERATE"),
+                    "approach_complexity": complexity_assessment.get("approach_complexity", "MODERATE"),
+                    "match_assessment": complexity_assessment.get("match_assessment", "APPROPRIATE"),
+                    "recommendation": complexity_assessment.get("recommendation", "MAINTAIN")
+                })
 
         # Get capability insights
         capability_report = None
@@ -1349,11 +1361,40 @@ def main(question):
         dynamic_import_header = get_system_imports_header_for_dataset(self.dataset_loader)
         historical_context += dynamic_import_header
         
-        # Add other prompting guides (tool-specific guides are now included in dynamic_import_header)
-        historical_context += multi_example_prompting_guide
-        historical_context += llm_reasoning_prompting_guide
-        historical_context += validation_prompting_guide
-        historical_context += meta_programming_prompting_guide
+        # Determine appropriate complexity level based on recent assessments
+        current_complexity_recommendation = "MODERATE"  # Default
+        if complexity_assessments:
+            # Use the most recent complexity recommendation
+            latest_assessment = complexity_assessments[-1]
+            current_complexity_recommendation = latest_assessment["recommendation"]
+            
+            # If multiple recent assessments agree on SIMPLIFY, be more confident
+            recent_recommendations = [ca["recommendation"] for ca in complexity_assessments[-3:]]
+            if recent_recommendations.count("SIMPLIFY") >= 2:
+                current_complexity_recommendation = "SIMPLIFY"
+            elif recent_recommendations.count("COMPLEXIFY") >= 2:
+                current_complexity_recommendation = "COMPLEXIFY"
+                
+        print(f"Complexity-aware prompt generation: Using {current_complexity_recommendation} approach")
+        
+        # Add prompting guides based on complexity recommendation
+        if current_complexity_recommendation == "SIMPLIFY":
+            # For simple tasks, include only basic guides
+            historical_context += multi_example_prompting_guide
+            print("  - Including basic prompting guides for simple approach")
+        elif current_complexity_recommendation == "COMPLEXIFY":
+            # For complex tasks, include all advanced guides
+            historical_context += multi_example_prompting_guide
+            historical_context += llm_reasoning_prompting_guide
+            historical_context += validation_prompting_guide
+            historical_context += meta_programming_prompting_guide
+            print("  - Including all advanced prompting guides for complex approach")
+        else:  # MAINTAIN or default
+            # Include moderate level guides
+            historical_context += multi_example_prompting_guide
+            historical_context += llm_reasoning_prompting_guide
+            historical_context += validation_prompting_guide
+            print("  - Including moderate prompting guides for standard approach")
         
         # Only include code execution guide if the dataset requires it
         dataset_tools = self.dataset_loader.get_required_tools()
@@ -1375,6 +1416,38 @@ def main(question):
         CAPABILITY ASSESSMENT & IMPROVEMENT GUIDANCE:
         {capability_guidance}
         """
+            
+        # Add complexity guidance to the context
+        complexity_context = ""
+        if complexity_assessments:
+            latest_complexity = complexity_assessments[-1]
+            complexity_context = f"""
+        COMPLEXITY ASSESSMENT GUIDANCE:
+        - Task Complexity Level: {latest_complexity['task_complexity']}
+        - Recent Approach Complexity: {latest_complexity['approach_complexity']}
+        - Match Assessment: {latest_complexity['match_assessment']}
+        - Recommendation: {current_complexity_recommendation}
+        
+        COMPLEXITY-SPECIFIC GUIDANCE:
+        """
+            if current_complexity_recommendation == "SIMPLIFY":
+                complexity_context += """
+        - FOCUS ON SIMPLICITY: Use direct database calls, basic string processing, minimal LLM steps
+        - AVOID: Multi-step LLM reasoning chains, complex verification loops, meta-programming
+        - PRIORITIZE: Database-first approaches, straightforward logic, clear data flow
+        """
+            elif current_complexity_recommendation == "COMPLEXIFY":
+                complexity_context += """
+        - EMBRACE COMPLEXITY: Use sophisticated reasoning patterns, multi-step validation, advanced techniques
+        - INCLUDE: Chain-of-thought reasoning, verification loops, meta-programming, multi-perspective analysis
+        - PRIORITIZE: Robust reasoning chains, comprehensive error handling, sophisticated approaches
+        """
+            else:
+                complexity_context += """
+        - BALANCED APPROACH: Use moderate complexity with some LLM reasoning and validation
+        - INCLUDE: Basic reasoning patterns, simple verification, controlled complexity
+        - PRIORITIZE: Effective but not over-engineered solutions
+        """
 
         # Set specific system instruction for script generation
         script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {strategy_mode} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning, agentic LLM patterns, and python to solve the problem examples provided."
@@ -1392,6 +1465,7 @@ def main(question):
                 last_scripts_context=last_scripts_context,
                 learning_context=learning_context,
                 capability_context=capability_context,
+                complexity_context=complexity_context,
                 llm_api_example=gemini_api_example
             )
         elif strategy_mode == "exploit":
@@ -1418,6 +1492,7 @@ def main(question):
                 top_scripts_analysis=top_scripts_analysis,
                 learning_context=learning_context,
                 capability_context=capability_context,
+                complexity_context=complexity_context,
                 llm_api_example=gemini_api_example
             )
 
@@ -1472,6 +1547,7 @@ def main(question):
                                              best_script_errors=best_script_errors,
                                              learning_context=learning_context, 
                                              capability_context=capability_context, 
+                                             complexity_context=complexity_context,
                                              llm_api_example=gemini_api_example)
 
 
@@ -1860,7 +1936,7 @@ def main(question):
     
 
 
-    def evaluate_with_llm(self, samples: List[Dict], results: List[Dict]) -> Dict:
+    def evaluate_with_llm(self, samples: List[Dict], results: List[Dict], script: str = "") -> Dict:
         """
         Use the LLM to evaluate results and perform detailed error analysis.
         Modified to work with the standardized sample format and use universal field names.
@@ -2180,6 +2256,10 @@ def main(question):
                 "improvement_suggestions": error_analysis.get("improvement_suggestions", [])
             }
 
+        # Generate complexity assessment
+        complexity_assessment = self._generate_complexity_assessment(
+            script, error_samples, success_samples, all_outputs[:5])
+        
         return {
             "accuracy": accuracy,
             "correct_count": correct_count,
@@ -2188,7 +2268,8 @@ def main(question):
             "error_analysis": error_analysis,
             "capability_report": capability_report,
             "error_analysis_text": error_analysis_text,
-            "capability_report_text": capability_report_text
+            "capability_report_text": capability_report_text,
+            "complexity_assessment": complexity_assessment
         }
     
     def _generate_capability_guidance(self, capability_report):
@@ -2258,6 +2339,140 @@ def main(question):
 
         return guidance
     
+    def _generate_complexity_assessment(self, script: str, error_samples: List[Dict], 
+                                       success_samples: List[Dict], sample_outputs: List[str]) -> Dict:
+        """
+        Generate an assessment of the current approach's complexity level and appropriateness.
+        
+        Args:
+            script: The current script being evaluated
+            error_samples: List of failed examples with details
+            success_samples: List of successful examples  
+            sample_outputs: Sample raw execution outputs
+            
+        Returns:
+            Dict: Complexity assessment with recommendations
+        """
+        try:
+            complexity_analyzer_system_instruction = """You are a Complexity Assessment Specialist who analyzes AI problem-solving approaches to determine if the complexity level matches the task requirements. Your goal is to identify over-engineering and under-engineering."""
+            
+            prompt = f"""
+            Analyze this AI system's approach to determine if the complexity level is appropriate for the task.
+
+            CURRENT SCRIPT APPROACH:
+            ```python
+            {script}
+            ```
+
+            ERROR CASES:
+            {json.dumps(error_samples[:3], indent=2) if error_samples else "None"}
+
+            SUCCESS CASES:
+            {json.dumps(success_samples[:3], indent=2) if success_samples else "None"}
+
+            SAMPLE EXECUTION OUTPUTS:
+            {json.dumps(sample_outputs, indent=2) if sample_outputs else "None"}
+
+            COMPLEXITY ANALYSIS INSTRUCTIONS:
+
+            1. TASK INTRINSIC COMPLEXITY ASSESSMENT:
+               - Based on the examples, is this fundamentally a simple task (database lookup, basic extraction) or complex task (multi-step reasoning, deep analysis)?
+               - What is the minimum complexity needed to solve this type of problem?
+
+            2. CURRENT APPROACH COMPLEXITY ASSESSMENT:
+               - How complex is the current script's approach?
+               - Is it using simple direct methods or sophisticated multi-step LLM reasoning?
+               - Count: How many LLM calls, verification steps, and processing stages are used?
+
+            3. COMPLEXITY MATCHING ANALYSIS:
+               - Is the current approach over-engineered for the task?
+               - Is the current approach under-engineered for the task?
+               - Are failures due to complexity mismatch or implementation issues?
+
+            4. OPTIMIZATION RECOMMENDATIONS:
+               - Should the next iteration use SIMPLER approaches (direct database calls, basic string processing)?
+               - Should the next iteration use MORE COMPLEX approaches (multi-step reasoning, verification loops)?
+               - Should the complexity level stay the same but fix implementation issues?
+
+            FORMAT YOUR RESPONSE WITH THESE SECTIONS:
+
+            ## TASK COMPLEXITY LEVEL
+            (SIMPLE/MODERATE/COMPLEX - based on what the task actually requires)
+
+            ## APPROACH COMPLEXITY LEVEL  
+            (SIMPLE/MODERATE/COMPLEX - based on current script's sophistication)
+
+            ## COMPLEXITY MATCH ASSESSMENT
+            (APPROPRIATE/OVER_ENGINEERED/UNDER_ENGINEERED)
+
+            ## FAILURE ANALYSIS
+            (Are failures due to complexity mismatch or implementation bugs?)
+
+            ## COMPLEXITY RECOMMENDATION
+            (SIMPLIFY/MAINTAIN/COMPLEXIFY - what should the next iteration do?)
+
+            ## SPECIFIC GUIDANCE
+            (Concrete suggestions for the right complexity level)
+
+            Focus on whether the approach complexity matches the task requirements. Simple tasks should use direct methods, complex tasks should use sophisticated reasoning.
+            """
+            
+            response = self.call_llm(prompt, system_instruction=complexity_analyzer_system_instruction)
+            
+            # Extract structured information from the response
+            complexity_assessment = {
+                "text_report": response,
+                "task_complexity": "MODERATE",  # Default
+                "approach_complexity": "MODERATE",  # Default  
+                "match_assessment": "APPROPRIATE",  # Default
+                "recommendation": "MAINTAIN"  # Default
+            }
+            
+            # Parse the structured sections
+            if "## TASK COMPLEXITY LEVEL" in response:
+                task_section = response.split("## TASK COMPLEXITY LEVEL")[1].split("##")[0].strip()
+                for level in ["SIMPLE", "MODERATE", "COMPLEX"]:
+                    if level in task_section.upper():
+                        complexity_assessment["task_complexity"] = level
+                        break
+                        
+            if "## APPROACH COMPLEXITY LEVEL" in response:
+                approach_section = response.split("## APPROACH COMPLEXITY LEVEL")[1].split("##")[0].strip()
+                for level in ["SIMPLE", "MODERATE", "COMPLEX"]:
+                    if level in approach_section.upper():
+                        complexity_assessment["approach_complexity"] = level
+                        break
+                        
+            if "## COMPLEXITY MATCH ASSESSMENT" in response:
+                match_section = response.split("## COMPLEXITY MATCH ASSESSMENT")[1].split("##")[0].strip()
+                for assessment in ["OVER_ENGINEERED", "UNDER_ENGINEERED", "APPROPRIATE"]:
+                    if assessment in match_section.upper():
+                        complexity_assessment["match_assessment"] = assessment
+                        break
+                        
+            if "## COMPLEXITY RECOMMENDATION" in response:
+                rec_section = response.split("## COMPLEXITY RECOMMENDATION")[1].split("##")[0].strip()
+                for rec in ["SIMPLIFY", "MAINTAIN", "COMPLEXIFY"]:
+                    if rec in rec_section.upper():
+                        complexity_assessment["recommendation"] = rec
+                        break
+                        
+            print(f"Complexity Assessment: Task={complexity_assessment['task_complexity']}, "
+                  f"Approach={complexity_assessment['approach_complexity']}, "
+                  f"Match={complexity_assessment['match_assessment']}, "
+                  f"Recommendation={complexity_assessment['recommendation']}")
+                  
+            return complexity_assessment
+            
+        except Exception as e:
+            print(f"Error generating complexity assessment: {e}")
+            return {
+                "text_report": f"Complexity assessment failed: {e}",
+                "task_complexity": "MODERATE",
+                "approach_complexity": "MODERATE", 
+                "match_assessment": "APPROPRIATE",
+                "recommendation": "MAINTAIN"
+            }
 
     def evaluate_answer_with_llm(self, system_answer: str, golden_answer: str) -> Dict:
         """Use LLM to determine if answers are semantically equivalent"""
@@ -2950,7 +3165,7 @@ def main(question):
         # Use LLM for deeper error analysis
         try:
             print("Performing error analysis with LLM...")
-            evaluation = self.evaluate_with_llm(samples, results)
+            evaluation = self.evaluate_with_llm(samples, results, script)
             if evaluation.get('error_analysis'):
                 primary_issue = evaluation.get('error_analysis', {}).get('primary_issue', 'None')
                 print(f"Primary issue identified: {primary_issue}")

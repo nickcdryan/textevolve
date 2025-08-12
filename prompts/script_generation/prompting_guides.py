@@ -47,7 +47,7 @@ from system_tools import (
 # MCP DATABASE FUNCTIONS (RECOMMENDED):
 # read_query(sql_query: str, db_path: str = None) -> list[dict] | dict
 #   → Enhanced SELECT query execution with better error handling
-#   → Uses default TicketWorld database if db_path not provided
+#   → Uses default task-specific database if db_path not provided
 # write_query(sql_query: str, db_path: str = None) -> dict
 #   → Enhanced INSERT/UPDATE/DELETE execution
 #   → Returns {'success': True, 'rows_affected': N} or {'error': 'message'}
