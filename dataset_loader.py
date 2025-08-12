@@ -1103,12 +1103,10 @@ DO NOT TRY TO CALL_LLM TO READ THESE FILES. YOU MUST USE THE PROVIDED REAL ASSET
 
 ### Action Types (Complete List)
 - process_return
-- issue_refund
 - send_replacement
 - provide_tracking
 - honor_warranty
 - escalate_to_manager
-- request_more_info
 - request_photo
 - update_shipping_address
 - cancel_order
@@ -1118,11 +1116,13 @@ DO NOT TRY TO CALL_LLM TO READ THESE FILES. YOU MUST USE THE PROVIDED REAL ASSET
 - deny_price_match
 - deny_order_modification
 - deny_cancellation
-- provide_information
+- provide_product_information
 - initiate_investigation
 - process_exchange
 - deny_exchange
-- send_return_label
+- honor_price_match
+- accept_order_modification
+
 
 ### Priority Levels
 - low
@@ -1317,12 +1317,10 @@ policy_text = read_file("datasets/ticketworld/company_policy.txt")
 ## VALID ACTION TYPES
 Choose from these action types only:
 - process_return
-- issue_refund  
 - send_replacement
 - provide_tracking
 - honor_warranty
 - escalate_to_manager
-- request_more_info
 - request_photo
 - update_shipping_address
 - cancel_order
@@ -1332,11 +1330,12 @@ Choose from these action types only:
 - deny_price_match
 - deny_order_modification
 - deny_cancellation
-- provide_information
+- provide_product_information
 - initiate_investigation
 - process_exchange
 - deny_exchange
-- send_return_label
+- honor_price_match
+- accept_order_modification
 
 
 ## WORKING EXAMPLE APPROACH

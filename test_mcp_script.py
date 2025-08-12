@@ -21,7 +21,7 @@ def main(question):
     # Example TicketWorld customer service question
     if not question:
         question = """
-        Customer Email: sarah.miller@gmail.com
+        Customer Email: julian.r@yahoo.com
         Subject: Need to return damaged smartphone
         
         Message Body:
