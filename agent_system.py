@@ -420,10 +420,10 @@ class AgentSystem:
             sys_instruction = system_instruction if system_instruction is not None else ""
 
             response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=sys_instruction,
-                    #thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
+                    thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
                     ),
                 contents=prompt)
             return response.text

@@ -1259,7 +1259,7 @@ Please provide a resolution plan for this customer service ticket following the 
             raise ValueError(f"Error loading TicketWorld dataset: {e}")
 
 
-class TicketWorldSimpleDatasetLoaderCOMPLEX(DatasetLoader):
+class TicketWorldSimpleDatasetLoader(DatasetLoader):
     """TicketWorld customer service resolution dataset loader with comprehensive task instructions"""
     
     default_evaluator = "ticketworld"
@@ -1586,7 +1586,7 @@ resolution = call_llm(resolution_prompt)
 
 
 
-class TicketWorldSimpleDatasetLoader(DatasetLoader):
+class TicketWorldSimpleDatasetLoaderEMAILORDER(DatasetLoader):
     """TicketWorld customer service resolution dataset loader with comprehensive task instructions"""
     
     default_evaluator = "ticketworld"
