@@ -1174,7 +1174,6 @@ DO NOT TRY TO CALL_LLM TO READ THESE FILES. YOU MUST USE THE PROVIDED REAL ASSET
 - send_replacement
 - provide_tracking
 - honor_warranty
-- escalate_to_manager
 - request_photo
 - update_shipping_address
 - cancel_order
@@ -1406,7 +1405,6 @@ Choose from these action types only:
 - send_replacement
 - provide_tracking
 - honor_warranty
-- escalate_to_manager
 - request_photo
 - update_shipping_address
 - cancel_order
@@ -1463,6 +1461,8 @@ if not order_data:
 order = order_data[0]
 order_id = order['order_id']
 ```
+
+### NOTE: the customer may have made multiple orders, so you need to find the relevant order discussed in the email.
 
 ### Step 4: Read Company Policies
 ```python

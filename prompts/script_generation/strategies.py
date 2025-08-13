@@ -1,7 +1,8 @@
 import json
 
 def get_explore_instructions(example_problems, historical_context, last_scripts_context, 
-                           learning_context, capability_context, complexity_context, llm_api_example):
+                           learning_context, capability_context, complexity_context, 
+                           structured_learning_context, llm_api_example):
     """
     Generate exploration-specific instructions and context.
 
@@ -12,6 +13,7 @@ def get_explore_instructions(example_problems, historical_context, last_scripts_
         learning_context: Accumulated learnings from previous iterations
         capability_context: Capability assessment and improvement guidance
         complexity_context: Complexity assessment and guidance for appropriate approach level
+        structured_learning_context: Structured learning insights to guide approach selection
         gemini_api_example: Standard API usage example
 
     Returns:
@@ -52,6 +54,8 @@ CAPABILITY ASSESSMENT & IMPROVEMENT GUIDANCE:
 {capability_context}
 
 {complexity_context}
+
+{structured_learning_context}
 
 EXPLORATION GUIDANCE:
 1. Review the historical approaches, error patterns, and accumulated learnings carefully
@@ -115,7 +119,8 @@ BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
 
 
 def get_exploit_instructions(example_problems, historical_context, top_scripts_analysis, 
-       learning_context, capability_context, complexity_context, llm_api_example):
+       learning_context, capability_context, complexity_context, 
+       structured_learning_context, llm_api_example):
    """
    Generate exploitation-specific instructions and context.
    
@@ -126,6 +131,7 @@ def get_exploit_instructions(example_problems, historical_context, top_scripts_a
    learning_context: Accumulated learnings from previous iterations
    capability_context: Capability assessment and improvement guidance
    complexity_context: Complexity assessment and guidance for appropriate approach level
+   structured_learning_context: Structured learning insights to guide approach selection
    gemini_api_example: Standard API usage example
    
    Returns:
@@ -145,6 +151,8 @@ def get_exploit_instructions(example_problems, historical_context, top_scripts_a
    {capability_context}
    
    {complexity_context}
+   
+   {structured_learning_context}
    
    MULTIPLE TOP PERFORMING APPROACHES TO SYNTHESIZE:
    {top_scripts_analysis}
@@ -217,7 +225,7 @@ def get_exploit_instructions(example_problems, historical_context, top_scripts_a
 
 def get_refine_instructions(example_problems, historical_context, best_script_to_refine,
       best_script_successes, best_script_errors, learning_context, 
-      capability_context, complexity_context, llm_api_example):
+      capability_context, complexity_context, structured_learning_context, llm_api_example):
    """
    Generate refinement-specific instructions and context.
    
@@ -230,6 +238,7 @@ def get_refine_instructions(example_problems, historical_context, best_script_to
    learning_context: Accumulated learnings from previous iterations
    capability_context: Capability assessment and improvement guidance
    complexity_context: Complexity assessment and guidance for appropriate approach level
+   structured_learning_context: Structured learning insights to guide approach selection
    gemini_api_example: Standard API usage example
    
    Returns:
@@ -249,6 +258,8 @@ def get_refine_instructions(example_problems, historical_context, best_script_to
    {capability_context}
    
    {complexity_context}
+   
+   {structured_learning_context}
    
    BEST SCRIPT TO REFINE:
    Iteration: {best_script_to_refine.get('iteration', 'Unknown')}

@@ -298,8 +298,7 @@ KEY FIELDS FROM CORRECT RESOLUTION:
 SYSTEM OUTPUT:
 {system_answer}
 
-Does the system output contain the right aspects of the correct resolution? Consider:
-- Are the correct IDs (order, customer) mentioned? These MUST be a match to ensure the system is not hallucinating.
+Does the system output contain the right aspects of the correct resolution? Consider:- Are the correct IDs (order, customer) mentioned? If these are provided for the golden answer (and not N/A) then the system output MUST match.
 - Are appropriate actions taken?
 - Is the escalation decision reasonable?
 - Are relevant policies referenced?

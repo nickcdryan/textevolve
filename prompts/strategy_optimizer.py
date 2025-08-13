@@ -1,7 +1,8 @@
 import json
 
-def get_strategy_optimization_prompt(current_iteration, baseline_accuracy, performance_history):
-    """Generate prompt for direct strategy selection"""
+def get_strategy_optimization_prompt(current_iteration, baseline_accuracy, performance_history, 
+                                   structured_learning_insights=None):
+    """Generate prompt for direct strategy selection with structured learning insights"""
 
     system_instruction = """You are a Strategy Selector for an iterative learning system. Your job is to choose exactly ONE strategy for the next iteration: EXPLORE, EXPLOIT, or REFINE."""
 
@@ -22,46 +23,71 @@ def get_strategy_optimization_prompt(current_iteration, baseline_accuracy, perfo
     PERFORMANCE HISTORY:
     {json.dumps(performance_history, indent=2)}
 
-    DECISION PRINCIPLES:
+    STRUCTURED LEARNING INSIGHTS:
+    {json.dumps(structured_learning_insights, indent=2) if structured_learning_insights else "No structured learning insights available yet."}
 
-    1. EXPLORATION BIAS (Early Iterations):
-       - Favor EXPLORE for first 5-8 iterations to build approach diversity
-       - Only exploit/refine if you have genuinely good results relative to baseline
+    ENHANCED DECISION PRINCIPLES:
 
-    2. NOISE AWARENESS:
-       - Small batch sizes (≤3) make results very noisy - don't over-interpret single results
-       - Look for consistent patterns across multiple iterations
-       - One bad/good result with small batches might just be luck
+    1. EVIDENCE-BASED STRATEGY SELECTION:
+       - Use STRUCTURED LEARNING INSIGHTS to inform decisions
+       - If insights show SUCCESSFUL_PATTERN with HIGH transferability → Consider EXPLOIT
+       - If insights show COMPLEXITY_MISMATCH → Consider REFINE with different complexity
+       - If insights show IMPLEMENTATION_BUG → Consider REFINE to fix execution
+       - If insights show multiple failed approaches → Consider EXPLORE new direction
 
-    3. BASELINE CALIBRATION:
-       - Always compare performance to the baseline, not absolute thresholds
-       - What counts as "good" depends entirely on how hard the baseline suggests this dataset is
-       - If baseline was high, you need high performance to justify exploitation
-       - If baseline was low, moderate improvements might justify exploitation
+    2. PATTERN RECOGNITION SIGNALS:
+       - EXPLOIT when: Multiple SUCCESSFUL_PATTERN learnings with similar conditions
+       - REFINE when: PARTIAL_SUCCESS learnings show promising approaches needing fixes
+       - EXPLORE when: No successful patterns found, or all recent attempts failed conceptually
 
-    4. DIVERSITY MAINTENANCE:
-       - Even when doing well, occasionally explore (every 4-5 iterations)
-       - Avoid getting stuck in local optima
-       - There should be some diversity in approaches. It should not be the case that we just continue exploring relentelssly or exploiting relentlessly or refinin relentlessly.
+    3. COMPLEXITY MATCH ANALYSIS:
+       - If recent learnings show OVER_ENGINEERED approaches → REFINE to simplify
+       - If recent learnings show UNDER_ENGINEERED approaches → EXPLORE more sophisticated methods
+       - If complexity matches well → EXPLOIT or REFINE existing good approaches
 
-    5. EXPLOITATION SIGNALS:
-       - Multiple approaches performing well above baseline
-       - Consistent patterns across iterations
-       - At least 5+ iterations of exploration completed
+    4. IMPLEMENTATION QUALITY FOCUS:
+       - Scripts with GOOD/EXCELLENT quality but low accuracy → REFINE approach logic
+       - Scripts with POOR/FAIR quality but good approach → REFINE implementation
+       - Scripts with both poor quality and approach → EXPLORE new directions
 
-    6. REFINEMENT SIGNALS:
-       - One approach clearly superior to others
-       - Specific weaknesses identified that could be fixed
-       - Good baseline-relative performance that could be incremented
+    5. ADAPTIVE EXPLORATION:
+       - Early iterations (≤5): Moderate exploration bias, but evidence can override
+       - Mid iterations (6-15): Evidence-driven decisions, no hardcoded bias
+       - Later iterations (15+): Focus on exploitation/refinement unless all approaches plateau
+
+    6. NOISE AWARENESS & EVIDENCE STRENGTH:
+       - Small batch sizes (≤3): Require STRONG evidence strength for major strategy changes
+       - Weight decisions by evidence_strength (STRONG > MEDIUM > WEAK)
+       - Don't over-interpret single results, look for patterns in learning insights
+
+    7. TRANSFERABILITY CONSIDERATION:
+       - HIGH transferability learnings are more reliable for exploitation
+       - LOW transferability learnings suggest exploring different approaches
+       - Consider dataset_type consistency when applying past learnings
 
     CURRENT CONTEXT:
     - This is iteration {current_iteration}
     - Early exploration phase: {"Yes" if current_iteration < 6 else "No"}
 
-    Analyze the performance history considering batch size noise and baseline calibration.
+    ANALYSIS INSTRUCTIONS:
+    1. First analyze the STRUCTURED LEARNING INSIGHTS for patterns and evidence
+    2. Consider what the insights reveal about successful vs failed approaches
+    3. Look for complexity mismatches, implementation issues, or successful patterns
+    4. Weight evidence by strength (STRONG > MEDIUM > WEAK) and transferability
+    5. Apply the enhanced decision principles based on learning patterns
+    6. Consider performance history as secondary confirmation of learning insights
+    7. Make evidence-based decision rather than following hardcoded iteration rules
+
+    SPECIFIC DECISION LOGIC:
+    - If learnings show SUCCESSFUL_PATTERN with HIGH transferability → Strong EXPLOIT signal
+    - If learnings show COMPLEXITY_MISMATCH → REFINE with complexity adjustment
+    - If learnings show IMPLEMENTATION_BUG + good concepts → REFINE implementation  
+    - If learnings show consistent failures across different approaches → EXPLORE
+    - If no strong learning patterns yet → Mild exploration bias (early iterations only)
 
     Your response must end with: "STRATEGY: [EXPLORE/EXPLOIT/REFINE]"
-    Provide reasoning, then your final choice.
+    
+    Provide detailed reasoning based on structured learning insights, then your final choice.
     """
 
     return prompt, system_instruction

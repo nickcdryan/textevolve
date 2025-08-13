@@ -69,6 +69,8 @@ from prompts.script_generation.llm_patterns import(
     combination_example,
 )
 
+from structured_learning_system import StructuredLearningSystem
+
 # Import text conversion function for generating human-readable summaries
 from convert_iterations_to_text import convert_single_iteration
 
@@ -142,6 +144,9 @@ class AgentSystem:
         self.scripts_dir.mkdir(exist_ok=True)
 
         self.capability_tracker = CapabilityTracker()
+
+        # Initialize structured learning system
+        self.structured_learning = StructuredLearningSystem()
 
         # Load system prompt
         self.system_prompt = self._load_system_prompt()
@@ -1449,6 +1454,16 @@ def main(question):
         - PRIORITIZE: Effective but not over-engineered solutions
         """
 
+        # Add structured learning context for script generation
+        structured_learning_context = ""
+        try:
+            learning_insights = self._gather_learning_insights_for_strategy()
+            if learning_insights:
+                structured_learning_context = self._generate_learning_context_for_script_generation(
+                    learning_insights, strategy_mode, current_complexity_recommendation)
+        except Exception as e:
+            print(f"Warning: Could not generate learning context: {e}")
+
         # Set specific system instruction for script generation
         script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {strategy_mode} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning, agentic LLM patterns, and python to solve the problem examples provided."
 
@@ -1466,6 +1481,7 @@ def main(question):
                 learning_context=learning_context,
                 capability_context=capability_context,
                 complexity_context=complexity_context,
+                structured_learning_context=structured_learning_context,
                 llm_api_example=gemini_api_example
             )
         elif strategy_mode == "exploit":
@@ -1493,6 +1509,7 @@ def main(question):
                 learning_context=learning_context,
                 capability_context=capability_context,
                 complexity_context=complexity_context,
+                structured_learning_context=structured_learning_context,
                 llm_api_example=gemini_api_example
             )
 
@@ -1548,6 +1565,7 @@ def main(question):
                                              learning_context=learning_context, 
                                              capability_context=capability_context, 
                                              complexity_context=complexity_context,
+                                             structured_learning_context=structured_learning_context,
                                              llm_api_example=gemini_api_example)
 
 
@@ -2260,6 +2278,10 @@ def main(question):
         complexity_assessment = self._generate_complexity_assessment(
             script, error_samples, success_samples, all_outputs[:5])
         
+        # Generate deep script analysis
+        script_analysis = self._generate_deep_script_analysis(
+            script, evaluations, samples, accuracy)
+        
         return {
             "accuracy": accuracy,
             "correct_count": correct_count,
@@ -2269,7 +2291,8 @@ def main(question):
             "capability_report": capability_report,
             "error_analysis_text": error_analysis_text,
             "capability_report_text": capability_report_text,
-            "complexity_assessment": complexity_assessment
+            "complexity_assessment": complexity_assessment,
+            "script_analysis": script_analysis
         }
     
     def _generate_capability_guidance(self, capability_report):
@@ -2473,6 +2496,486 @@ def main(question):
                 "match_assessment": "APPROPRIATE",
                 "recommendation": "MAINTAIN"
             }
+
+    def _generate_deep_script_analysis(self, script: str, results: List[Dict], 
+                                     samples: List[Dict], accuracy: float) -> Dict:
+        """
+        Perform deep analysis of script patterns, implementation quality, and architectural decisions.
+        
+        Args:
+            script: The script code to analyze
+            results: Execution results for this script
+            samples: The test samples used
+            accuracy: Overall accuracy score
+            
+        Returns:
+            Dict: Detailed script analysis with patterns, quality assessment, and insights
+        """
+        try:
+            script_analyzer_system_instruction = """You are a Code Architecture and Pattern Analysis Expert who analyzes AI problem-solving scripts to extract deep insights about implementation patterns, code quality, and decision-making approaches."""
+            
+            # Collect sample execution data for analysis
+            execution_summary = {
+                "total_samples": len(samples),
+                "successful_executions": sum(1 for r in results if r.get("success", False)),
+                "accuracy": accuracy,
+                "common_errors": []
+            }
+            
+            # Extract common error patterns
+            error_counts = {}
+            for result in results:
+                if not result.get("success", True):
+                    error = result.get("error", "Unknown error")
+                    # Extract error type
+                    if "json" in error.lower():
+                        error_type = "JSON_PARSING_ERROR"
+                    elif "timeout" in error.lower():
+                        error_type = "TIMEOUT_ERROR"
+                    elif "keyerror" in error.lower() or "key error" in error.lower():
+                        error_type = "KEY_ERROR"
+                    elif "connection" in error.lower() or "api" in error.lower():
+                        error_type = "API_ERROR"
+                    else:
+                        error_type = "OTHER_ERROR"
+                    error_counts[error_type] = error_counts.get(error_type, 0) + 1
+            
+            execution_summary["common_errors"] = [{"type": k, "count": v} for k, v in error_counts.items()]
+            
+            prompt = f"""
+            Analyze this AI problem-solving script in detail to extract architectural patterns, implementation quality, and decision-making insights.
+
+            SCRIPT TO ANALYZE:
+            ```python
+            {script}
+            ```
+
+            EXECUTION PERFORMANCE:
+            {json.dumps(execution_summary, indent=2)}
+
+            SAMPLE PROBLEM TYPES:
+            {json.dumps([{"question": s.get("question", "")[:100] + "..." if len(s.get("question", "")) > 100 else s.get("question", "")} for s in samples[:3]], indent=2)}
+
+            ANALYSIS INSTRUCTIONS:
+
+            1. ARCHITECTURAL PATTERN ANALYSIS:
+               - What overall problem-solving approach does this script use?
+               - How many distinct processing stages/steps are there?
+               - What is the primary data flow pattern?
+               - How does it decompose the problem?
+
+            2. IMPLEMENTATION QUALITY ASSESSMENT:
+               - How well is the approach executed?
+               - What are the strengths in the implementation?
+               - What are implementation weaknesses or code issues?
+               - How robust is error handling?
+
+            3. DECISION POINT ANALYSIS:
+               - What key choices did the script make in its approach?
+               - Were these choices appropriate for the problem type?
+               - Where could different decisions have been made?
+
+            4. TOOL USAGE PATTERNS:
+               - How does the script use available tools (database, LLM, file operations)?
+               - Is tool usage efficient and appropriate?
+               - Are there missed opportunities for better tool usage?
+
+            5. LLM INTEGRATION PATTERNS:
+               - How many LLM calls does the script make?
+               - What is each LLM call responsible for?
+               - Are LLM calls well-designed with good prompts and examples?
+               - Is there appropriate verification/validation of LLM outputs?
+
+            6. SCALABILITY AND MAINTAINABILITY:
+               - How modular and readable is the code?
+               - Would this approach work well for similar problems?
+               - How easy would it be to debug or modify?
+
+            FORMAT YOUR RESPONSE WITH THESE SECTIONS:
+
+            ## ARCHITECTURAL PATTERN
+            (Primary problem-solving approach: e.g., "sequential_pipeline", "llm_orchestrated", "database_first", "hybrid_reasoning")
+
+            ## PROCESSING STAGES
+            (Number and description of main stages: e.g., "3 stages: extraction, validation, resolution")
+
+            ## IMPLEMENTATION QUALITY
+            (EXCELLENT/GOOD/FAIR/POOR - overall implementation craftsmanship)
+
+            ## KEY DECISIONS
+            (Major architectural and implementation choices made)
+
+            ## TOOL USAGE EFFICIENCY
+            (OPTIMAL/GOOD/INEFFICIENT - how well tools are leveraged)
+
+            ## LLM INTEGRATION PATTERN
+            (Pattern of LLM usage: e.g., "single_call", "multi_step_reasoning", "verification_loop", "orchestrator")
+
+            ## CODE CHARACTERISTICS
+            (Modularity, error handling, readability assessment)
+
+            ## FAILURE MODES
+            (Primary ways this approach can fail)
+
+            ## TRANSFERABILITY
+            (HIGH/MEDIUM/LOW - how well this approach would work for similar problems)
+
+            ## IMPROVEMENT OPPORTUNITIES
+            (Specific ways this implementation could be enhanced)
+
+            Provide detailed, technical analysis focusing on what makes this approach work or not work.
+            """
+            
+            response = self.call_llm(prompt, system_instruction=script_analyzer_system_instruction)
+            
+            # Extract structured information from the response
+            script_analysis = {
+                "text_report": response,
+                "architectural_pattern": "unknown",
+                "processing_stages": "unknown", 
+                "implementation_quality": "FAIR",
+                "tool_usage_efficiency": "GOOD",
+                "llm_integration_pattern": "unknown",
+                "transferability": "MEDIUM",
+                "failure_modes": [],
+                "improvement_opportunities": []
+            }
+            
+            # Parse structured sections from the response
+            if "## ARCHITECTURAL PATTERN" in response:
+                pattern_section = response.split("## ARCHITECTURAL PATTERN")[1].split("##")[0].strip()
+                # Extract pattern from description
+                pattern_keywords = ["sequential_pipeline", "llm_orchestrated", "database_first", "hybrid_reasoning", "multi_step_reasoning", "single_pass", "verification_loop"]
+                for keyword in pattern_keywords:
+                    if keyword in pattern_section.lower():
+                        script_analysis["architectural_pattern"] = keyword
+                        break
+
+            if "## PROCESSING STAGES" in response:
+                stages_section = response.split("## PROCESSING STAGES")[1].split("##")[0].strip()
+                script_analysis["processing_stages"] = stages_section[:200]  # Truncate for storage
+
+            if "## IMPLEMENTATION QUALITY" in response:
+                quality_section = response.split("## IMPLEMENTATION QUALITY")[1].split("##")[0].strip()
+                for level in ["EXCELLENT", "GOOD", "FAIR", "POOR"]:
+                    if level in quality_section.upper():
+                        script_analysis["implementation_quality"] = level
+                        break
+
+            if "## TOOL USAGE EFFICIENCY" in response:
+                tool_section = response.split("## TOOL USAGE EFFICIENCY")[1].split("##")[0].strip()
+                for level in ["OPTIMAL", "GOOD", "INEFFICIENT"]:
+                    if level in tool_section.upper():
+                        script_analysis["tool_usage_efficiency"] = level
+                        break
+
+            if "## LLM INTEGRATION PATTERN" in response:
+                llm_section = response.split("## LLM INTEGRATION PATTERN")[1].split("##")[0].strip()
+                llm_patterns = ["single_call", "multi_step_reasoning", "verification_loop", "orchestrator", "chain_of_thought"]
+                for pattern in llm_patterns:
+                    if pattern in llm_section.lower():
+                        script_analysis["llm_integration_pattern"] = pattern
+                        break
+
+            if "## TRANSFERABILITY" in response:
+                transfer_section = response.split("## TRANSFERABILITY")[1].split("##")[0].strip()
+                for level in ["HIGH", "MEDIUM", "LOW"]:
+                    if level in transfer_section.upper():
+                        script_analysis["transferability"] = level
+                        break
+
+            if "## FAILURE MODES" in response:
+                failure_section = response.split("## FAILURE MODES")[1].split("##")[0].strip()
+                # Extract bullet points as failure modes
+                failure_lines = [line.strip().lstrip("-*• ") for line in failure_section.split("\n") 
+                               if line.strip() and line.strip()[0] in ["-", "*", "•"]]
+                script_analysis["failure_modes"] = failure_lines[:5]  # Limit to 5 entries
+
+            if "## IMPROVEMENT OPPORTUNITIES" in response:
+                improvement_section = response.split("## IMPROVEMENT OPPORTUNITIES")[1].split("##")[0].strip()
+                # Extract bullet points as improvements
+                improvement_lines = [line.strip().lstrip("-*• ") for line in improvement_section.split("\n") 
+                                   if line.strip() and line.strip()[0] in ["-", "*", "•"]]
+                script_analysis["improvement_opportunities"] = improvement_lines[:5]  # Limit to 5 entries
+
+            print(f"Deep Script Analysis: Pattern={script_analysis['architectural_pattern']}, "
+                  f"Quality={script_analysis['implementation_quality']}, "
+                  f"Tool Usage={script_analysis['tool_usage_efficiency']}, "
+                  f"Transferability={script_analysis['transferability']}")
+                  
+            return script_analysis
+            
+        except Exception as e:
+            print(f"Error generating deep script analysis: {e}")
+            return {
+                "text_report": f"Script analysis failed: {e}",
+                "architectural_pattern": "unknown",
+                "processing_stages": "unknown",
+                "implementation_quality": "FAIR", 
+                "tool_usage_efficiency": "GOOD",
+                "llm_integration_pattern": "unknown",
+                "transferability": "MEDIUM",
+                "failure_modes": ["Analysis failed"],
+                "improvement_opportunities": ["Retry analysis"]
+            }
+
+    def _gather_learning_insights_for_strategy(self) -> Dict:
+        """
+        Gather structured learning insights to inform strategy optimization decisions.
+        
+        Returns:
+            Dict: Summarized learning insights for strategy decision-making
+        """
+        try:
+            if not hasattr(self, 'structured_learning'):
+                return None
+                
+            # Get current dataset context for relevant learning queries
+            dataset_context = {
+                "dataset_type": self.dataset_loader.__class__.__name__,
+                "has_database": "read_query" in self.dataset_loader.get_required_tools(),
+                "requires_reasoning": True
+            }
+            
+            # Query different types of learnings
+            recent_learnings = self.structured_learning.query_learnings(limit=10)
+            successful_patterns = self.structured_learning.query_learnings(
+                learning_types=["SUCCESSFUL_PATTERN"],
+                min_evidence_strength="MEDIUM",
+                limit=5
+            )
+            complexity_mismatches = self.structured_learning.query_learnings(
+                learning_types=["COMPLEXITY_MISMATCH"],
+                min_evidence_strength="WEAK",
+                limit=5
+            )
+            implementation_bugs = self.structured_learning.query_learnings(
+                learning_types=["IMPLEMENTATION_BUG"],
+                min_evidence_strength="WEAK",
+                limit=3
+            )
+            partial_successes = self.structured_learning.query_learnings(
+                learning_types=["PARTIAL_SUCCESS"],
+                min_evidence_strength="WEAK",
+                limit=3
+            )
+            
+            # Get conditional guidance for current context
+            current_conditions = {
+                "dataset_type": dataset_context["dataset_type"],
+                "has_database": dataset_context["has_database"]
+            }
+            conditional_guidance = self.structured_learning.get_conditional_guidance(current_conditions)
+            
+            # Analyze recent iteration patterns
+            recent_patterns = self._analyze_recent_patterns(recent_learnings)
+            
+            # Get learning summary
+            learning_summary = self.structured_learning.get_learning_summary()
+            
+            insights = {
+                "learning_summary": {
+                    "total_learnings": learning_summary.get("total_learnings", 0),
+                    "learning_types": learning_summary.get("learning_types", {}),
+                    "evidence_strengths": learning_summary.get("evidence_strengths", {}),
+                    "high_confidence_learnings": learning_summary.get("high_confidence_learnings", 0)
+                },
+                "successful_patterns": [
+                    {
+                        "iteration": l.get("iteration"),
+                        "lesson": l.get("lesson"),
+                        "conditions": l.get("conditions", {}),
+                        "evidence_strength": l.get("evidence_strength"),
+                        "transferability": l.get("transferability"),
+                        "accuracy": l.get("performance_data", {}).get("accuracy", 0)
+                    } for l in successful_patterns[:3]
+                ],
+                "complexity_mismatches": [
+                    {
+                        "iteration": l.get("iteration"),
+                        "lesson": l.get("lesson"),
+                        "complexity_issue": l.get("conditions", {}).get("complexity_match"),
+                        "architectural_pattern": l.get("conditions", {}).get("architectural_pattern"),
+                        "evidence_strength": l.get("evidence_strength")
+                    } for l in complexity_mismatches[:3]
+                ],
+                "implementation_issues": [
+                    {
+                        "iteration": l.get("iteration"),
+                        "lesson": l.get("lesson"),
+                        "implementation_quality": l.get("conditions", {}).get("implementation_quality"),
+                        "improvement_opportunities": l.get("improvement_opportunities", [])
+                    } for l in implementation_bugs[:2]
+                ],
+                "partial_successes": [
+                    {
+                        "iteration": l.get("iteration"),
+                        "lesson": l.get("lesson"),
+                        "architectural_pattern": l.get("conditions", {}).get("architectural_pattern"),
+                        "improvement_opportunities": l.get("improvement_opportunities", []),
+                        "accuracy": l.get("performance_data", {}).get("accuracy", 0)
+                    } for l in partial_successes[:2]
+                ],
+                "conditional_guidance": {
+                    "confidence": conditional_guidance.get("confidence", "LOW"),
+                    "recommendations": conditional_guidance.get("recommendations", []),
+                    "supporting_evidence": conditional_guidance.get("supporting_evidence", [])[:3]
+                },
+                "recent_patterns": recent_patterns
+            }
+            
+            return insights
+            
+        except Exception as e:
+            print(f"Error gathering learning insights for strategy: {e}")
+            return None
+    
+    def _analyze_recent_patterns(self, recent_learnings: List[Dict]) -> Dict:
+        """Analyze patterns in recent learnings for strategy insights."""
+        if not recent_learnings:
+            return {"pattern": "no_data"}
+            
+        # Get last 5 learnings
+        last_5 = recent_learnings[-5:] if len(recent_learnings) >= 5 else recent_learnings
+        
+        # Count learning types
+        learning_types = {}
+        evidence_strengths = {}
+        accuracies = []
+        
+        for learning in last_5:
+            ltype = learning.get("learning_type", "unknown")
+            learning_types[ltype] = learning_types.get(ltype, 0) + 1
+            
+            strength = learning.get("evidence_strength", "WEAK")
+            evidence_strengths[strength] = evidence_strengths.get(strength, 0) + 1
+            
+            accuracy = learning.get("performance_data", {}).get("accuracy", 0)
+            if accuracy > 0:
+                accuracies.append(accuracy)
+        
+        # Determine dominant pattern
+        if learning_types.get("SUCCESSFUL_PATTERN", 0) >= 2:
+            pattern = "multiple_successes"
+        elif learning_types.get("COMPLEXITY_MISMATCH", 0) >= 2:
+            pattern = "complexity_issues"
+        elif learning_types.get("IMPLEMENTATION_BUG", 0) >= 2:
+            pattern = "implementation_issues"
+        elif all(acc < 0.3 for acc in accuracies) and len(accuracies) >= 3:
+            pattern = "consistent_failures"
+        elif any(acc > 0.6 for acc in accuracies):
+            pattern = "mixed_with_successes"
+        else:
+            pattern = "mixed_results"
+            
+        return {
+            "pattern": pattern,
+            "learning_types": learning_types,
+            "evidence_strengths": evidence_strengths,
+            "recent_accuracy_range": f"{min(accuracies):.2f}-{max(accuracies):.2f}" if accuracies else "N/A",
+            "sample_size": len(last_5)
+        }
+    
+    def _generate_learning_context_for_script_generation(self, learning_insights: Dict, 
+                                                       strategy_mode: str, 
+                                                       complexity_recommendation: str) -> str:
+        """
+        Generate structured learning context to guide script generation.
+        
+        Args:
+            learning_insights: Structured learning insights from _gather_learning_insights_for_strategy
+            strategy_mode: Current strategy (explore/exploit/refine)
+            complexity_recommendation: Current complexity recommendation
+            
+        Returns:
+            str: Formatted learning context for script prompts
+        """
+        if not learning_insights:
+            return ""
+            
+        context = "\nSTRUCTURED LEARNING INSIGHTS FOR SCRIPT GENERATION:\n"
+        
+        # Add successful patterns if available
+        successful_patterns = learning_insights.get("successful_patterns", [])
+        if successful_patterns:
+            context += "\n✅ PROVEN SUCCESSFUL APPROACHES:\n"
+            for pattern in successful_patterns[:2]:  # Limit to top 2
+                arch_pattern = pattern.get("conditions", {}).get("architectural_pattern", "unknown")
+                llm_pattern = pattern.get("conditions", {}).get("llm_integration_pattern", "unknown")
+                accuracy = pattern.get("accuracy", 0)
+                evidence = pattern.get("evidence_strength", "WEAK")
+                
+                context += f"  - {arch_pattern} + {llm_pattern}: {accuracy:.2f} accuracy ({evidence} evidence)\n"
+                context += f"    Lesson: {pattern.get('lesson', '')[:80]}...\n"
+        
+        # Add complexity mismatch warnings
+        complexity_mismatches = learning_insights.get("complexity_mismatches", [])
+        if complexity_mismatches:
+            context += "\n⚠️  COMPLEXITY MISMATCH WARNINGS:\n"
+            for mismatch in complexity_mismatches[:2]:
+                issue = mismatch.get("complexity_issue", "unknown")
+                arch_pattern = mismatch.get("architectural_pattern", "unknown")
+                context += f"  - AVOID {arch_pattern} (causes {issue}): {mismatch.get('lesson', '')[:60]}...\n"
+        
+        # Add implementation lessons
+        implementation_issues = learning_insights.get("implementation_issues", [])
+        if implementation_issues:
+            context += "\n🔧 IMPLEMENTATION LESSONS:\n"
+            for issue in implementation_issues[:2]:
+                quality = issue.get("implementation_quality", "unknown")
+                improvements = issue.get("improvement_opportunities", [])
+                context += f"  - Fix {quality} quality: {', '.join(improvements[:2])}\n"
+        
+        # Add partial successes for refinement
+        partial_successes = learning_insights.get("partial_successes", [])
+        if partial_successes and strategy_mode == "refine":
+            context += "\n🔄 PARTIAL SUCCESSES TO BUILD ON:\n"
+            for partial in partial_successes[:2]:
+                arch_pattern = partial.get("architectural_pattern", "unknown")
+                accuracy = partial.get("accuracy", 0)
+                improvements = partial.get("improvement_opportunities", [])
+                context += f"  - {arch_pattern} ({accuracy:.2f} accuracy): {', '.join(improvements[:2])}\n"
+        
+        # Add conditional guidance
+        conditional_guidance = learning_insights.get("conditional_guidance", {})
+        if conditional_guidance.get("recommendations"):
+            context += "\n🎯 CONDITIONAL RECOMMENDATIONS:\n"
+            confidence = conditional_guidance.get("confidence", "LOW")
+            context += f"  Confidence: {confidence}\n"
+            for rec in conditional_guidance.get("recommendations", [])[:2]:
+                context += f"  - {rec}\n"
+        
+        # Add recent pattern analysis
+        recent_patterns = learning_insights.get("recent_patterns", {})
+        pattern_type = recent_patterns.get("pattern", "mixed_results")
+        if pattern_type != "mixed_results":
+            context += f"\n📊 RECENT PATTERN: {pattern_type.upper()}\n"
+            if pattern_type == "multiple_successes":
+                context += "  - Build on recent successful approaches\n"
+            elif pattern_type == "complexity_issues":
+                context += f"  - Focus on {complexity_recommendation.lower()}ing approach complexity\n"
+            elif pattern_type == "implementation_issues":
+                context += "  - Prioritize implementation quality and error handling\n"
+            elif pattern_type == "consistent_failures":
+                context += "  - Try fundamentally different approaches\n"
+        
+        # Strategy-specific guidance
+        context += f"\n🎲 {strategy_mode.upper()} STRATEGY GUIDANCE:\n"
+        if strategy_mode == "explore":
+            context += "  - Try approaches NOT seen in successful patterns above\n"
+            context += "  - Avoid patterns that caused complexity mismatches\n"
+            context += "  - Test new architectural patterns or LLM integration styles\n"
+        elif strategy_mode == "exploit":
+            context += "  - Combine elements from successful patterns above\n"
+            context += "  - Avoid architectural patterns that caused mismatches\n"
+            context += "  - Focus on proven approaches with HIGH evidence strength\n"
+        elif strategy_mode == "refine":
+            context += "  - Build on partial successes and implement improvements\n"
+            context += "  - Fix implementation issues identified above\n"
+            context += "  - Address specific complexity mismatches\n"
+        
+        context += "\n"
+        return context
 
     def evaluate_answer_with_llm(self, system_answer: str, golden_answer: str) -> Dict:
         """Use LLM to determine if answers are semantically equivalent"""
@@ -2947,10 +3450,14 @@ def main(question):
                 "batch_size": batch_size
             })
 
+        # Gather structured learning insights for strategy optimization
+        structured_learning_insights = self._gather_learning_insights_for_strategy()
+        
         prompt, system_instruction = get_strategy_optimization_prompt(
             current_iteration=self.current_iteration,
             baseline_accuracy=baseline_accuracy,
-            performance_history=performance_data
+            performance_history=performance_data,
+            structured_learning_insights=structured_learning_insights
         )
 
         response = self.call_llm(prompt, system_instruction=system_instruction)
@@ -3356,6 +3863,34 @@ def main(question):
         try:
             json_filename = f"iteration_{self.current_iteration}.json"
             self.save_to_archive(iteration_data, json_filename)
+            
+            # Add structured learning entry
+            try:
+                print("Adding structured learning entry...")
+                dataset_context = {
+                    "type": self.dataset_loader.__class__.__name__,
+                    "has_database": "read_query" in self.dataset_loader.get_required_tools(),
+                    "requires_reasoning": True  # Default assumption
+                }
+                
+                performance_data = {
+                    "accuracy": accuracy,
+                    "success_rate": sum(1 for r in results if r.get("success", False)) / len(results) if results else 0,
+                    "error_count": sum(1 for r in results if not r.get("success", True))
+                }
+                
+                learning_id = self.structured_learning.add_learning(
+                    iteration=self.current_iteration,
+                    script_analysis=evaluation.get("script_analysis", {}),
+                    complexity_assessment=evaluation.get("complexity_assessment", {}),
+                    error_analysis=evaluation.get("error_analysis", {}),
+                    performance_data=performance_data,
+                    dataset_context=dataset_context
+                )
+                print(f"Structured learning added: {learning_id}")
+                
+            except Exception as e:
+                print(f"Warning: Could not add structured learning: {str(e)}")
             
             # Generate human-readable text version
             try:
