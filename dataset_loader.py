@@ -174,7 +174,7 @@ class ARCDatasetLoader(DatasetLoader):
     """Loader for ARC datasets, ensuring standard field names with improved formatting"""
     
     default_evaluator = "llm"
-    required_tools = ["call_llm"]  # ARC only needs LLM calls
+    required_tools = ["call_llm", "execute_code"]  # ARC only needs LLM calls
     tool_config = {}
 
     def _format_grid(self, grid):
