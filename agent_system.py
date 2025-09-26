@@ -3311,46 +3311,55 @@ def main(question):
         if not hasattr(self, 'dataset_loader') or not self.dataset_loader:
             return {"success": False, "error": "No dataset loader available"}
 
-        # Get all seen examples
-        all_samples = []
+        # Get all seen examples with their indices
+        all_samples_with_indices = []
         for example_index in self.seen_examples:
             # Get sample at this index
             try:
                 examples = self.dataset_loader.get_examples(1)
                 if examples:
-                    all_samples.append(examples[0])
+                    all_samples_with_indices.append((example_index, examples[0]))
             except Exception as e:
                 print(f"Error retrieving example {example_index}: {e}")
                 continue
 
-        if not all_samples:
+        if not all_samples_with_indices:
             return {"success": False, "error": "No examples seen yet"}
 
         # Limit to max_examples (most recent)
-        samples = all_samples[-max_examples:] if len(all_samples) > max_examples else all_samples
+        if len(all_samples_with_indices) > max_examples:
+            samples_with_indices = all_samples_with_indices[-max_examples:]
+        else:
+            samples_with_indices = all_samples_with_indices
 
-        print(f"Running progressive testing on {len(samples)} seen examples (out of {len(all_samples)} total seen)...")
+        print(f"Running progressive testing on {len(samples_with_indices)} seen examples (out of {len(all_samples_with_indices)} total seen)...")
 
         # Execute script on selected samples in parallel
         with ThreadPoolExecutor(max_workers=4) as executor:
-            future_to_idx = {executor.submit(self._evaluate_sample, script, sample): i for i, sample in enumerate(samples)}
-            results = [None] * len(samples)
+            future_to_data = {
+                executor.submit(self._evaluate_sample, script, sample): (i, example_id) 
+                for i, (example_id, sample) in enumerate(samples_with_indices)
+            }
+            results = [None] * len(samples_with_indices)
             
-            for future in as_completed(future_to_idx):
-                idx = future_to_idx[future]
-                results[idx] = future.result()
+            for future in as_completed(future_to_data):
+                idx, example_id = future_to_data[future]
+                result = future.result()
+                # Add the example_id to the result
+                result["example_id"] = example_id
+                results[idx] = result
                 if (idx + 1) % 5 == 0:  # Status update every 5 samples
-                    print(f"  Completed {idx + 1}/{len(samples)} samples...")
+                    print(f"  Completed {idx + 1}/{len(samples_with_indices)} samples...")
 
         # Calculate overall statistics
         successful_runs = sum(1 for r in results if r.get("success", False))
         matches = sum(1 for r in results if r.get("match", False))
 
         return {
-            "total_examples": len(samples),
+            "total_examples": len(samples_with_indices),
             "successful_runs": successful_runs,
             "matches": matches,
-            "accuracy": matches / len(samples) if samples else 0,
+            "accuracy": matches / len(samples_with_indices) if samples_with_indices else 0,
             "results": results
         }
 

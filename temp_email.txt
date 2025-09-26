@@ -1,0 +1,245 @@
+# Customer Service Resolution System
+
+## TASK OVERVIEW
+You are a customer service resolution system with advanced database access capabilities. Your job is to analyze incoming support tickets and create a resolution plan. This process requires:
+
+1. **Analyze Customer Issue**: Read the customer email and subject to understand their problem
+2. **Find Customer**: Use the email address to look up customer information in the database
+3. **Locate Orders**: Find relevant orders for the customer
+4. **Get Order Details**: Retrieve complete order information
+5. **Research Policies**: Read company policies to understand applicable rules
+6. **Create Resolution**: Determine appropriate actions based on data and policies
+7. **Assess Escalation**: Decide if manager escalation is required
+
+## REQUIRED OUTPUT FIELDS
+Your primary objective is to correctly determine these core fields:
+- **order_id**: The relevant order identifier  
+- **customer_id**: The customer identifier from database lookup
+- **actions[type]**: List of action types to resolve the issue
+- **escalation_required**: Boolean decision on whether escalation is needed
+- **policy_references**: List of policy IDs that apply to this case
+
+🚨 **CRITICAL**: This task is IMPOSSIBLE without using the provided database and file tools.
+🚨 **CRITICAL**: Customer emails contain limited information - you MUST use the database and policy documents to gather complete context before making decisions.
+All customers and orders exist in the database - there are no missing records.
+
+## ENHANCED DATABASE TOOLS
+You have access to reliable, simplified database functions:
+
+### Primary Database Functions (Recommended)
+# Find customer by email (auto-connects to TicketWorld database)
+customer_data = read_query("SELECT customer_id, name FROM customers WHERE primary_email = 'customer@email.com' OR alternate_email = 'customer@email.com'")
+
+# Get customer's orders
+orders = read_query("SELECT order_id, order_date, total_amount FROM orders WHERE customer_id = 'CUST-0001' ORDER BY order_date DESC")
+
+# Get specific order details
+order_details = read_query("SELECT * FROM orders WHERE order_id = 'ORD-20250224-1008'")
+
+# Explore database structure (if needed)
+tables = list_tables()                    # See available tables
+schema = describe_table("customers")      # Get table structure
+
+### Policy Document Access  
+policy_text = read_file("datasets/ticketworld/company_policy.txt")
+
+### Key Benefits of New Database Tools:
+✅ **Automatic Connection**: No need to specify database path
+✅ **Error Handling**: Clear error messages and validation
+✅ **Consistent Results**: Reliable data formatting
+✅ **Query Safety**: Built-in SQL validation
+✅ **Type Safety**: Proper handling of different data types
+
+🔥 **YOU MUST USE THESE TOOLS** - Accurate resolution requires database lookup and policy research.
+
+## DATABASE SCHEMA
+
+### Table: customers
+- customer_id (TEXT, PRIMARY KEY): Format CUST-XXXX
+- name (TEXT): Customer full name  
+- primary_email (TEXT): Primary email address
+- alternate_email (TEXT): Secondary email address
+- phone (TEXT): Phone number
+- shipping_street, shipping_city, shipping_state, shipping_zip (TEXT): Shipping address
+- billing_street, billing_city, billing_state, billing_zip (TEXT): Billing address
+- created_date (DATE): Account creation date
+
+### Table: orders
+- order_id (TEXT, PRIMARY KEY): Format ORD-YYYYMMDD-XXXX
+- customer_id (TEXT): Links to customers table
+- order_date (DATE): Order placement date
+- items (TEXT): JSON array of order items
+- shipping_method (TEXT): Shipping method used
+- tracking_number (TEXT): Package tracking
+- total_amount (DECIMAL): Total order amount
+- payment_method (TEXT): Payment method
+- order_status (TEXT): Current status
+
+### Table: products
+- product_id (TEXT, PRIMARY KEY): Format PROD-XXXX
+- name (TEXT): Product name
+- category, brand (TEXT): Product classification
+- base_price (DECIMAL): Product price
+- warranty_period (INTEGER): Warranty days
+- weight (DECIMAL): Product weight
+- requires_signature (BOOLEAN): Delivery requirement
+- in_stock (BOOLEAN): Availability status
+- description (TEXT): Product description
+
+## VALID ACTION TYPES
+Choose from these action types only:
+- process_return
+- send_replacement
+- provide_tracking
+- honor_warranty
+- request_photo
+- update_shipping_address
+- cancel_order
+- deny_return
+- deny_refund
+- deny_warranty_claim
+- deny_price_match
+- deny_order_modification
+- deny_cancellation
+- provide_product_information
+- initiate_investigation
+- process_exchange
+- deny_exchange
+- honor_price_match
+- accept_order_modification
+
+
+## WORKING EXAMPLE APPROACH
+Here's a proven workflow that successfully extracts all required information:
+
+### Step 1: Extract Customer Email
+```python
+# Extract email from customer ticket using LLM
+email_prompt = f"Extract the customer email address from this text: {question}. Return only the email address, nothing else."
+customer_email = call_llm(email_prompt).strip()
+```
+
+### Step 2: Find Customer in Database
+```python
+# Look up customer using the extracted email
+customer_data = read_query(f"SELECT customer_id, name, primary_email FROM customers WHERE primary_email = '{customer_email}' OR alternate_email = '{customer_email}'")
+
+# Handle errors and empty results
+if isinstance(customer_data, dict) and 'error' in customer_data:
+    return customer_data
+if not customer_data:
+    return {"error": "Customer not found"}
+
+customer = customer_data[0]
+customer_id = customer['customer_id']
+customer_name = customer['name']
+```
+
+### Step 3: Get Most Recent Order
+```python
+# Find customer's most recent order (realistic approach - customers rarely mention order IDs)
+order_data = read_query(f"SELECT order_id, customer_id, order_date, total_amount, order_status FROM orders WHERE customer_id = '{customer_id}' ORDER BY order_date DESC LIMIT 1")
+
+if isinstance(order_data, dict) and 'error' in order_data:
+    return order_data
+if not order_data:
+    return {"error": "No orders found"}
+
+order = order_data[0]
+order_id = order['order_id']
+```
+
+### NOTE: the customer may have made multiple orders, so you need to find the relevant order discussed in the email.
+
+### Step 4: Read Company Policies
+```python
+# Access policy document for decision making
+policy_content = read_file("datasets/ticketworld/company_policy.txt")
+if "Error:" in policy_content:
+    policy_summary = "Unable to read policy file"
+else:
+    policy_summary = "Return policy available"
+```
+
+### Step 5: Generate Final Resolution
+```python
+# Create comprehensive prompt with all gathered information
+resolution_prompt = f'''
+Reason carefully over the following information to create a customer service resolution plan:
+
+Customer: {customer_name} ({customer_id})
+Email: {customer_email}
+Order: {order_id}
+Order Date: {order['order_date']}
+Order Status: {order['order_status']}
+Order Amount: ${order['total_amount']}
+
+Customer Issue: {question}
+
+Policy Information: {policy_summary}
+
+Reference the policy document, order information, and customer issue to determine:
+- Appropriate actions to take
+- Whether escalation is required
+- Which policies apply to this situation
+
+Create a JSON response with these fields:
+- order_id
+- customer_id  
+- actions (list of action types)
+- escalation_required (boolean)
+- policy_references (list of policy IDs)
+
+Format as valid JSON.
+'''
+
+resolution = call_llm(resolution_prompt)
+```
+
+### Key Success Patterns:
+✅ **Always extract email first** - Most reliable starting point
+✅ **Use most recent order** - More realistic than expecting order IDs in emails  
+✅ **Handle all error cases** - Check for database errors and empty results
+✅ **Gather complete context** - Get customer, order, and policy information before deciding
+✅ **Use structured prompting** - Provide all context to LLM for final reasoning
+
+ ## OUTPUT FORMAT
+ Provide ONLY the essential fields as a JSON object:
+ 
+ ```json
+ {
+   "order_id": "ORD-YYYYMMDD-XXXX",
+   "customer_id": "CUST-XXXX", 
+   "actions": ["action_type1", "action_type2"],
+   "escalation_required": true/false,
+   "policy_references": ["POL-XXX-XXX", "POL-YYY-YYY"]
+ }
+ ```
+ 
+ These are the ONLY fields required. Do not include additional fields - focus on getting these core decisions correct.
+
+---
+
+## CUSTOMER TICKET TO RESOLVE
+
+**From:** amelia.baker@gmail.com
+**Subject:** Issue with E-Reader PaperView - Purchased just over a year ago  
+**Date:** 2026-04-14T10:30:00
+
+**Message:**
+Dear Customer Support,
+
+I am writing to you regarding an E-Reader PaperView that I purchased from your company. I've been a loyal customer for quite some time, and I've always been very happy with your products.
+
+I believe I purchased this E-Reader just over a year ago, and unfortunately, it has suddenly stopped working. I understand that the warranty period may have just expired, but I was hoping there might be something that can be done. It's disappointing for a product to fail so soon after the warranty period.
+
+Could you please look into this for me? Any assistance you could provide would be greatly appreciated.
+
+Thank you for your time and consideration.
+
+Sincerely,
+Amelia Baker
+
+---
+
+**YOUR TASK:** Write a comprehensive program that uses the database and policy tools to accurately resolve this customer service ticket. Remember: this requires multiple steps of investigation, policy research, reasoning, and decision-making.

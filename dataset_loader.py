@@ -761,6 +761,7 @@ class NaturalPlanDatasetLoader(DatasetLoader):
     """Loader specifically for Natural Plan trip planning datasets"""
     
     default_evaluator = "llm"
+    required_tools = ["call_llm"] 
 
     def _load_examples(self):
         """Load examples from Natural Plan dataset file and convert to universal format"""
