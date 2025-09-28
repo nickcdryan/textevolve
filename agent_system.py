@@ -898,6 +898,39 @@ def main(question):
         return None
 
 
+    def _calculate_combined_accuracy(self, iteration: Dict) -> float:
+        """
+        Calculate combined accuracy for an iteration, considering both batch and progressive testing.
+        
+        Args:
+            iteration: Iteration data dictionary
+            
+        Returns:
+            Combined accuracy as a float, or batch accuracy if no progressive testing
+        """
+        if not iteration:
+            return 0.0
+            
+        batch_acc = iteration.get("performance", {}).get("accuracy", 0)
+        batch_size = iteration.get("batch_size", 5)
+        
+        # Check for progressive testing data
+        progressive_testing = iteration.get("progressive_testing")
+        if not progressive_testing:
+            return batch_acc
+            
+        progressive_accuracy = progressive_testing.get("accuracy")
+        progressive_samples = progressive_testing.get("total_examples", 0)
+        
+        if progressive_accuracy is None or progressive_samples == 0:
+            return batch_acc
+            
+        # Calculate weighted average based on sample counts
+        total_correct = (batch_acc * batch_size) + (progressive_accuracy * progressive_samples)
+        total_samples = batch_size + progressive_samples
+        
+        return total_correct / total_samples if total_samples > 0 else batch_acc
+
     def calculate_performance_context(self, current_accuracy: float) -> Dict:
         """
         Calculate performance context relative to baseline for calibrated decision making.
@@ -1013,7 +1046,7 @@ def main(question):
         # Prepare additional context for the LLM
         context = {
             "iterations_completed": len(summaries),
-            "best_accuracy": best_script_info.get("accuracy", 0) if best_script_info else 0,
+            "best_accuracy": best_script_info.get("combined_accuracy", best_script_info.get("accuracy", 0)) if best_script_info else 0,
             "best_iteration": best_script_info.get("iteration", -1) if best_script_info else -1,
             "current_balance": f"{getattr(self, 'explore_rate', 60)}/{getattr(self, 'exploit_rate', 20)}/{getattr(self, 'refine_rate', 20)}",
             "total_examples_seen": len(self.seen_examples)
@@ -1163,22 +1196,26 @@ def main(question):
         # ==== HISTORICAL ANALYSIS ====
         best_scripts = []
         if iterations:
+            # Sort by combined accuracy (batch + progressive testing) instead of batch accuracy only
             for iteration in sorted(
                     iterations,
-                    key=lambda x: x.get('performance', {}).get('accuracy', 0),
+                    key=lambda x: self._calculate_combined_accuracy(x),
                     reverse=True)[:3]:
-                if iteration.get('script') and iteration.get(
-                        'performance', {}).get('accuracy', 0) > 0:
+                if iteration.get('script') and self._calculate_combined_accuracy(iteration) > 0:
+                    combined_acc = self._calculate_combined_accuracy(iteration)
+                    batch_acc = iteration.get('performance', {}).get('accuracy', 0)
                     best_scripts.append({
                         "iteration":
                         iteration.get('iteration'),
-                        "accuracy":
-                        iteration.get('performance', {}).get('accuracy', 0),
+                        "accuracy": batch_acc,  # Keep for backward compatibility
+                        "combined_accuracy": combined_acc,  # Add the combined accuracy
                         "approach_summary":
                         iteration.get('approach_summary',
                                       'No summary available'),
                         "performance":
-                        iteration.get('performance', {})
+                        iteration.get('performance', {}),
+                        "progressive_testing":
+                        iteration.get('progressive_testing', {})
                     })
 
         # Get top performing scripts for exploitation instead of just the best one
@@ -1310,8 +1347,20 @@ def main(question):
                     break
 
 
-        # Historical context summary
-        best_accuracy_str = f"{best_scripts[0].get('accuracy', 0):.2f} (iteration {best_scripts[0].get('iteration')})" if               best_scripts else "None"
+        # Historical context summary - use combined accuracy for more accurate representation
+        if best_scripts:
+            best_script = best_scripts[0]
+            combined_acc = best_script.get('combined_accuracy', best_script.get('accuracy', 0))
+            batch_acc = best_script.get('accuracy', 0)
+            iteration_num = best_script.get('iteration')
+            
+            # Show both combined and batch accuracy for transparency
+            if 'combined_accuracy' in best_script and best_script['combined_accuracy'] != batch_acc:
+                best_accuracy_str = f"{combined_acc:.2f} combined ({batch_acc:.2f} batch) (iteration {iteration_num})"
+            else:
+                best_accuracy_str = f"{batch_acc:.2f} (iteration {iteration_num})"
+        else:
+            best_accuracy_str = "None"
         
         ### BUILD SCRIPT PROMPT ###
         
@@ -1491,8 +1540,14 @@ def main(question):
             top_scripts_analysis = ""
             if top_scripts_to_exploit:
                 for i, script_info in enumerate(top_scripts_to_exploit):
-                    accuracy_value = script_info.get('accuracy', 0)
-                    accuracy_str = f"{accuracy_value:.2f}"
+                    batch_acc = script_info.get('accuracy', 0)
+                    combined_acc = script_info.get('combined_accuracy', batch_acc)
+                    
+                    # Show both combined and batch accuracy for transparency
+                    if combined_acc != batch_acc:
+                        accuracy_str = f"{combined_acc:.2f} combined ({batch_acc:.2f} batch)"
+                    else:
+                        accuracy_str = f"{batch_acc:.2f}"
     
                     script_content = script_info.get('script', 'No script available')
     
@@ -1500,6 +1555,14 @@ def main(question):
                     top_scripts_analysis += f"Iteration: {script_info.get('iteration', 'Unknown')}\n"
                     top_scripts_analysis += f"Accuracy: {accuracy_str}\n"
                     top_scripts_analysis += f"Approach Summary: {script_info.get('approach_summary', 'No summary available')}\n"
+                    
+                    # Add progressive testing info if available
+                    prog_testing = script_info.get('progressive_testing', {})
+                    if prog_testing and prog_testing.get('total_examples', 0) > 0:
+                        prog_acc = prog_testing.get('accuracy', 0)
+                        prog_samples = prog_testing.get('total_examples', 0)
+                        top_scripts_analysis += f"Progressive Testing: {prog_acc:.2f} accuracy on {prog_samples} examples\n"
+                    
                     top_scripts_analysis += f"\nFULL SCRIPT CODE:\n```python\n{script_content}\n```\n"
 
             prompt = get_exploit_instructions(
