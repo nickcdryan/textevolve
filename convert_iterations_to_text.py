@@ -134,22 +134,39 @@ def wrap_list_item(line, width=TEXT_WIDTH, base_indent=0):
         return [wrapped]
 
 
-def format_customer_email(sample_meta):
-    """Extract and format the original customer email from sample metadata."""
-    if not sample_meta:
-        return "No customer email available"
+def format_input_data(sample_meta, sample_question):
+    """Extract and format the input data from sample metadata and question."""
+    if not sample_meta and not sample_question:
+        return "No input data available"
     
-    email = sample_meta.get('original_customer_email', 'N/A')
-    subject = sample_meta.get('original_subject', 'N/A')
-    body = sample_meta.get('original_body', 'N/A')
-    timestamp = sample_meta.get('original_timestamp', 'N/A')
+    # Start with basic metadata info
+    lines = []
     
-    return f"""Customer Email: {email}
-Subject: {subject}
-Timestamp: {timestamp}
-
-Message Body:
-{wrap_text(body)}"""
+    if sample_meta:
+        # Add source information if available
+        source = sample_meta.get('source', 'Unknown')
+        filename = sample_meta.get('filename', 'N/A')
+        lines.append(f"Source: {source}")
+        lines.append(f"File: {filename}")
+        
+        # Add any other metadata fields that might be present
+        for key, value in sample_meta.items():
+            if key not in ['source', 'filename'] and value:
+                # Format key name nicely
+                formatted_key = key.replace('_', ' ').title()
+                lines.append(f"{formatted_key}: {value}")
+    
+    if lines:
+        lines.append("")  # Add blank line before input
+    
+    # Add the actual input/question
+    lines.append("Input:")
+    if sample_question:
+        lines.append(wrap_text(str(sample_question)))
+    else:
+        lines.append("No input question available")
+    
+    return "\n".join(lines)
 
 
 def format_json_response(json_str):
@@ -307,12 +324,13 @@ def convert_iteration_to_text(json_file_path, output_file_path):
         lines.append("=" * 60)
         lines.append("")
         
-        # Customer Email (from metadata if available)
-        if i < len(samples_metadata):
-            lines.append("CUSTOMER EMAIL:")
-            lines.append("-" * 20)
-            lines.append(format_customer_email(samples_metadata[i]))
-            lines.append("")
+        # Input Data (from metadata and sample if available)
+        sample_meta = samples_metadata[i] if i < len(samples_metadata) else None
+        sample_question = sample.get('question', '')
+        lines.append("INPUT DATA:")
+        lines.append("-" * 20)
+        lines.append(format_input_data(sample_meta, sample_question))
+        lines.append("")
         
         # Expected Answer
         lines.append("EXPECTED ANSWER:")
@@ -351,6 +369,63 @@ def convert_iteration_to_text(json_file_path, output_file_path):
                 lines.append(f"Confidence: {confidence}")
                 lines.append(f"Reasoning: {wrap_text(explanation, width=TEXT_WIDTH-10)}")
             lines.append("")
+    
+    # Progressive Testing Results
+    progressive_testing = data.get('progressive_testing', {})
+    if progressive_testing:
+        lines.append("=" * 80)
+        lines.append("PROGRESSIVE TESTING RESULTS")
+        lines.append("=" * 80)
+        lines.append("")
+        
+        # Summary information
+        total_examples = progressive_testing.get('total_examples', 0)
+        successful_runs = progressive_testing.get('successful_runs', 0)
+        matches = progressive_testing.get('matches', 0)
+        accuracy = progressive_testing.get('accuracy', 0)
+        
+        lines.append(f"Total Examples: {total_examples}")
+        lines.append(f"Successful Runs: {successful_runs}")
+        lines.append(f"Matches: {matches}")
+        lines.append(f"Accuracy: {accuracy:.2%}")
+        lines.append("")
+        
+        # Individual results
+        prog_results = progressive_testing.get('results', [])
+        if prog_results:
+            lines.append("INDIVIDUAL RESULTS:")
+            lines.append("-" * 40)
+            
+            for i, prog_result in enumerate(prog_results):
+                lines.append(f"Progressive Test {i + 1}:")
+                
+                if prog_result.get('success', False):
+                    answer = prog_result.get('answer', 'No answer available')
+                    lines.append("System Output:")
+                    lines.append(format_json_response(answer))
+                    lines.append("")
+                    
+                    # Evaluation
+                    evaluation = prog_result.get('evaluation', {})
+                    if evaluation:
+                        is_match = prog_result.get('match', False)
+                        confidence = evaluation.get('confidence', 'N/A')
+                        explanation = evaluation.get('explanation', 'No explanation available')
+                        
+                        lines.append(f"Match: {'✓ YES' if is_match else '✗ NO'}")
+                        lines.append(f"Confidence: {confidence}")
+                        lines.append(f"Reasoning: {wrap_text(explanation, width=TEXT_WIDTH-10)}")
+                else:
+                    lines.append("EXECUTION FAILED")
+                    error_msg = prog_result.get('error', 'Unknown error')
+                    output_msg = prog_result.get('output', 'No output available')
+                    lines.append(f"Error: {error_msg}")
+                    lines.append(f"Output: {output_msg}")
+                
+                lines.append("")
+                lines.append("-" * 40)
+        
+        lines.append("")
     
     # Error Analysis
     performance = data.get('performance', {})

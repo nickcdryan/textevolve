@@ -10,36 +10,43 @@ It also includes a tool registry system that allows datasets to specify which to
 they need, enabling dynamic prompt generation and import header configuration.
 """
 
+from llm_client import LLMClientFactory
+
+# Module-level inference LLM client (lazy initialization)
+_inference_llm_client = None
+
+def _get_inference_client():
+    """Get or create the inference LLM client (lazy initialization)"""
+    global _inference_llm_client
+    if _inference_llm_client is None:
+        _inference_llm_client = LLMClientFactory.create_inference_client()
+    return _inference_llm_client
+
+def set_inference_llm_model(model: str = None, provider: str = None):
+    """
+    Set the inference LLM model (allows runtime configuration)
+    
+    Args:
+        model: Model identifier (e.g., "gemini-2.0-flash")
+        provider: Provider name (e.g., "gemini")
+    """
+    global _inference_llm_client
+    _inference_llm_client = LLMClientFactory.create_inference_client(
+        model=model,
+        provider=provider
+    )
+
 def call_llm(prompt, system_instruction=None):
     """Execute LLM API calls with proper error handling"""
     try:
-        from google import genai
-        from google.genai import types
-        import os
-
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.5-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                #thinking_config=types.ThinkingConfig(thinking_budget=0), # Disables thinking
-                contents=prompt
-            )
-
-        return response.text
+        client = _get_inference_client()
+        return client.generate(
+            prompt=prompt,
+            system_instruction=system_instruction,
+            thinking_budget=0
+        )
     except Exception as e:
-        print("Error calling Gemini API: " + str(e))
+        print("Error calling inference LLM: " + str(e))
         return "Error: " + str(e)
 
 

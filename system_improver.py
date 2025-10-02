@@ -51,8 +51,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
 # Import required dependencies for LLM calling
-from google import genai
-from google.genai import types
+from llm_client import LLMClientFactory
 
 
 class SystemImprover:
@@ -92,12 +91,12 @@ class SystemImprover:
         self.create_backup = create_backup
         self.improvement_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # Initialize LLM client
+        # Initialize orchestrator LLM client
         try:
-            self.client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-            print("Initialized Gemini API client successfully")
+            self.orchestrator_llm = LLMClientFactory.create_orchestrator_client()
+            print(f"Initialized orchestrator LLM client: {self.orchestrator_llm.get_model_name()}")
         except Exception as e:
-            print(f"Error initializing Gemini API client: {e}")
+            print(f"Error initializing orchestrator LLM client: {e}")
             print("Make sure to set the GEMINI_API_KEY environment variable")
             sys.exit(1)
 
@@ -2181,7 +2180,7 @@ Make sure to provide the exact text to find and replace for each change.
 
     def _call_llm(self, prompt: str, system_instruction: str = None) -> str:
         """
-        Call the LLM API with a prompt and system instruction.
+        Call the orchestrator LLM API with a prompt and system instruction.
 
         Args:
             prompt: The prompt text
@@ -2191,21 +2190,14 @@ Make sure to provide the exact text to find and replace for each change.
             LLM response text
         """
         try:
-            # Configure system instruction if provided
-            config = None
-            if system_instruction:
-                config = types.GenerateContentConfig(system_instruction=system_instruction)
-
-            response = self.client.models.generate_content(
-                model="gemini-1.5-pro",
-                config=config,
-                contents=prompt
+            return self.orchestrator_llm.generate(
+                prompt=prompt,
+                system_instruction=system_instruction,
+                thinking_budget=0
             )
 
-            return response.text
-
         except Exception as e:
-            print(f"Error calling LLM: {e}")
+            print(f"Error calling orchestrator LLM: {e}")
             return f"Error: {str(e)}"
 
     def _create_analysis_prompt(self, system_data: Dict) -> str:

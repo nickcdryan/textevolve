@@ -1067,9 +1067,18 @@ def process_factual_input(input_text, analysis):
 
     return call_llm(factual_prompt)
 
-def call_llm(prompt, system=None):
-    """Interface to LLM API with optional system prompt"""
-    # Implementation would call an actual LLM API
+def call_llm(prompt, system_instruction=None):
+    """
+    Interface to LLM API - provided by the system.
+    
+    Args:
+        prompt: The prompt to send to the LLM
+        system_instruction: Optional system instruction
+    
+    Returns:
+        str: The LLM's response
+    """
+    # This function is automatically available - implementation injected at runtime
     pass
 ```
 

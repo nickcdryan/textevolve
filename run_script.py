@@ -20,7 +20,8 @@ from dataset_loader import create_dataset_loader
 # Fixed random seed for reproducibility (if shuffling is enabled)
 RANDOM_SEED = 42
 
-def run_agent(iterations: int, loader_config: Dict, use_sandbox: bool = False) -> None:
+def run_agent(iterations: int, loader_config: Dict, use_sandbox: bool = False, 
+               orchestrator_llm: str = None, inference_llm: str = None) -> None:
     """
     Run the agent system for the specified number of iterations.
 
@@ -28,7 +29,14 @@ def run_agent(iterations: int, loader_config: Dict, use_sandbox: bool = False) -
         iterations: Number of iterations to run
         loader_config: Configuration for dataset loader
         use_sandbox: Whether to use Docker sandbox for code execution
+        orchestrator_llm: Optional orchestrator LLM model name
+        inference_llm: Optional inference LLM model name
     """
+    # Set inference LLM model if specified
+    if inference_llm:
+        os.environ["INFERENCE_LLM_MODEL"] = inference_llm
+        print(f"Inference LLM model set to: {inference_llm}")
+    
     # Create the appropriate dataset loader
     try:
         loader_type = loader_config.pop("loader_type")
@@ -36,7 +44,11 @@ def run_agent(iterations: int, loader_config: Dict, use_sandbox: bool = False) -
         print(f"Created {loader_type} dataset loader with {dataset_loader.get_total_count()} examples")
 
         # Initialize the agent system with the dataset loader
-        agent = AgentSystem(dataset_loader=dataset_loader, use_sandbox=use_sandbox)
+        agent = AgentSystem(
+            dataset_loader=dataset_loader, 
+            use_sandbox=use_sandbox,
+            orchestrator_llm_model=orchestrator_llm
+        )
     except Exception as e:
         print(f"Error initializing system: {e}")
         sys.exit(1)
@@ -215,7 +227,7 @@ def parse_arguments():
             "--loader",
             "-l",
             type=str,
-            choices=["arc", "json", "jsonl", "simpleqa", "custom", "natural_plan", "hotpotqa", "math", "gpqa", "ticketworld", "ticketworld_simple"],  
+            choices=["arc", "json", "jsonl", "simpleqa", "custom", "natural_plan", "hotpotqa", "math", "gpqa", "medmcqa", "ticketworld", "ticketworld_simple"],  
             default="arc",
             help="Type of dataset loader to use (default: arc)")
 
@@ -282,6 +294,23 @@ def parse_arguments():
         action="store_true",
         help="Enable Docker sandbox for code execution (default: False)")
 
+    # LLM configuration options
+    parser.add_argument(
+        "--orchestrator-llm",
+        type=str,
+        default=None,
+        help="Orchestrator LLM model name (e.g., gemini-2.5-flash, gemini-1.5-pro). "
+             "Used for generating feedback, learnings, and scripts. "
+             "Overrides ORCHESTRATOR_LLM_MODEL environment variable.")
+    
+    parser.add_argument(
+        "--inference-llm",
+        type=str,
+        default=None,
+        help="Inference LLM model name (e.g., gemini-2.0-flash, gemini-1.5-flash). "
+             "Used for script execution and problem solving. "
+             "Overrides INFERENCE_LLM_MODEL environment variable.")
+
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -329,4 +358,10 @@ if __name__ == "__main__":
         })
 
     # Run the agent
-    run_agent(args.iterations, loader_config, use_sandbox=args.sandbox)
+    run_agent(
+        args.iterations, 
+        loader_config, 
+        use_sandbox=args.sandbox,
+        orchestrator_llm=args.orchestrator_llm,
+        inference_llm=args.inference_llm
+    )

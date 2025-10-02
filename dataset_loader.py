@@ -957,6 +957,156 @@ D) {all_answers[3][0]}
             raise ValueError(f"Error loading GPQA dataset: {e}")
 
 
+class MedMCQADatasetLoader(DatasetLoader):
+    """Loader specifically for MedMCQA medical multiple choice datasets"""
+    
+    default_evaluator = "llm"
+    required_tools = ["call_llm"]  # MedMCQA only needs LLM calls
+    tool_config = {}
+
+    def __init__(self,
+                 dataset_path: str,
+                 shuffle_choices: bool = True,
+                 **kwargs):
+        """
+        Initialize MedMCQA dataset loader
+
+        Args:
+            dataset_path: Path to MedMCQA JSON/JSONL file
+            shuffle_choices: Whether to shuffle answer choices to prevent bias
+            **kwargs: Other arguments passed to parent class (shuffle, random_seed, etc.)
+        """
+        self.shuffle_choices = shuffle_choices
+        super().__init__(dataset_path, **kwargs)
+
+    def _load_examples(self):
+        """Load examples from MedMCQA dataset file with shuffled answer choices"""
+        # Set random seed for reproducible choice shuffling
+        choice_random = random.Random(self.random_seed) if hasattr(
+            self, 'random_seed') else random.Random(42)
+
+        try:
+            examples = []
+            
+            # Handle both JSON and JSONL formats
+            if self.dataset_path.endswith('.jsonl'):
+                # JSONL format - one JSON object per line
+                with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                    for line_num, line in enumerate(f):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            data = json.loads(line)
+                            example = self._process_medmcqa_item(data, line_num, choice_random)
+                            if example:
+                                examples.append(example)
+                        except json.JSONDecodeError:
+                            print(f"Warning: Invalid JSON on line {line_num+1}, skipping")
+                        except Exception as e:
+                            print(f"Warning: Error processing line {line_num+1}: {e}")
+            else:
+                # JSON format - list of objects or single object
+                with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                if isinstance(data, list):
+                    for idx, item in enumerate(data):
+                        example = self._process_medmcqa_item(item, idx, choice_random)
+                        if example:
+                            examples.append(example)
+                elif isinstance(data, dict):
+                    example = self._process_medmcqa_item(data, 0, choice_random)
+                    if example:
+                        examples.append(example)
+                else:
+                    raise ValueError("MedMCQA dataset must be a JSON object or array")
+
+            self.examples = examples
+            
+            if not self.examples:
+                raise ValueError("No valid examples found in MedMCQA dataset")
+
+            print(f"Loaded {len(self.examples)} examples from MedMCQA dataset")
+            if self.shuffle_choices:
+                print("Answer choices are shuffled to prevent bias")
+
+        except Exception as e:
+            raise ValueError(f"Error loading MedMCQA dataset: {e}")
+
+    def _process_medmcqa_item(self, item, item_num, choice_random):
+        """Process a single MedMCQA item"""
+        question = item.get('question', '').strip()
+        option_a = item.get('opa', '').strip()
+        option_b = item.get('opb', '').strip()
+        option_c = item.get('opc', '').strip()
+        option_d = item.get('opd', '').strip()
+        correct_option_index = item.get('cop', -1)  # 0=A, 1=B, 2=C, 3=D
+        
+        # Skip items with missing data
+        if not question or not all([option_a, option_b, option_c, option_d]) or correct_option_index < 0 or correct_option_index > 3:
+            print(f"Warning: Skipping item {item_num} due to missing or invalid data")
+            return None
+
+        # Create list of all answers with their correctness
+        all_answers = [
+            (option_a, 0 == correct_option_index),
+            (option_b, 1 == correct_option_index),
+            (option_c, 2 == correct_option_index),
+            (option_d, 3 == correct_option_index)
+        ]
+
+        # Shuffle the answers to prevent bias (if enabled)
+        if self.shuffle_choices:
+            choice_random.shuffle(all_answers)
+
+        # Find which position the correct answer ended up in
+        correct_position = None
+        for i, (answer_text, is_correct) in enumerate(all_answers):
+            if is_correct:
+                correct_position = ['A', 'B', 'C', 'D'][i]
+                break
+
+        # Format the question with answer choices
+        formatted_question = f"""Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.
+
+{question}
+
+A) {all_answers[0][0]}
+B) {all_answers[1][0]}
+C) {all_answers[2][0]}
+D) {all_answers[3][0]}
+"""
+
+        # Create standardized example
+        example = {
+            "id": item.get("id", f"medmcqa_{item_num}"),
+            "question": formatted_question,  # Standard field: "question"
+            "answer": correct_position,  # Standard field: "answer" - the letter (A/B/C/D)
+            "meta": {
+                "source": "MedMCQA",
+                "filename": os.path.basename(self.dataset_path),
+                "item_number": item_num,
+                "original_question": question,
+                "original_options": {
+                    "A": option_a,
+                    "B": option_b, 
+                    "C": option_c,
+                    "D": option_d
+                },
+                "original_correct_index": correct_option_index,
+                "correct_position": correct_position,
+                "subject_name": item.get("subject_name", ""),
+                "topic_name": item.get("topic_name", ""),
+                "explanation": item.get("exp", ""),
+                "choice_type": item.get("choice_type", "single"),
+                "shuffled": self.shuffle_choices
+            }
+        }
+
+        return example
+
+
 class TicketWorldDatasetLoader(DatasetLoader):
     """Loader specifically for TicketWorld customer service datasets"""
     
@@ -1880,6 +2030,8 @@ def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
         return MathDatasetLoader(**kwargs)
     elif loader_type.lower() == "gpqa":
         return GPQADatasetLoader(**kwargs)
+    elif loader_type.lower() == "medmcqa":
+        return MedMCQADatasetLoader(**kwargs)
     elif loader_type.lower() == "ticketworld":
         return TicketWorldDatasetLoader(**kwargs)
     elif loader_type.lower() == "ticketworld_simple":

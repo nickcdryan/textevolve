@@ -15,13 +15,12 @@ import importlib.util  # Added for simplified execution
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from google import genai
-from google.genai import types  # Added import for GenerateContentConfig
 import numpy as np
 
 from sandbox import DockerSandbox, check_docker_available
 from system_tools import call_llm, call_database, read_file, search_file, execute_code
 from evaluators import create_evaluator
+from llm_client import LLMClientFactory
 
 from prompts.data_analyzer import get_dataset_analysis_prompt
 from prompts.batch_size_optimizer import get_batch_size_optimization_prompt
@@ -81,13 +80,14 @@ class AgentSystem:
     Now supports custom dataset loaders.
     """
 
-    def __init__(self, dataset_loader=None, use_sandbox=True):
+    def __init__(self, dataset_loader=None, use_sandbox=True, orchestrator_llm_model=None):
         """
         Initialize the agent system with a dataset loader
 
         Args:
             dataset_loader: A DatasetLoader instance for loading and processing examples
             use_sandbox: Whether to use Docker sandbox for code execution (default: True)
+            orchestrator_llm_model: Optional model name for orchestrator LLM (overrides env var)
         """
         # Initialize configuration
         self.explore_rate = 60  # Start with exploration focus
@@ -132,7 +132,7 @@ class AgentSystem:
             self.evaluator.set_llm_caller(self.call_llm)
 
         # Initialize batch size and tracking for seen examples
-        self.current_batch_size = 3  # Start with a small batch
+        self.current_batch_size = 4  # Start with a small batch
         self.baseline_batch_size = 10
         self.seen_examples = set()
         self.examples_processed = 0
@@ -152,13 +152,14 @@ class AgentSystem:
         self.system_prompt = self._load_system_prompt()
         print(f"System prompt loaded: {len(self.system_prompt)} characters")
 
-        # Initialize Gemini API client
+        # Initialize orchestrator LLM client
         try:
-            self.client = genai.Client(
-                api_key=os.environ.get("GEMINI_API_KEY"))
-            print("Gemini API client initialized successfully")
+            self.orchestrator_llm = LLMClientFactory.create_orchestrator_client(
+                model=orchestrator_llm_model
+            )
+            print(f"Orchestrator LLM client initialized: {self.orchestrator_llm.get_model_name()}")
         except Exception as e:
-            print(f"Error initializing Gemini API client: {e}")
+            print(f"Error initializing orchestrator LLM client: {e}")
             print("Make sure to set the GEMINI_API_KEY environment variable")
             raise
 
@@ -419,21 +420,18 @@ class AgentSystem:
                 print("No previous state found. Starting from iteration 0.")
     
     def call_llm(self, prompt: str, system_instruction: str = None) -> str:
-        """Call the Gemini LLM with a prompt and return the response"""
+        """Call the orchestrator LLM with a prompt and return the response"""
         try:
-            # Use provided system instruction or default to the loaded system prompt
+            # Use provided system instruction or default to empty string
             sys_instruction = system_instruction if system_instruction is not None else ""
-
-            response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                config=types.GenerateContentConfig(
-                    system_instruction=sys_instruction,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
-                    ),
-                contents=prompt)
-            return response.text
+            
+            return self.orchestrator_llm.generate(
+                prompt=prompt,
+                system_instruction=sys_instruction,
+                thinking_budget=0  # Disables thinking
+            )
         except Exception as e:
-            print(f"Error calling Gemini API: {e}")
+            print(f"Error calling orchestrator LLM: {e}")
             return f"Error: {str(e)}"
 
     def load_dataset(self) -> Dict:
@@ -839,35 +837,9 @@ class AgentSystem:
         Returns:
             Simple baseline script as a string
         """
-        baseline_script = '''import os
-from google import genai
-from google.genai import types
-
-def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response"""
-    try:
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
-
-        return response.text
-    except Exception as e:
-        print(f"Error calling Gemini API: {str(e)}")
-        return f"Error: {str(e)}"
+        baseline_script = '''# Baseline script: Simple direct LLM call without sophisticated techniques.
+# This establishes the baseline performance capability for this dataset.
+# The call_llm function is provided by system_tools and uses the configured inference LLM.
 
 def main(question):
     """
@@ -876,7 +848,7 @@ def main(question):
     """
     system_instruction = "You are a helpful assistant. Answer the question directly and concisely based on the information provided."
 
-    # Simple, direct call to LLM
+    # Simple, direct call to LLM (uses configured inference LLM)
     answer = call_llm(question, system_instruction)
 
     return answer
@@ -1517,7 +1489,22 @@ def main(question):
         script_generator_system_instruction = f"{self.system_prompt}\n\nYou are now acting as a Script Generator for an {strategy_mode} task. Your goal is to create a Python script that uses LLM-driven agentic approaches with chain-of-thought reasoning, agentic LLM patterns, and python to solve the problem examples provided."
 
 
-        gemini_api_example = 'def call_llm(prompt, system_instruction=None):\n    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""\n    try:\n        from google import genai\n        from google.genai import types\n\n        # Initialize the Gemini client\n        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))\n\n        # Call the API with system instruction if provided\n        if system_instruction:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash", \n                config=types.GenerateContentConfig(\n                    system_instruction=system_instruction\n                ),\n                contents=prompt\n            )\n        else:\n            response = client.models.generate_content(\n                model="gemini-2.0-flash",\n                contents=prompt\n            )\n\n        return response.text\n    except Exception as e:\n        print(f"Error calling Gemini API: {str(e)}")\n        return f"Error: {str(e)}"'
+        gemini_api_example = '''def call_llm(prompt, system_instruction=None):
+    """
+    Call the LLM with a prompt and return the response.
+    This function is provided by the system and handles all LLM interactions.
+    DO NOT redefine this function or invent configuration options.
+    
+    Args:
+        prompt: The prompt to send to the LLM
+        system_instruction: Optional system instruction to guide the LLM's behavior
+    
+    Returns:
+        str: The LLM's response
+    """
+    # This function is automatically available - just call it directly
+    # The system handles the LLM client initialization and API calls
+    pass  # Implementation is injected at runtime'''
 
 
         # Create appropriate prompt based on strategy
@@ -1531,7 +1518,6 @@ def main(question):
                 capability_context=capability_context,
                 complexity_context=complexity_context,
                 structured_learning_context=structured_learning_context,
-                llm_api_example=gemini_api_example
             )
         elif strategy_mode == "exploit":
             # Exploitation prompt - combine strengths from multiple top scripts
@@ -1573,7 +1559,6 @@ def main(question):
                 capability_context=capability_context,
                 complexity_context=complexity_context,
                 structured_learning_context=structured_learning_context,
-                llm_api_example=gemini_api_example
             )
 
         elif strategy_mode == "refine":
@@ -1628,8 +1613,8 @@ def main(question):
                                              learning_context=learning_context, 
                                              capability_context=capability_context, 
                                              complexity_context=complexity_context,
-                                             structured_learning_context=structured_learning_context,
-                                             llm_api_example=gemini_api_example)
+                                             structured_learning_context=structured_learning_context)
+                                             
 
 
         
@@ -1718,7 +1703,7 @@ def main(question):
 
                 Generate a complete, runnable Python script that:
                 1. Has a main function that takes a question string as input and returns the answer string
-                2. Makes multiple LLM calls for different reasoning steps using the Gemini API
+                2. Makes multiple LLM calls for different reasoning steps 
                 3. Has proper error handling
                 4. Includes a concrete example in EACH LLM prompt
 

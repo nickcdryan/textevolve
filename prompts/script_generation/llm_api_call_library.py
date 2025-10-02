@@ -23,38 +23,29 @@ def call_llm(prompt, system_instruction=None):
     return response.output[0].content[0].text
 
 
-# GEMINI
+# LLM API CALL - SYSTEM PROVIDED
 
 def call_llm(prompt, system_instruction=None):
-    """Call the Gemini LLM with a prompt and return the response. DO NOT deviate from this example template or invent configuration options. This is how you call the LLM."""
-    try:
-        from google import genai
-        from google.genai import types
-        import os  # Import the os module
-
-        # Initialize the Gemini client
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-        # Call the API with system instruction if provided
-        if system_instruction:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
-                ),
-                contents=prompt
-            )
-        else:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt
-            )
-
-        return response.text
-    except Exception as e:
-        print(f"Error calling Gemini API: {str(e)}")
-        return f"Error: {str(e)}"
+    """
+    Call the LLM with a prompt and return the response.
+    This function is provided by the system and handles all LLM interactions.
+    DO NOT redefine this function or invent configuration options.
+    
+    Args:
+        prompt: The prompt to send to the LLM
+        system_instruction: Optional system instruction to guide the LLM's behavior
+    
+    Returns:
+        str: The LLM's response
+    
+    Usage:
+        response = call_llm("What is 2+2?")
+        response = call_llm("Solve this problem", system_instruction="You are a math expert")
+    """
+    # This function is automatically available in generated scripts
+    # The system handles the LLM client initialization and API calls
+    # Just call it directly - implementation is injected at runtime
+    pass
 
 
 # Temperature with gemini:

@@ -2,7 +2,7 @@ import json
 
 def get_explore_instructions(example_problems, historical_context, last_scripts_context, 
                            learning_context, capability_context, complexity_context, 
-                           structured_learning_context, llm_api_example):
+                           structured_learning_context):
     """
     Generate exploration-specific instructions and context.
 
@@ -14,7 +14,6 @@ def get_explore_instructions(example_problems, historical_context, last_scripts_
         capability_context: Capability assessment and improvement guidance
         complexity_context: Complexity assessment and guidance for appropriate approach level
         structured_learning_context: Structured learning insights to guide approach selection
-        gemini_api_example: Standard API usage example
 
     Returns:
         str: Complete exploration prompt
@@ -78,8 +77,7 @@ EXPLORATION GUIDANCE:
    - If it is unknown how successful a processing state or part of the pipeline is, include verification steps to different parts of the pipeline in order to help deduce which parts are successful and where the system is breaking
    - Answer checkers to validate the final answer against the problem statement. If the answer is incorrect, the checker can send the answer back to an earlier part of the system for for refinement with feedback
 
-Here's how to call the Gemini API. Use this example without modification and don't invent configuration options:
-{llm_api_example}
+
 
 Since this is an EXPLORATION phase:
 - Try a fundamentally different approach to reasoning about the problem. Test a NEW HYPOTHESIS or variable, and add verification steps to deduce if this new change is helpful.
@@ -120,7 +118,7 @@ BE EXTREMELY CAREFUL TO PROPERLY CLOSE ALL STRING QUOTES AND TRIPLE QUOTES!
 
 def get_exploit_instructions(example_problems, historical_context, top_scripts_analysis, 
        learning_context, capability_context, complexity_context, 
-       structured_learning_context, llm_api_example):
+       structured_learning_context):
    """
    Generate exploitation-specific instructions and context.
    
@@ -132,7 +130,6 @@ def get_exploit_instructions(example_problems, historical_context, top_scripts_a
    capability_context: Capability assessment and improvement guidance
    complexity_context: Complexity assessment and guidance for appropriate approach level
    structured_learning_context: Structured learning insights to guide approach selection
-   gemini_api_example: Standard API usage example
    
    Returns:
    str: Complete exploitation prompt
@@ -199,8 +196,6 @@ def get_exploit_instructions(example_problems, historical_context, top_scripts_a
    4. The hybrid should be more robust than any individual approach
    5. Address the weaknesses identified in the capability assessment through synthesis
    
-   Here's how to call the Gemini API. Use this example without modification:
-   {llm_api_example}
    
    SYNTHESIS IMPLEMENTATION:
    - Create a main function that orchestrates the combined approach
@@ -225,7 +220,7 @@ def get_exploit_instructions(example_problems, historical_context, top_scripts_a
 
 def get_refine_instructions(example_problems, historical_context, best_script_to_refine,
       best_script_successes, best_script_errors, learning_context, 
-      capability_context, complexity_context, structured_learning_context, llm_api_example):
+      capability_context, complexity_context, structured_learning_context):
    """
    Generate refinement-specific instructions and context.
    
@@ -239,7 +234,6 @@ def get_refine_instructions(example_problems, historical_context, best_script_to
    capability_context: Capability assessment and improvement guidance
    complexity_context: Complexity assessment and guidance for appropriate approach level
    structured_learning_context: Structured learning insights to guide approach selection
-   gemini_api_example: Standard API usage example
    
    Returns:
    str: Complete refinement prompt
@@ -316,8 +310,6 @@ def get_refine_instructions(example_problems, historical_context, best_script_to
    5. EVERY LLM PROMPT must include embedded examples
    6. Test your hypothesis with additional verification
    
-   Here's how to call the Gemini API. Use this example without modification:
-   {llm_api_example}
    
    REFINEMENT IMPLEMENTATION:
    State Your Hypothesis: Clearly comment what specific weakness you're addressing and how

@@ -39,10 +39,10 @@ def check_and_install_dependencies():
     return True
 
 def call_llm(prompt):
-    """Call the Gemini LLM with a prompt and return the response"""
+    """Call the LLM with a prompt and return the response"""
     try:
-        from google import genai
-
+        from llm_client import LLMClientFactory
+        
         # Check for API key
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
@@ -50,21 +50,21 @@ def call_llm(prompt):
             print("Please set it with: export GEMINI_API_KEY=your_key_here")
             return "No API key available."
 
-        # Initialize the Gemini client
-        client = genai.Client(api_key=api_key)
+        # Create a client for this utility script
+        client = LLMClientFactory.create_inference_client()
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt
+        response = client.generate(
+            prompt=prompt,
+            thinking_budget=0
         )
 
-        return response.text
-    except ImportError:
-        print("Google Generative AI package not installed.")
-        print("To install: pip install google-generativeai")
-        return "Unable to call LLM: google-generativeai package not installed."
+        return response
+    except ImportError as e:
+        print(f"Import error: {e}")
+        print("Make sure required packages are installed.")
+        return "Unable to call LLM: missing dependencies."
     except Exception as e:
-        print(f"Error calling Gemini API: {str(e)}")
+        print(f"Error calling LLM: {str(e)}")
         return f"Error: {str(e)}"
 
 class MainFlowAnalyzer(ast.NodeVisitor):
