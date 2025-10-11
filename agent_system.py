@@ -80,7 +80,7 @@ class AgentSystem:
     Now supports custom dataset loaders.
     """
 
-    def __init__(self, dataset_loader=None, use_sandbox=True, orchestrator_llm_model=None):
+    def __init__(self, dataset_loader=None, use_sandbox=True, orchestrator_llm_model=None, skip_training_setup=False):
         """
         Initialize the agent system with a dataset loader
 
@@ -88,6 +88,7 @@ class AgentSystem:
             dataset_loader: A DatasetLoader instance for loading and processing examples
             use_sandbox: Whether to use Docker sandbox for code execution (default: True)
             orchestrator_llm_model: Optional model name for orchestrator LLM (overrides env var)
+            skip_training_setup: If True, skip training example reservation and dataset analysis (for validation)
         """
         # Initialize configuration
         self.explore_rate = 60  # Start with exploration focus
@@ -171,19 +172,19 @@ class AgentSystem:
         else:
             print("No existing learnings found. Will start accumulating learnings.")
 
-        # ADDED: Reserve training examples to prevent data leakage
-        self.mark_training_examples()
-
-
+        # ADDED: Reserve training examples to prevent data leakage (skip for validation)
+        if not skip_training_setup:
+            self.mark_training_examples()
 
         # Initialize current iteration
         self.current_iteration = 0
 
-        # Load previous iterations if available
-        self._load_previous_state()
+        # Load previous iterations if available (skip for validation)
+        if not skip_training_setup:
+            self._load_previous_state()
 
-        # analyze training examples and add to learnings if cold start
-        if self.current_iteration == 0:
+        # analyze training examples and add to learnings if cold start (skip for validation)
+        if not skip_training_setup and self.current_iteration == 0:
             self.analyze_dataset_with_llm()
 
 

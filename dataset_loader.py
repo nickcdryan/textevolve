@@ -28,7 +28,7 @@ class DatasetLoader:
     def __init__(self,
                  dataset_path: str,
                  shuffle: bool = True,
-                 random_seed: int = 42,
+                 random_seed: int = 41,
                  evaluator: str = None):
         """
         Initialize the dataset loader
@@ -171,18 +171,51 @@ class DatasetLoader:
 
 
 class ARCDatasetLoader(DatasetLoader):
-    """Loader for ARC datasets, ensuring standard field names with improved formatting"""
+    """Loader for ARC datasets with configurable formatting styles
+    
+    Format styles available:
+    - "visual_brackets": Formatted with brackets and commas (original, more visual)
+    - "visual_clean": Space-separated values, no brackets (o3-style)  
+    - "json_direct": Raw JSON with instructions (easiest for programmatic access)
+    
+    To switch formats, simply change the format_style class variable:
+        ARCDatasetLoader.format_style = "json_direct"
+        loader = ARCDatasetLoader(dataset_path="datasets/ARC_2024_Training")
+    
+    All formats preserve the same instructions and metadata, only the data representation changes.
+    The json_direct format makes it easy for programs to use json.loads() to parse the data.
+    """
+    
+    # Change this class variable to switch between formatting styles
+    format_style = "visual_brackets"  # Options: "visual_brackets", "visual_clean", "json_direct"
     
     default_evaluator = "llm"
     required_tools = ["call_llm", "execute_code"]  # ARC only needs LLM calls
     tool_config = {}
 
-    def _format_grid(self, grid):
-        """Format a grid in a more visually readable way"""
+    def _format_grid_brackets(self, grid):
+        """Format a grid with brackets and commas (original visual style)"""
         formatted = []
         for row in grid:
             formatted.append("[" + ", ".join(str(cell) for cell in row) + "]")
         return "[\n  " + "\n  ".join(formatted) + "\n]"
+    
+    def _format_grid_clean(self, grid):
+        """Format a grid in o3 style: space-separated values, no brackets/commas"""
+        return '\n'.join(' '.join(map(str, row)) for row in grid)
+    
+    def _format_grid_json(self, grid):
+        """Format a grid as compact JSON"""
+        return json.dumps(grid)
+    
+    def _format_grid(self, grid):
+        """Format a grid according to the selected format_style"""
+        if self.format_style == "visual_clean":
+            return self._format_grid_clean(grid)
+        elif self.format_style == "json_direct":
+            return self._format_grid_json(grid)
+        else:  # "visual_brackets" or default
+            return self._format_grid_brackets(grid)
 
     def _process_arc_file(self, file_path):
         """Process a single ARC JSON file"""
@@ -202,10 +235,34 @@ class ARCDatasetLoader(DatasetLoader):
                     test_case = test_cases[
                         0]  # Usually there's just one test case
 
-                    # Format training examples
-                    examples_text = ""
-                    for i, example in enumerate(train_examples, 1):
-                        examples_text += f"""Example {i}:
+                    # Format question based on selected format_style
+                    if self.format_style == "json_direct":
+                        # JSON-direct format: provide raw data structure with instructions
+                        task_data_structure = {
+                            "train": train_examples,
+                            "test": [{"input": test_case.get('input')}]
+                        }
+                        question_str = f"""Grid Transformation Task
+
+You are given a pattern recognition task. The training examples show input-output pairs that follow a transformation rule. Your goal is to find the pattern and apply it to the test input.
+
+The data is provided in JSON format for easy programmatic access. You can use json.loads() to parse it.
+
+```json
+{json.dumps(task_data_structure, indent=2)}
+```
+
+Instructions:
+- Analyze the training examples to identify the transformation rule
+- Apply the discovered rule to the test input
+- Return the output as a 2D grid (list of lists with integers)
+
+Transform the test input according to the pattern shown in the training examples."""
+                    else:
+                        # Visual formats (brackets or clean)
+                        examples_text = ""
+                        for i, example in enumerate(train_examples, 1):
+                            examples_text += f"""Example {i}:
 Input Grid:
 {self._format_grid(example['input'])}
 
@@ -213,25 +270,19 @@ Output Grid:
 {self._format_grid(example['output'])}
 
 """
-
-                    # Format as a visually structured question
-                    question_str = f"""Grid Transformation Task
+                        question_str = f"""Grid Transformation Task
 
 === TRAINING EXAMPLES ===
 
-{examples_text}=== TEST INPUT ===
+{examples_text}
+
+=== TEST INPUT ===
+
+Input Grid:
 {self._format_grid(test_case.get('input'))}
 
 Transform the test input according to the pattern shown in the training examples.
 """
-
-                    # Add learnings if available
-                    # try:
-                    #     with open('learnings.txt', 'r') as l:
-                    #         learnings = l.read()
-                    #     question_str = "\n\n Here are the learnings from previous iterations: \n\n" + learnings + "\n\n" + question_str
-                    # except:
-                    #     pass
 
                     # For the answer, keep the same format for consistency
                     test_output_json = json.dumps(test_case.get("output"),
@@ -244,7 +295,8 @@ Transform the test input according to the pattern shown in the training examples
                         "answer": test_output_json,
                         "meta": {
                             "source": "ARC",
-                            "filename": os.path.basename(file_path)
+                            "filename": os.path.basename(file_path),
+                            "format": self.format_style
                         }
                     }
 
@@ -279,10 +331,110 @@ Transform the test input according to the pattern shown in the training examples
             raise ValueError("No valid examples found in dataset")
 
         self.examples = examples
-        print(f"Loaded {len(self.examples)} examples from ARC dataset")
+        print(f"Loaded {len(self.examples)} examples from ARC dataset (format: {self.format_style})")
 
     # The get_example_input and get_example_output methods are inherited from the base class
     # and already use the standard field names "question" and "answer"
+
+
+# class ARCDatasetLoader(DatasetLoader):
+#     """Loader for ARC datasets using o3-style visual formatting (no commas, space-separated)"""
+    
+#     default_evaluator = "llm"
+#     required_tools = ["call_llm", "execute_code"]
+#     tool_config = {}
+
+#     def _format_grid(self, grid):
+#         """Format a grid in o3 style: space-separated values, newlines for rows, no brackets/commas"""
+#         return '\n'.join(' '.join(map(str, row)) for row in grid)
+
+#     def _process_arc_file(self, file_path):
+#         """Process a single ARC JSON file"""
+#         try:
+#             with open(file_path, 'r', encoding='utf-8') as f:
+#                 problem_data = json.load(f)
+
+#             problem_id = os.path.basename(file_path).replace(".json", "")
+
+#             # Process each task as a separate example
+#             if "train" in problem_data and "test" in problem_data:
+#                 train_examples = problem_data.get("train", [])
+#                 test_cases = problem_data.get("test", [])
+
+#                 # Only process if we have both training examples and test case
+#                 if train_examples and test_cases:
+#                     test_case = test_cases[0]  # Usually there's just one test case
+
+#                     # Format training examples in o3 style
+#                     examples_text = ""
+#                     for i, example in enumerate(train_examples, 1):
+#                         examples_text += f"""Example {i}
+# Input:
+# {self._format_grid(example['input'])}
+
+# Output:
+# {self._format_grid(example['output'])}
+
+# """
+
+#                     # Format as a clean, visual question
+#                     question_str = f"""Find the common rule that maps an input grid to an output grid, given the examples below.
+
+# {examples_text}Test Input:
+# {self._format_grid(test_case.get('input'))}
+
+# Test Output:"""
+
+#                     # For the answer, use the same visual format (no JSON)
+#                     answer_str = self._format_grid(test_case.get("output"))
+
+#                     # Create the example with STANDARD field names
+#                     task_data = {
+#                         "id": f"arc_{problem_id}",
+#                         "question": question_str.strip(),
+#                         "answer": answer_str,
+#                         "meta": {
+#                             "source": "ARC",
+#                             "filename": os.path.basename(file_path),
+#                             "format": "o3_visual"
+#                         }
+#                     }
+
+#                     return task_data
+#         except Exception as e:
+#             print(f"Warning: Error processing {file_path}: {e}")
+
+#         return None
+
+#     def _load_examples(self):
+#         """Load examples from ARC dataset directory or file"""
+#         examples = []
+
+#         if os.path.isdir(self.dataset_path):
+#             # Directory of JSON files
+#             json_files = glob.glob(os.path.join(self.dataset_path, "*.json"))
+#             if not json_files:
+#                 raise ValueError(
+#                     f"No JSON files found in directory: {self.dataset_path}")
+
+#             for file_path in json_files:
+#                 task_data = self._process_arc_file(file_path)
+#                 if task_data:
+#                     examples.append(task_data)
+#         else:
+#             # Single JSON file
+#             task_data = self._process_arc_file(self.dataset_path)
+#             if task_data:
+#                 examples.append(task_data)
+
+#         if not examples:
+#             raise ValueError("No valid examples found in dataset")
+
+#         self.examples = examples
+#         print(f"Loaded {len(self.examples)} examples from ARC dataset (o3 visual format)")
+
+#     # The get_example_input and get_example_output methods are inherited from the base class
+#     # and already use the standard field names "question" and "answer"
 
 
 class HotpotQADatasetLoader(DatasetLoader):

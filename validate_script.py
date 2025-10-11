@@ -44,7 +44,7 @@ def main():
     parser.add_argument("--dataset", "-f", type=str, required=True,
                         help="Path to dataset file or directory")
     parser.add_argument("--loader", "-l", type=str, 
-                        choices=["arc", "json", "jsonl", "custom", "simpleqa", "natural_plan", "hotpotqa", "math", "gpqa"],
+                        choices=["arc", "json", "jsonl", "custom", "simpleqa", "natural_plan", "hotpotqa", "math", "gpqa", "medmcqa", "ticketworld", "ticketworld_simple"],
                         default="arc",
                         help="Type of dataset loader to use (default: arc)")
 
@@ -69,6 +69,11 @@ def main():
                         help="Disable dataset shuffling (default: False)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for dataset shuffling (default: 42)")
+    
+    # Evaluator options
+    parser.add_argument("--evaluator", "-ev", type=str, 
+                        choices=["llm", "f1", "exact_match", "exact", "ticketworld"],
+                        help="Override the default evaluator for this dataset type")
 
     # LLM configuration options
     parser.add_argument(
@@ -117,6 +122,10 @@ def main():
         "shuffle": not args.no_shuffle,
         "random_seed": args.seed
     }
+    
+    # Add evaluator override if specified
+    if args.evaluator:
+        loader_config["evaluator"] = args.evaluator
 
     # Add loader-specific parameters
     if args.loader == "json":
@@ -143,10 +152,11 @@ def main():
         dataset_loader = create_dataset_loader(**loader_config)
         print(f"Loaded dataset with {dataset_loader.get_total_count()} examples")
 
-        # Initialize agent system with dataset loader
+        # Initialize agent system with dataset loader (skip training setup for validation)
         agent = AgentSystem(
             dataset_loader=dataset_loader,
-            orchestrator_llm_model=args.orchestrator_llm
+            orchestrator_llm_model=args.orchestrator_llm,
+            skip_training_setup=True
         )
     except Exception as e:
         print(f"Error initializing agent system: {e}")
@@ -158,6 +168,7 @@ def main():
     print(f"\nValidating script: {script_path}")
     print(f"Example range: {args.start} to {args.end}")
     print(f"Dataset: {args.dataset} (using {args.loader} loader)")
+    print(f"Evaluator: {dataset_loader.get_evaluator()}" + (" (overridden)" if args.evaluator else f" (default for {args.loader})"))
 
     # Load the script content
     try:
@@ -251,6 +262,14 @@ def main():
     # Get model information
     orchestrator_model = os.environ.get("ORCHESTRATOR_LLM_MODEL", "default")
     inference_model = os.environ.get("INFERENCE_LLM_MODEL", "default")
+    
+    # Get evaluator information
+    evaluator_type = dataset_loader.get_evaluator()
+    evaluator_info = {
+        "type": evaluator_type,
+        "overridden": args.evaluator is not None,
+        "default_for_dataset": dataset_loader.__class__.default_evaluator if hasattr(dataset_loader.__class__, 'default_evaluator') else "llm"
+    }
 
     # Create comprehensive result object with metadata
     validation_result = {
@@ -268,6 +287,7 @@ def main():
                 "orchestrator_llm": orchestrator_model,
                 "inference_llm": inference_model
             },
+            "evaluator": evaluator_info,
             "arguments": vars(args),
             "loader_config": loader_config
         },
@@ -293,6 +313,7 @@ def main():
     print("\n=== Validation Results ===")
     print(f"Inference Model: {inference_model}")
     print(f"Orchestrator Model: {orchestrator_model}")
+    print(f"Evaluator: {evaluator_type}" + (" (overridden)" if evaluator_info['overridden'] else f" (default for {args.loader})"))
     print(f"Total examples: {validation_result['summary']['total_examples']}")
     print(f"Successful runs: {validation_result['summary']['successful_runs']}")
     print(f"Correct answers: {validation_result['summary']['matches']}")
