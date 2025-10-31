@@ -2151,12 +2151,98 @@ Format as valid JSON.
 
 
 
+class HealthBenchDatasetLoader(DatasetLoader):
+    """Loader specifically for HealthBench medical conversation datasets with rubric-based evaluation"""
+    
+    default_evaluator = "healthbench"
+    required_tools = ["call_llm"]  # HealthBench only needs LLM calls
+    tool_config = {}
+
+    def _load_examples(self):
+        """Load examples from HealthBench JSONL dataset file"""
+        try:
+            examples = []
+            with open(self.dataset_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f):
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        # Parse the JSON object from this line
+                        data = json.loads(line)
+
+                        # Extract the required fields
+                        prompt_id = data.get("prompt_id", f"healthbench_{line_num}")
+                        prompt = data.get("prompt", [])
+                        rubrics = data.get("rubrics", [])
+                        tags = data.get("example_tags", [])
+
+                        # Skip if missing required fields
+                        if not prompt or not rubrics:
+                            print(f"Warning: Skipping {prompt_id} - missing prompt or rubrics")
+                            continue
+
+                        # Format the conversation from the prompt
+                        # The prompt is a list of message objects with "role" and "content"
+                        conversation_text = ""
+                        last_user_message = ""
+                        
+                        for msg in prompt:
+                            role = msg.get("role", "")
+                            content = msg.get("content", "")
+                            
+                            if role == "user":
+                                conversation_text += f"User: {content}\n\n"
+                                last_user_message = content
+                            elif role == "assistant":
+                                conversation_text += f"Assistant: {content}\n\n"
+                        
+                        # The question is the full conversation context
+                        # For HealthBench, the task is to respond to the last user message
+                        formatted_question = f"""You are a helpful medical AI assistant. Below is a conversation with a user. Please respond to the user's most recent message.
+
+{conversation_text.strip()}
+
+Provide a helpful, accurate, and contextually appropriate response to the user's latest message."""
+
+                        # Create standardized example with universal field names
+                        examples.append({
+                            "id": prompt_id,
+                            "question": formatted_question,  # Standard field: "question"
+                            "answer": "",  # No reference answer - evaluation is rubric-based
+                            "meta": {
+                                "source": "HealthBench",
+                                "line_number": line_num,
+                                "tags": tags,
+                                "rubrics": rubrics,  # Store rubrics for evaluation
+                                "original_prompt": prompt,
+                                "ideal_completions_data": data.get("ideal_completions_data", {}),
+                                "last_user_message": last_user_message
+                            }
+                        })
+
+                    except json.JSONDecodeError:
+                        print(f"Warning: Invalid JSON on line {line_num+1}, skipping")
+                    except Exception as e:
+                        print(f"Warning: Error processing line {line_num+1}: {e}")
+
+            self.examples = examples
+            print(f"Loaded {len(examples)} examples from HealthBench dataset")
+
+            if not self.examples:
+                raise ValueError("No valid examples found in HealthBench dataset")
+
+        except Exception as e:
+            raise ValueError(f"Error loading HealthBench dataset: {e}")
+
+
 def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
     """
     Create a dataset loader of the specified type
 
     Args:
-        loader_type: Type of loader to create ("arc", "json", "jsonl", "simpleqa", "natural_plan", "ticketworld", or "custom")
+        loader_type: Type of loader to create ("arc", "json", "jsonl", "simpleqa", "natural_plan", "ticketworld", "healthbench", or "custom")
         **kwargs: Additional arguments to pass to the loader constructor
 
     Returns:
@@ -2188,6 +2274,8 @@ def create_dataset_loader(loader_type: str, **kwargs) -> DatasetLoader:
         return TicketWorldDatasetLoader(**kwargs)
     elif loader_type.lower() == "ticketworld_simple":
         return TicketWorldSimpleDatasetLoader(**kwargs)
+    elif loader_type.lower() == "healthbench":
+        return HealthBenchDatasetLoader(**kwargs)
     elif loader_type.lower() == "custom":
         from dataset_loader import CustomDatasetLoader
         return CustomDatasetLoader(**kwargs)

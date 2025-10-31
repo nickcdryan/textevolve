@@ -338,6 +338,179 @@ Return only a JSON object with: {{"match": true/false, "confidence": 0-1, "expla
             }
 
 
+class HealthBenchEvaluator(Evaluator):
+    """
+    Evaluator for HealthBench dataset using rubric-based evaluation.
+    
+    As specified in the HealthBench paper:
+    - For each rubric criterion, determine if the response meets it
+    - If met: award full points (can be positive or negative)
+    - If not met: award 0 points
+    - Sum all points and divide by max possible score
+    - Final score is clipped to [0, 1]
+    """
+    
+    def __init__(self, llm_caller=None):
+        """
+        Initialize with LLM caller function.
+        If None, will need to be set before use.
+        """
+        self.llm_caller = llm_caller
+    
+    def set_llm_caller(self, llm_caller):
+        """Set the LLM calling function (injected from AgentSystem)"""
+        self.llm_caller = llm_caller
+    
+    def _evaluate_criterion(self, system_answer: str, criterion: str) -> bool:
+        """
+        Use LLM to determine if the system answer meets a specific criterion.
+        
+        Args:
+            system_answer: The response to evaluate
+            criterion: The criterion description
+            
+        Returns:
+            bool: True if criterion is met, False otherwise
+        """
+        prompt = f"""You are evaluating a medical AI assistant's response against a specific criterion.
+
+CRITERION TO EVALUATE:
+{criterion}
+
+SYSTEM RESPONSE:
+{system_answer}
+
+Does the system response meet this criterion? Answer with ONLY "YES" or "NO".
+
+If the criterion describes something the response should do or include, answer YES if the response does it.
+If the criterion describes something the response should NOT do (a negative criterion), answer YES if the response violates this rule (meaning points should be deducted).
+
+Answer: """
+        
+        try:
+            response = self.llm_caller(prompt, system_instruction="You are evaluating medical responses against specific criteria. Answer only YES or NO.")
+            response = response.strip().upper()
+            
+            # Extract YES or NO from response
+            if "YES" in response:
+                return True
+            elif "NO" in response:
+                return False
+            else:
+                # Default to False if unclear
+                print(f"Warning: Unclear LLM response for criterion evaluation: {response}")
+                return False
+                
+        except Exception as e:
+            print(f"Error evaluating criterion: {e}")
+            return False
+    
+    def evaluate(self, system_answer: str, golden_answer: str, context: Optional[Dict] = None) -> Dict[str, Any]:
+        """
+        Evaluate using HealthBench rubric-based scoring.
+        
+        Args:
+            system_answer: The system's response
+            golden_answer: Not used (HealthBench uses rubrics, not reference answers)
+            context: Must contain rubrics in 'meta' dictionary
+            
+        Returns:
+            Dict with evaluation results including per-example score
+        """
+        
+        if not self.llm_caller:
+            raise ValueError("LLM caller not set. Call set_llm_caller() first.")
+        
+        # Extract rubrics from context (they are stored in meta)
+        if not context:
+            raise ValueError("Context is required for HealthBench evaluation")
+        
+        meta = context.get('meta', {})
+        rubrics = meta.get('rubrics', [])
+        
+        if not rubrics:
+            return {
+                "match": False,
+                "confidence": 0.0,
+                "explanation": "No rubrics provided for evaluation",
+                "evaluator_type": "healthbench",
+                "score": 0.0,
+                "total_points": 0.0,
+                "max_possible_points": 0.0,
+                "criteria_evaluated": 0
+            }
+        
+        # Calculate max possible score (sum of all positive points)
+        max_possible_score = sum(rubric.get('points', 0) for rubric in rubrics if rubric.get('points', 0) > 0)
+        
+        if max_possible_score == 0:
+            # Edge case: no positive points available
+            return {
+                "match": False,
+                "confidence": 0.0,
+                "explanation": "No positive points available in rubrics",
+                "evaluator_type": "healthbench",
+                "score": 0.0,
+                "total_points": 0.0,
+                "max_possible_points": 0.0,
+                "criteria_evaluated": len(rubrics)
+            }
+        
+        # Evaluate each criterion
+        total_points = 0.0
+        criteria_met = []
+        criteria_not_met = []
+        
+        for rubric in rubrics:
+            criterion = rubric.get('criterion', '')
+            points = rubric.get('points', 0)
+            
+            if not criterion:
+                continue
+            
+            # Check if criterion is met
+            is_met = self._evaluate_criterion(system_answer, criterion)
+            
+            if is_met:
+                total_points += points
+                criteria_met.append({
+                    'criterion': criterion,
+                    'points': points
+                })
+            else:
+                criteria_not_met.append({
+                    'criterion': criterion,
+                    'points': points
+                })
+        
+        # Calculate final score: total_points / max_possible_score, clipped to [0, 1]
+        raw_score = total_points / max_possible_score
+        final_score = max(0.0, min(1.0, raw_score))
+        
+        # Determine match (using 0.5 as threshold)
+        match = final_score >= 0.5
+        
+        # Create detailed explanation
+        explanation = f"HealthBench Score: {final_score:.3f} ({total_points:.1f} / {max_possible_score:.1f} points). "
+        explanation += f"Met {len(criteria_met)} criteria, missed {len(criteria_not_met)} criteria."
+        
+        return {
+            "match": match,
+            "confidence": final_score,
+            "explanation": explanation,
+            "evaluator_type": "healthbench",
+            "score": final_score,
+            "raw_score": raw_score,
+            "total_points": total_points,
+            "max_possible_points": max_possible_score,
+            "criteria_evaluated": len(rubrics),
+            "criteria_met": len(criteria_met),
+            "criteria_not_met": len(criteria_not_met),
+            "criteria_met_details": criteria_met,
+            "criteria_not_met_details": criteria_not_met
+        }
+
+
 def create_evaluator(evaluator_name: str) -> Evaluator:
     """
     Factory function to create evaluator instances.
@@ -357,6 +530,7 @@ def create_evaluator(evaluator_name: str) -> Evaluator:
         "exact_match": ExactMatchEvaluator,
         "exact": ExactMatchEvaluator,  # Alias
         "ticketworld": TicketWorldEvaluator,
+        "healthbench": HealthBenchEvaluator,
     }
     
     if evaluator_name not in evaluators:
@@ -368,4 +542,4 @@ def create_evaluator(evaluator_name: str) -> Evaluator:
 
 def list_available_evaluators() -> List[str]:
     """Return list of available evaluator names"""
-    return ["llm", "f1", "exact_match", "exact", "ticketworld"] 
+    return ["llm", "f1", "exact_match", "exact", "ticketworld", "healthbench"] 

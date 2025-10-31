@@ -227,7 +227,7 @@ def parse_arguments():
             "--loader",
             "-l",
             type=str,
-            choices=["arc", "json", "jsonl", "simpleqa", "custom", "natural_plan", "hotpotqa", "math", "gpqa", "medmcqa", "ticketworld", "ticketworld_simple"],  
+            choices=["arc", "json", "jsonl", "simpleqa", "custom", "natural_plan", "hotpotqa", "math", "gpqa", "medmcqa", "ticketworld", "ticketworld_simple", "healthbench"],  
             default="arc",
             help="Type of dataset loader to use (default: arc)")
 
@@ -236,9 +236,9 @@ def parse_arguments():
         "--evaluator",
         "-e",
         type=str,
-        choices=["llm", "f1", "exact_match", "exact", "ticketworld"],
+        choices=["llm", "f1", "exact_match", "exact", "ticketworld", "healthbench"],
         default=None,
-        help="Evaluator type to use (overrides dataset default). Options: llm, f1, exact_match, ticketworld")
+        help="Evaluator type to use (overrides dataset default). Options: llm, f1, exact_match, ticketworld, healthbench")
 
     # JSON loader options
     parser.add_argument(
