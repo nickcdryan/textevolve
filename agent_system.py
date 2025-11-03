@@ -3354,7 +3354,7 @@ def main(question):
             
         return result
 
-    def run_progressive_testing(self, script: str, max_examples: int = 20) -> Dict:
+    def run_progressive_testing(self, script: str, max_examples: int = 5) -> Dict:
         """Run progressive testing on seen examples, up to a maximum limit"""
         # Load the dataset
         if not hasattr(self, 'dataset_loader') or not self.dataset_loader:
@@ -3403,12 +3403,25 @@ def main(question):
         # Calculate overall statistics
         successful_runs = sum(1 for r in results if r.get("success", False))
         matches = sum(1 for r in results if r.get("match", False))
+        # Generic mean score across examples (binary evaluators provide 0/1, continuous provide [0,1])
+        scores = []
+        for r in results:
+            if not r:
+                continue
+            ev = r.get("evaluation", {})
+            score = ev.get("score")
+            if isinstance(score, (int, float)):
+                scores.append(float(score))
+            else:
+                # Fallback: derive from match
+                scores.append(1.0 if r.get("match", False) else 0.0)
+        mean_score = (sum(scores) / len(scores)) if scores else 0.0
 
         return {
             "total_examples": len(samples_with_indices),
             "successful_runs": successful_runs,
             "matches": matches,
-            "accuracy": matches / len(samples_with_indices) if samples_with_indices else 0,
+            "accuracy": mean_score,
             "results": results
         }
 
@@ -3715,7 +3728,18 @@ def main(question):
         # Calculate basic performance metrics
         successful_runs = sum(1 for r in results if r.get("success", False))
         matches = sum(1 for r in results if r.get("match", False))
-        accuracy = matches / len(samples) if samples else 0
+        # Use mean(score) as accuracy (binary evaluators supply 0/1 scores)
+        scores = []
+        for r in results:
+            if not r:
+                continue
+            ev = r.get("evaluation", {})
+            score = ev.get("score")
+            if isinstance(score, (int, float)):
+                scores.append(float(score))
+            else:
+                scores.append(1.0 if r.get("match", False) else 0.0)
+        accuracy = (sum(scores) / len(scores)) if scores else 0.0
 
         print(f"Performance: {accuracy:.2f} accuracy ({matches}/{len(samples)} correct)")
 
@@ -3789,7 +3813,7 @@ def main(question):
 
             if should_test:
                 print("Script looks promising! Running progressive testing on all seen examples...")
-                progressive_testing_results = self.run_progressive_testing(script, max_examples=20)
+                progressive_testing_results = self.run_progressive_testing(script, max_examples=5)
                 if progressive_testing_results:
                     prog_accuracy = progressive_testing_results.get("accuracy", 0)
                     prog_matches = progressive_testing_results.get("matches", 0)

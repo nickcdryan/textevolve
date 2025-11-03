@@ -25,14 +25,15 @@ def get_progressive_testing_prompt(current_iteration, current_accuracy, current_
    DECISION CRITERIA:
    
    1. BASELINE CALIBRATION:
+   - Do not run progressive testing on the baseline iteration.
    - Compare current accuracy to baseline, not absolute thresholds
    - If baseline was low, moderate improvements might be worth testing
    - If baseline was high, need substantial improvements to justify testing
    
    2. BATCH SIZE CONSIDERATIONS:
-   - Small batches (≤3): Results are very noisy, need strong signals
+   - Small batches (≤3): Results are very noisy, so progressive testing can help provide a clearer picture.
    - Medium batches (4-7): Moderate confidence in results
-   - Large batches (8+): More reliable, lower bar for testing
+   - Large batches (8+): More reliable, so the bar for initiating progressive accuracy is higher
    
    3. PERFORMANCE CONTEXT:
    - Is this significantly better than recent iterations?
@@ -40,7 +41,7 @@ def get_progressive_testing_prompt(current_iteration, current_accuracy, current_
    - Have we done progressive testing recently on similar results?
    
    4. CONSERVATIVE APPROACH:
-   - Only recommend testing for genuinely promising results
+   - Only recommend testing for genuinely promising results that beat the best result so far.
    - Avoid testing marginal improvements or noisy small-batch results
    - Consider opportunity cost of API calls and time
    
@@ -49,14 +50,10 @@ def get_progressive_testing_prompt(current_iteration, current_accuracy, current_
    - Later iterations (6+): More selective, focus on clear improvements
    
    EXAMPLES OF WHEN TO TEST:
-   - Current accuracy is substantially above baseline and recent performance
+   - Current accuracy is substantially above baseline and best performing historical script
    - Results look stable across reasonable batch size
-   - This represents a potential breakthrough approach
-   - We haven't done progressive testing in several iterations
    
    EXAMPLES OF WHEN NOT TO TEST:
-   - Marginal improvement over recent results
-   - Very small batch size with noisy results
    - Similar performance to recent iterations that were already tested
    - Baseline suggests this performance level isn't particularly impressive
    

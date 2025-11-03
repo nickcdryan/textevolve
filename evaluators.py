@@ -88,6 +88,7 @@ class LLMEvaluator(Evaluator):
             return {
                 "match": match,
                 "confidence": confidence,
+                "score": 1.0 if match else 0.0,
                 "explanation": explanation,
                 "evaluator_type": "llm"
             }
@@ -98,6 +99,7 @@ class LLMEvaluator(Evaluator):
             return {
                 "match": exact_match,
                 "confidence": 1.0 if exact_match else 0.0,
+                "score": 1.0 if exact_match else 0.0,
                 "explanation": f"Fallback to exact match comparison due to LLM error: {str(e)}",
                 "evaluator_type": "llm"
             }
@@ -163,7 +165,8 @@ class F1ScoreEvaluator(Evaluator):
         
         return {
             "match": match,
-            "confidence": f1,  # Use F1 score as confidence
+            "confidence": f1,  # Also provide as confidence
+            "score": 1.0 if match else 0.0,  # Binary by default; change here if continuous desired
             "explanation": explanation,
             "evaluator_type": "f1",
             "f1_score": f1,
@@ -211,6 +214,7 @@ class ExactMatchEvaluator(Evaluator):
         return {
             "match": match,
             "confidence": 1.0 if match else 0.0,
+            "score": 1.0 if match else 0.0,
             "explanation": explanation,
             "evaluator_type": "exact_match",
             "case_sensitive": self.case_sensitive,
@@ -323,6 +327,7 @@ Return only a JSON object with: {{"match": true/false, "confidence": 0-1, "expla
             return {
                 "match": result.get("match", False),
                 "confidence": result.get("confidence", 0.0),
+                "score": 1.0 if result.get("match", False) else 0.0,
                 "explanation": result.get("explanation", "No explanation provided"),
                 "evaluator_type": "ticketworld"
             }
@@ -333,6 +338,7 @@ Return only a JSON object with: {{"match": true/false, "confidence": 0-1, "expla
             return {
                 "match": False,
                 "confidence": 0.0,
+                "score": 0.0,
                 "explanation": f"Evaluation failed due to error: {str(e)}",
                 "evaluator_type": "ticketworld"
             }
@@ -511,6 +517,172 @@ Answer: """
         }
 
 
+class HealthBenchOpenAIEvaluator(Evaluator):
+    """
+    Reference-style HealthBench evaluator modeled after OpenAI's simple-evals implementation.
+
+    Key behavior:
+    - Present ALL rubric criteria to the judge in one call
+    - The judge returns a JSON array indicating for each criterion whether it's met
+      (for negative-point criteria, "met" means the violation occurred and the negative
+       points should be applied)
+    - Award full points for criteria marked met (including negative points for violations)
+    - Final score = sum(awarded_points) / sum(positive_points), clipped to [0, 1]
+    - Returns a detailed breakdown compatible with our evaluator interface
+    """
+
+    def __init__(self, llm_caller=None):
+        self.llm_caller = llm_caller
+
+    def set_llm_caller(self, llm_caller):
+        self.llm_caller = llm_caller
+
+    def evaluate(self, system_answer: str, golden_answer: str, context: Optional[Dict] = None) -> Dict[str, Any]:
+        if not self.llm_caller:
+            raise ValueError("LLM caller not set. Call set_llm_caller() first.")
+
+        if not context:
+            raise ValueError("Context is required for HealthBench evaluation")
+
+        meta = context.get('meta', {})
+        rubrics = meta.get('rubrics', [])
+
+        if not rubrics:
+            return {
+                "match": False,
+                "confidence": 0.0,
+                "explanation": "No rubrics provided for evaluation",
+                "evaluator_type": "healthbench_openai",
+                "score": 0.0,
+                "total_points": 0.0,
+                "max_possible_points": 0.0,
+                "criteria_evaluated": 0
+            }
+
+        # Calculate denominator: sum of positive points only
+        max_possible_score = sum(r.get('points', 0) for r in rubrics if r.get('points', 0) > 0)
+        if max_possible_score == 0:
+            return {
+                "match": False,
+                "confidence": 0.0,
+                "explanation": "No positive points available in rubrics",
+                "evaluator_type": "healthbench_openai",
+                "score": 0.0,
+                "total_points": 0.0,
+                "max_possible_points": 0.0,
+                "criteria_evaluated": len(rubrics)
+            }
+
+        # Prepare a compact rubric list for the grader
+        rubric_items = []
+        for idx, r in enumerate(rubrics):
+            rubric_items.append({
+                "index": idx,
+                "points": r.get('points', 0),
+                "criterion": r.get('criterion', '')
+            })
+
+        prompt = f"""
+You are grading a medical assistant's response against rubric criteria for HealthBench.
+
+SYSTEM RESPONSE:
+{system_answer}
+
+RUBRIC CRITERIA:
+Provide a decision for each object:
+```json
+{json.dumps(rubric_items, indent=2)}
+```
+
+Instructions:
+- For each rubric item, set met=true if the response satisfies the criterion.
+- If a criterion is a negative rule (its points value is negative, meaning it describes something the response should NOT do), set met=true only if the response VIOLATES that rule (so the negative points should be applied).
+- Return ONLY valid JSON: an array of objects with fields: index (int), met (bool), and optional reason (string).
+
+Output JSON schema example:
+[
+  {{"index": 0, "met": true, "reason": "Mentions 2-2.4 inches"}},
+  {{"index": 1, "met": false}},
+  ...
+]
+"""
+
+        try:
+            response = self.llm_caller(prompt, system_instruction="You are a precise grader. Return strictly valid JSON with boolean 'met' decisions.")
+            text = response.strip()
+            if text.startswith("```json"):
+                text = text.split("```json", 1)[1]
+            if text.endswith("```"):
+                text = text.rsplit("```", 1)[0]
+
+            decisions = json.loads(text)
+            if not isinstance(decisions, list):
+                raise ValueError("Grader output is not a JSON array")
+
+            # Index decisions by rubric index
+            idx_to_met = {}
+            for item in decisions:
+                try:
+                    idx = int(item.get("index"))
+                    met = bool(item.get("met", False))
+                    idx_to_met[idx] = met
+                except Exception:
+                    continue
+
+            total_points = 0.0
+            criteria_met_details = []
+            criteria_not_met_details = []
+
+            for i, r in enumerate(rubrics):
+                points = r.get('points', 0)
+                criterion = r.get('criterion', '')
+                met = idx_to_met.get(i, False)
+                if met:
+                    total_points += points
+                    criteria_met_details.append({"criterion": criterion, "points": points})
+                else:
+                    criteria_not_met_details.append({"criterion": criterion, "points": points})
+
+            raw_score = total_points / max_possible_score
+            final_score = max(0.0, min(1.0, raw_score))
+            match = final_score >= 0.5
+
+            explanation = (
+                f"HealthBench (OpenAI-style) Score: {final_score:.3f} "
+                f"({total_points:.1f} / {max_possible_score:.1f} points). "
+                f"Met {len(criteria_met_details)} criteria, missed {len(criteria_not_met_details)} criteria."
+            )
+
+            return {
+                "match": match,
+                "confidence": final_score,
+                "explanation": explanation,
+                "evaluator_type": "healthbench_openai",
+                "score": final_score,
+                "raw_score": raw_score,
+                "total_points": total_points,
+                "max_possible_points": max_possible_score,
+                "criteria_evaluated": len(rubrics),
+                "criteria_met": len(criteria_met_details),
+                "criteria_not_met": len(criteria_not_met_details),
+                "criteria_met_details": criteria_met_details,
+                "criteria_not_met_details": criteria_not_met_details
+            }
+
+        except Exception as e:
+            print(f"Error in HealthBenchOpenAI evaluation: {e}")
+            return {
+                "match": False,
+                "confidence": 0.0,
+                "explanation": f"Evaluation failed due to error: {str(e)}",
+                "evaluator_type": "healthbench_openai",
+                "score": 0.0,
+                "total_points": 0.0,
+                "max_possible_points": max_possible_score if 'max_possible_score' in locals() else 0.0,
+                "criteria_evaluated": len(rubrics) if 'rubrics' in locals() else 0
+            }
+
+
 def create_evaluator(evaluator_name: str) -> Evaluator:
     """
     Factory function to create evaluator instances.
@@ -531,6 +703,7 @@ def create_evaluator(evaluator_name: str) -> Evaluator:
         "exact": ExactMatchEvaluator,  # Alias
         "ticketworld": TicketWorldEvaluator,
         "healthbench": HealthBenchEvaluator,
+        "healthbench_openai": HealthBenchOpenAIEvaluator,
     }
     
     if evaluator_name not in evaluators:
@@ -542,4 +715,4 @@ def create_evaluator(evaluator_name: str) -> Evaluator:
 
 def list_available_evaluators() -> List[str]:
     """Return list of available evaluator names"""
-    return ["llm", "f1", "exact_match", "exact", "ticketworld", "healthbench"] 
+    return ["llm", "f1", "exact_match", "exact", "ticketworld", "healthbench", "healthbench_openai"] 

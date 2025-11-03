@@ -44,7 +44,7 @@ def main():
     parser.add_argument("--dataset", "-f", type=str, required=True,
                         help="Path to dataset file or directory")
     parser.add_argument("--loader", "-l", type=str, 
-                        choices=["arc", "json", "jsonl", "custom", "simpleqa", "natural_plan", "hotpotqa", "math", "gpqa", "medmcqa", "ticketworld", "ticketworld_simple"],
+                        choices=["arc", "json", "jsonl", "custom", "simpleqa", "natural_plan", "hotpotqa", "math", "gpqa", "medmcqa", "ticketworld", "ticketworld_simple", "healthbench"],
                         default="arc",
                         help="Type of dataset loader to use (default: arc)")
 

@@ -2154,7 +2154,7 @@ Format as valid JSON.
 class HealthBenchDatasetLoader(DatasetLoader):
     """Loader specifically for HealthBench medical conversation datasets with rubric-based evaluation"""
     
-    default_evaluator = "healthbench"
+    default_evaluator = "healthbench_openai" # healthbench
     required_tools = ["call_llm"]  # HealthBench only needs LLM calls
     tool_config = {}
 
@@ -2198,13 +2198,9 @@ class HealthBenchDatasetLoader(DatasetLoader):
                             elif role == "assistant":
                                 conversation_text += f"Assistant: {content}\n\n"
                         
-                        # The question is the full conversation context
-                        # For HealthBench, the task is to respond to the last user message
-                        formatted_question = f"""You are a helpful medical AI assistant. Below is a conversation with a user. Please respond to the user's most recent message.
-
-{conversation_text.strip()}
-
-Provide a helpful, accurate, and contextually appropriate response to the user's latest message."""
+                        # The question is the conversation content only (no extra instruction),
+                        # to align with OpenAI's reference which feeds messages directly.
+                        formatted_question = conversation_text.strip()
 
                         # Create standardized example with universal field names
                         examples.append({
