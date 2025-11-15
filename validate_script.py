@@ -72,7 +72,7 @@ def main():
     
     # Evaluator options
     parser.add_argument("--evaluator", "-ev", type=str, 
-                        choices=["llm", "f1", "exact_match", "exact", "ticketworld"],
+                        choices=["llm", "f1", "exact_match", "exact", "ticketworld", "healthbench", "healthbench_openai"],
                         help="Override the default evaluator for this dataset type")
 
     # LLM configuration options
@@ -225,8 +225,10 @@ def main():
                 if result["match"]:
                     matches += 1
                     print(f"    ✅ Match (confidence: {evaluation.get('confidence', 0):.2f})")
+                    print(f"    Evaluation: {evaluation.get('explanation', '')}")
                 else:
-                    print(f"    ❌ No match: {evaluation.get('explanation', '')}")
+                    print(f"    ❌ No match (confidence: {evaluation.get('confidence', 0):.2f})")
+                    print(f"    Evaluation: {evaluation.get('explanation', '')}")
                 print (f"    Total accuracy: {matches/total_examples:.2f}")
             else:
                 result["match"] = False

@@ -2198,15 +2198,26 @@ class HealthBenchDatasetLoader(DatasetLoader):
                             elif role == "assistant":
                                 conversation_text += f"Assistant: {content}\n\n"
                         
-                        # The question is the conversation content only (no extra instruction),
-                        # to align with OpenAI's reference which feeds messages directly.
-                        formatted_question = conversation_text.strip()
+                        # Add a minimal instruction to reduce refusals and language drift
+                        instruction_text = (
+                            "You are a helpful medical AI assistant. "
+                            "Provide a helpful, accurate, and contextually appropriate response "
+                            "to the user's most recent message. Answer in English."
+                        )
+                        formatted_question = f"{instruction_text}\n\n{conversation_text.strip()}"
 
                         # Create standardized example with universal field names
+                        # Populate "answer" with the rubric JSON so downstream analysis has a
+                        # meaningful expected answer signal (while evaluation remains rubric-based)
+                        rubric_answer_json = json.dumps({"rubrics": rubrics}, indent=2)
+                        rubric_answer = (
+                            "The ideal answer should adhere to the following rubric:\n\n"
+                            f"{rubric_answer_json}"
+                        )
                         examples.append({
                             "id": prompt_id,
                             "question": formatted_question,  # Standard field: "question"
-                            "answer": "",  # No reference answer - evaluation is rubric-based
+                            "answer": rubric_answer,  # Provide rubrics as expected answer for analysis
                             "meta": {
                                 "source": "HealthBench",
                                 "line_number": line_num,
